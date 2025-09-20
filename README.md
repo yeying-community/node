@@ -1,4 +1,8 @@
-# yeying-node-openapi
+# yeying-community-node
+
+# 镜像打包
+    docker build -t yeying-community-node:<tag> .
+    # 这里的tag需要与docker-compose.yml中的tag保持一致
 
 # 本地部署
 
@@ -16,6 +20,11 @@
     bash deploy.sh
     ```
 
+# 如果遇到 data 目录无法访问
+
+    ```shell
+    sudo chown -R 1001:1001 ./data
+    ```
 
 # 生产环境部署： 走 docker-compose 部署
 

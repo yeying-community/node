@@ -2,10 +2,11 @@ version: '3'
 services:
   yeying-node:
     build: .
+    image: yeying-community-node:0.0.1
     env_file:
       - .env
     restart: always
-    container_name: yeying-node
+    container_name: yeying-community-node
     ports:
       - 8080:8080
     volumes:
