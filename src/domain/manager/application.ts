@@ -26,7 +26,7 @@ export class ApplicationManager {
 
     async queryByCondition(condition: SearchCondition, page: number, pageSize: number) {
         let completeCondition: object[] = [];
-        if (condition.keyword) {
+        if (condition.keyword && condition.keyword !== '') {
             const safeKeyword = condition.keyword.replace(/([%_])/g, "\\$1");
             completeCondition.push({name: Like(`%${safeKeyword}%`), isOnline: true})
             completeCondition.push({owner: Like(`%${safeKeyword}%`), isOnline: true})

@@ -1,5 +1,5 @@
 import { ResponsePage } from "../../yeying/api/common/message"
-import { AuditDO } from "../mapper/entity"
+import { AuditDO, CommentDO } from "../mapper/entity"
 
 
 export interface PageResult {
@@ -16,6 +16,7 @@ export interface Audit {
     createdAt: string
     updatedAt: string
     signature: string
+    commonsMetadatas?: CommentDO[]
 }
 
 export function convertAuditDOFrom(meta: Audit): AuditDO {
@@ -31,17 +32,32 @@ export function convertAuditDOFrom(meta: Audit): AuditDO {
     }
 }
 
-export function convertAuditMetadataTo(auditDO: AuditDO) {
-    return {
-        uid: auditDO.uid,
-        appOrServiceMetadata: auditDO.appOrServiceMetadata,
-        applicant: auditDO.applicant,
-        approver: auditDO.approver,
-        reason: auditDO.reason,
-        createdAt: auditDO.createdAt.toISOString(),
-        updatedAt: auditDO.updatedAt.toISOString(),
-        signature: auditDO.signature
+export function convertAuditMetadataTo(auditDO: AuditDO, userAges?: Map<string, CommentDO[]>) {
+    if (userAges === undefined || userAges === null) {
+        return {
+            uid: auditDO.uid,
+            appOrServiceMetadata: auditDO.appOrServiceMetadata,
+            applicant: auditDO.applicant,
+            approver: auditDO.approver,
+            reason: auditDO.reason,
+            createdAt: auditDO.createdAt.toISOString(),
+            updatedAt: auditDO.updatedAt.toISOString(),
+            signature: auditDO.signature
+        }
+    } else {
+        return {
+            uid: auditDO.uid,
+            appOrServiceMetadata: auditDO.appOrServiceMetadata,
+            applicant: auditDO.applicant,
+            approver: auditDO.approver,
+            reason: auditDO.reason,
+            createdAt: auditDO.createdAt.toISOString(),
+            updatedAt: auditDO.updatedAt.toISOString(),
+            signature: auditDO.signature,
+            commonsMetadatas: userAges.get(auditDO.uid)
+        }
     }
+
 }
 
 export interface QueryCondition {

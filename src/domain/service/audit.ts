@@ -23,11 +23,11 @@ export class AuditService {
         if (auditDO === undefined || auditDO === null) {
             throw new Error("auditDO is undefined")
         }
-        const metadata = convertAuditMetadataTo(auditDO)
+        const metadata = convertAuditMetadataTo(auditDO, undefined)
         const comments = await this.commentManager.queryByAuditId(id)
 
         return AuditDetail.create({
-            meta: metadata,
+            meta: metadata as AuditMetadata,
             commentMeta: comments.map(item => convertCommentMetadata(item))
         })
     }
@@ -44,15 +44,29 @@ export class AuditService {
         if (auditDO === undefined || auditDO === null) {
             throw new Error("auditDO is undefined")
         }
-        return convertAuditMetadataTo(auditDO)
+        const userAges = new Map<string, CommentDO[]>();
+        const comments = await this.commentManager.queryByAuditId(auditDO.uid)
+        userAges.set(auditDO.uid, comments);
+        return convertAuditMetadataTo(auditDO, userAges)
     }
 
     async queryByCondition(queryCondition: QueryCondition): Promise<PageResult> {
         const result = await this.auditManager.queryByCondition(
             queryCondition.approver, queryCondition.applicant, queryCondition.name, queryCondition.startTime, queryCondition.endTime, queryCondition.page, queryCondition.pageSize
         )
+        
+        const uids = result.data.map((u) => u.uid)
+        const userAges = new Map<string, CommentDO[]>();
+
+        for (const id of uids) {
+            const comments = await this.commentManager.queryByAuditId(id)
+            userAges.set(id, comments);
+        }
         return {
-            data: result.data.map((s) => convertAuditMetadataTo(s)),
+            data: result.data.map((s) => {
+                const r = convertAuditMetadataTo(s, userAges)
+                return r
+            }),
             page: result.page
         }
     }

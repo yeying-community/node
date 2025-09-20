@@ -1,6 +1,7 @@
 import { Authenticate } from "../../common/authenticate";
-import { AuditDO } from "../../domain/mapper/entity";
+import { AuditDO, CommentDO } from "../../domain/mapper/entity";
 import { Audit, PageResult } from "../../domain/model/audit";
+import { convertCommentStatusFrom } from "../../domain/model/comments";
 import { AuditApproveResponse, AuditApproveResponseBody, AuditCancelResponse, AuditCancelResponseBody, AuditCreateResponse, AuditCreateResponseBody, AuditDetail, AuditDetailResponse, AuditDetailResponseBody, AuditMetadata, AuditRejectResponse, AuditRejectResponseBody, AuditSearchResponse, AuditSearchResponseBody, CommentMetadata} from "../../yeying/api/audit/audit";
 import { ResponseStatus } from "../../yeying/api/common/message";
 
@@ -49,13 +50,26 @@ export function convertAuditMetadataFrom(audit: AuditMetadata): AuditDO {
     }
 }
 
+export function convertCommentMeta(c: CommentDO) {
+    return {
+        uid: c.uid,
+        auditId: c.auditId,
+        text: c.text,
+        status: convertCommentStatusFrom(c.status),
+        createdAt: c.createdAt,
+        updatedAt: c.updatedAt,
+        signature: c.signature
+    } as CommentMetadata
+}
+
 
 export async function createAuditSearchResponse(authenticate: Authenticate, status: ResponseStatus, result?: PageResult) {
     const body = AuditSearchResponseBody.create({
         status: status,
         detail: result?.data.map(item => {
             return AuditDetail.create({
-                meta: item
+                meta: convertAuditMetadataTo(item),
+                commentMeta: item.commonsMetadatas?.map((s) => convertCommentMeta(s))
             })
         }),
         page: result?.page

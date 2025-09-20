@@ -78,6 +78,7 @@ export function convertApplicationTo(application: Application): ApplicationDO {
     applicationDO.updatedAt = application.updatedAt
     applicationDO.signature = application.signature
     applicationDO.codePackagePath = application.codePackagePath
+    applicationDO.isOnline = true
     return applicationDO
 }
 
