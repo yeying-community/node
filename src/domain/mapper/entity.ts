@@ -63,6 +63,9 @@ export class ServiceDO {
     @Column({ length: 128 })
     owner!: string
 
+    @Column({ length: 128 , default: null, name: 'owner_name'})
+    ownerName!: string
+
     @Column({ length: 64 })
     network!: string
 
@@ -117,6 +120,9 @@ export class ApplicationDO {
 
     @Column({ length: 128 })
     owner!: string
+
+    @Column({ length: 128 , default: null, name: 'owner_name'})
+    ownerName!: string
 
     @Column({ length: 64 })
     network!: string

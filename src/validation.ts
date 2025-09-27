@@ -12890,7 +12890,7 @@ export function enumApiCommonApplicationCodeEnumToResponse(name: string, value: 
 	throw `Unexpected enum value for Api.CommonApplicationCodeEnum: ${value}`
 }
 
-const ApiCommonApplicationMetadataKeys: string[] = ['owner', 'network', 'address', 'did', 'version', 'hash', 'name', 'code', 'description', 'location', 'serviceCodes', 'avatar', 'createdAt', 'updatedAt', 'signature', 'codePackagePath']
+const ApiCommonApplicationMetadataKeys: string[] = ['owner', 'network', 'address', 'did', 'version', 'hash', 'name', 'code', 'description', 'location', 'serviceCodes', 'avatar', 'createdAt', 'updatedAt', 'signature', 'codePackagePath', 'ownerName']
 
 function modelApiCommonApplicationMetadataFromRequestContent(name: string, value: any, knownKeys: Record<string, boolean> = {}): Api.CommonApplicationMetadata {
 	if (typeof value !== 'object' || value === undefined || value === null) {
@@ -12916,6 +12916,7 @@ function modelApiCommonApplicationMetadataFromRequestContent(name: string, value
 		'updatedAt': allowUndefined(stringFromRequest)(`${name}.updatedAt`, value['updatedAt']),
 		'signature': allowUndefined(stringFromRequest)(`${name}.signature`, value['signature']),
 		'codePackagePath': allowUndefined(stringFromRequest)(`${name}.codePackagePath`, value['codePackagePath']),
+		'ownerName': allowUndefined(stringFromRequest)(`${name}.ownerName`, value['ownerName']),
 	}
 
 	return result
@@ -12945,6 +12946,7 @@ function modelApiCommonApplicationMetadataToResponseContent(name: string, value:
 		'updatedAt': allowUndefined(stringToResponse)(`${name}.updatedAt`, value['updatedAt']),
 		'signature': allowUndefined(stringToResponse)(`${name}.signature`, value['signature']),
 		'codePackagePath': allowUndefined(stringToResponse)(`${name}.codePackagePath`, value['codePackagePath']),
+		'ownerName': allowUndefined(stringToResponse)(`${name}.ownerName`, value['ownerName']),
 	}
 
 	return result
@@ -13680,7 +13682,7 @@ export function enumApiCommonServiceCodeEnumToResponse(name: string, value: Api.
 	throw `Unexpected enum value for Api.CommonServiceCodeEnum: ${value}`
 }
 
-const ApiCommonServiceMetadataKeys: string[] = ['owner', 'network', 'address', 'did', 'version', 'name', 'description', 'code', 'apiCodes', 'proxy', 'grpc', 'avatar', 'createdAt', 'updatedAt', 'signature', 'codePackagePath']
+const ApiCommonServiceMetadataKeys: string[] = ['owner', 'network', 'address', 'did', 'version', 'name', 'description', 'code', 'apiCodes', 'proxy', 'grpc', 'avatar', 'createdAt', 'updatedAt', 'signature', 'codePackagePath', 'ownerName']
 
 function modelApiCommonServiceMetadataFromRequestContent(name: string, value: any, knownKeys: Record<string, boolean> = {}): Api.CommonServiceMetadata {
 	if (typeof value !== 'object' || value === undefined || value === null) {
@@ -13706,6 +13708,7 @@ function modelApiCommonServiceMetadataFromRequestContent(name: string, value: an
 		'updatedAt': allowUndefined(stringFromRequest)(`${name}.updatedAt`, value['updatedAt']),
 		'signature': allowUndefined(stringFromRequest)(`${name}.signature`, value['signature']),
 		'codePackagePath': allowUndefined(stringFromRequest)(`${name}.codePackagePath`, value['codePackagePath']),
+		'ownerName': allowUndefined(stringFromRequest)(`${name}.ownerName`, value['ownerName']),
 	}
 
 	return result
@@ -13735,6 +13738,7 @@ function modelApiCommonServiceMetadataToResponseContent(name: string, value: Api
 		'updatedAt': allowUndefined(stringToResponse)(`${name}.updatedAt`, value['updatedAt']),
 		'signature': allowUndefined(stringToResponse)(`${name}.signature`, value['signature']),
 		'codePackagePath': allowUndefined(stringToResponse)(`${name}.codePackagePath`, value['codePackagePath']),
+		'ownerName': allowUndefined(stringToResponse)(`${name}.ownerName`, value['ownerName']),
 	}
 
 	return result

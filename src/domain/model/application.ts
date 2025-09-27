@@ -17,6 +17,7 @@ export interface PageResult {
 
 export interface Application {
     owner: string
+    ownerName: string
     network: string
     address: string
     did: string
@@ -38,6 +39,7 @@ export function convertToApplication(metadata: Api.CommonApplicationMetadata): A
   // 检查必要字段，或提供默认值
   return {
     owner: metadata.owner ?? '',
+    ownerName: metadata.ownerName ?? '',
     network: metadata.network ?? '',
     address: metadata.address ?? '',
     did: metadata.did ?? '',
@@ -63,6 +65,7 @@ export function convertApplicationTo(application: Application): ApplicationDO {
 
     const applicationDO = new ApplicationDO()
     applicationDO.owner = application.owner
+    applicationDO.ownerName = application.ownerName
     applicationDO.network = application.network
     applicationDO.address = application.address
     applicationDO.did = application.did
@@ -86,6 +89,7 @@ export function convertApplicationFrom(applicationDO?: ApplicationDO | null | un
     if (applicationDO === null || applicationDO === undefined) {
         return {
             owner: '',
+            ownerName: '',
             network: '',
             address: '',
             did: '',
@@ -105,6 +109,7 @@ export function convertApplicationFrom(applicationDO?: ApplicationDO | null | un
     }
     return {
         owner: applicationDO.owner,
+        ownerName: applicationDO.ownerName,
         network: applicationDO.network,
         address: applicationDO.address,
         did: applicationDO.did,

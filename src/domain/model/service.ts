@@ -18,6 +18,7 @@ export interface Service {
     did: string
     version: number
     owner: string
+    ownerName: string
     network: string
     address: string
     name: string
@@ -40,6 +41,7 @@ export function convertServiceTo(service: Partial<Service>): ServiceDO {
     }
     serviceDO.did = service.did!
     serviceDO.owner = service.owner!
+    serviceDO.ownerName = service.ownerName!
     serviceDO.network = service.network!
     serviceDO.address = service.address!
     serviceDO.version = service.version!
@@ -62,6 +64,7 @@ export function convertServiceFrom(serviceDO: ServiceDO): Service {
     return {
         did: serviceDO.did,
         owner: serviceDO.owner,
+        ownerName: serviceDO.ownerName,
         network: serviceDO.network,
         address: serviceDO.address,
         version: serviceDO.version,

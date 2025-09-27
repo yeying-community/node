@@ -59,6 +59,7 @@ export function convertServiceMetadataTo(metadata: ServiceMetadata): Service {
     return {
         network: metadata.network,
         owner: metadata.owner,
+        ownerName: metadata.name,
         address: metadata.address,
         name: metadata.name,
         description: metadata.description,

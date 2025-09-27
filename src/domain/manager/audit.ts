@@ -4,7 +4,7 @@ import { SingletonDataSource } from '../facade/datasource'
 import { ResponsePage } from '../../yeying/api/common/message'
 import { ApplicationManager } from './application'
 import { ServiceManager } from './service'
-import { Like } from 'typeorm'
+import { LessThanOrEqual, Like, MoreThanOrEqual } from 'typeorm'
 
 export class AuditManager {
     private repository: Repository<AuditDO>
@@ -26,25 +26,34 @@ export class AuditManager {
     }
 
     async queryByCondition(approver: string|null|undefined, applicant: string|null|undefined, name: string|null|undefined, startTime: string|null|undefined, endTime: string|null|undefined, page: number, pageSize: number) {
-        let completeCondition: object[] = [];
-        const condition = new SearchCondition()
-        if (approver) {
-            condition.approver = approver
+        const completeCondition: any = {};
+
+        if (approver !== undefined && approver !== ``) {
+            completeCondition.approver = approver;
         }
-        if (applicant) {
-            condition.applicant = applicant
+        if (applicant !== undefined && applicant !== ``) {
+            completeCondition.applicant = applicant;
         }
 
-        if (startTime) {
-            condition.startTime = new Date(startTime)
+        if (name !== undefined && name !== ``) {
+            completeCondition.appOrServiceMetadata = Like(`%"name":"${name}"%`);
         }
-        if (endTime) {
-            condition.endTime = new Date(endTime)
+
+        // 如果开始时间存在，添加 >= 条件
+        if (startTime !== undefined && startTime !== ``) {
+            completeCondition.createAt = MoreThanOrEqual(startTime); // startTime 可以是 Date 或字符串
         }
-        completeCondition.push(condition)
-        if (name) {
-            completeCondition.push({appOrServiceMetadata: Like(`%"name":"${name}"%`)})
+
+        // 如果结束时间存在，添加 <= 条件
+        if (endTime !== undefined && endTime !== ``) {
+            // 如果 where.createAt 已存在（即 startTime 也存在），则合并条件
+            if (completeCondition.createAt) {
+                completeCondition.createAt = [completeCondition.createAt, LessThanOrEqual(endTime)];
+            } else {
+                completeCondition.createAt = LessThanOrEqual(endTime);
+            }
         }
+
         console.log(`completeCondition=${JSON.stringify(completeCondition)}`)
         const [audits, total] =  await this.repository.findAndCount({
             where: completeCondition,

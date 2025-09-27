@@ -1241,6 +1241,7 @@ export namespace Api {
 		updatedAt?: string;
 		signature?: string;
 		codePackagePath?: string;
+		ownerName?: string;
 	}
 
 	/**
@@ -1552,6 +1553,7 @@ export namespace Api {
 		updatedAt?: string;
 		signature?: string;
 		codePackagePath?: string;
+		ownerName?: string;
 	}
 
 	export interface ConfigConfigMetadata {

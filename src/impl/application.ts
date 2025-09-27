@@ -246,6 +246,8 @@ async function applicationSearch(request: Api.ApplicationSearchApplicationReques
 		}
 
         const searchApplication = await applicationService.search(convertToSearchCondition(condition), pageIndex, pageSize);
+		const appList = searchApplication.data.map((data) => applicationToMetadata(data))
+		console.log(`searchApplication=${JSON.stringify(appList)}`)
         
         // 返回 200 响应
         return {
@@ -256,7 +258,7 @@ async function applicationSearch(request: Api.ApplicationSearchApplicationReques
 					status: {
 						code: Api.CommonResponseCodeEnum.OK
 					},
-					applications: searchApplication.data.map((data) => applicationToMetadata(data))
+					applications: appList
 				}
 			}
         };
@@ -308,6 +310,7 @@ function applicationToMetadata(app: Application): Api.CommonApplicationMetadata 
     updatedAt: app.updatedAt,
     signature: app.signature,
     codePackagePath: app.codePackagePath,
+	ownerName: app.ownerName,
   };
 }
 

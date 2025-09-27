@@ -221,6 +221,7 @@ export default function(app: Express, impl: t.ApplicationApi) {
 				}
 
 				impl.applicationSearch(__body()).then(function (response) {
+					console.log(`response=${JSON.stringify(response)}`)
 					if (response.status === 200) {
 						let body: any
 						try {
