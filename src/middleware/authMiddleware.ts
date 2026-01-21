@@ -1,38 +1,67 @@
-import { Request, Response, NextFunction } from 'express';
-import jwt from 'jsonwebtoken';
-import { SingletonLogger } from '../domain/facade/logger';
-import { Logger } from 'winston'
+import { NextFunction, Request, Response } from 'express';
+import { fail } from '../auth/envelope';
+import { verifyAccessToken } from '../auth/siwe';
+import { isUcanToken, verifyUcanInvocation } from '../auth/ucan';
 
-// 豁免路径列表（不需要鉴权的接口）
-const PUBLIC_ROUTES = ['/v1/auth/challenge', '/v1/auth/verify'];
-interface JwtPayload {
+const PUBLIC_ROUTES = [
+  '/v1/public/auth/challenge',
+  '/v1/public/auth/verify',
+  '/v1/public/auth/refresh',
+  '/v1/public/auth/logout',
+  '/v1/node/healthCheck',
+];
+
+type AuthUser = {
   address: string;
-}
+  issuer?: string;
+  authType: 'jwt' | 'ucan';
+};
 
 const authenticateToken = (req: Request, res: Response, next: NextFunction) => {
-  const logger: Logger = SingletonLogger.get()
-  // 检查是否是豁免路径
-  if (PUBLIC_ROUTES.includes(req.path)) {
-    return next(); 
+  if (req.method === 'OPTIONS') {
+    return next();
   }
-  // 从请求头中获取 token
-  const authHeader = req.headers['authorization'];
-  const token = authHeader && authHeader.split(' ')[1]; // 格式：Bearer <token>
+
+  if (PUBLIC_ROUTES.includes(req.path) || req.path.startsWith('/v1/public/auth/')) {
+    return next();
+  }
+
+  const authHeader = req.headers.authorization || '';
+  const [scheme, rawToken] = authHeader.split(' ');
+  const token = scheme?.toLowerCase() === 'bearer' ? rawToken : authHeader;
 
   if (!token) {
-    return res.status(401).json({ message: 'Access token missing, Please connect your wallet to obtain a token' });
+    res.status(401).json(fail(401, 'Missing access token'));
+    return;
   }
 
-  // 验证 JWT
-  jwt.verify(token, process.env.JWT_SECRET || 'e802e988a02546cc47415e4bc76346aae7ceece97a0f950319c861a5de38b20d', (err, payload) => {
-    if (err) {
-      return res.status(403).json({ message: 'Invalid or expired token, Please connect your wallet to retrieve the token again' });
+  if (isUcanToken(token)) {
+    try {
+      const result = verifyUcanInvocation(token);
+      (req as Request & { user?: AuthUser }).user = {
+        address: result.address,
+        issuer: result.issuer,
+        authType: 'ucan',
+      };
+      return next();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Invalid UCAN token';
+      res.status(401).json(fail(401, message));
+      return;
     }
+  }
 
-    // 将用户信息附加到请求对象上，供后续处理函数使用
-    req.user = payload as JwtPayload;
-    next(); // 继续执行后续路由处理
-  });
+  const payload = verifyAccessToken(token);
+  if (!payload) {
+    res.status(401).json(fail(401, 'Invalid or expired access token'));
+    return;
+  }
+
+  (req as Request & { user?: AuthUser }).user = {
+    address: payload.address,
+    authType: 'jwt',
+  };
+  next();
 };
 
 export default authenticateToken;

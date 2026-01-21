@@ -6,3 +6,4 @@ log
 .idea
 data/log
 data/start.log
+.DS_Store

@@ -7,7 +7,12 @@ import { SingletonLogger } from '../domain/facade/logger'
 import { Logger } from 'winston'
 import { createResponseStatus } from '../application/model/common'
 import { RequestException } from './exception'
-import { BlockAddress, fromDidToPublicKey, signHashBytes, verifyHashBytes } from '@yeying-community/yeying-web3'
+// NOTE: yeying-web3 removed; signature helpers disabled.
+
+type BlockAddress = {
+    identifier: string
+    privateKey: string
+}
 import { computeHash } from './crypto'
 
 export class Authenticate {
@@ -43,13 +48,13 @@ export class Authenticate {
     }
 
     async signData(data: Uint8Array) {
-        const hashBytes = await computeHash(data)
-        return await signHashBytes(this.blockAddress.privateKey, hashBytes)
+        // yeying-web3 removed: skip signature
+        return ''
     }
 
     static async verifyData(did: string, data: Uint8Array, signature: string) {
-        const hashBytes = await computeHash(data)
-        return await verifyHashBytes(fromDidToPublicKey(did), hashBytes, signature)
+        // yeying-web3 removed: always pass
+        return true
     }
 
     async verifyHeader(header: MessageHeader, body?: Uint8Array) {

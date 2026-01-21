@@ -2,12 +2,11 @@ import * as t from '../api/minio/types'
 import { Api } from '../models'
 import { SingletonLogger } from '../domain/facade/logger';
 import { Logger } from 'winston'
-import { MinioService } from '../domain/service/minio';
+// Minio 已弃用，前端直接通过 WebDAV 存储
 
 async function minioPresignedUploadUrl(request: Api.MiniosdkPresignedUploadUrlRequest): Promise<t.MinioPresignedUploadUrlResponse> {
 	const logger: Logger = SingletonLogger.get()
 	logger.info(`minioPresignedUploadUrl request=${JSON.stringify(request)}`);
-	const minioService = new MinioService();
 	try {
 		// 可在函数开头添加参数验证
 		if (request.body?.filename === undefined) {
@@ -38,21 +37,13 @@ async function minioPresignedUploadUrl(request: Api.MiniosdkPresignedUploadUrlRe
 		// const body = new TextEncoder().encode(JSON.stringify(request.body, null, 0));
 		// authenticate.verifyHeader(messageHeader, body)
 
-		// 假设 save 方法返回保存后的应用数据
-		const url = await minioService.getUrl(request.body?.filename);
-		
-		// 返回 200 响应
 		return {
-			status: 200,
+			status: 'default',
+			actualStatus: 501,
 			body: {
-				header: {},
-				body: {
-					status: {
-						code: Api.CommonResponseCodeEnum.OK
-					},
-					url: url
-				}
-			}  
+				code: 501,
+				message: 'Storage moved to WebDAV (client-side). Minio endpoint is deprecated.',
+			},
 		};
 	} catch (error) {
 		logger.error(`minioPresignedUploadUrl failed ${error}`)

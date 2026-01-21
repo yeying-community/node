@@ -17,7 +17,6 @@ import * as archive from './api/archive/types'
 import * as asset from './api/asset/types'
 import * as assignment from './api/assignment/types'
 import * as audit from './api/audit/types'
-import * as auth from './api/auth/types'
 import * as block from './api/block/types'
 import * as bulletin from './api/bulletin/types'
 import * as certificate from './api/certificate/types'
@@ -62,7 +61,6 @@ export interface ApiImplementation {
 	asset: asset.AssetApi
 	assignment: assignment.AssignmentApi
 	audit: audit.AuditApi
-	auth: auth.AuthApi
 	block: block.BlockApi
 	bulletin: bulletin.BulletinApi
 	certificate: certificate.CertificateApi

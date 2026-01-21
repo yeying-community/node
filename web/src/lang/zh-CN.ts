@@ -1,0 +1,22 @@
+export default {
+    name: 'china',
+    h_shop: '应用商店',
+    h_solution: '解决方案',
+    h_doc: '文档',
+    h_blog: '博客',
+    h_about: '关于我们',
+    h_top: 'YeYing',
+    btn_search: '搜索',
+    btn_reg: 'Register',
+    btn_apply: 'Apply',
+    btn_contact: 'Contact Us',
+    btn_start: 'Get Started for Free',
+    btn_ok: '确 定',
+    btn_cancel: '取 消',
+    ph_search: '请输入搜索关键字',
+    ph_input: '请输入',
+    ph_select: '请选择',
+    f_c_email: '邮箱',
+    f_c_type: '问题类型',
+    f_c_desc: '描述'
+}

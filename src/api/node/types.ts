@@ -17,7 +17,6 @@ import { Api } from '../../models'
 
 export interface NodeApi {
 	nodeHealthCheck: (request: Api.NodeHealthCheckRequest) => Promise<NodeHealthCheckResponse>
-	nodeWhoami: (request: Api.NodeWhoamiRequest) => Promise<NodeWhoamiResponse>
 }
 
 export type NodeHealthCheckResponse = NodeHealthCheck200Response | NodeHealthCheckDefaultResponse
@@ -35,20 +34,3 @@ export interface NodeHealthCheckDefaultResponse {
 	body: Api.RpcStatus
 	headers?: never
 }
-
-export type NodeWhoamiResponse = NodeWhoami200Response | NodeWhoamiDefaultResponse
-
-export interface NodeWhoami200Response {
-	status: 200
-	body: Api.NodeWhoamiResponse
-	headers?: never
-}
-
-export interface NodeWhoamiDefaultResponse {
-	/* Catch-all response */
-	status: 'default'
-	actualStatus: number
-	body: Api.RpcStatus
-	headers?: never
-}
-

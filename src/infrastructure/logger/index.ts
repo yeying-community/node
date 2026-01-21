@@ -1,5 +1,7 @@
 import { createLogger, format, transports } from 'winston'
 import DailyRotateFile from 'winston-daily-rotate-file'  // 直接导入 DailyRotateFile
+import { existsSync, mkdirSync } from 'fs'
+import path from 'path'
 import { TransformableInfo } from 'logform'
 import { SingletonLogger } from '../../domain/facade/logger'
 
@@ -33,8 +35,15 @@ export class LoggerService {
         const transportList = []
 
         if (this.config.file) {
+            const fileConfig = { ...this.config.file }
+            if (!fileConfig.dirname) {
+                fileConfig.dirname = path.join(process.cwd(), 'logs')
+            }
+            if (!existsSync(fileConfig.dirname)) {
+                mkdirSync(fileConfig.dirname, { recursive: true })
+            }
             // 使用直接导入的 DailyRotateFile
-            transportList.push(new DailyRotateFile({ ...this.config.file }))
+            transportList.push(new DailyRotateFile(fileConfig))
         } else {
             transportList.push(new transports.Console())
         }

@@ -28,14 +28,7 @@
     "validity": 180
   },
   "logger": {
-    "level": "info",
-    "file": {
-      "filename": "node.%DATE%.log",
-      "dirname": "/mount/log",
-      "datePattern": "YYYY-MM-DD",
-      "maxSize": "100m",
-      "maxFiles": "90d"
-    }
+    "level": "info"
   },
   "cache": {
     "type": "redis",
