@@ -70,7 +70,7 @@ if [ "${env}" == "dev" ]; then
   fi
 
   if [ -z "${grpc_port}" ]; then
-    grpc_port=8080
+    grpc_port=8001
   fi
   envoy_parameter="-l info"
 elif [ "${env}" == "prod" ]; then
@@ -79,7 +79,7 @@ elif [ "${env}" == "prod" ]; then
   fi
 
   if [ -z "${grpc_port}" ]; then
-    grpc_port=8080
+    grpc_port=8001
   fi
 else
   echo -e "${COLOR_RED}Not supported environment variable, please set dev or prod!${COLOR_NC}"
@@ -101,10 +101,8 @@ cert_dir=${run_dir}/cert
 
 src_conf_dir=${work_dir}/config
 
-identity_file=data/node.id
 des_conf_dir=${run_dir}/config
 des_log_dir=${run_dir}/log
-password_file=${run_dir}/password
 
 if [ ! -d "${run_dir}" ]; then
   mkdir -p "${run_dir}"
@@ -161,25 +159,12 @@ python3 "${python_script}" "${src_conf_dir}/${envoy_config}" "${des_conf_dir}/en
 # 设置配置文件路径
 export NODE_CONFIG_DIR="${des_conf_dir}"
 
-# check and create genesis,node,portal identity
-if [ ! -f "${identity_file}" ]; then
-  echo -e "Create ${COLOR_BLUE}node${COLOR_NC} identity:"
-  bash "${work_dir}"/script/identity.sh -c create -t "${work_dir}"/run/template/service/node.json -o "${identity_file}"
-  if [ ! -f "${identity_file}" ]; then
-    echo -e "${COLOR_RED}Fail to create node service identity! ${COLOR_NC}"
-    exit 1
-  fi
-fi
-
 cd "${run_dir}" || exit 1
-
-read -r -s -p "Enter Password: " IDENTITY_PASSWORD
-# 将密码写入文件，macos不支持echo命令的-n选项，为了避免写入文件存在换行符，使用printf替代。
-printf "%s" "${IDENTITY_PASSWORD}" > "${password_file}"
-printf "\n"
 
 index=$((index+1))
 echo -e "step $index -- start node service"
+export APP_PORT="${grpc_port}"
+
 # start store service
 if [ "$skip" = true ]; then
   echo -e "Skip compile stage."
@@ -187,7 +172,7 @@ else
   npm run build
 fi
 
-nohup node "${work_dir}/dist/server.js" "${password_file}" "${grpc_port}" > "${des_log_dir}/start.log" 2>&1 &
+nohup node "${work_dir}/dist/server.js" > "${des_log_dir}/start.log" 2>&1 &
 echo $! >> "${pid_file}"
 
 index=$((index+1))
@@ -199,13 +184,8 @@ else
   echo -e "${COLOR_RED}grpc of node Not started yet. ${COLOR_NC}"
 fi
 
-# if [ -f "${password_file}" ]; then
-#   rm -rf "${password_file}"
-# fi
-
 echo $! >> "${pid_file}"
 
 echo "node startup operation finished. [$(date)]"
 
 set +x
-

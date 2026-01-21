@@ -1,7 +1,9 @@
 import {ApplicationCodeEnum, ApplicationStatusEnum, ServiceCodeEnum} from '../../yeying/api/common/code'
 import { Application, PageResult } from '../../domain/model/application'
 import {ApplicationMetadata} from '../../yeying/api/common/model'
-import {Identity, NetworkTypeEnum, signData} from "@yeying-community/yeying-web3";
+// NOTE: yeying-web3 removed; identity helpers disabled here.
+type Identity = any
+const NetworkTypeEnum: Record<string, string> = {}
 import {Authenticate} from "../../common/authenticate";
 import { ApplicationDetailResponse, ApplicationDetailResponseBody, CreateApplicationResponse, CreateApplicationResponseBody, DeleteApplicationResponse, DeleteApplicationResponseBody, SearchApplicationResponse, SearchApplicationResponseBody } from '../../yeying/api/application/application';
 import { ResponseStatus } from '../../yeying/api/common/message';
@@ -79,9 +81,12 @@ export function convertApplicationMetadataTo(application: ApplicationMetadata): 
 export function convertApplicationMetadataFromIdentity(identity: Identity) {
     const metadata = identity.metadata
     const extend = identity.applicationExtend
-
+    const network =
+        (NetworkTypeEnum as Record<string, string>)[
+            metadata.network as keyof typeof NetworkTypeEnum
+        ] || metadata.network
     return ApplicationMetadata.create({
-        network: NetworkTypeEnum[metadata.network],
+        network: network,
         owner: metadata.parent,
         address: metadata.address,
         name: metadata.name,
@@ -113,8 +118,8 @@ export async function verifyApplicationMetadata(metadata: ApplicationMetadata) {
 }
 
 export async function signApplicationMetadata(privateKey: string, metadata: ApplicationMetadata) {
-    metadata.signature = ''
-    metadata.signature = await signData(privateKey, ApplicationMetadata.encode(metadata).finish())
+    // yeying-web3 removed: skip signing
+    metadata.signature = metadata.signature || ''
     return metadata
 }
 

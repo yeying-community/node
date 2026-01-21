@@ -1,6 +1,8 @@
 import { SearchCondition, Service } from '../../domain/model/service'
 import { ApiCodeEnum, ServiceCodeEnum } from '../../yeying/api/common/code'
-import { Identity, NetworkTypeEnum, signData } from '@yeying-community/yeying-web3'
+// NOTE: yeying-web3 removed; identity helpers disabled here.
+type Identity = any
+const NetworkTypeEnum: Record<string, string> = {}
 import { CreateServiceResponse, CreateServiceResponseBody, DeleteServiceResponse, DeleteServiceResponseBody, DetailServiceResponse, DetailServiceResponseBody, SearchServiceCondition, SearchServiceResponse, SearchServiceResponseBody } from '../../yeying/api/service/service'
 import { ServiceMetadata } from '../../yeying/api/common/model'
 import { Authenticate } from '../../common/authenticate'
@@ -87,8 +89,12 @@ export function convertServiceMetadataFromIdentity(identity: Identity) {
     if (extend === undefined) {
         throw new Error("extend is undefined")
     }
+    const network =
+        (NetworkTypeEnum as Record<string, string>)[
+            metadata.network as keyof typeof NetworkTypeEnum
+        ] || metadata.network
     return ServiceMetadata.create({
-        network: NetworkTypeEnum[metadata.network],
+        network: network,
         owner: metadata.parent,
         address: metadata.address,
         name: metadata.name,
@@ -96,7 +102,10 @@ export function convertServiceMetadataFromIdentity(identity: Identity) {
         did: metadata.did,
         version: metadata.version,
         code: ServiceCodeEnum[extend.code as keyof typeof ServiceCodeEnum],
-        apiCodes: extend.apiCodes.split(',').map((a) => ApiCodeEnum[a as keyof typeof ApiCodeEnum]),
+        apiCodes: String(extend.apiCodes || '')
+            .split(',')
+            .filter(Boolean)
+            .map((a: string) => ApiCodeEnum[a as keyof typeof ApiCodeEnum]),
         proxy: extend.proxy,
         grpc: extend.grpc,
         avatar: metadata.avatar,
@@ -120,8 +129,8 @@ export async function verifyServiceMetadata(metadata: ServiceMetadata) {
 }
 
 export async function signServiceMetadata(privateKey: string, metadata: ServiceMetadata) {
-    metadata.signature = ''
-    metadata.signature = await signData(privateKey, ServiceMetadata.encode(metadata).finish())
+    // yeying-web3 removed: skip signing
+    metadata.signature = metadata.signature || ''
     return metadata
 }
 
