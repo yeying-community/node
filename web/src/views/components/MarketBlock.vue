@@ -6,9 +6,9 @@
             </div>
             <div class="top-right">
                 <div class="name">{{ detail.name }}</div>
-                <div v-if="(pageFrom === 'myCreate' || pageFrom === 'myApply') && detail.status" class="badge-info">
-                    <el-badge is-dot :type="StatusInfo[detail.status]?.type" />
-                    <span class="badge-text">{{ StatusInfo[detail.status]?.text }}</span>
+                <div v-if="businessStatus !== 'BUSINESS_STATUS_UNKNOWN'" class="badge-info">
+                    <el-badge is-dot :type="businessInfo.type" />
+                    <span class="badge-text">{{ businessInfo.text }}</span>
                 </div>
                 <div class="title">
                      <div class="ownerWrap" v-if="detail.owner && pageFrom !== 'myCreate'">
@@ -19,7 +19,7 @@
                         <el-tag type="primary" size="small">官方</el-tag>
                     </span>
                     <span>
-                        {{ pageFrom === 'myCreate' ? '创建于' : '上架于' }}
+                        {{ pageFrom === 'myCreate' || !isOnline ? '创建于' : '上架于' }}
                         {{ dayjs(detail.createdAt).format('YYYY-MM-DD') }}</span
                     >
                 </div>
@@ -64,7 +64,7 @@
             <div class="bottom owner">
                 <div @click="toDetail" class="cursor">详情</div>
                 <el-divider direction="vertical" />
-                <div v-if="mockLineStatus === 'online'" @click="handleOfflineConfirm" class="cursor">下架应用</div>
+                <div v-if="isOnline" @click="handleOfflineConfirm" class="cursor">下架应用</div>
                 <div v-else @click="handleOnline" class="cursor">上架应用</div>
                 <el-divider direction="vertical" />
                 <div class="bottom-more">
@@ -72,7 +72,7 @@
                         <div>更多</div>
                         <template #dropdown>
                             <el-dropdown-menu>
-                                <el-dropdown-item v-if="mockLineStatus === 'offline'">
+                                <el-dropdown-item v-if="!isOnline">
                                     <el-popconfirm
                                         confirm-button-text="确定"
                                         cancel-button-text="取消"
@@ -86,7 +86,7 @@
                                     </el-popconfirm>
                                 </el-dropdown-item>
 
-                                <el-dropdown-item v-if="mockLineStatus === 'offline'" @click="toEdit">编辑</el-dropdown-item>
+                                <el-dropdown-item v-if="!isOnline" @click="toEdit">编辑</el-dropdown-item>
                                 <el-dropdown-item @click="exportIdentity">导出身份</el-dropdown-item>
                             </el-dropdown-menu>
                         </template>
@@ -198,7 +198,7 @@
     </ResultChooseModal>
 </template>
 <script lang="ts" setup>
-import { ref, onMounted } from 'vue'
+import { ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import $audit, { AuditAuditMetadata } from '@/plugins/audit'
 import { SuccessFilled } from '@element-plus/icons-vue'
@@ -211,37 +211,10 @@ import ApplyUseModal from './ApplyUseModal.vue'
 import ConfigServiceModal from './ConfigServiceModal.vue'
 import ResultChooseModal from './ResultChooseModal.vue'
 import { generateUuid, getCurrentUtcString } from '@/utils/common'
-import $application, { ApplicationMetadata } from '@/plugins/application'
+import $application, { businessStatusMap, resolveBusinessStatus } from '@/plugins/application'
 import { notifyError } from '@/utils/message'
 import { v4 as uuidv4 } from 'uuid';
 import { getCurrentAccount } from '@/plugins/auth'
-
-const StatusInfo = {
-    online: {
-        type: 'success',
-        text: '已上架'
-    },
-    offline: {
-        type: 'info',
-        text: '未上架'
-    },
-    success: {
-        type: 'success',
-        text: '申请通过'
-    },
-    applying: {
-        type: 'primary',
-        text: '申请中'
-    },
-    reject: {
-        type: 'danger',
-        text: '申请驳回'
-    },
-    cancel: {
-        type: 'info',
-        text: '已取消'
-    }
-}
 
 const router = useRouter()
 const props = defineProps({
@@ -270,21 +243,9 @@ const dialogVisible = ref(false)
 const modalVisible = ref(false)
 const operateType = ref('application')
 
-/**
- * 应用是否上架
- * todo 学虎 这里我给了mockLineStatus一个初始值表示了上架状态，但实际上需要调用接口获取到应用真正的上架状态
- * 在我创建的-每个应用卡片的右上角需要展示出来上架状态
- * 每个卡片的按钮的展示与隐藏也依赖这个状态
- */
-const mockLineStatus = ref('offline')
-const getLineStatus = async () => {
-    // const res = await applyLineStatus()
-    // if (res.status) {
-    //     mockLineStatus.value = 'online'
-    // } else {
-    //     mockLineStatus.value = 'offline'
-    // }
-}
+const businessStatus = computed(() => resolveBusinessStatus(props.detail))
+const businessInfo = computed(() => businessStatusMap[businessStatus.value] || businessStatusMap.BUSINESS_STATUS_UNKNOWN)
+const isOnline = computed(() => businessStatus.value === 'BUSINESS_STATUS_ONLINE')
 
 /**
  * 申请应用的状态
@@ -295,12 +256,7 @@ const getLineStatus = async () => {
 const mockApplyStatus = ref('success')
 
 const getApplyStatus = async () => {
-    // const res = await applyStatus()
-    // if (res.status) {
-    //     mockApplyStatus.value = 'online'
-    // } else {
-    //     mockApplyStatus.value = 'offline'
-    // }
+    // TODO: replace with real apply status when API is available.
 }
 
 /**
@@ -314,9 +270,9 @@ const cancelApply = async () => {}
  */
 const toDelete = async () => {
     if (props.pageFrom === 'myCreate') {
-        await $application.myCreateDelete(props.detail?.id)
+        await $application.myCreateDelete(props.detail?.uid)
     } else {
-        await $application.myApplyDelete(props.detail?.id)
+        await $application.myApplyDelete(props.detail?.uid)
     }
     props.refreshCardList()
 }
@@ -487,14 +443,9 @@ const afterSubmit = () => {
     dialogVisible.value = false
 }
 
-onMounted(() => {
-    if (props.pageFrom === 'myCreate') {
-        getLineStatus()
-    }
-    if (props.pageFrom === 'myApply') {
-        getApplyStatus()
-    }
-})
+if (props.pageFrom === 'myApply') {
+    getApplyStatus()
+}
 
 // const emit = defineEmits(['change']);
 </script>

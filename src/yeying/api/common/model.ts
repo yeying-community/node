@@ -31,8 +31,6 @@ export interface ApplicationMetadata {
   did: string;
   /** 应用版本 */
   version: number;
-  /** 应用哈希 */
-  hash: string;
   /** 应用名称 */
   name: string;
   /** 应用编号 */
@@ -53,6 +51,10 @@ export interface ApplicationMetadata {
   signature: string;
   /** 代码包下载路径 */
   codePackagePath: string;
+  /** 应用所有者名称 */
+  ownerName: string;
+  /** 应用主键 */
+  uid: string;
 }
 
 export interface ServiceMetadata {
@@ -88,6 +90,10 @@ export interface ServiceMetadata {
   signature: string;
   /** 代码包下载路径 */
   codePackagePath: string;
+  /** 服务所有者名称 */
+  ownerName: string;
+  /** 服务主键 */
+  uid: string;
 }
 
 function createBaseApplicationMetadata(): ApplicationMetadata {
@@ -97,7 +103,6 @@ function createBaseApplicationMetadata(): ApplicationMetadata {
     address: "",
     did: "",
     version: 0,
-    hash: "",
     name: "",
     code: 0,
     description: "",
@@ -108,6 +113,8 @@ function createBaseApplicationMetadata(): ApplicationMetadata {
     updatedAt: "",
     signature: "",
     codePackagePath: "",
+    ownerName: "",
+    uid: "",
   };
 }
 
@@ -127,9 +134,6 @@ export const ApplicationMetadata: MessageFns<ApplicationMetadata> = {
     }
     if (message.version !== 0) {
       writer.uint32(40).uint32(message.version);
-    }
-    if (message.hash !== "") {
-      writer.uint32(50).string(message.hash);
     }
     if (message.name !== "") {
       writer.uint32(58).string(message.name);
@@ -162,6 +166,12 @@ export const ApplicationMetadata: MessageFns<ApplicationMetadata> = {
     }
     if (message.codePackagePath !== "") {
       writer.uint32(130).string(message.codePackagePath);
+    }
+    if (message.ownerName !== "") {
+      writer.uint32(138).string(message.ownerName);
+    }
+    if (message.uid !== "") {
+      writer.uint32(146).string(message.uid);
     }
     return writer;
   },
@@ -211,14 +221,6 @@ export const ApplicationMetadata: MessageFns<ApplicationMetadata> = {
           }
 
           message.version = reader.uint32();
-          continue;
-        }
-        case 6: {
-          if (tag !== 50) {
-            break;
-          }
-
-          message.hash = reader.string();
           continue;
         }
         case 7: {
@@ -311,6 +313,22 @@ export const ApplicationMetadata: MessageFns<ApplicationMetadata> = {
           message.codePackagePath = reader.string();
           continue;
         }
+        case 17: {
+          if (tag !== 138) {
+            break;
+          }
+
+          message.ownerName = reader.string();
+          continue;
+        }
+        case 18: {
+          if (tag !== 146) {
+            break;
+          }
+
+          message.uid = reader.string();
+          continue;
+        }
       }
       if ((tag & 7) === 4 || tag === 0) {
         break;
@@ -327,7 +345,6 @@ export const ApplicationMetadata: MessageFns<ApplicationMetadata> = {
       address: isSet(object.address) ? globalThis.String(object.address) : "",
       did: isSet(object.did) ? globalThis.String(object.did) : "",
       version: isSet(object.version) ? globalThis.Number(object.version) : 0,
-      hash: isSet(object.hash) ? globalThis.String(object.hash) : "",
       name: isSet(object.name) ? globalThis.String(object.name) : "",
       code: isSet(object.code) ? applicationCodeEnumFromJSON(object.code) : 0,
       description: isSet(object.description) ? globalThis.String(object.description) : "",
@@ -340,6 +357,8 @@ export const ApplicationMetadata: MessageFns<ApplicationMetadata> = {
       updatedAt: isSet(object.updatedAt) ? globalThis.String(object.updatedAt) : "",
       signature: isSet(object.signature) ? globalThis.String(object.signature) : "",
       codePackagePath: isSet(object.codePackagePath) ? globalThis.String(object.codePackagePath) : "",
+      ownerName: isSet(object.ownerName) ? globalThis.String(object.ownerName) : "",
+      uid: isSet(object.uid) ? globalThis.String(object.uid) : "",
     };
   },
 
@@ -359,9 +378,6 @@ export const ApplicationMetadata: MessageFns<ApplicationMetadata> = {
     }
     if (message.version !== 0) {
       obj.version = Math.round(message.version);
-    }
-    if (message.hash !== "") {
-      obj.hash = message.hash;
     }
     if (message.name !== "") {
       obj.name = message.name;
@@ -393,6 +409,12 @@ export const ApplicationMetadata: MessageFns<ApplicationMetadata> = {
     if (message.codePackagePath !== "") {
       obj.codePackagePath = message.codePackagePath;
     }
+    if (message.ownerName !== "") {
+      obj.ownerName = message.ownerName;
+    }
+    if (message.uid !== "") {
+      obj.uid = message.uid;
+    }
     return obj;
   },
 
@@ -406,7 +428,6 @@ export const ApplicationMetadata: MessageFns<ApplicationMetadata> = {
     message.address = object.address ?? "";
     message.did = object.did ?? "";
     message.version = object.version ?? 0;
-    message.hash = object.hash ?? "";
     message.name = object.name ?? "";
     message.code = object.code ?? 0;
     message.description = object.description ?? "";
@@ -417,6 +438,8 @@ export const ApplicationMetadata: MessageFns<ApplicationMetadata> = {
     message.updatedAt = object.updatedAt ?? "";
     message.signature = object.signature ?? "";
     message.codePackagePath = object.codePackagePath ?? "";
+    message.ownerName = object.ownerName ?? "";
+    message.uid = object.uid ?? "";
     return message;
   },
 };
@@ -439,6 +462,8 @@ function createBaseServiceMetadata(): ServiceMetadata {
     updatedAt: "",
     signature: "",
     codePackagePath: "",
+    ownerName: "",
+    uid: "",
   };
 }
 
@@ -493,6 +518,12 @@ export const ServiceMetadata: MessageFns<ServiceMetadata> = {
     }
     if (message.codePackagePath !== "") {
       writer.uint32(130).string(message.codePackagePath);
+    }
+    if (message.ownerName !== "") {
+      writer.uint32(138).string(message.ownerName);
+    }
+    if (message.uid !== "") {
+      writer.uint32(146).string(message.uid);
     }
     return writer;
   },
@@ -642,6 +673,22 @@ export const ServiceMetadata: MessageFns<ServiceMetadata> = {
           message.codePackagePath = reader.string();
           continue;
         }
+        case 17: {
+          if (tag !== 138) {
+            break;
+          }
+
+          message.ownerName = reader.string();
+          continue;
+        }
+        case 18: {
+          if (tag !== 146) {
+            break;
+          }
+
+          message.uid = reader.string();
+          continue;
+        }
       }
       if ((tag & 7) === 4 || tag === 0) {
         break;
@@ -671,6 +718,8 @@ export const ServiceMetadata: MessageFns<ServiceMetadata> = {
       updatedAt: isSet(object.updatedAt) ? globalThis.String(object.updatedAt) : "",
       signature: isSet(object.signature) ? globalThis.String(object.signature) : "",
       codePackagePath: isSet(object.codePackagePath) ? globalThis.String(object.codePackagePath) : "",
+      ownerName: isSet(object.ownerName) ? globalThis.String(object.ownerName) : "",
+      uid: isSet(object.uid) ? globalThis.String(object.uid) : "",
     };
   },
 
@@ -724,6 +773,12 @@ export const ServiceMetadata: MessageFns<ServiceMetadata> = {
     if (message.codePackagePath !== "") {
       obj.codePackagePath = message.codePackagePath;
     }
+    if (message.ownerName !== "") {
+      obj.ownerName = message.ownerName;
+    }
+    if (message.uid !== "") {
+      obj.uid = message.uid;
+    }
     return obj;
   },
 
@@ -748,6 +803,8 @@ export const ServiceMetadata: MessageFns<ServiceMetadata> = {
     message.updatedAt = object.updatedAt ?? "";
     message.signature = object.signature ?? "";
     message.codePackagePath = object.codePackagePath ?? "";
+    message.ownerName = object.ownerName ?? "";
+    message.uid = object.uid ?? "";
     return message;
   },
 };

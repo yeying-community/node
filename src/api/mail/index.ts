@@ -21,7 +21,7 @@ import { Api } from '../../models'
 
 export default function(app: Express, impl: t.MailApi) {
 	app.post(
-		'/api/v1/mail/send',
+		'/api/v1/internal/mail/send',
 		function (req: Request, res: Response) {
 			try {
 				function __body() {
@@ -81,7 +81,7 @@ export default function(app: Express, impl: t.MailApi) {
 	)
 
 	app.post(
-		'/api/v1/mail/verify',
+		'/api/v1/internal/mail/verify',
 		function (req: Request, res: Response) {
 			try {
 				function __body() {

@@ -2,6 +2,7 @@ import {
     Column,
     CreateDateColumn,
     Entity,
+    Index,
     JoinColumn,
     ManyToOne,
     OneToMany,
@@ -108,6 +109,9 @@ export class ServiceDO {
     @Column({ type: 'text', name: 'code_package_path', default: ''})
     codePackagePath!: string
 
+    @Column({ length: 64, default: 'BUSINESS_STATUS_PENDING' })
+    status!: string
+
     // 用于存储上架标记, 用于后端过滤，前端不感知
     @Column({ type: "boolean", name: "is_online", default: false })
     isOnline!: boolean
@@ -148,9 +152,6 @@ export class ApplicationDO {
     @Column('text')
     location!: string
 
-    @Column({ length: 128 })
-    hash!: string
-
     @Column({ type: 'text', name: 'service_codes' })
     serviceCodes!: string
 
@@ -168,6 +169,9 @@ export class ApplicationDO {
 
     @Column({ type: 'text', name: 'code_package_path', default: ''})
     codePackagePath!: string
+
+    @Column({ length: 64, default: 'BUSINESS_STATUS_PENDING' })
+    status!: string
 
     // 用于存储上架标记, 用于后端过滤，前端不感知
     @Column({ type: "boolean", name: "is_online", default: false })
@@ -363,6 +367,7 @@ export class CardDO {
  * 申请工单
  */
 @Entity('audits')
+@Index('idx_audit_target', ['targetType', 'targetDid', 'targetVersion'])
 export class AuditDO {
     /**
      * 主键uid
@@ -420,5 +425,20 @@ export class AuditDO {
      */
      @Column({ length: 192, default:null })
     signature!: string
+
+    /**
+     * 审核目标字段（用于索引查询）
+     */
+    @Column({ length: 32, name: 'target_type', default: '' })
+    targetType!: string
+
+    @Column({ length: 128, name: 'target_did', default: '' })
+    targetDid!: string
+
+    @Column({ type: 'int', name: 'target_version', default: 0 })
+    targetVersion!: number
+
+    @Column({ length: 128, name: 'target_name', default: '' })
+    targetName!: string
 
 }

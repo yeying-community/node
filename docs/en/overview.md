@@ -20,14 +20,15 @@
 
 ## Priority Modules to Improve (Suggested Order)
 1. **Audit flow**
-   - Reviewer permissions
-   - Link audit results to online status
+   - Reviewer permissions (implemented: approver-only)
+   - Link audit results to online status (implemented)
 2. **Apply flow**
-   - Validate target metadata
-   - Duplicate submit/cancel rules
+   - Validate target metadata (implemented)
+   - Duplicate submit/cancel rules (implemented: no duplicate pending tickets)
 3. **Publish/Unpublish**
-   - Clear lifecycle states (created/audited/online/offline)
-   - Search/display aligned with state
+   - Clear lifecycle states (created/audited/online/offline) (implemented)
+   - Search/display aligned with state (implemented)
+   - Dedicated publish/unpublish endpoints (still missing)
 4. **Permission model enforcement**
    - Role/status binding to endpoints
 5. **Signature/identity verification** (if reinstated)

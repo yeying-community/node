@@ -6,14 +6,14 @@
 ### certificateGet
 
 ```http
-POST /api/v1/certificate/get
+POST /api/v1/internal/certificate/get
 ```
 
 
 ### certificateSign
 
 ```http
-POST /api/v1/certificate/sign
+POST /api/v1/internal/certificate/sign
 ```
 
 

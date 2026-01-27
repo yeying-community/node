@@ -2,13 +2,14 @@ import { NextFunction, Request, Response } from 'express';
 import { fail } from '../auth/envelope';
 import { verifyAccessToken } from '../auth/siwe';
 import { isUcanToken, verifyUcanInvocation } from '../auth/ucan';
+import { runWithRequestContext } from '../common/requestContext';
 
 const PUBLIC_ROUTES = [
   '/v1/public/auth/challenge',
   '/v1/public/auth/verify',
   '/v1/public/auth/refresh',
   '/v1/public/auth/logout',
-  '/v1/node/healthCheck',
+  '/v1/public/healthCheck',
 ];
 
 type AuthUser = {
@@ -19,11 +20,21 @@ type AuthUser = {
 
 const authenticateToken = (req: Request, res: Response, next: NextFunction) => {
   if (req.method === 'OPTIONS') {
-    return next();
+    return runWithRequestContext(undefined, () => next());
   }
 
   if (PUBLIC_ROUTES.includes(req.path) || req.path.startsWith('/v1/public/auth/')) {
-    return next();
+    return runWithRequestContext(undefined, () => next());
+  }
+
+  if (req.path.startsWith('/v1/internal/')) {
+    const internalToken = process.env.INTERNAL_TOKEN;
+    const provided = Array.isArray(req.headers['x-internal-token'])
+      ? req.headers['x-internal-token'][0]
+      : (req.headers['x-internal-token'] as string | undefined);
+    if (internalToken && provided === internalToken) {
+      return runWithRequestContext(undefined, () => next());
+    }
   }
 
   const authHeader = req.headers.authorization || '';
@@ -38,12 +49,13 @@ const authenticateToken = (req: Request, res: Response, next: NextFunction) => {
   if (isUcanToken(token)) {
     try {
       const result = verifyUcanInvocation(token);
-      (req as Request & { user?: AuthUser }).user = {
+      const user: AuthUser = {
         address: result.address,
         issuer: result.issuer,
         authType: 'ucan',
       };
-      return next();
+      (req as Request & { user?: AuthUser }).user = user;
+      return runWithRequestContext(user, () => next());
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Invalid UCAN token';
       res.status(401).json(fail(401, message));
@@ -57,11 +69,12 @@ const authenticateToken = (req: Request, res: Response, next: NextFunction) => {
     return;
   }
 
-  (req as Request & { user?: AuthUser }).user = {
+  const user: AuthUser = {
     address: payload.address,
     authType: 'jwt',
   };
-  next();
+  (req as Request & { user?: AuthUser }).user = user;
+  runWithRequestContext(user, () => next());
 };
 
 export default authenticateToken;

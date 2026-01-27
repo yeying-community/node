@@ -6,14 +6,14 @@
 ### configGet
 
 ```http
-POST /api/v1/config/get
+POST /api/v1/internal/config/get
 ```
 
 
 ### configSet
 
 ```http
-POST /api/v1/config/set
+POST /api/v1/internal/config/set
 ```
 
 

@@ -13656,7 +13656,7 @@ export function enumApiCommonApplicationCodeEnumToResponse(name: string, value: 
 	throw `Unexpected enum value for Api.CommonApplicationCodeEnum: ${value}`
 }
 
-const ApiCommonApplicationMetadataKeys: string[] = ['owner', 'network', 'address', 'did', 'version', 'hash', 'name', 'code', 'description', 'location', 'serviceCodes', 'avatar', 'createdAt', 'updatedAt', 'signature', 'codePackagePath', 'ownerName', 'uid']
+const ApiCommonApplicationMetadataKeys: string[] = ['owner', 'network', 'address', 'did', 'version', 'name', 'code', 'description', 'location', 'serviceCodes', 'avatar', 'createdAt', 'updatedAt', 'signature', 'codePackagePath', 'ownerName', 'uid', 'status', 'isOnline']
 
 function modelApiCommonApplicationMetadataFromRequestContent(name: string, value: any, knownKeys: Record<string, boolean> = {}): Api.CommonApplicationMetadata {
 	if (typeof value !== 'object' || value === undefined || value === null) {
@@ -13671,7 +13671,6 @@ function modelApiCommonApplicationMetadataFromRequestContent(name: string, value
 		'address': allowUndefined(stringFromRequest)(`${name}.address`, value['address']),
 		'did': allowUndefined(stringFromRequest)(`${name}.did`, value['did']),
 		'version': allowUndefined(integerFromRequest)(`${name}.version`, value['version']),
-		'hash': allowUndefined(stringFromRequest)(`${name}.hash`, value['hash']),
 		'name': allowUndefined(stringFromRequest)(`${name}.name`, value['name']),
 		'code': allowUndefined(enumApiCommonApplicationCodeEnumFromRequest)(`${name}.code`, value['code']),
 		'description': allowUndefined(stringFromRequest)(`${name}.description`, value['description']),
@@ -13684,6 +13683,8 @@ function modelApiCommonApplicationMetadataFromRequestContent(name: string, value
 		'codePackagePath': allowUndefined(stringFromRequest)(`${name}.codePackagePath`, value['codePackagePath']),
 		'ownerName': allowUndefined(stringFromRequest)(`${name}.ownerName`, value['ownerName']),
 		'uid': allowUndefined(stringFromRequest)(`${name}.uid`, value['uid']),
+		'status': allowUndefined(enumApiCommonApplicationStatusEnumFromRequest)(`${name}.status`, value['status']),
+		'isOnline': allowUndefined(booleanFromRequest)(`${name}.isOnline`, value['isOnline']),
 	}
 
 	return result
@@ -13702,7 +13703,6 @@ function modelApiCommonApplicationMetadataToResponseContent(name: string, value:
 		'address': allowUndefined(stringToResponse)(`${name}.address`, value['address']),
 		'did': allowUndefined(stringToResponse)(`${name}.did`, value['did']),
 		'version': allowUndefined(integerToResponse)(`${name}.version`, value['version']),
-		'hash': allowUndefined(stringToResponse)(`${name}.hash`, value['hash']),
 		'name': allowUndefined(stringToResponse)(`${name}.name`, value['name']),
 		'code': allowUndefined(enumApiCommonApplicationCodeEnumToResponse)(`${name}.code`, value['code']),
 		'description': allowUndefined(stringToResponse)(`${name}.description`, value['description']),
@@ -13715,6 +13715,8 @@ function modelApiCommonApplicationMetadataToResponseContent(name: string, value:
 		'codePackagePath': allowUndefined(stringToResponse)(`${name}.codePackagePath`, value['codePackagePath']),
 		'ownerName': allowUndefined(stringToResponse)(`${name}.ownerName`, value['ownerName']),
 		'uid': allowUndefined(stringToResponse)(`${name}.uid`, value['uid']),
+		'status': allowUndefined(enumApiCommonApplicationStatusEnumToResponse)(`${name}.status`, value['status']),
+		'isOnline': allowUndefined(booleanToResponse)(`${name}.isOnline`, value['isOnline']),
 	}
 
 	return result
@@ -13757,23 +13759,23 @@ export function enumApiCommonApplicationStatusEnumFromRequest(name: string, valu
 		throw `Invalid type for ${name}: expected string got ${typeof value}`
 	}
 
-	if (value === 'APPLICATION_STATUS_UNKNOWN') {
-		return Api.CommonApplicationStatusEnum.APPLICATIONSTATUSUNKNOWN
+	if (value === 'BUSINESS_STATUS_UNKNOWN') {
+		return Api.CommonApplicationStatusEnum.BUSINESSSTATUSUNKNOWN
 	}
-	if (value === 'APPLICATION_STATUS_CREATED') {
-		return Api.CommonApplicationStatusEnum.APPLICATIONSTATUSCREATED
+	if (value === 'BUSINESS_STATUS_PENDING') {
+		return Api.CommonApplicationStatusEnum.BUSINESSSTATUSPENDING
 	}
-	if (value === 'APPLICATION_STATUS_AUDITED') {
-		return Api.CommonApplicationStatusEnum.APPLICATIONSTATUSAUDITED
+	if (value === 'BUSINESS_STATUS_REVIEWING') {
+		return Api.CommonApplicationStatusEnum.BUSINESSSTATUSREVIEWING
 	}
-	if (value === 'APPLICATION_STATUS_REFUSED') {
-		return Api.CommonApplicationStatusEnum.APPLICATIONSTATUSREFUSED
+	if (value === 'BUSINESS_STATUS_REJECTED') {
+		return Api.CommonApplicationStatusEnum.BUSINESSSTATUSREJECTED
 	}
-	if (value === 'APPLICATION_STATUS_OFFLINE') {
-		return Api.CommonApplicationStatusEnum.APPLICATIONSTATUSOFFLINE
+	if (value === 'BUSINESS_STATUS_OFFLINE') {
+		return Api.CommonApplicationStatusEnum.BUSINESSSTATUSOFFLINE
 	}
-	if (value === 'APPLICATION_STATUS_ONLINE') {
-		return Api.CommonApplicationStatusEnum.APPLICATIONSTATUSONLINE
+	if (value === 'BUSINESS_STATUS_ONLINE') {
+		return Api.CommonApplicationStatusEnum.BUSINESSSTATUSONLINE
 	}
 
 	throw `Unexpected enum value for Api.CommonApplicationStatusEnum: ${value}`
@@ -13784,23 +13786,23 @@ export function enumApiCommonApplicationStatusEnumToResponse(name: string, value
 		throw `Invalid type for ${name}: expected string got ${typeof value}`
 	}
 
-	if (value === 'APPLICATION_STATUS_UNKNOWN') {
-		return Api.CommonApplicationStatusEnum.APPLICATIONSTATUSUNKNOWN
+	if (value === 'BUSINESS_STATUS_UNKNOWN') {
+		return Api.CommonApplicationStatusEnum.BUSINESSSTATUSUNKNOWN
 	}
-	if (value === 'APPLICATION_STATUS_CREATED') {
-		return Api.CommonApplicationStatusEnum.APPLICATIONSTATUSCREATED
+	if (value === 'BUSINESS_STATUS_PENDING') {
+		return Api.CommonApplicationStatusEnum.BUSINESSSTATUSPENDING
 	}
-	if (value === 'APPLICATION_STATUS_AUDITED') {
-		return Api.CommonApplicationStatusEnum.APPLICATIONSTATUSAUDITED
+	if (value === 'BUSINESS_STATUS_REVIEWING') {
+		return Api.CommonApplicationStatusEnum.BUSINESSSTATUSREVIEWING
 	}
-	if (value === 'APPLICATION_STATUS_REFUSED') {
-		return Api.CommonApplicationStatusEnum.APPLICATIONSTATUSREFUSED
+	if (value === 'BUSINESS_STATUS_REJECTED') {
+		return Api.CommonApplicationStatusEnum.BUSINESSSTATUSREJECTED
 	}
-	if (value === 'APPLICATION_STATUS_OFFLINE') {
-		return Api.CommonApplicationStatusEnum.APPLICATIONSTATUSOFFLINE
+	if (value === 'BUSINESS_STATUS_OFFLINE') {
+		return Api.CommonApplicationStatusEnum.BUSINESSSTATUSOFFLINE
 	}
-	if (value === 'APPLICATION_STATUS_ONLINE') {
-		return Api.CommonApplicationStatusEnum.APPLICATIONSTATUSONLINE
+	if (value === 'BUSINESS_STATUS_ONLINE') {
+		return Api.CommonApplicationStatusEnum.BUSINESSSTATUSONLINE
 	}
 
 	throw `Unexpected enum value for Api.CommonApplicationStatusEnum: ${value}`
@@ -14450,7 +14452,7 @@ export function enumApiCommonServiceCodeEnumToResponse(name: string, value: Api.
 	throw `Unexpected enum value for Api.CommonServiceCodeEnum: ${value}`
 }
 
-const ApiCommonServiceMetadataKeys: string[] = ['owner', 'network', 'address', 'did', 'version', 'name', 'description', 'code', 'apiCodes', 'proxy', 'grpc', 'avatar', 'createdAt', 'updatedAt', 'signature', 'codePackagePath', 'ownerName', 'uid']
+const ApiCommonServiceMetadataKeys: string[] = ['owner', 'network', 'address', 'did', 'version', 'name', 'description', 'code', 'apiCodes', 'proxy', 'grpc', 'avatar', 'createdAt', 'updatedAt', 'signature', 'codePackagePath', 'ownerName', 'uid', 'status', 'isOnline']
 
 function modelApiCommonServiceMetadataFromRequestContent(name: string, value: any, knownKeys: Record<string, boolean> = {}): Api.CommonServiceMetadata {
 	if (typeof value !== 'object' || value === undefined || value === null) {
@@ -14478,6 +14480,8 @@ function modelApiCommonServiceMetadataFromRequestContent(name: string, value: an
 		'codePackagePath': allowUndefined(stringFromRequest)(`${name}.codePackagePath`, value['codePackagePath']),
 		'ownerName': allowUndefined(stringFromRequest)(`${name}.ownerName`, value['ownerName']),
 		'uid': allowUndefined(stringFromRequest)(`${name}.uid`, value['uid']),
+		'status': allowUndefined(enumApiCommonApplicationStatusEnumFromRequest)(`${name}.status`, value['status']),
+		'isOnline': allowUndefined(booleanFromRequest)(`${name}.isOnline`, value['isOnline']),
 	}
 
 	return result
@@ -14509,6 +14513,8 @@ function modelApiCommonServiceMetadataToResponseContent(name: string, value: Api
 		'codePackagePath': allowUndefined(stringToResponse)(`${name}.codePackagePath`, value['codePackagePath']),
 		'ownerName': allowUndefined(stringToResponse)(`${name}.ownerName`, value['ownerName']),
 		'uid': allowUndefined(stringToResponse)(`${name}.uid`, value['uid']),
+		'status': allowUndefined(enumApiCommonApplicationStatusEnumToResponse)(`${name}.status`, value['status']),
+		'isOnline': allowUndefined(booleanToResponse)(`${name}.isOnline`, value['isOnline']),
 	}
 
 	return result
@@ -42832,7 +42838,7 @@ export function modelApiServiceQueryByUidServiceResponseBodyToResponse(name: str
 	return result
 }
 
-const ApiServiceSearchServiceConditionKeys: string[] = ['code', 'owner', 'name', 'keyword']
+const ApiServiceSearchServiceConditionKeys: string[] = ['code', 'status', 'owner', 'name', 'keyword']
 
 function modelApiServiceSearchServiceConditionFromRequestContent(name: string, value: any, knownKeys: Record<string, boolean> = {}): Api.ServiceSearchServiceCondition {
 	if (typeof value !== 'object' || value === undefined || value === null) {
@@ -42843,6 +42849,7 @@ function modelApiServiceSearchServiceConditionFromRequestContent(name: string, v
 
 	const result: Api.ServiceSearchServiceCondition = {
 		'code': allowUndefined(enumApiCommonServiceCodeEnumFromRequest)(`${name}.code`, value['code']),
+		'status': allowUndefined(enumApiCommonApplicationStatusEnumFromRequest)(`${name}.status`, value['status']),
 		'owner': allowUndefined(stringFromRequest)(`${name}.owner`, value['owner']),
 		'name': allowUndefined(stringFromRequest)(`${name}.name`, value['name']),
 		'keyword': allowUndefined(stringFromRequest)(`${name}.keyword`, value['keyword']),
@@ -42860,6 +42867,7 @@ function modelApiServiceSearchServiceConditionToResponseContent(name: string, va
 	
 	const result: ToResponse<Api.ServiceSearchServiceCondition> = {
 		'code': allowUndefined(enumApiCommonServiceCodeEnumToResponse)(`${name}.code`, value['code']),
+		'status': allowUndefined(enumApiCommonApplicationStatusEnumToResponse)(`${name}.status`, value['status']),
 		'owner': allowUndefined(stringToResponse)(`${name}.owner`, value['owner']),
 		'name': allowUndefined(stringToResponse)(`${name}.name`, value['name']),
 		'keyword': allowUndefined(stringToResponse)(`${name}.keyword`, value['keyword']),

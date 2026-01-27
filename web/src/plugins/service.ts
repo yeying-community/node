@@ -4,6 +4,8 @@ import { getCurrentAccount, getAuthToken } from './auth'
 import { notifyError } from '@/utils/message'
 import { getWalletDataStore } from '@/stores/auth'
 
+export { businessStatusMap, businessStatusOptions, resolveBusinessStatus, isBusinessOnline } from '@/utils/businessStatus'
+
 export const ApplyStatusMap = {
     1: '申请中',
     2: '已取消',
@@ -44,6 +46,7 @@ export const serviceCodeMap = {
 
 export interface ServiceSearchCondition {
     code?: string;
+    status?: string;
     owner?: string;
     name?: string;
     keyword?: string;
@@ -97,8 +100,9 @@ export interface ServiceMetadata {
     updatedAt?: string;
     signature?: string;
     codePackagePath?: string;
-    password: string
-    password2: string
+    uid?: string;
+    status?: string;
+    isOnline?: boolean;
 
 }
 
@@ -121,6 +125,7 @@ class $service {
             "body": {
                 "condition": {
                     "code": condition.code,
+                    "status": condition.status,
                     "owner": condition.owner,
                     "name": condition.name,
                     "keyword": condition.keyword
@@ -200,10 +205,11 @@ class $service {
         const body = {
             "header": header,
             "body": {
-                "service": service
+                "did": service?.did,
+                "version": service?.version
             }
         }
-        const response = await fetch('/api/v1/service/create', {
+        const response = await fetch('/api/v1/service/publish', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -327,7 +333,7 @@ class $service {
                 "version": version
             }
         }
-        const response = await fetch('/api/v1/service/delete', {
+        const response = await fetch('/api/v1/service/unpublish', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',

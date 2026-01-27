@@ -21,7 +21,7 @@ import { Api } from '../../models'
 
 export default function(app: Express, impl: t.NodeApi) {
 	app.post(
-		'/api/v1/node/healthCheck',
+		'/api/v1/public/healthCheck',
 		function (req: Request, res: Response) {
 			try {
 				function __body() {

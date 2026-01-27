@@ -131,23 +131,317 @@ function convertToUser(metadata: Api.UserUserMetadata): User | null {
 }
 
 async function userDelete(request: Api.UserDeleteUserRequest): Promise<t.UserDeleteResponse> {
-	throw 'Unimplemented'
+	const logger: Logger = SingletonLogger.get()
+	logger.info(`userDelete request=${JSON.stringify(request)}`);
+	const userService = new UserService();
+	try {
+		if (!request.header?.did) {
+			return {
+				status: 'default',
+				actualStatus: 400,
+				body: {
+					code: 400,
+					message: 'Missing did',
+				}
+			};
+		}
+		await userService.del(request.header.did);
+		return {
+			status: 200,
+			body: {
+				header: {},
+				body: {
+					status: {
+						code: Api.CommonResponseCodeEnum.OK
+					}
+				}
+			}
+		};
+	} catch (error) {
+		logger.error(`userDelete failed ${error}`)
+		return {
+			status: 'default',
+			actualStatus: 500,
+			body: {
+				code: -1,
+				message: `userDelete failed: ${error}`,
+			}
+		};
+	}
 }
 
 async function userDetail(request: Api.UserUserDetailRequest): Promise<t.UserDetailResponse> {
-	throw 'Unimplemented'
+	const logger: Logger = SingletonLogger.get()
+	logger.info(`userDetail request=${JSON.stringify(request)}`);
+	const userService = new UserService();
+	try {
+		if (!request.header?.did) {
+			return {
+				status: 'default',
+				actualStatus: 400,
+				body: {
+					code: 400,
+					message: 'Missing did',
+				}
+			};
+		}
+		const user = await userService.getUser(request.header.did);
+		const state = await userService.getState(request.header.did);
+		if (!user) {
+			return {
+				status: 'default',
+				actualStatus: 404,
+				body: {
+					code: 404,
+					message: 'User not found',
+				}
+			};
+		}
+		const role = state?.role && Object.values(Api.UserUserRoleEnum).includes(state.role as any)
+			? (state.role as Api.UserUserRoleEnum)
+			: undefined;
+		const status = state?.status && Object.values(Api.UserUserStatusEnum).includes(state.status as any)
+			? (state.status as Api.UserUserStatusEnum)
+			: undefined;
+		return {
+			status: 200,
+			body: {
+				header: {},
+				body: {
+					status: {
+						code: Api.CommonResponseCodeEnum.OK
+					},
+					detail: {
+						user: {
+							did: user.did,
+							name: user.name,
+							avatar: user.avatar,
+							createdAt: user.createdAt,
+							updatedAt: user.updatedAt,
+							signature: user.signature,
+						},
+						state: state ? {
+							did: state.did,
+							role: role,
+							status: status,
+							createdAt: state.createdAt,
+							updatedAt: state.updatedAt,
+							signature: state.signature,
+						} : undefined
+					}
+				}
+			}
+		};
+	} catch (error) {
+		logger.error(`userDetail failed ${error}`)
+		return {
+			status: 'default',
+			actualStatus: 500,
+			body: {
+				code: -1,
+				message: `userDetail failed: ${error}`,
+			}
+		};
+	}
 }
 
 async function userList(request: Api.UserUserListRequest): Promise<t.UserListResponse> {
-	throw 'Unimplemented'
+	const logger: Logger = SingletonLogger.get()
+	logger.info(`userList request=${JSON.stringify(request)}`);
+	const userService = new UserService();
+	try {
+		const pageIndex = request.body?.pageIndex && request.body.pageIndex > 0 ? request.body.pageIndex : 1;
+		const pageSize = request.body?.pageSize && request.body.pageSize > 0 ? request.body.pageSize : 10;
+		const result = await userService.listUsers(pageIndex, pageSize);
+		const list = await Promise.all(
+			(result.users || []).map(async (user) => {
+				if (!user) return undefined;
+				const state = await userService.getState(user.did);
+				const role = state?.role && Object.values(Api.UserUserRoleEnum).includes(state.role as any)
+					? (state.role as Api.UserUserRoleEnum)
+					: undefined;
+				const status = state?.status && Object.values(Api.UserUserStatusEnum).includes(state.status as any)
+					? (state.status as Api.UserUserStatusEnum)
+					: undefined;
+				return {
+					user: {
+						did: user.did,
+						name: user.name,
+						avatar: user.avatar,
+						createdAt: user.createdAt,
+						updatedAt: user.updatedAt,
+						signature: user.signature,
+					},
+					state: state ? {
+						did: state.did,
+						role: role,
+						status: status,
+						createdAt: state.createdAt,
+						updatedAt: state.updatedAt,
+						signature: state.signature,
+					} : undefined
+				};
+			})
+		);
+
+		return {
+			status: 200,
+			body: {
+				header: {},
+				body: {
+					status: {
+						code: Api.CommonResponseCodeEnum.OK
+					},
+					list: list.filter(Boolean) as any,
+					total: String(result.total || 0)
+				}
+			}
+		};
+	} catch (error) {
+		logger.error(`userList failed ${error}`)
+		return {
+			status: 'default',
+			actualStatus: 500,
+			body: {
+				code: -1,
+				message: `userList failed: ${error}`,
+			}
+		};
+	}
 }
 
 async function userUpdate(request: Api.UserUpdateUserRequest): Promise<t.UserUpdateResponse> {
-	throw 'Unimplemented'
+	const logger: Logger = SingletonLogger.get()
+	logger.info(`userUpdate request=${JSON.stringify(request)}`);
+	const userService = new UserService();
+	try {
+		const metadata = request.body?.user;
+		if (!metadata?.did) {
+			return {
+				status: 'default',
+				actualStatus: 400,
+				body: {
+					code: 400,
+					message: 'Missing user did',
+				}
+			};
+		}
+		const existing = await userService.getUser(metadata.did);
+		if (!existing) {
+			return {
+				status: 'default',
+				actualStatus: 404,
+				body: {
+					code: 404,
+					message: 'User not found',
+				}
+			};
+		}
+		const updated = {
+			...existing,
+			name: metadata.name ?? existing.name,
+			avatar: metadata.avatar ?? existing.avatar,
+			signature: metadata.signature ?? existing.signature,
+			updatedAt: getCurrentUtcString(),
+		} as User;
+		await userService.saveUser(updated);
+
+		return {
+			status: 200,
+			body: {
+				header: {},
+				body: {
+					status: {
+						code: Api.CommonResponseCodeEnum.OK
+					},
+					user: {
+						did: updated.did,
+						name: updated.name,
+						avatar: updated.avatar,
+						createdAt: updated.createdAt,
+						updatedAt: updated.updatedAt,
+						signature: updated.signature,
+					}
+				}
+			}
+		};
+	} catch (error) {
+		logger.error(`userUpdate failed ${error}`)
+		return {
+			status: 'default',
+			actualStatus: 500,
+			body: {
+				code: -1,
+				message: `userUpdate failed: ${error}`,
+			}
+		};
+	}
 }
 
 async function userUpdateStatus(request: Api.UserUpdateStatusRequest): Promise<t.UserUpdateStatusResponse> {
-	throw 'Unimplemented'
+	const logger: Logger = SingletonLogger.get()
+	logger.info(`userUpdateStatus request=${JSON.stringify(request)}`);
+	const userService = new UserService();
+	try {
+		if (!request.body?.did || !request.body?.status) {
+			return {
+				status: 'default',
+				actualStatus: 400,
+				body: {
+					code: 400,
+					message: 'Missing user status data',
+				}
+			};
+		}
+		if (request.header === undefined) {
+			return {
+				status: 'default',
+				actualStatus: 400,
+				body: {
+					code: 400,
+					message: 'Missing header data',
+				}
+			};
+		}
+
+		const state = await userService.getState(request.body.did);
+		if (!state) {
+			return {
+				status: 'default',
+				actualStatus: 404,
+				body: {
+					code: 404,
+					message: 'User state not found',
+				}
+			};
+		}
+
+		state.status = request.body.status as string;
+		state.updatedAt = getCurrentUtcString();
+		await userService.saveState(state);
+
+		return {
+			status: 200,
+			body: {
+				header: {},
+				body: {
+					status: {
+						code: Api.CommonResponseCodeEnum.OK
+					}
+				}
+			}
+		};
+	} catch (error) {
+		logger.error(`userUpdateStatus failed ${error}`)
+		return {
+			status: 'default',
+			actualStatus: 500,
+			body: {
+				code: -1,
+				message: `userUpdateStatus failed: ${error}`,
+			}
+		};
+	}
 }
 
 

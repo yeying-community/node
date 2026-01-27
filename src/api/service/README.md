@@ -35,6 +35,8 @@ POST /api/v1/service/querybyuid
 
 ```http
 POST /api/v1/service/search
+POST /api/v1/service/publish
+POST /api/v1/service/unpublish
 ```
 
 

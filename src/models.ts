@@ -190,12 +190,12 @@ export namespace Api {
 		code?: Api.CommonApplicationCodeEnum;
 		/**
 		 * @description <ul>
-		 *  <li>APPLICATION_STATUS_UNKNOWN: 未知编码，是一种占位符</li>
-		 *  <li>APPLICATION_STATUS_CREATED: 已创建</li>
-		 *  <li>APPLICATION_STATUS_AUDITED: 已审计</li>
-		 *  <li>APPLICATION_STATUS_REFUSED: 已拒绝</li>
-		 *  <li>APPLICATION_STATUS_OFFLINE: 已下架</li>
-		 *  <li>APPLICATION_STATUS_ONLINE: 已上线</li>
+		 *  <li>BUSINESS_STATUS_UNKNOWN: 未知编码，是一种占位符</li>
+		 *  <li>BUSINESS_STATUS_PENDING: 待审核</li>
+		 *  <li>BUSINESS_STATUS_REVIEWING: 审核中</li>
+		 *  <li>BUSINESS_STATUS_REJECTED: 已拒绝</li>
+		 *  <li>BUSINESS_STATUS_OFFLINE: 已下架</li>
+		 *  <li>BUSINESS_STATUS_ONLINE: 已上架</li>
 		 *  </ul>
 		 * @type {Api.CommonApplicationStatusEnum}
 		 * @memberof ApplicationSearchApplicationCondition
@@ -1276,7 +1276,6 @@ export namespace Api {
 		 * @memberof CommonApplicationMetadata
 		 */
 		version?: number;
-		hash?: string;
 		name?: string;
 		/**
 		 * @description <ul>
@@ -1302,25 +1301,27 @@ export namespace Api {
 		codePackagePath?: string;
 		ownerName?: string;
 		uid?: string;
+		status?: Api.CommonApplicationStatusEnum;
+		isOnline?: boolean;
 	}
 
 	/**
 	 * <ul>
-	 * <li>APPLICATION_STATUS_UNKNOWN: 未知编码，是一种占位符</li>
-	 * <li>APPLICATION_STATUS_CREATED: 已创建</li>
-	 * <li>APPLICATION_STATUS_AUDITED: 已审计</li>
-	 * <li>APPLICATION_STATUS_REFUSED: 已拒绝</li>
-	 * <li>APPLICATION_STATUS_OFFLINE: 已下架</li>
-	 * <li>APPLICATION_STATUS_ONLINE: 已上线</li>
+	 * <li>BUSINESS_STATUS_UNKNOWN: 未知编码，是一种占位符</li>
+	 * <li>BUSINESS_STATUS_PENDING: 待审核</li>
+	 * <li>BUSINESS_STATUS_REVIEWING: 审核中</li>
+	 * <li>BUSINESS_STATUS_REJECTED: 已拒绝</li>
+	 * <li>BUSINESS_STATUS_OFFLINE: 已下架</li>
+	 * <li>BUSINESS_STATUS_ONLINE: 已上架</li>
 	 * </ul>
 	 */
 	export enum CommonApplicationStatusEnum {
-		APPLICATIONSTATUSUNKNOWN = 'APPLICATION_STATUS_UNKNOWN',
-		APPLICATIONSTATUSCREATED = 'APPLICATION_STATUS_CREATED',
-		APPLICATIONSTATUSAUDITED = 'APPLICATION_STATUS_AUDITED',
-		APPLICATIONSTATUSREFUSED = 'APPLICATION_STATUS_REFUSED',
-		APPLICATIONSTATUSOFFLINE = 'APPLICATION_STATUS_OFFLINE',
-		APPLICATIONSTATUSONLINE = 'APPLICATION_STATUS_ONLINE'
+		BUSINESSSTATUSUNKNOWN = 'BUSINESS_STATUS_UNKNOWN',
+		BUSINESSSTATUSPENDING = 'BUSINESS_STATUS_PENDING',
+		BUSINESSSTATUSREVIEWING = 'BUSINESS_STATUS_REVIEWING',
+		BUSINESSSTATUSREJECTED = 'BUSINESS_STATUS_REJECTED',
+		BUSINESSSTATUSOFFLINE = 'BUSINESS_STATUS_OFFLINE',
+		BUSINESSSTATUSONLINE = 'BUSINESS_STATUS_ONLINE'
 	}
 
 	/**
@@ -1615,6 +1616,8 @@ export namespace Api {
 		codePackagePath?: string;
 		ownerName?: string;
 		uid?: string;
+		status?: Api.CommonApplicationStatusEnum;
+		isOnline?: boolean;
 	}
 
 	export interface ConfigConfigMetadata {
@@ -4155,6 +4158,19 @@ export namespace Api {
 		 * @memberof ServiceSearchServiceCondition
 		 */
 		code?: Api.CommonServiceCodeEnum;
+		/**
+		 * @description <ul>
+		 *  <li>BUSINESS_STATUS_UNKNOWN: 未知编码，是一种占位符</li>
+		 *  <li>BUSINESS_STATUS_PENDING: 待审核</li>
+		 *  <li>BUSINESS_STATUS_REVIEWING: 审核中</li>
+		 *  <li>BUSINESS_STATUS_REJECTED: 已拒绝</li>
+		 *  <li>BUSINESS_STATUS_OFFLINE: 已下架</li>
+		 *  <li>BUSINESS_STATUS_ONLINE: 已上架</li>
+		 *  </ul>
+		 * @type {Api.CommonApplicationStatusEnum}
+		 * @memberof ServiceSearchServiceCondition
+		 */
+		status?: Api.CommonApplicationStatusEnum;
 		owner?: string;
 		name?: string;
 		keyword?: string;

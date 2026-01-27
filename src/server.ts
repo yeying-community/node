@@ -70,8 +70,12 @@ import { SingletonDataSource } from './domain/facade/datasource';
 import { LoggerConfig, LoggerService } from './infrastructure/logger';
 import cors from 'cors';
 import authenticateToken from './middleware/authMiddleware';
+import { requireAdmin, requireInternal } from './middleware/accessControl';
 import { registerPublicAuthRoutes } from './routes/publicAuth';
 import { registerPrivateProfileRoute } from './routes/privateProfile';
+import { registerPublishRoutes } from './routes/publish';
+import { registerAdminUserRoleRoute } from './routes/adminUserRole';
+import { InitSchema20260126120000 } from './migrations/20260126120000-init-schema';
 
 // 初始化日志
 new LoggerService(config2.get<LoggerConfig>('logger')).initialize()
@@ -84,7 +88,7 @@ if (process.env.APP_PORT) {
 
 // 初始化数据库
 const databaseConfig: DatabaseConfig = config2.get<DatabaseConfig>('database')
-const builder = new DataSourceBuilder(databaseConfig)
+const builder = new DataSourceBuilder({ ...databaseConfig, synchronize: false })
 builder.entities([
     UserStateDO,
     UserDO,
@@ -99,10 +103,17 @@ builder.entities([
     AuditDO,
     CommentDO
 ])
+builder.migrations([InitSchema20260126120000])
 
-builder.build().initialize().then((conn) => {
+builder.build().initialize().then(async (conn) => {
     // 注册数据库连接
     SingletonDataSource.set(conn)
+    if (conn.options.type === 'postgres') {
+        const schema = (conn.options.schema as string) || 'public'
+        const schemaRef = `"${schema.replace(/"/g, '""')}"`
+        await conn.query(`CREATE SCHEMA IF NOT EXISTS ${schemaRef}`)
+    }
+    await conn.runMigrations()
     console.log('The database has been initialized.')
     // 创建 Express 应用
     const app = express();
@@ -113,6 +124,9 @@ builder.build().initialize().then((conn) => {
 
     // ✅ 将鉴权中间件应用到所有 API 路由（公共认证/健康检查除外）
     app.use('/api', authenticateToken);
+    // ✅ 管理员与内部接口前缀控制
+    app.use('/api/v1/admin', requireAdmin);
+    app.use('/api/v1/internal', requireInternal);
 
 
     const impl: ApiImplementation = {
@@ -173,6 +187,10 @@ builder.build().initialize().then((conn) => {
     registerPublicAuthRoutes(app);
     // 示例私有接口（支持 JWT / UCAN）
     registerPrivateProfileRoute(app);
+    // 上架/下架接口
+    registerPublishRoutes(app);
+    // 管理员角色更新
+    registerAdminUserRoleRoute(app);
     // 注册所有路由
     api(app, impl);
 

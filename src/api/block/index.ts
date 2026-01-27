@@ -21,7 +21,7 @@ import { Api } from '../../models'
 
 export default function(app: Express, impl: t.BlockApi) {
 	app.post(
-		'/api/v1/block/confirm',
+		'/api/v1/internal/block/confirm',
 		function (req: Request, res: Response) {
 			try {
 				function __body() {
@@ -81,7 +81,7 @@ export default function(app: Express, impl: t.BlockApi) {
 	)
 
 	app.post(
-		'/api/v1/block/get',
+		'/api/v1/internal/block/get',
 		function (req: Request, res: Response) {
 			try {
 				function __body() {
@@ -141,7 +141,7 @@ export default function(app: Express, impl: t.BlockApi) {
 	)
 
 	app.post(
-		'/api/v1/block/put',
+		'/api/v1/internal/block/put',
 		function (req: Request, res: Response) {
 			try {
 				function __body() {
@@ -201,7 +201,7 @@ export default function(app: Express, impl: t.BlockApi) {
 	)
 
 	app.post(
-		'/api/v1/block/streamGet',
+		'/api/v1/internal/block/streamGet',
 		function (req: Request, res: Response) {
 			try {
 				function __body() {
@@ -261,7 +261,7 @@ export default function(app: Express, impl: t.BlockApi) {
 	)
 
 	app.post(
-		'/api/v1/block/streamPut',
+		'/api/v1/internal/block/streamPut',
 		function (req: Request, res: Response) {
 			try {
 				function __body() {

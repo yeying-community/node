@@ -18,12 +18,12 @@ export function convertApplicationCodeFrom(code: string) {
 }
 
 export function convertApplicationStatusTo(status: ApplicationStatusEnum) {
-    return ApplicationStatusEnum[status] || ApplicationStatusEnum[ApplicationStatusEnum.APPLICATION_STATUS_UNKNOWN]
+    return ApplicationStatusEnum[status] || ApplicationStatusEnum[ApplicationStatusEnum.BUSINESS_STATUS_UNKNOWN]
 }
 
 export function convertApplicationStatusFrom(status: string) {
     const v = ApplicationStatusEnum[status as keyof typeof ApplicationStatusEnum]
-    return v !== undefined ? v : ApplicationStatusEnum.APPLICATION_STATUS_UNKNOWN
+    return v !== undefined ? v : ApplicationStatusEnum.BUSINESS_STATUS_UNKNOWN
 }
 
 // export function convertAuditTypeTo(status: AuditTypeEnum) {
@@ -38,6 +38,7 @@ export function convertApplicationStatusFrom(status: string) {
 export function convertApplicationMetadataFrom(application: Application) {
     return ApplicationMetadata.create({
         owner: application.owner,
+        ownerName: application.ownerName,
         network: application.network,
         address: application.address,
         name: application.name,
@@ -46,19 +47,20 @@ export function convertApplicationMetadataFrom(application: Application) {
         version: application.version,
         code:  ApplicationCodeEnum[application.code as keyof typeof ApplicationCodeEnum],
         avatar: application.avatar,
-        hash: application.hash,
         location: application.location,
         createdAt: application.createdAt,
         updatedAt: application.updatedAt,
         serviceCodes: application.serviceCodes.split(',').map((a) => ServiceCodeEnum[a as keyof typeof ServiceCodeEnum]),
         signature: application.signature,
-        codePackagePath: application.codePackagePath
+        codePackagePath: application.codePackagePath,
+        uid: application.uid
     })
 }
 
 export function convertApplicationMetadataTo(application: ApplicationMetadata): Application {
     return {
         owner: application.owner,
+        ownerName: application.ownerName,
         network: application.network,
         address: application.address,
         did: application.did,
@@ -67,14 +69,15 @@ export function convertApplicationMetadataTo(application: ApplicationMetadata): 
         description: application.description,
         code: ApplicationCodeEnum[application.code],
         avatar: application.avatar,
-        hash: application.hash,
         location: application.location,
         createdAt: application.createdAt,
         updatedAt: application.updatedAt,
         serviceCodes: application.serviceCodes.map((a) => ServiceCodeEnum[a]).join(','),
         signature: application.signature,
         codePackagePath: application.codePackagePath,
-        uid: ''
+        uid: application.uid || '',
+        status: 'BUSINESS_STATUS_PENDING',
+        isOnline: false
     }
 }
 
@@ -95,7 +98,6 @@ export function convertApplicationMetadataFromIdentity(identity: Identity) {
         version: metadata.version,
         code: ApplicationCodeEnum[extend.code as keyof typeof ApplicationCodeEnum],
         serviceCodes: extend.serviceCodes.split(',').map((a) => ServiceCodeEnum[a as keyof typeof ServiceCodeEnum]),
-        hash: extend.hash,
         location: extend.location,
         avatar: metadata.avatar,
         createdAt: metadata.createdAt,

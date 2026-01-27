@@ -16,12 +16,6 @@
                                 <el-form-item label="服务名称" prop="name">
                                     <el-input v-model="detailInfo.name" class="input-style" placeholder="请输入" />
                                 </el-form-item>
-                                <el-form-item label="身份密码" prop="password">
-                                    <el-input v-model="detailInfo.password" type="password" class="input-style" placeholder="请输入" />
-                                </el-form-item>
-                                <el-form-item label="身份密码确认" prop="password2">
-                                    <el-input v-model="detailInfo.password2" type="password" class="input-style" placeholder="请输入" />
-                                </el-form-item>
                                 <el-form-item label="服务描述" prop="description">
                                     <el-input
                                         v-model="detailInfo.description"
@@ -117,14 +111,6 @@
                                         placeholder="请输入输入服务IP：端口（如：192.168.1.1:8080）"
                                     />
                                 </el-form-item>
-                                <el-form-item label="代码包Hash" prop="hash">
-                                    <el-input
-                                        v-model="detailInfo.hash"
-                                        class="input-style"
-                                        placeholder="系统默认计算"
-                                        disabled
-                                    />
-                                </el-form-item>
                             </div>
                         </div>
                         <div class="footer">
@@ -181,13 +167,13 @@ import { ElMessageBox } from 'element-plus'
 import { h } from 'vue'
 import { SuccessFilled } from '@element-plus/icons-vue'
 import ResultChooseModal from '@/views/components/ResultChooseModal.vue'
-import { generateIdentity, userInfo } from '@/plugins/account'
+import { generateIdentity } from '@/plugins/account'
 import { v4 as uuidv4 } from 'uuid';
 import { notifyError } from '@/utils/message'
 import $service, {codeMap, serviceCodeMap, ServiceMetadata } from '@/plugins/service'
 import { getCurrentUtcString } from '@/utils/common'
 import $storage from "@/plugins/storage";
-import { getCurrentAccount } from '@/plugins/auth'
+import { getCurrentAccount, signWithWallet } from '@/plugins/auth'
 
 const defaultAvatar =
     import.meta.env.VITE_WEBDAV_AVATAR ||
@@ -275,8 +261,6 @@ const detailInfo = ref<ServiceMetadata>({
     owner: '',
     ownerName: '',
     codePackagePath: '',
-    password: '',
-    password2: ''
 })
 
 const codeUrl = ref(detailInfo.value.codePackagePath)
@@ -288,13 +272,10 @@ const handleClick = (e) => {
 }
 const rules = reactive({
     name: [{ required: true, message: '请输入', trigger: 'blur' }],
-    password: [{ required: true, message: '请输入', trigger: 'blur' }],
-    password2: [{ required: true, message: '请输入', trigger: 'blur' }],
     proxy: [{ required: true, message: '请输入', trigger: 'blur' }],
     avatar: [{ required: true, message: '请选择', trigger: 'blur' }],
     code: [{ required: true, message: '请选择', trigger: 'blur' }],
-    apiCodes: [{ required: true, message: '请选择', trigger: 'blur' }],
-    codePackagePath: [{ required: true, message: '请上传代码包', trigger: 'blur' }]
+    apiCodes: [{ required: true, message: '请选择', trigger: 'blur' }]
 })
 const getDetailInfo = async () => {
     if (route.query.uid) {
@@ -374,12 +355,23 @@ const submitForm = async (formEl, andOnline) => {
                      */
                 }
             } else {
-                if (params.password !== params.password2) {
-                    notifyError("2次密码输入不一致")
+                params.uid = uuidv4()
+                let signature = ''
+                try {
+                    signature = await signWithWallet(
+                        JSON.stringify({
+                            action: 'create_service',
+                            owner: account,
+                            name: params.name,
+                            timestamp: new Date().toISOString()
+                        })
+                    )
+                } catch (error) {
+                    notifyError(`❌签名失败: ${error}`)
                     return
                 }
-                params.uid = uuidv4()
-                const identity = await generateIdentity(params.code, params.apiCodes, params.location, params.hash, params.name, params.description,params.avatar, params.password)
+                params.signature = signature
+                const identity = await generateIdentity(params.code, params.apiCodes, '', '', params.name, params.description, params.avatar, signature)
                 params.did = identity.metadata?.did
                 params.version = identity?.metadata?.version
                 params.owner = account

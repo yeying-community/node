@@ -50,4 +50,13 @@ export class UserManager {
             await queryRunner.release()
         }
     }
+
+    async listUsers(pageIndex: number, pageSize: number) {
+        const [users, total] = await this.userRepository.findAndCount({
+            skip: (pageIndex - 1) * pageSize,
+            take: pageSize,
+            order: { createdAt: 'DESC' }
+        })
+        return { users, total }
+    }
 }

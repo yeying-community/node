@@ -21,7 +21,7 @@ import { Api } from '../../models'
 
 export default function(app: Express, impl: t.RecycleApi) {
 	app.post(
-		'/api/v1/recycle/recover',
+		'/api/v1/admin/recycle/recover',
 		function (req: Request, res: Response) {
 			try {
 				function __body() {
@@ -81,7 +81,7 @@ export default function(app: Express, impl: t.RecycleApi) {
 	)
 
 	app.post(
-		'/api/v1/recycle/remove',
+		'/api/v1/admin/recycle/remove',
 		function (req: Request, res: Response) {
 			try {
 				function __body() {
@@ -141,7 +141,7 @@ export default function(app: Express, impl: t.RecycleApi) {
 	)
 
 	app.post(
-		'/api/v1/recycle/search',
+		'/api/v1/admin/recycle/search',
 		function (req: Request, res: Response) {
 			try {
 				function __body() {

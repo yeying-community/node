@@ -17,6 +17,19 @@
             </el-icon>
           </template>
         </el-input>
+        <el-select
+          v-if="activeService === 'market'"
+          v-model="statusFilter"
+          size="large"
+          placeholder="业务状态"
+        >
+          <el-option
+            v-for="item in businessStatusOptions"
+            :key="item.value"
+            :label="item.label"
+            :value="item.value"
+          />
+        </el-select>
         <el-button
           type="primary"
           size="large"
@@ -65,7 +78,7 @@
 <script lang="ts" setup>
 import { onMounted, ref, watch } from "vue";
 import { Search } from "@element-plus/icons-vue";
-import $service, { ServiceMetadata } from "@/plugins/service";
+import $service, { ServiceMetadata, businessStatusOptions } from "@/plugins/service";
 import ServiceBlock from "@/views/components/ServiceBlock.vue";
 import { useRouter, useRoute, RouteLocationAsPathGeneric, RouteLocationAsRelativeGeneric } from 'vue-router'
 import { notifyError } from "@/utils/message";
@@ -75,6 +88,7 @@ import $audit, { AuditAuditDetail, AuditDetailBox, convertAuditMetadata } from "
 const searchVal = ref<string>("");
 const activeService = ref<string>("market");
 const serviceList = ref<ServiceMetadata[]>([])
+const statusFilter = ref<string>("BUSINESS_STATUS_ONLINE");
 const router = useRouter();
 interface Tab {
   name: string;
@@ -110,7 +124,7 @@ const handleTabClick = (tab: Tab) => {
 
 const search = async () => {
   try {
-        let condition = { keyword: searchVal.value, status: "APPLICATION_STATUS_ONLINE" }
+        let condition = { keyword: searchVal.value, status: statusFilter.value }
         const account = getCurrentAccount()
         if (account === undefined || account === null) {
             notifyError("❌未查询到当前账户，请登录")
@@ -187,6 +201,7 @@ watch(
     () => pagination.value.pageSize,
     () => searchVal.value,
     () => activeService.value,
+    () => statusFilter.value,
   ],
   () => {
     search();

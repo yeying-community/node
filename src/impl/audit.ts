@@ -8,6 +8,23 @@ import { generateUuid } from '../application/model/audit';
 import { AuditDetail, AuditMetadata } from '../yeying/api/audit/audit';
 import { Audit, QueryCondition } from '../domain/model/audit';
 
+function mapAuditError(error: unknown) {
+	const message = error instanceof Error ? error.message : 'Audit error';
+	if (message === 'Approver permission denied' || message === 'Applicant mismatch' || message === 'Applicant is not owner' || message === 'USER_BLOCKED') {
+		return { status: 403, message };
+	}
+	if (message === 'Duplicate pending audit' || message === 'Audit already decided') {
+		return { status: 409, message };
+	}
+	if (message === 'Target application not found' || message === 'Target service not found') {
+		return { status: 404, message };
+	}
+	if (message.startsWith('Invalid') || message.startsWith('Missing')) {
+		return { status: 400, message };
+	}
+	return { status: 500, message };
+}
+
 async function auditApprove(request: Api.AuditAuditApproveRequest): Promise<t.AuditApproveResponse> {
 	const logger: Logger = SingletonLogger.get()
 	logger.info(`auditApprove request=${JSON.stringify(request)}`);
@@ -59,13 +76,13 @@ async function auditApprove(request: Api.AuditAuditApproveRequest): Promise<t.Au
 		};
 	} catch (error) {
 		logger.error(`auditApprove failed ${error}`)
-		// 返回错误响应
+		const mapped = mapAuditError(error)
 		return {
 			status: 'default',
-			actualStatus: 500,  // 从错误中获取状态码
+			actualStatus: mapped.status,
 			body: {
 				code: -1,
-				message: `auditApprove failed: ${error}`,
+				message: `auditApprove failed: ${mapped.message}`,
 			}
 		};
 	}
@@ -164,13 +181,13 @@ async function auditCancel(request: Api.AuditAuditCancelRequest): Promise<t.Audi
 		};
 	} catch (error) {
 		logger.error(`auditCancel failed ${error}`)
-		// 返回错误响应
+		const mapped = mapAuditError(error)
 		return {
 			status: 'default',
-			actualStatus: 500,  // 从错误中获取状态码
+			actualStatus: mapped.status,
 			body: {
 				code: -1,
-				message: `auditCancel failed: ${error}`,
+				message: `auditCancel failed: ${mapped.message}`,
 			}
 		};
 	}
@@ -227,13 +244,13 @@ async function auditCreate(request: Api.AuditAuditCreateRequest): Promise<t.Audi
 		};
 	} catch (error) {
 		logger.error(`auditCreate failed ${error}`)
-		// 返回错误响应
+		const mapped = mapAuditError(error)
 		return {
 			status: 'default',
-			actualStatus: 500,  // 从错误中获取状态码
+			actualStatus: mapped.status,
 			body: {
 				code: -1,
-				message: `auditCreate failed: ${error}`,
+				message: `auditCreate failed: ${mapped.message}`,
 			}
 		};
 	}
@@ -316,13 +333,13 @@ async function auditDetail(request: Api.AuditAuditDetailRequest): Promise<t.Audi
 		};
 	} catch (error) {
 		logger.error(`auditDetail failed ${error}`)
-		// 返回错误响应
+		const mapped = mapAuditError(error)
 		return {
 			status: 'default',
-			actualStatus: 500,  // 从错误中获取状态码
+			actualStatus: mapped.status,
 			body: {
 				code: -1,
-				message: `auditDetail failed: ${error}`,
+				message: `auditDetail failed: ${mapped.message}`,
 			}
 		};
 	}
@@ -420,13 +437,13 @@ async function auditReject(request: Api.AuditAuditRejectRequest): Promise<t.Audi
 		};
 	} catch (error) {
 		logger.error(`auditReject failed ${error}`)
-		// 返回错误响应
+		const mapped = mapAuditError(error)
 		return {
 			status: 'default',
-			actualStatus: 500,  // 从错误中获取状态码
+			actualStatus: mapped.status,
 			body: {
 				code: -1,
-				message: `auditReject failed: ${error}`,
+				message: `auditReject failed: ${mapped.message}`,
 			}
 		};
 	}
@@ -502,13 +519,13 @@ async function auditSearch(request: Api.AuditAuditSearchRequest): Promise<t.Audi
 		};
 	} catch (error) {
 		logger.error(`auditSearch failed ${error}`)
-		// 返回错误响应
+		const mapped = mapAuditError(error)
 		return {
 			status: 'default',
-			actualStatus: 500,  // 从错误中获取状态码
+			actualStatus: mapped.status,
 			body: {
 				code: -1,
-				message: `auditSearch failed: ${error}`,
+				message: `auditSearch failed: ${mapped.message}`,
 			}
 		};
 	}

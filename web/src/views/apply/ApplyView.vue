@@ -17,6 +17,19 @@
                         </el-icon>
                     </template>
                 </el-input>
+                <el-select
+                    v-if="activeService === 'market'"
+                    v-model="statusFilter"
+                    size="large"
+                    placeholder="业务状态"
+                >
+                    <el-option
+                        v-for="item in businessStatusOptions"
+                        :key="item.value"
+                        :label="item.label"
+                        :value="item.value"
+                    />
+                </el-select>
                 <el-button type="primary" size="large" @click="changeRouter('/market/apply-edit')">创建应用</el-button>
             </div>
         </div>
@@ -49,7 +62,7 @@
 <script lang="ts" setup>
 import { onMounted, ref, watch } from 'vue'
 import { Search } from '@element-plus/icons-vue'
-import $application, { ApplicationMetadata } from '@/plugins/application'
+import $application, { ApplicationMetadata, businessStatusOptions } from '@/plugins/application'
 import MarketBlock from '@/views/components/MarketBlock.vue'
 import { useRouter, useRoute, RouteLocationAsPathGeneric, RouteLocationAsRelativeGeneric } from 'vue-router'
 import { userInfo } from '@/plugins/account'
@@ -61,6 +74,7 @@ import { getCurrentAccount } from '@/plugins/auth'
 const searchVal = ref<string>('')
 const activeService = ref<string>('market')
 const applicationList = ref<ApplicationMetadata[]>([])
+const statusFilter = ref<string>('BUSINESS_STATUS_ONLINE')
 const router = useRouter()
 
 interface Tab {
@@ -96,7 +110,7 @@ const handleTabClick = (tab: Tab) => {
 
 const search = async () => {
     try {
-        let condition = { keyword: searchVal.value, status: "APPLICATION_STATUS_ONLINE" }
+        let condition = { keyword: searchVal.value, status: statusFilter.value }
         const account = getCurrentAccount()
         if (account === undefined || account === null) {
             notifyError("❌未查询到当前账户，请登录")
@@ -170,7 +184,13 @@ const changeRouter = (url: string|RouteLocationAsRelativeGeneric|RouteLocationAs
 
 // 监听分页参数或搜索关键词变化，触发数据请求
 watch(
-    [() => pagination.value.page, () => pagination.value.pageSize, () => searchVal.value, () => activeService.value],
+    [
+        () => pagination.value.page,
+        () => pagination.value.pageSize,
+        () => searchVal.value,
+        () => activeService.value,
+        () => statusFilter.value
+    ],
     () => {
         search()
     },

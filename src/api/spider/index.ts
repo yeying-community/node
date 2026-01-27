@@ -21,7 +21,7 @@ import { Api } from '../../models'
 
 export default function(app: Express, impl: t.SpiderApi) {
 	app.post(
-		'/api/v1/spider/config',
+		'/api/v1/admin/spider/config',
 		function (req: Request, res: Response) {
 			try {
 				function __body() {
@@ -81,7 +81,7 @@ export default function(app: Express, impl: t.SpiderApi) {
 	)
 
 	app.post(
-		'/api/v1/spider/install',
+		'/api/v1/admin/spider/install',
 		function (req: Request, res: Response) {
 			try {
 				function __body() {
@@ -141,7 +141,7 @@ export default function(app: Express, impl: t.SpiderApi) {
 	)
 
 	app.post(
-		'/api/v1/spider/remove',
+		'/api/v1/admin/spider/remove',
 		function (req: Request, res: Response) {
 			try {
 				function __body() {
@@ -201,7 +201,7 @@ export default function(app: Express, impl: t.SpiderApi) {
 	)
 
 	app.post(
-		'/api/v1/spider/search',
+		'/api/v1/admin/spider/search',
 		function (req: Request, res: Response) {
 			try {
 				function __body() {
@@ -261,7 +261,7 @@ export default function(app: Express, impl: t.SpiderApi) {
 	)
 
 	app.post(
-		'/api/v1/spider/upgrade',
+		'/api/v1/admin/spider/upgrade',
 		function (req: Request, res: Response) {
 			try {
 				function __body() {

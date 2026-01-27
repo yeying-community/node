@@ -6,21 +6,21 @@
 ### recycleRecover
 
 ```http
-POST /api/v1/recycle/recover
+POST /api/v1/admin/recycle/recover
 ```
 
 
 ### recycleRemove
 
 ```http
-POST /api/v1/recycle/remove
+POST /api/v1/admin/recycle/remove
 ```
 
 
 ### recycleSearch
 
 ```http
-POST /api/v1/recycle/search
+POST /api/v1/admin/recycle/search
 ```
 
 

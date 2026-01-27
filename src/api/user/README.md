@@ -6,42 +6,43 @@
 ### userAdd
 
 ```http
-POST /api/v1/user/add
+POST /api/v1/admin/user/add
 ```
 
 
 ### userDelete
 
 ```http
-POST /api/v1/user/delete
+POST /api/v1/admin/user/delete
 ```
 
 
 ### userDetail
 
 ```http
-POST /api/v1/user/detail
+POST /api/v1/admin/user/detail
 ```
 
 
 ### userList
 
 ```http
-POST /api/v1/user/list
+POST /api/v1/admin/user/list
 ```
 
 
 ### userUpdate
 
 ```http
-POST /api/v1/user/update
+POST /api/v1/admin/user/update
 ```
 
 
 ### userUpdateStatus
 
 ```http
-POST /api/v1/user/updateStatus
+POST /api/v1/admin/user/updateStatus
+POST /api/v1/admin/user/updateRole
 ```
 
 

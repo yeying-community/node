@@ -21,7 +21,7 @@ import { Api } from '../../models'
 
 export default function(app: Express, impl: t.EventApi) {
 	app.post(
-		'/api/v1/event/consume',
+		'/api/v1/internal/event/consume',
 		function (req: Request, res: Response) {
 			try {
 				function __body() {
@@ -81,7 +81,7 @@ export default function(app: Express, impl: t.EventApi) {
 	)
 
 	app.post(
-		'/api/v1/event/produce',
+		'/api/v1/internal/event/produce',
 		function (req: Request, res: Response) {
 			try {
 				function __body() {

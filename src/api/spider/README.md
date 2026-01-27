@@ -6,35 +6,35 @@
 ### spiderConfig
 
 ```http
-POST /api/v1/spider/config
+POST /api/v1/admin/spider/config
 ```
 
 
 ### spiderInstall
 
 ```http
-POST /api/v1/spider/install
+POST /api/v1/admin/spider/install
 ```
 
 
 ### spiderRemove
 
 ```http
-POST /api/v1/spider/remove
+POST /api/v1/admin/spider/remove
 ```
 
 
 ### spiderSearch
 
 ```http
-POST /api/v1/spider/search
+POST /api/v1/admin/spider/search
 ```
 
 
 ### spiderUpgrade
 
 ```http
-POST /api/v1/spider/upgrade
+POST /api/v1/admin/spider/upgrade
 ```
 
 

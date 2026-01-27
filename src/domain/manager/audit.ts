@@ -26,42 +26,31 @@ export class AuditManager {
     }
 
     async queryByCondition(approver: string|null|undefined, applicant: string|null|undefined, name: string|null|undefined, startTime: string|null|undefined, endTime: string|null|undefined, page: number, pageSize: number) {
-        const completeCondition: any = {};
-
+        const qb = this.repository.createQueryBuilder('audit')
         if (approver !== undefined && approver !== ``) {
-            completeCondition.approver = approver;
+            qb.andWhere('audit.approver = :approver', { approver })
         }
         if (applicant !== undefined && applicant !== ``) {
-            completeCondition.applicant = applicant;
+            qb.andWhere('audit.applicant = :applicant', { applicant })
         }
-
         if (name !== undefined && name !== ``) {
-            completeCondition.appOrServiceMetadata = Like(`%"name":"${name}"%`);
+            qb.andWhere('(audit.targetName like :name OR audit.appOrServiceMetadata like :legacyName)', {
+                name: `%${name}%`,
+                legacyName: `%"name":"${name}"%`
+            })
         }
-
-        // 如果开始时间存在，添加 >= 条件
         if (startTime !== undefined && startTime !== ``) {
-            completeCondition.createAt = MoreThanOrEqual(startTime); // startTime 可以是 Date 或字符串
+            qb.andWhere('audit.createdAt >= :startTime', { startTime })
         }
-
-        // 如果结束时间存在，添加 <= 条件
         if (endTime !== undefined && endTime !== ``) {
-            // 如果 where.createAt 已存在（即 startTime 也存在），则合并条件
-            if (completeCondition.createAt) {
-                completeCondition.createAt = [completeCondition.createAt, LessThanOrEqual(endTime)];
-            } else {
-                completeCondition.createAt = LessThanOrEqual(endTime);
-            }
+            qb.andWhere('audit.createdAt <= :endTime', { endTime })
         }
+        qb.orderBy('audit.createdAt', 'DESC')
+          .skip((page - 1) * pageSize)
+          .take(pageSize)
 
-        console.log(`completeCondition=${JSON.stringify(completeCondition)}`)
-        const [audits, total] =  await this.repository.findAndCount({
-            where: completeCondition,
-            skip: (page - 1) * pageSize,
-            take: pageSize,
-            order: { createdAt: 'DESC' }
-        })
-        
+        const [audits, total] = await qb.getManyAndCount()
+
         return {
             data: audits,
             page: ResponsePage.create({
@@ -74,6 +63,32 @@ export class AuditManager {
 
     async delete(uid: string) {
         return await this.repository.delete({ uid: uid})
+    }
+
+    async queryByTarget(operateType: string, did: string, version: number) {
+        const direct = await this.repository.find({
+            where: {
+                targetType: operateType,
+                targetDid: did,
+                targetVersion: version
+            },
+            order: { createdAt: 'DESC' }
+        })
+        if (direct.length > 0) {
+            return direct
+        }
+        const versionNum = `%"version":${version}%`
+        const versionStr = `%"version":"${version}"%`
+        const didPattern = `%"did":"${did}"%`
+        return await this.repository.createQueryBuilder('audit')
+            .where('audit.auditType = :type', { type: operateType })
+            .andWhere('audit.appOrServiceMetadata like :did', { did: didPattern })
+            .andWhere('(audit.appOrServiceMetadata like :versionNum OR audit.appOrServiceMetadata like :versionStr)', {
+                versionNum,
+                versionStr
+            })
+            .orderBy('audit.createdAt', 'DESC')
+            .getMany()
     }
  
 }

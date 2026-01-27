@@ -21,7 +21,7 @@ import { Api } from '../../models'
 
 export default function(app: Express, impl: t.UserApi) {
 	app.post(
-		'/api/v1/user/add',
+		'/api/v1/admin/user/add',
 		function (req: Request, res: Response) {
 			try {
 				function __body() {
@@ -81,7 +81,7 @@ export default function(app: Express, impl: t.UserApi) {
 	)
 
 	app.post(
-		'/api/v1/user/delete',
+		'/api/v1/admin/user/delete',
 		function (req: Request, res: Response) {
 			try {
 				function __body() {
@@ -141,7 +141,7 @@ export default function(app: Express, impl: t.UserApi) {
 	)
 
 	app.post(
-		'/api/v1/user/detail',
+		'/api/v1/admin/user/detail',
 		function (req: Request, res: Response) {
 			try {
 				function __body() {
@@ -201,7 +201,7 @@ export default function(app: Express, impl: t.UserApi) {
 	)
 
 	app.post(
-		'/api/v1/user/list',
+		'/api/v1/admin/user/list',
 		function (req: Request, res: Response) {
 			try {
 				function __body() {
@@ -261,7 +261,7 @@ export default function(app: Express, impl: t.UserApi) {
 	)
 
 	app.post(
-		'/api/v1/user/update',
+		'/api/v1/admin/user/update',
 		function (req: Request, res: Response) {
 			try {
 				function __body() {
@@ -321,7 +321,7 @@ export default function(app: Express, impl: t.UserApi) {
 	)
 
 	app.post(
-		'/api/v1/user/updateStatus',
+		'/api/v1/admin/user/updateStatus',
 		function (req: Request, res: Response) {
 			try {
 				function __body() {

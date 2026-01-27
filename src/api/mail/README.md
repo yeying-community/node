@@ -6,14 +6,14 @@
 ### mailSend
 
 ```http
-POST /api/v1/mail/send
+POST /api/v1/internal/mail/send
 ```
 
 
 ### mailVerify
 
 ```http
-POST /api/v1/mail/verify
+POST /api/v1/internal/mail/verify
 ```
 
 

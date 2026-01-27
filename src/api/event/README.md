@@ -6,14 +6,14 @@
 ### eventConsume
 
 ```http
-POST /api/v1/event/consume
+POST /api/v1/internal/event/consume
 ```
 
 
 ### eventProduce
 
 ```http
-POST /api/v1/event/produce
+POST /api/v1/internal/event/produce
 ```
 
 

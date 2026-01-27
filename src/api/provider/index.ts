@@ -21,7 +21,7 @@ import { Api } from '../../models'
 
 export default function(app: Express, impl: t.ProviderApi) {
 	app.post(
-		'/api/v1/provider/add',
+		'/api/v1/admin/provider/add',
 		function (req: Request, res: Response) {
 			try {
 				function __body() {
@@ -81,7 +81,7 @@ export default function(app: Express, impl: t.ProviderApi) {
 	)
 
 	app.post(
-		'/api/v1/provider/delete',
+		'/api/v1/admin/provider/delete',
 		function (req: Request, res: Response) {
 			try {
 				function __body() {
@@ -141,7 +141,7 @@ export default function(app: Express, impl: t.ProviderApi) {
 	)
 
 	app.post(
-		'/api/v1/provider/descriptions',
+		'/api/v1/admin/provider/descriptions',
 		function (req: Request, res: Response) {
 			try {
 				function __body() {
@@ -201,7 +201,7 @@ export default function(app: Express, impl: t.ProviderApi) {
 	)
 
 	app.post(
-		'/api/v1/provider/detail',
+		'/api/v1/admin/provider/detail',
 		function (req: Request, res: Response) {
 			try {
 				function __body() {
@@ -261,7 +261,7 @@ export default function(app: Express, impl: t.ProviderApi) {
 	)
 
 	app.post(
-		'/api/v1/provider/models',
+		'/api/v1/admin/provider/models',
 		function (req: Request, res: Response) {
 			try {
 				function __body() {
@@ -321,7 +321,7 @@ export default function(app: Express, impl: t.ProviderApi) {
 	)
 
 	app.post(
-		'/api/v1/provider/search',
+		'/api/v1/admin/provider/search',
 		function (req: Request, res: Response) {
 			try {
 				function __body() {
