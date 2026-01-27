@@ -6,35 +6,35 @@
 ### blockConfirm
 
 ```http
-POST /api/v1/block/confirm
+POST /api/v1/internal/block/confirm
 ```
 
 
 ### blockGet
 
 ```http
-POST /api/v1/block/get
+POST /api/v1/internal/block/get
 ```
 
 
 ### blockPut
 
 ```http
-POST /api/v1/block/put
+POST /api/v1/internal/block/put
 ```
 
 
 ### blockStreamGet
 
 ```http
-POST /api/v1/block/streamGet
+POST /api/v1/internal/block/streamGet
 ```
 
 
 ### blockStreamPut
 
 ```http
-POST /api/v1/block/streamPut
+POST /api/v1/internal/block/streamPut
 ```
 
 

@@ -4,6 +4,8 @@ import { Api } from '../models'
 import { SingletonLogger } from '../domain/facade/logger';
 import { Logger } from 'winston'
 import { Service, SearchCondition } from '../domain/model/service';
+import { getRequestUser } from '../common/requestContext';
+import { ensureUserActive } from '../common/permission';
 
 async function serviceCreate(request: Api.ServiceCreateServiceRequest): Promise<t.ServiceCreateResponse> {
 	const logger: Logger = SingletonLogger.get()
@@ -33,6 +35,42 @@ async function serviceCreate(request: Api.ServiceCreateServiceRequest): Promise<
 					message: 'Missing header data',
 				}
 			};
+		}
+		const user = getRequestUser()
+		if (user?.address) {
+			try {
+				await ensureUserActive(user.address)
+			} catch (error) {
+				return {
+					status: 'default',
+					actualStatus: 403,
+					body: {
+						code: 403,
+						message: 'User status disabled',
+					}
+				};
+			}
+			const owner = request.body?.service?.owner
+			if (!owner) {
+				return {
+					status: 'default',
+					actualStatus: 400,
+					body: {
+						code: 400,
+						message: 'Missing service owner',
+					}
+				};
+			}
+			if (owner !== user.address) {
+				return {
+					status: 'default',
+					actualStatus: 403,
+					body: {
+						code: 403,
+						message: 'Owner mismatch',
+					}
+				};
+			}
 		}
 		const serviceService = new ServiceService()
 		await serviceService.add(convertToService(request.body?.service))
@@ -64,6 +102,8 @@ async function serviceCreate(request: Api.ServiceCreateServiceRequest): Promise<
 }
 
 function convertToService(metadata: Api.CommonServiceMetadata): Service {
+  const resolvedStatus = Api.CommonApplicationStatusEnum.BUSINESSSTATUSPENDING
+  const resolvedIsOnline = false
   return {
     did: metadata.did || '',
     version: metadata.version || 0,
@@ -82,7 +122,9 @@ function convertToService(metadata: Api.CommonServiceMetadata): Service {
     updatedAt: metadata.updatedAt || '',
     signature: metadata.signature || '',
     codePackagePath: metadata.codePackagePath || '',
-	uid: metadata.uid || ''
+	uid: metadata.uid || '',
+    status: resolvedStatus as string,
+    isOnline: resolvedIsOnline
   };
 }
 
@@ -116,6 +158,44 @@ async function serviceDelete(request: Api.ServiceDeleteServiceRequest): Promise<
 			};
 		}
 		const serviceService = new ServiceService()
+		const user = getRequestUser()
+		if (user?.address) {
+			try {
+				await ensureUserActive(user.address)
+			} catch (error) {
+				return {
+					status: 'default',
+					actualStatus: 403,
+					body: {
+						code: 403,
+						message: 'User status disabled',
+					}
+				};
+			}
+			let svc
+			try {
+				svc = await serviceService.get(request.body?.did, request.body?.version)
+			} catch (error) {
+				return {
+					status: 'default',
+					actualStatus: 404,
+					body: {
+						code: 404,
+						message: 'Service not found',
+					}
+				};
+			}
+			if (svc.owner !== user.address) {
+				return {
+					status: 'default',
+					actualStatus: 403,
+					body: {
+						code: 403,
+						message: 'Owner mismatch',
+					}
+				};
+			}
+		}
 		await serviceService.delete(request.body?.did, request.body?.version)
 
 		// 返回 200 响应
@@ -368,7 +448,9 @@ function serviceToCommonServiceMetadata(service: Service): Api.CommonServiceMeta
     signature: service.signature,
     codePackagePath: service.codePackagePath,
 	ownerName: service.ownerName,
-	uid: service.uid
+	uid: service.uid,
+    status: service.status as Api.CommonApplicationStatusEnum,
+    isOnline: service.isOnline
   };
 }
 
@@ -380,7 +462,11 @@ function convertToSearchCondition(
     code: condition.code, // 枚举值本身就是字符串，可以直接赋值
     name: condition.name,
     keyword: condition.keyword,
-    // 注意：isOnline 不在 ServiceSearchServiceCondition 中，无法映射
+    status: condition.status,
+    isOnline:
+      condition.status !== undefined
+        ? condition.status === Api.CommonApplicationStatusEnum.BUSINESSSTATUSONLINE
+        : undefined
   };
 }
 

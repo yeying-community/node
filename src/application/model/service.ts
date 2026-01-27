@@ -40,6 +40,7 @@ export function convertServiceMetadataFrom(service: Service): ServiceMetadata {
     return ServiceMetadata.create({
         network: service.network,
         owner: service.owner,
+        ownerName: service.ownerName,
         address: service.address,
         name: service.name,
         description: service.description,
@@ -53,7 +54,8 @@ export function convertServiceMetadataFrom(service: Service): ServiceMetadata {
         createdAt: service.createdAt,
         updatedAt: service.updatedAt,
         signature: service.signature,
-        codePackagePath: service.codePackagePath
+        codePackagePath: service.codePackagePath,
+        uid: service.uid
     })
 }
 
@@ -61,7 +63,7 @@ export function convertServiceMetadataTo(metadata: ServiceMetadata): Service {
     return {
         network: metadata.network,
         owner: metadata.owner,
-        ownerName: metadata.name,
+        ownerName: metadata.ownerName,
         address: metadata.address,
         name: metadata.name,
         description: metadata.description,
@@ -76,7 +78,9 @@ export function convertServiceMetadataTo(metadata: ServiceMetadata): Service {
         updatedAt: metadata.updatedAt,
         signature: metadata.signature,
         codePackagePath: metadata.codePackagePath,
-        uid: ''
+        uid: metadata.uid || '',
+        status: 'BUSINESS_STATUS_PENDING',
+        isOnline: false
     }
 }
 

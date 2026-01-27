@@ -5,12 +5,17 @@ import { DataSourceOptions } from 'typeorm/data-source/DataSourceOptions'
 export class DataSourceBuilder {
     private readonly options: DataSourceOptions
     private _entities: any[] = []
+    private _migrations: any[] = []
     constructor(options: DataSourceOptions) {
         this.options = options
     }
 
     entities(value: any[]) {
         this._entities = value
+    }
+
+    migrations(value: any[]) {
+        this._migrations = value
     }
 
     build() {
@@ -23,6 +28,6 @@ export class DataSourceBuilder {
             default:
                 options = this.options
         }
-        return new DataSource({ ...options, entities: this._entities })
+        return new DataSource({ ...options, entities: this._entities, migrations: this._migrations })
     }
 }

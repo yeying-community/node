@@ -21,7 +21,7 @@ import { Api } from '../../models'
 
 export default function(app: Express, impl: t.CertificateApi) {
 	app.post(
-		'/api/v1/certificate/get',
+		'/api/v1/internal/certificate/get',
 		function (req: Request, res: Response) {
 			try {
 				function __body() {
@@ -81,7 +81,7 @@ export default function(app: Express, impl: t.CertificateApi) {
 	)
 
 	app.post(
-		'/api/v1/certificate/sign',
+		'/api/v1/internal/certificate/sign',
 		function (req: Request, res: Response) {
 			try {
 				function __body() {

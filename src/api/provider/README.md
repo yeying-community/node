@@ -6,42 +6,42 @@
 ### providerAdd
 
 ```http
-POST /api/v1/provider/add
+POST /api/v1/admin/provider/add
 ```
 
 
 ### providerDelete
 
 ```http
-POST /api/v1/provider/delete
+POST /api/v1/admin/provider/delete
 ```
 
 
 ### providerDescriptions
 
 ```http
-POST /api/v1/provider/descriptions
+POST /api/v1/admin/provider/descriptions
 ```
 
 
 ### providerDetail
 
 ```http
-POST /api/v1/provider/detail
+POST /api/v1/admin/provider/detail
 ```
 
 
 ### providerModels
 
 ```http
-POST /api/v1/provider/models
+POST /api/v1/admin/provider/models
 ```
 
 
 ### providerSearch
 
 ```http
-POST /api/v1/provider/search
+POST /api/v1/admin/provider/search
 ```
 
 

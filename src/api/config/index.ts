@@ -21,7 +21,7 @@ import { Api } from '../../models'
 
 export default function(app: Express, impl: t.ConfigApi) {
 	app.post(
-		'/api/v1/config/get',
+		'/api/v1/internal/config/get',
 		function (req: Request, res: Response) {
 			try {
 				function __body() {
@@ -81,7 +81,7 @@ export default function(app: Express, impl: t.ConfigApi) {
 	)
 
 	app.post(
-		'/api/v1/config/set',
+		'/api/v1/internal/config/set',
 		function (req: Request, res: Response) {
 			try {
 				function __body() {

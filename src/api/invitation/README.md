@@ -6,21 +6,21 @@
 ### invitationCreate
 
 ```http
-POST /api/v1/invitation/create
+POST /api/v1/admin/invitation/create
 ```
 
 
 ### invitationDetail
 
 ```http
-POST /api/v1/invitation/detail
+POST /api/v1/admin/invitation/detail
 ```
 
 
 ### invitationSearch
 
 ```http
-POST /api/v1/invitation/search
+POST /api/v1/admin/invitation/search
 ```
 
 

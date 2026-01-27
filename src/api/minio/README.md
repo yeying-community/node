@@ -6,7 +6,7 @@
 ### minioPresignedUploadUrl
 
 ```http
-POST /api/v1/minio/presigned/upload/url
+POST /api/v1/internal/minio/presigned/upload/url
 ```
 
 

@@ -6,9 +6,9 @@
             </div>
             <div class="top-right">
                 <div class="name">{{ detail.name }}</div>
-                <div v-if="(pageFrom === 'myCreate' || pageFrom === 'myApply') && detail.status" class="badge-info">
-                    <el-badge is-dot :type="StatusInfo[detail.status]?.type" />
-                    <span class="badge-text">{{ StatusInfo[detail.status]?.text }}</span>
+                <div v-if="businessStatus !== 'BUSINESS_STATUS_UNKNOWN'" class="badge-info">
+                    <el-badge is-dot :type="businessInfo.type" />
+                    <span class="badge-text">{{ businessInfo.text }}</span>
                 </div>
                 <div class="title">
                      <div class="ownerWrap" v-if="detail.owner && pageFrom !== 'myCreate'">
@@ -19,7 +19,7 @@
                         <el-tag type="primary" size="small">官方</el-tag>
                     </span>
                     <span>
-                        {{ pageFrom === 'myCreate' ? '创建于' : '上架于' }}
+                        {{ pageFrom === 'myCreate' || !isOnline ? '创建于' : '上架于' }}
                         {{ dayjs(detail.createdAt).format('YYYY-MM-DD') }}</span
                     >
                 </div>
@@ -79,7 +79,7 @@
             <div class="bottom owner">
                 <div @click="toDetail" class="cursor">详情</div>
                 <el-divider direction="vertical" />
-                <div v-if="mockLineStatus === 'online'" @click="handleOfflineConfirm" class="cursor">下架服务</div>
+                <div v-if="isOnline" @click="handleOfflineConfirm" class="cursor">下架服务</div>
                 <div v-else @click="handleOnline" class="cursor">上架服务</div>
                 <el-divider direction="vertical" />
                 <div class="bottom-more">
@@ -87,7 +87,7 @@
                         <div>更多</div>
                         <template #dropdown>
                             <el-dropdown-menu>
-                                <el-dropdown-item v-if="mockLineStatus === 'offline'">
+                                <el-dropdown-item v-if="!isOnline">
                                     <el-popconfirm
                                         confirm-button-text="确定"
                                         cancel-button-text="取消"
@@ -101,7 +101,7 @@
                                     </el-popconfirm>
                                 </el-dropdown-item>
 
-                                <el-dropdown-item v-if="mockLineStatus === 'offline'" @click="toEdit"
+                                <el-dropdown-item v-if="!isOnline" @click="toEdit"
                                     >编辑</el-dropdown-item
                                 >
                                 <el-dropdown-item disabled>加入子网</el-dropdown-item>
@@ -213,7 +213,7 @@
 </template>
 <script lang="ts" setup>
 import { SuccessFilled } from '@element-plus/icons-vue'
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import dayjs from 'dayjs'
 import { ElMessage, ElMessageBox } from 'element-plus'
@@ -222,9 +222,9 @@ import Popover from '@/views/components/Popover.vue'
 import ApplyUseModal from './ApplyUseModal.vue'
 import ConfigServiceModal from './ConfigServiceModal.vue'
 import ResultChooseModal from './ResultChooseModal.vue'
-import { exportIdentityInfo, userInfo } from '@/plugins/account'
+import { exportIdentityInfo } from '@/plugins/account'
 import $audit, { AuditAuditMetadata } from '@/plugins/audit'
-import $service from '@/plugins/service'
+import $service, { businessStatusMap, resolveBusinessStatus } from '@/plugins/service'
 import { generateUuid, getCurrentUtcString } from '@/utils/common'
 import { getCurrentAccount } from '@/plugins/auth'
 import { notifyError } from '@/utils/message'
@@ -234,33 +234,6 @@ const confirmUnbind = async () => {
     // 执行解绑逻辑
     await $service.unbind(props.detail?.uid)
     props.refreshCardList()
-}
-
-const StatusInfo = {
-    online: {
-        type: 'success',
-        text: '已上架'
-    },
-    offline: {
-        type: 'info',
-        text: '未上架'
-    },
-    success: {
-        type: 'success',
-        text: '申请通过'
-    },
-    applying: {
-        type: 'primary',
-        text: '申请中'
-    },
-    reject: {
-        type: 'danger',
-        text: '申请驳回'
-    },
-    cancel: {
-        type: 'info',
-        text: '已取消'
-    }
 }
 
 const innerVisible = ref(false)
@@ -286,7 +259,9 @@ const isOwner = () => {
     return account === props.detail?.owner
 }
 
-const mockLineStatus = 'offline'
+const businessStatus = computed(() => resolveBusinessStatus(props.detail))
+const businessInfo = computed(() => businessStatusMap[businessStatus.value] || businessStatusMap.BUSINESS_STATUS_UNKNOWN)
+const isOnline = computed(() => businessStatus.value === 'BUSINESS_STATUS_ONLINE')
 const mockApplyStatus = 'success'
 
 /**

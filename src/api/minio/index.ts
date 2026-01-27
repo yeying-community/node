@@ -21,7 +21,7 @@ import { Api } from '../../models'
 
 export default function(app: Express, impl: t.MinioApi) {
 	app.post(
-		'/api/v1/minio/presigned/upload/url',
+		'/api/v1/internal/minio/presigned/upload/url',
 		function (req: Request, res: Response) {
 			try {
 				function __body() {

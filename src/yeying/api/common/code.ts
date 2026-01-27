@@ -833,43 +833,43 @@ export function participantTypeEnumToJSON(object: ParticipantTypeEnum): string {
   }
 }
 
-/** 应用状态 */
+/** 业务状态 */
 export enum ApplicationStatusEnum {
-  /** APPLICATION_STATUS_UNKNOWN - 未知编码，是一种占位符 */
-  APPLICATION_STATUS_UNKNOWN = 0,
-  /** APPLICATION_STATUS_CREATED - 已创建 */
-  APPLICATION_STATUS_CREATED = 1,
-  /** APPLICATION_STATUS_AUDITED - 已审计 */
-  APPLICATION_STATUS_AUDITED = 2,
-  /** APPLICATION_STATUS_REFUSED - 已拒绝 */
-  APPLICATION_STATUS_REFUSED = 3,
-  /** APPLICATION_STATUS_OFFLINE - 已下架 */
-  APPLICATION_STATUS_OFFLINE = 4,
-  /** APPLICATION_STATUS_ONLINE - 已上线 */
-  APPLICATION_STATUS_ONLINE = 5,
+  /** BUSINESS_STATUS_UNKNOWN - 未知编码，是一种占位符 */
+  BUSINESS_STATUS_UNKNOWN = 0,
+  /** BUSINESS_STATUS_PENDING - 待审核 */
+  BUSINESS_STATUS_PENDING = 1,
+  /** BUSINESS_STATUS_REVIEWING - 审核中 */
+  BUSINESS_STATUS_REVIEWING = 2,
+  /** BUSINESS_STATUS_REJECTED - 已拒绝 */
+  BUSINESS_STATUS_REJECTED = 3,
+  /** BUSINESS_STATUS_OFFLINE - 已下架 */
+  BUSINESS_STATUS_OFFLINE = 4,
+  /** BUSINESS_STATUS_ONLINE - 已上架 */
+  BUSINESS_STATUS_ONLINE = 5,
   UNRECOGNIZED = -1,
 }
 
 export function applicationStatusEnumFromJSON(object: any): ApplicationStatusEnum {
   switch (object) {
     case 0:
-    case "APPLICATION_STATUS_UNKNOWN":
-      return ApplicationStatusEnum.APPLICATION_STATUS_UNKNOWN;
+    case "BUSINESS_STATUS_UNKNOWN":
+      return ApplicationStatusEnum.BUSINESS_STATUS_UNKNOWN;
     case 1:
-    case "APPLICATION_STATUS_CREATED":
-      return ApplicationStatusEnum.APPLICATION_STATUS_CREATED;
+    case "BUSINESS_STATUS_PENDING":
+      return ApplicationStatusEnum.BUSINESS_STATUS_PENDING;
     case 2:
-    case "APPLICATION_STATUS_AUDITED":
-      return ApplicationStatusEnum.APPLICATION_STATUS_AUDITED;
+    case "BUSINESS_STATUS_REVIEWING":
+      return ApplicationStatusEnum.BUSINESS_STATUS_REVIEWING;
     case 3:
-    case "APPLICATION_STATUS_REFUSED":
-      return ApplicationStatusEnum.APPLICATION_STATUS_REFUSED;
+    case "BUSINESS_STATUS_REJECTED":
+      return ApplicationStatusEnum.BUSINESS_STATUS_REJECTED;
     case 4:
-    case "APPLICATION_STATUS_OFFLINE":
-      return ApplicationStatusEnum.APPLICATION_STATUS_OFFLINE;
+    case "BUSINESS_STATUS_OFFLINE":
+      return ApplicationStatusEnum.BUSINESS_STATUS_OFFLINE;
     case 5:
-    case "APPLICATION_STATUS_ONLINE":
-      return ApplicationStatusEnum.APPLICATION_STATUS_ONLINE;
+    case "BUSINESS_STATUS_ONLINE":
+      return ApplicationStatusEnum.BUSINESS_STATUS_ONLINE;
     case -1:
     case "UNRECOGNIZED":
     default:
@@ -879,18 +879,18 @@ export function applicationStatusEnumFromJSON(object: any): ApplicationStatusEnu
 
 export function applicationStatusEnumToJSON(object: ApplicationStatusEnum): string {
   switch (object) {
-    case ApplicationStatusEnum.APPLICATION_STATUS_UNKNOWN:
-      return "APPLICATION_STATUS_UNKNOWN";
-    case ApplicationStatusEnum.APPLICATION_STATUS_CREATED:
-      return "APPLICATION_STATUS_CREATED";
-    case ApplicationStatusEnum.APPLICATION_STATUS_AUDITED:
-      return "APPLICATION_STATUS_AUDITED";
-    case ApplicationStatusEnum.APPLICATION_STATUS_REFUSED:
-      return "APPLICATION_STATUS_REFUSED";
-    case ApplicationStatusEnum.APPLICATION_STATUS_OFFLINE:
-      return "APPLICATION_STATUS_OFFLINE";
-    case ApplicationStatusEnum.APPLICATION_STATUS_ONLINE:
-      return "APPLICATION_STATUS_ONLINE";
+    case ApplicationStatusEnum.BUSINESS_STATUS_UNKNOWN:
+      return "BUSINESS_STATUS_UNKNOWN";
+    case ApplicationStatusEnum.BUSINESS_STATUS_PENDING:
+      return "BUSINESS_STATUS_PENDING";
+    case ApplicationStatusEnum.BUSINESS_STATUS_REVIEWING:
+      return "BUSINESS_STATUS_REVIEWING";
+    case ApplicationStatusEnum.BUSINESS_STATUS_REJECTED:
+      return "BUSINESS_STATUS_REJECTED";
+    case ApplicationStatusEnum.BUSINESS_STATUS_OFFLINE:
+      return "BUSINESS_STATUS_OFFLINE";
+    case ApplicationStatusEnum.BUSINESS_STATUS_ONLINE:
+      return "BUSINESS_STATUS_ONLINE";
     case ApplicationStatusEnum.UNRECOGNIZED:
     default:
       return "UNRECOGNIZED";

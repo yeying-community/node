@@ -84,6 +84,7 @@ erDiagram
 | updated_at | varchar(64) | Updated time |
 | signature | varchar(192) | Signature (not verified) |
 | code_package_path | text | Package path |
+| status | varchar(64) | Business status (BUSINESS_STATUS_*) |
 | is_online | boolean | Online flag |
 
 ## applications
@@ -100,13 +101,13 @@ erDiagram
 | description | text | Description |
 | code | varchar(64) | Application code |
 | location | text | Location / entry |
-| hash | varchar(128) | Content hash |
 | service_codes | text | Service codes (comma-separated) |
 | avatar | text | Avatar |
 | created_at | varchar(64) | Created time |
 | updated_at | varchar(64) | Updated time |
 | signature | varchar(192) | Signature (not verified) |
 | code_package_path | text | Package path |
+| status | varchar(64) | Business status (BUSINESS_STATUS_*) |
 | is_online | boolean | Online flag |
 
 ## audits
@@ -121,6 +122,10 @@ erDiagram
 | created_at | timestamp | Created time |
 | updated_at | timestamp | Updated time |
 | signature | varchar(192) | Signature (not verified) |
+| target_type | varchar(32) | Target type (application/service) |
+| target_did | varchar(128) | Target DID |
+| target_version | int | Target version |
+| target_name | varchar(128) | Target name |
 
 ## comments
 | Field | Type | Notes |

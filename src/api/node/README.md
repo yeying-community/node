@@ -6,7 +6,7 @@
 ### nodeHealthCheck
 
 ```http
-POST /api/v1/node/healthCheck
+POST /api/v1/public/healthCheck
 ```
 
 

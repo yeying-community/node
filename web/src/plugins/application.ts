@@ -6,20 +6,19 @@ import { getCurrentAccount, getAuthToken } from './auth'
 import { notifyError } from '@/utils/message'
 import { getWalletDataStore } from '@/stores/auth'
 
+export { businessStatusMap, businessStatusOptions, resolveBusinessStatus, isBusinessOnline } from '@/utils/businessStatus'
+
 
 export interface ApplicationDetail {
     name: string
     description: string
     location: string
-    hash: string
     code: string
     serviceCodes: string[]
     avatar: string
     owner: string
     ownerName: string
     codePackagePath: string
-    password: string
-    password2: string
 }
 
 // 应用编码
@@ -65,7 +64,6 @@ export interface ApplicationMetadata {
     address?: string;
     did?: string;
     version?: number;
-    hash?: string;
     name?: string;
     code?: string;
     description?: string;
@@ -76,7 +74,9 @@ export interface ApplicationMetadata {
     updatedAt?: string;
     signature?: string;
     codePackagePath?: string;
-    id?: string
+    uid?: string
+    status?: string;
+    isOnline?: boolean;
 }
 export interface ApplicationSearchCondition {
     code?: string;
@@ -328,7 +328,7 @@ class $application {
                 "version": version
             }
         }
-        const response = await fetch('/api/v1/application/delete', {
+        const response = await fetch('/api/v1/application/unpublish', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -362,10 +362,11 @@ class $application {
         const body = {
             "header": header,
             "body": {
-                "application": application
+                "did": application?.did,
+                "version": application?.version
             }
         }
-        const response = await fetch('/api/v1/application/create', {
+        const response = await fetch('/api/v1/application/publish', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',

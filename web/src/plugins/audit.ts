@@ -216,7 +216,7 @@ class $audit {
                 "metadata": metadata
             }
         }
-        const response = await fetch('/api/v1/audit/approve', {
+        const response = await fetch('/api/v1/admin/audit/approve', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -253,7 +253,7 @@ class $audit {
                 "metadata": metadata
             }
         }
-        const response = await fetch('/api/v1/audit/reject', {
+        const response = await fetch('/api/v1/admin/audit/reject', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',

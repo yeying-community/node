@@ -113,7 +113,6 @@
                         <el-link type="primary" :icon="Link">{{ detailInfo.code }}</el-link>
                     </a>
                 </el-col>
-                <el-col :span="8" :xs="24">代码包Hash: {{ detailInfo.hash }}</el-col>
             </el-row>
         </div>
     </div>
@@ -160,15 +159,12 @@ const detailInfo = ref<ApplicationDetail>({
     name: '',
     description: '',
     location: '',
-    hash: '',
     code: '',
     serviceCodes: [],
     avatar: '',
     owner: '',
     ownerName: '',
-    codePackagePath: '',
-    password: '',
-    password2: ''
+    codePackagePath: ''
 })
 const { id = '', pageFrom = '' } = route.query || {}
 const innerVisible = ref(false)

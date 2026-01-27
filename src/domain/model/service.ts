@@ -6,6 +6,7 @@ export interface SearchCondition {
     code?: string
     name?: string
     keyword?: string
+    status?: string
     isOnline?: boolean
 }
 
@@ -33,6 +34,8 @@ export interface Service {
     signature: string
     codePackagePath: string
     uid: string
+    status: string
+    isOnline: boolean
 }
 
 export function convertServiceTo(service: Partial<Service>): ServiceDO {
@@ -40,6 +43,11 @@ export function convertServiceTo(service: Partial<Service>): ServiceDO {
     if (service === undefined) {
         return serviceDO
     }
+    const resolvedStatus =
+      service.status ||
+      (service.isOnline
+        ? 'BUSINESS_STATUS_ONLINE'
+        : 'BUSINESS_STATUS_OFFLINE')
     serviceDO.did = service.did!
     serviceDO.owner = service.owner!
     serviceDO.ownerName = service.ownerName!
@@ -57,12 +65,18 @@ export function convertServiceTo(service: Partial<Service>): ServiceDO {
     serviceDO.updatedAt = service.updatedAt!
     serviceDO.signature = service.signature!
     serviceDO.codePackagePath = service.codePackagePath!
-    serviceDO.isOnline = true
+    serviceDO.status = resolvedStatus
+    serviceDO.isOnline = service.isOnline ?? resolvedStatus === 'BUSINESS_STATUS_ONLINE'
     serviceDO.uid = service.uid!
     return serviceDO
 }
 
 export function convertServiceFrom(serviceDO: ServiceDO): Service {
+    const resolvedStatus =
+      serviceDO.status ||
+      (serviceDO.isOnline
+        ? 'BUSINESS_STATUS_ONLINE'
+        : 'BUSINESS_STATUS_OFFLINE')
     return {
         did: serviceDO.did,
         owner: serviceDO.owner,
@@ -81,6 +95,8 @@ export function convertServiceFrom(serviceDO: ServiceDO): Service {
         updatedAt: serviceDO.updatedAt,
         signature: serviceDO.signature,
         codePackagePath: serviceDO.codePackagePath,
-        uid: serviceDO.uid
+        uid: serviceDO.uid,
+        status: resolvedStatus,
+        isOnline: serviceDO.isOnline ?? resolvedStatus === 'BUSINESS_STATUS_ONLINE'
     }
 }

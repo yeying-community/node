@@ -6,7 +6,7 @@
 ### auditApprove
 
 ```http
-POST /api/v1/audit/approve
+POST /api/v1/admin/audit/approve
 ```
 
 
@@ -34,7 +34,7 @@ POST /api/v1/audit/detail
 ### auditReject
 
 ```http
-POST /api/v1/audit/reject
+POST /api/v1/admin/audit/reject
 ```
 
 

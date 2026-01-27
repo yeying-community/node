@@ -30,10 +30,18 @@ export class ApplicationManager {
 
     async queryByCondition(condition: SearchCondition, page: number, pageSize: number) {
         let completeCondition: object[] = [];
+        const hasStatus = condition.status !== undefined && condition.status !== ''
+        const isOnline = hasStatus ? undefined : (condition.isOnline !== undefined ? condition.isOnline : true)
+        const baseFilter: Record<string, any> = {}
+        if (hasStatus) {
+            baseFilter.status = condition.status
+        } else if (isOnline !== undefined) {
+            baseFilter.isOnline = isOnline
+        }
         if (condition.keyword && condition.keyword !== '') {
             const safeKeyword = condition.keyword.replace(/([%_])/g, "\\$1");
-            completeCondition.push({name: Like(`%${safeKeyword}%`), isOnline: true})
-            completeCondition.push({owner: Like(`%${safeKeyword}%`), isOnline: true})
+            completeCondition.push({name: Like(`%${safeKeyword}%`), ...baseFilter})
+            completeCondition.push({owner: Like(`%${safeKeyword}%`), ...baseFilter})
         } else {
             const cond: SearchCondition = {}
             if (condition.name) {
@@ -46,7 +54,7 @@ export class ApplicationManager {
                 cond.code = condition.code
             }
             if (cond.name || cond.owner || cond.code) {
-                completeCondition.push(cond)
+                completeCondition.push({ ...cond, ...baseFilter })
             }
             if (completeCondition.length == 0) {
                 completeCondition = []
@@ -67,25 +75,33 @@ export class ApplicationManager {
                     pageSize: pageSize
                 })
             }
-        } else {
-            const [applications, total] = await this.repository.findAndCount({
-                where: {isOnline: true},
-                skip: (page - 1) * pageSize,
-                take: pageSize,
-                order: { createdAt: 'DESC' }
+        }
+        const where = hasStatus ? { status: condition.status } : { isOnline: isOnline }
+        const [applications, total] = await this.repository.findAndCount({
+            where: where,
+            skip: (page - 1) * pageSize,
+            take: pageSize,
+            order: { createdAt: 'DESC' }
+        })
+        return {
+            data: applications,
+            page: ResponsePage.create({
+                total: total,
+                page: page,
+                pageSize: pageSize
             })
-            return {
-                data: applications,
-                page: ResponsePage.create({
-                    total: total,
-                    page: page,
-                    pageSize: pageSize
-                })
-            }
         }
     }
 
     async delete(did: string, version: number) {
         return await this.repository.delete({ did: did, version: version })
+    }
+
+    async setOnline(did: string, version: number, isOnline: boolean) {
+        return await this.repository.update({ did: did, version: version }, { isOnline: isOnline })
+    }
+
+    async updatePublishState(did: string, version: number, status: string, isOnline: boolean) {
+        return await this.repository.update({ did: did, version: version }, { status: status, isOnline: isOnline })
     }
 }

@@ -49,4 +49,12 @@ export class UserService {
         console.log(`state=${JSON.stringify(state)}`)
         return this.userManager.saveState(convertUserStateTo(state))
     }
+
+    async listUsers(pageIndex: number, pageSize: number) {
+        const result = await this.userManager.listUsers(pageIndex, pageSize)
+        return {
+            users: result.users.map(convertUserFrom),
+            total: result.total
+        }
+    }
 }

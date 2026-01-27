@@ -21,7 +21,7 @@ import { Api } from '../../models'
 
 export default function(app: Express, impl: t.AuditApi) {
 	app.post(
-		'/api/v1/audit/approve',
+		'/api/v1/admin/audit/approve',
 		function (req: Request, res: Response) {
 			try {
 				function __body() {
@@ -261,7 +261,7 @@ export default function(app: Express, impl: t.AuditApi) {
 	)
 
 	app.post(
-		'/api/v1/audit/reject',
+		'/api/v1/admin/audit/reject',
 		function (req: Request, res: Response) {
 			try {
 				function __body() {

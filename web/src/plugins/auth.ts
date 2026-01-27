@@ -405,6 +405,38 @@ export function getCurrentAccount() {
   return localStorage.getItem('currentAccount');
 }
 
+export async function signWithWallet(message: string): Promise<string> {
+  const provider = await resolveProvider();
+  if (!provider) {
+    throw new Error('No wallet provider');
+  }
+  let account = getCurrentAccount();
+  if (!account) {
+    try {
+      const accounts = await getAccounts(provider);
+      account = accounts?.[0];
+    } catch {
+      account = null;
+    }
+  }
+  if (!account) {
+    try {
+      const accounts = await requestAccounts(provider);
+      account = accounts?.[0];
+    } catch {
+      account = null;
+    }
+  }
+  if (!account) {
+    throw new Error('No wallet account');
+  }
+  const payload = typeof message === 'string' ? message : JSON.stringify(message);
+  return (await provider.request({
+    method: 'personal_sign',
+    params: [payload, account],
+  })) as string;
+}
+
 export async function ensureWalletSession(options: { redirect?: boolean } = {}) {
   const redirect = options.redirect !== false;
   const provider = await resolveProvider();

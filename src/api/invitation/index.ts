@@ -21,7 +21,7 @@ import { Api } from '../../models'
 
 export default function(app: Express, impl: t.InvitationApi) {
 	app.post(
-		'/api/v1/invitation/create',
+		'/api/v1/admin/invitation/create',
 		function (req: Request, res: Response) {
 			try {
 				function __body() {
@@ -81,7 +81,7 @@ export default function(app: Express, impl: t.InvitationApi) {
 	)
 
 	app.post(
-		'/api/v1/invitation/detail',
+		'/api/v1/admin/invitation/detail',
 		function (req: Request, res: Response) {
 			try {
 				function __body() {
@@ -141,7 +141,7 @@ export default function(app: Express, impl: t.InvitationApi) {
 	)
 
 	app.post(
-		'/api/v1/invitation/search',
+		'/api/v1/admin/invitation/search',
 		function (req: Request, res: Response) {
 			try {
 				function __body() {

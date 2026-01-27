@@ -8,6 +8,8 @@ import { Api } from '../models'
 import { Logger } from 'winston'
 import { MessageHeader } from '../yeying/api/common/message';
 import { AuthenticateTypeEnum } from '../yeying/api/common/code';
+import { getRequestUser } from '../common/requestContext';
+import { ensureUserActive } from '../common/permission';
 
 async function applicationCreate(request: Api.ApplicationCreateApplicationRequest): Promise<t.ApplicationCreateResponse> {
 	const logger: Logger = SingletonLogger.get()
@@ -42,6 +44,43 @@ async function applicationCreate(request: Api.ApplicationCreateApplicationReques
 		// const messageHeader: MessageHeader = convertCommonToMessageHeader(request.header);
 		// const body = new TextEncoder().encode(JSON.stringify(request.body, null, 0));
 		// authenticate.verifyHeader(messageHeader, body)
+
+        const user = getRequestUser()
+        if (user?.address) {
+			try {
+				await ensureUserActive(user.address)
+			} catch (error) {
+				return {
+					status: 'default',
+					actualStatus: 403,
+					body: {
+						code: 403,
+						message: 'User status disabled',
+					}
+				};
+			}
+			const owner = request.body?.application?.owner
+			if (!owner) {
+				return {
+					status: 'default',
+					actualStatus: 400,
+					body: {
+						code: 400,
+						message: 'Missing application owner',
+					}
+				};
+			}
+			if (owner !== user.address) {
+				return {
+					status: 'default',
+					actualStatus: 403,
+					body: {
+						code: 403,
+						message: 'Owner mismatch',
+					}
+				};
+			}
+        }
 
         // 假设 save 方法返回保存后的应用数据
         const savedApplication = await applicationService.save(convertToApplication(request.body?.application));
@@ -114,6 +153,42 @@ async function applicationDelete(request: Api.ApplicationDeleteApplicationReques
 			};
 		}
 
+        const user = getRequestUser()
+        if (user?.address) {
+			try {
+				await ensureUserActive(user.address)
+			} catch (error) {
+				return {
+					status: 'default',
+					actualStatus: 403,
+					body: {
+						code: 403,
+						message: 'User status disabled',
+					}
+				};
+			}
+			const app = await applicationService.query(request.body?.did, request.body?.version);
+			if (!app || !app.did) {
+				return {
+					status: 'default',
+					actualStatus: 404,
+					body: {
+						code: 404,
+						message: 'Application not found',
+					}
+				};
+			}
+			if (app.owner !== user.address) {
+				return {
+					status: 'default',
+					actualStatus: 403,
+					body: {
+						code: 403,
+						message: 'Owner mismatch',
+					}
+				};
+			}
+        }
         const deleteApplication = await applicationService.delete(request.body?.did, request.body?.version);
         
         // 返回 200 响应
@@ -359,7 +434,6 @@ function applicationToMetadata(app: Application): Api.CommonApplicationMetadata 
     address: app.address,
     did: app.did,
     version: app.version,
-    hash: app.hash,
     name: app.name,
     // 字符串 → 枚举（安全转换）
     code: isValidCode(app.code) ? app.code : undefined,
@@ -373,7 +447,9 @@ function applicationToMetadata(app: Application): Api.CommonApplicationMetadata 
     signature: app.signature,
     codePackagePath: app.codePackagePath,
 	ownerName: app.ownerName,
-	uid: app.uid
+	uid: app.uid,
+    status: app.status as Api.CommonApplicationStatusEnum,
+    isOnline: app.isOnline
   };
 }
 
@@ -385,11 +461,12 @@ function convertToSearchCondition(
     owner: condition.owner,
     name: condition.name,
     keyword: condition.keyword,
+    status: condition.status
   };
 
   // 映射 status -> isOnline
   if (condition.status !== undefined) {
-    result.isOnline = condition.status === Api.CommonApplicationStatusEnum.APPLICATIONSTATUSONLINE;
+    result.isOnline = condition.status === Api.CommonApplicationStatusEnum.BUSINESSSTATUSONLINE;
   }
 
   return result;
