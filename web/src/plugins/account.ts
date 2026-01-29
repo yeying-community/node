@@ -1,11 +1,162 @@
-import { IndexedCache } from '@yeying-community/yeying-next'
-import { createIdentity, IdentityApplicationExtend, IdentityCodeEnum, IdentityTemplate, NetworkTypeEnum, serializeIdentityToJson, verifyIdentity } from '@yeying-community/yeying-web3';
-import { getCurrentAccount } from './auth';
+import { v4 as uuidv4 } from 'uuid'
+import { getCurrentAccount, signWithWallet } from './auth';
 import { notifyError } from '@/utils/message';
+
+type IndexedStoreIndex = {
+    keyPath: string
+    name: string
+    unique?: boolean
+}
+
+type IndexedStoreSchema = {
+    name: string
+    key: string
+    autoIncrement: boolean
+    indexes?: IndexedStoreIndex[]
+}
+
+class IndexedCache {
+    private name: string
+    private version: number
+    private db?: IDBDatabase
+
+    constructor(name: string, version: number) {
+        this.name = name
+        this.version = version
+    }
+
+    async open(stores: IndexedStoreSchema[]) {
+        return await new Promise<void>((resolve, reject) => {
+            const request = window.indexedDB.open(this.name, this.version)
+            request.onupgradeneeded = () => {
+                const db = request.result
+                for (const store of stores) {
+                    let objectStore: IDBObjectStore
+                    if (!db.objectStoreNames.contains(store.name)) {
+                        objectStore = db.createObjectStore(store.name, {
+                            keyPath: store.key,
+                            autoIncrement: store.autoIncrement
+                        })
+                    } else if (request.transaction) {
+                        objectStore = request.transaction.objectStore(store.name)
+                    } else {
+                        continue
+                    }
+                    for (const index of store.indexes || []) {
+                        if (!objectStore.indexNames.contains(index.name)) {
+                            objectStore.createIndex(index.name, index.keyPath, {
+                                unique: Boolean(index.unique)
+                            })
+                        }
+                    }
+                }
+            }
+            request.onsuccess = () => {
+                this.db = request.result
+                resolve()
+            }
+            request.onerror = () => reject(request.error)
+        })
+    }
+
+    async insert(storeName: string, value: unknown) {
+        return await this.put(storeName, value)
+    }
+
+    async updateByKey(storeName: string, value: unknown) {
+        return await this.put(storeName, value)
+    }
+
+    async deleteByKey(storeName: string, key: IDBValidKey) {
+        const store = this.getStore(storeName, 'readwrite')
+        return await this.requestToPromise(store.delete(key))
+    }
+
+    async getByKey(storeName: string, key: IDBValidKey) {
+        const store = this.getStore(storeName, 'readonly')
+        return await this.requestToPromise(store.get(key))
+    }
+
+    async indexAll(storeName: string, indexName: string, indexValue: IDBValidKey) {
+        const store = this.getStore(storeName, 'readonly')
+        if (store.indexNames.contains(indexName)) {
+            const index = store.index(indexName)
+            if ('getAll' in index) {
+                return await this.requestToPromise((index as IDBIndex).getAll(indexValue))
+            }
+        }
+        return await new Promise<any[]>((resolve, reject) => {
+            const results: any[] = []
+            const request = store.openCursor()
+            request.onsuccess = () => {
+                const cursor = request.result
+                if (!cursor) {
+                    resolve(results)
+                    return
+                }
+                if (cursor.value && cursor.value[indexName] === indexValue) {
+                    results.push(cursor.value)
+                }
+                cursor.continue()
+            }
+            request.onerror = () => reject(request.error)
+        })
+    }
+
+    private async put(storeName: string, value: unknown) {
+        const store = this.getStore(storeName, 'readwrite')
+        return await this.requestToPromise(store.put(value))
+    }
+
+    private getStore(storeName: string, mode: IDBTransactionMode) {
+        if (!this.db) {
+            throw new Error('IndexedCache is not initialized')
+        }
+        return this.db.transaction(storeName, mode).objectStore(storeName)
+    }
+
+    private requestToPromise<T>(request: IDBRequest<T>): Promise<T> {
+        return new Promise<T>((resolve, reject) => {
+            request.onsuccess = () => resolve(request.result)
+            request.onerror = () => reject(request.error)
+        })
+    }
+}
 
 let indexedCache: IndexedCache = new IndexedCache('yeying-protal', 1)
 let currentAccount = null
 let userInfo = null
+
+type LocalIdentityMetadata = {
+    did: string
+    version: number
+    name: string
+    description: string
+    avatar: string
+    createdAt: string
+    updatedAt: string
+}
+
+type LocalIdentity = {
+    metadata: LocalIdentityMetadata
+    applicationExtend: {
+        code: string
+        serviceCodes: string
+        location: string
+        hash: string
+    }
+}
+
+async function digestHex(value: string): Promise<string> {
+    if (typeof window === 'undefined' || !window.crypto || !window.crypto.subtle) {
+        return uuidv4().replace(/-/g, '')
+    }
+    const data = new TextEncoder().encode(value)
+    const hash = await window.crypto.subtle.digest('SHA-256', data)
+    return Array.from(new Uint8Array(hash))
+        .map((b) => b.toString(16).padStart(2, '0'))
+        .join('')
+}
 
 // 初始化提供者
 async function initializeProviders() {
@@ -79,35 +230,51 @@ export class LocalCache {
  * @param password 
  * @returns 
  */
-export async function generateIdentity(code: string, serviceCodes: string, location: string, hash: string, name: string, description: string, avatar: string, password: string) {
-    const extend = IdentityApplicationExtend.create({
-        code: code,
-        serviceCodes: serviceCodes,
-        location: location,
-        hash: hash
-    })
-
-    const template: IdentityTemplate = {
-        language: "LANGUAGE_CODE_ZH_CH",
-        parent: "",
-        network: NetworkTypeEnum.NETWORK_TYPE_YEYING,
-        code: IdentityCodeEnum.IDENTITY_CODE_APPLICATION,
-        name: name,
-        description: description,
-        avatar: avatar,
-        extend: extend,
+export async function generateIdentity(code: string, serviceCodes: unknown, location: string, hash: string, name: string, description: string, avatar: string) {
+    const account = getCurrentAccount()
+    if (!account) {
+        throw new Error('No wallet account')
     }
-
-    const identity = await createIdentity(template, password)
-    const success = await verifyIdentity(identity)
-    if (!success) {
-        throw new Error("create identity error")
-    }
-    if (!identity.metadata?.did) {
-        throw new Error("create identity error")
+    const now = new Date().toISOString()
+    const serviceCodesValue = Array.isArray(serviceCodes) ? serviceCodes.join(',') : `${serviceCodes || ''}`
+    const safeLocation = `${location || ''}`
+    const safeHash = `${hash || ''}`
+    const safeDescription = `${description || ''}`
+    const kind = safeLocation.trim() ? 'application' : 'service'
+    const signaturePayload = [
+        'YeYing Identity v1',
+        `Owner: ${account}`,
+        `Kind: ${kind}`,
+        `Code: ${code}`,
+        `Name: ${name}`,
+        `Description: ${safeDescription}`,
+        `Location: ${safeLocation}`,
+        `Hash: ${safeHash}`,
+        `ServiceCodes: ${serviceCodesValue}`,
+        `Issued At: ${now}`
+    ].join('\n')
+    const signature = await signWithWallet(signaturePayload)
+    const didSeed = `${account}|${signature}|${code}|${name}|${safeDescription}|${safeLocation}|${safeHash}|${serviceCodesValue}`
+    const did = `did:local:${await digestHex(didSeed)}`
+    const identity: LocalIdentity = {
+        metadata: {
+            did,
+            version: 1,
+            name,
+            description: safeDescription,
+            avatar,
+            createdAt: now,
+            updatedAt: now
+        },
+        applicationExtend: {
+            code,
+            serviceCodes: serviceCodesValue,
+            location: safeLocation,
+            hash: safeHash
+        }
     }
     const identityCache = new LocalCache()
-    identityCache.set(identity.metadata?.did, serializeIdentityToJson(identity))
+    identityCache.set(did, JSON.stringify(identity))
     return identity
 }
 

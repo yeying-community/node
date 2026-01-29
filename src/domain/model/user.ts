@@ -9,6 +9,22 @@ export interface User {
     signature: string
 }
 
+export const USER_ROLE_UNKNOWN = 'USER_ROLE_UNKNOWN'
+export const USER_ROLE_OWNER = 'USER_ROLE_OWNER'
+export const USER_ROLE_NORMAL = 'USER_ROLE_NORMAL'
+
+export const USER_STATUS_UNKNOWN = 'USER_STATUS_UNKNOWN'
+export const USER_STATUS_ACTIVE = 'USER_STATUS_ACTIVE'
+export const USER_STATUS_OFFLINE = 'USER_STATUS_OFFLINE'
+export const USER_STATUS_DISABLE = 'USER_STATUS_DISABLE'
+export const USER_STATUS_LOCK = 'USER_STATUS_LOCK'
+export const USER_STATUS_UNVERIFIED = 'USER_STATUS_UNVERIFIED'
+export const USER_STATUS_DELETED = 'USER_STATUS_DELETED'
+export const USER_STATUS_DORMANT = 'USER_STATUS_DORMANT'
+export const USER_STATUS_FREEZE = 'USER_STATUS_FREEZE'
+export const USER_STATUS_AUDIT = 'USER_STATUS_AUDIT'
+export const USER_STATUS_REFUSED = 'USER_STATUS_REFUSED'
+
 export interface UserState {
     did: string
     role: string

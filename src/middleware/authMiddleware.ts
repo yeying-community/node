@@ -5,11 +5,12 @@ import { isUcanToken, verifyUcanInvocation } from '../auth/ucan';
 import { runWithRequestContext } from '../common/requestContext';
 
 const PUBLIC_ROUTES = [
-  '/v1/public/auth/challenge',
-  '/v1/public/auth/verify',
-  '/v1/public/auth/refresh',
-  '/v1/public/auth/logout',
-  '/v1/public/healthCheck',
+  '/public/auth/challenge',
+  '/public/auth/verify',
+  '/public/auth/refresh',
+  '/public/auth/logout',
+  '/public/health',
+  '/public/healthCheck',
 ];
 
 type AuthUser = {
@@ -23,11 +24,11 @@ const authenticateToken = (req: Request, res: Response, next: NextFunction) => {
     return runWithRequestContext(undefined, () => next());
   }
 
-  if (PUBLIC_ROUTES.includes(req.path) || req.path.startsWith('/v1/public/auth/')) {
+  if (PUBLIC_ROUTES.includes(req.path) || req.path.startsWith('/public/auth/')) {
     return runWithRequestContext(undefined, () => next());
   }
 
-  if (req.path.startsWith('/v1/internal/')) {
+  if (req.path.startsWith('/internal/')) {
     const internalToken = process.env.INTERNAL_TOKEN;
     const provided = Array.isArray(req.headers['x-internal-token'])
       ? req.headers['x-internal-token'][0]

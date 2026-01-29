@@ -1,20 +1,12 @@
 import { Repository } from 'typeorm/repository/Repository'
 import { AuditDO } from '../mapper/entity'
 import { SingletonDataSource } from '../facade/datasource'
-import { ResponsePage } from '../../yeying/api/common/message'
-import { ApplicationManager } from './application'
-import { ServiceManager } from './service'
-import { LessThanOrEqual, Like, MoreThanOrEqual } from 'typeorm'
+import { createResponsePage } from '../../common/page'
 
 export class AuditManager {
     private repository: Repository<AuditDO>
-    private applicationManager: ApplicationManager
-    private serviceManager: ServiceManager
-
     constructor() {
         this.repository = SingletonDataSource.get().getRepository(AuditDO)
-        this.applicationManager = new ApplicationManager()
-        this.serviceManager = new ServiceManager()
     }
 
     async save(auditDO: AuditDO) {
@@ -25,10 +17,21 @@ export class AuditManager {
         return await this.repository.findOneBy({ uid: uid})
     }
 
-    async queryByCondition(approver: string|null|undefined, applicant: string|null|undefined, name: string|null|undefined, startTime: string|null|undefined, endTime: string|null|undefined, page: number, pageSize: number) {
+    async queryByCondition(
+        approver: string | null | undefined,
+        applicant: string | null | undefined,
+        name: string | null | undefined,
+        startTime: string | null | undefined,
+        endTime: string | null | undefined,
+        page: number,
+        pageSize: number
+    ) {
         const qb = this.repository.createQueryBuilder('audit')
-        if (approver !== undefined && approver !== ``) {
-            qb.andWhere('audit.approver = :approver', { approver })
+        if (typeof approver === 'string' && approver.trim() !== '') {
+            const normalized = approver.split('::')[0]?.trim().toLowerCase()
+            if (normalized) {
+                qb.andWhere('LOWER(audit.approver) like :approverLike', { approverLike: `%${normalized}%` })
+            }
         }
         if (applicant !== undefined && applicant !== ``) {
             qb.andWhere('audit.applicant = :applicant', { applicant })
@@ -53,11 +56,7 @@ export class AuditManager {
 
         return {
             data: audits,
-            page: ResponsePage.create({
-                total: total,
-                page: page,
-                pageSize: pageSize
-            })
+            page: createResponsePage(total, page, pageSize)
         }
     }
 

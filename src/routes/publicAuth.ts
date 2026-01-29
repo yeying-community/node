@@ -9,9 +9,13 @@ import {
   revokeRefreshToken,
   verifyChallengeSignature,
 } from '../auth/siwe';
+import { getConfig } from '../config/runtime';
 
 const BASE_PATH = '/api/v1/public/auth';
-const REFRESH_COOKIE_NAME = process.env.AUTH_REFRESH_COOKIE_NAME || 'refresh_token';
+const REFRESH_COOKIE_NAME =
+  process.env.AUTH_REFRESH_COOKIE_NAME ||
+  getConfig<string>('auth.refreshCookieName') ||
+  'refresh_token';
 
 function parseSameSite(value?: string): CookieOptions['sameSite'] {
   if (!value) return undefined;
@@ -23,8 +27,12 @@ function parseSameSite(value?: string): CookieOptions['sameSite'] {
 }
 
 function buildRefreshCookieOptions(maxAgeMs: number): CookieOptions {
-  const sameSite = parseSameSite(process.env.COOKIE_SAMESITE) ?? 'lax';
-  const secure = String(process.env.COOKIE_SECURE || '').toLowerCase() === 'true';
+  const sameSite =
+    parseSameSite(process.env.COOKIE_SAMESITE ?? getConfig<string>('auth.cookieSameSite')) ?? 'lax';
+  const secure =
+    process.env.COOKIE_SECURE !== undefined
+      ? String(process.env.COOKIE_SECURE || '').toLowerCase() === 'true'
+      : Boolean(getConfig<boolean>('auth.cookieSecure'));
   return {
     httpOnly: true,
     sameSite,

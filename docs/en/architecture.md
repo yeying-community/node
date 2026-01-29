@@ -1,14 +1,14 @@
 # Architecture
 
 ## Purpose
-The Node service is the backend for the community market. It exposes OpenAPI-based endpoints for applications, services, audits, and related domain data, and protects those endpoints with SIWE + UCAN authentication.
+The Node service is the backend for the community market. It exposes REST endpoints for applications, services, audits, and related domain data, and protects those endpoints with SIWE + UCAN authentication.
 
 ## Components
 - **API Server (Express)**: routes all `/api/v1/*` endpoints.
 - **Auth Middleware**: validates `Authorization: Bearer <JWT|UCAN>` for protected routes.
 - **SIWE Auth Routes**: `POST /api/v1/public/auth/*` to issue JWTs (access + refresh).
 - **UCAN Verification**: validates `aud`, `cap`, `exp`, and proof chain for UCAN tokens.
-- **OpenAPI Routers**: generated route handlers under `src/api/*` wired to `src/impl/*`.
+- **HTTP Routes**: REST handlers under `src/routes/*` grouped by `public/admin/internal`.
 - **Database**: TypeORM entities for core market data (applications, services, audits, users, etc.).
 - **Storage (Client-side)**: file storage is handled by the frontend via WebDAV; backend does not proxy storage.
 
@@ -34,4 +34,3 @@ flowchart TD
   BE --> DB
   FE -->|UCAN WebDAV| WebDAV
 ```
-

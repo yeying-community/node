@@ -2,7 +2,7 @@ import { Repository } from 'typeorm/repository/Repository'
 import { ApplicationDO } from '../mapper/entity'
 import { SingletonDataSource } from '../facade/datasource'
 import { SearchCondition } from '../model/application'
-import { ResponsePage } from '../../yeying/api/common/message'
+import { createResponsePage } from '../../common/page'
 import { Like } from "typeorm";
 import { SingletonLogger } from '../facade/logger'
 import { Logger } from 'winston'
@@ -69,11 +69,7 @@ export class ApplicationManager {
             })
             return {
                 data: applications,
-                page: ResponsePage.create({
-                    total: total,
-                    page: page,
-                    pageSize: pageSize
-                })
+                page: createResponsePage(total, page, pageSize)
             }
         }
         const where = hasStatus ? { status: condition.status } : { isOnline: isOnline }
@@ -85,11 +81,7 @@ export class ApplicationManager {
         })
         return {
             data: applications,
-            page: ResponsePage.create({
-                total: total,
-                page: page,
-                pageSize: pageSize
-            })
+            page: createResponsePage(total, page, pageSize)
         }
     }
 

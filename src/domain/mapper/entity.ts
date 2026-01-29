@@ -1,14 +1,9 @@
 import {
     Column,
-    CreateDateColumn,
     Entity,
     Index,
-    JoinColumn,
-    ManyToOne,
-    OneToMany,
     PrimaryColumn,
-    PrimaryGeneratedColumn,
-    UpdateDateColumn
+    PrimaryGeneratedColumn
 } from 'typeorm'
 
 @Entity('users')
@@ -117,6 +112,34 @@ export class ServiceDO {
     isOnline!: boolean
 }
 
+@Entity('service_configs')
+@Index('idx_service_config_owner', ['serviceUid', 'applicant'], { unique: true })
+export class ServiceConfigDO {
+    @PrimaryGeneratedColumn("uuid")
+    uid!: string
+
+    @Column({ length: 64, name: 'service_uid' })
+    serviceUid!: string
+
+    @Column({ length: 128, name: 'service_did' })
+    serviceDid!: string
+
+    @Column({ name: 'service_version' })
+    serviceVersion!: number
+
+    @Column({ length: 128 })
+    applicant!: string
+
+    @Column({ type: 'text', name: 'config_json', default: '' })
+    configJson!: string
+
+    @Column({ length: 64, name: 'created_at', default: '' })
+    createdAt!: string
+
+    @Column({ length: 64, name: 'updated_at', default: '' })
+    updatedAt!: string
+}
+
 @Entity('applications')
 export class ApplicationDO {
     @PrimaryGeneratedColumn("uuid")
@@ -178,6 +201,34 @@ export class ApplicationDO {
     isOnline!: boolean
 }
 
+@Entity('application_configs')
+@Index('idx_application_config_owner', ['applicationUid', 'applicant'], { unique: true })
+export class ApplicationConfigDO {
+    @PrimaryGeneratedColumn("uuid")
+    uid!: string
+
+    @Column({ length: 64, name: 'application_uid' })
+    applicationUid!: string
+
+    @Column({ length: 128, name: 'application_did' })
+    applicationDid!: string
+
+    @Column({ name: 'application_version' })
+    applicationVersion!: number
+
+    @Column({ length: 128 })
+    applicant!: string
+
+    @Column({ type: 'text', name: 'config_json', default: '' })
+    configJson!: string
+
+    @Column({ length: 64, name: 'created_at', default: '' })
+    createdAt!: string
+
+    @Column({ length: 64, name: 'updated_at', default: '' })
+    updatedAt!: string
+}
+
 /**
  * 审批注释，确认通过/确认拒绝
  */
@@ -197,170 +248,6 @@ export class CommentDO {
     updatedAt!: string
     @Column({ length: 192 })
     signature!: string
-}
-
-@Entity('events')
-export class EventDO {
-    @PrimaryColumn({ length: 128, nullable: false, unique: true })
-    uid!: string
-
-    @Column({ length: 64 })
-    type!: string
-
-    @Column('text')
-    producers!: string
-
-    @Column('text')
-    consumers!: string
-
-    @Column('text')
-    signatures!: string
-
-    @Column('text')
-    content!: string
-
-    @Column('text')
-    opinions!: string
-
-    @Column('text')
-    extend!: string
-
-    @Column({ length: 64, name: 'created_at' })
-    createdAt!: string
-
-    @Column({ length: 64, name: 'processed_at' })
-    processedAt!: string
-}
-
-@Entity('invitations')
-export class InvitationDO {
-    @PrimaryColumn({ length: 64, nullable: false, unique: true })
-    code!: string
-
-    @Column({ length: 64 })
-    scene!: string
-
-    @Column({ length: 128 })
-    inviter!: string
-
-    @Column({ length: 128, nullable: true })
-    invitee!: string
-
-    @Column({ length: 64, name: 'expired_at' })
-    expiredAt!: string
-
-    @Column({ length: 64, name: 'created_at' })
-    createdAt!: string
-
-    @Column({ length: 192 })
-    signature!: string
-}
-
-@Entity('certificates')
-export class CertificateDO {
-    @PrimaryColumn({ length: 256, nullable: false, unique: true })
-    domain!: string
-
-    @Column({ length: 128, name: 'service_did' })
-    serviceDid!: string
-
-    @Column('text')
-    cert!: string
-
-    @Column('text')
-    csr!: string
-
-    @Column({ length: 64 })
-    expired!: string
-
-    @Column({ length: 64, name: 'created_at' })
-    createdAt!: string
-
-    @Column({ length: 64, name: 'updated_at' })
-    updatedAt!: string
-}
-
-@Entity('supports')
-export class SupportDO {
-    @PrimaryGeneratedColumn()
-    id!: number
-
-    @Column({ length: 128 })
-    did!: string
-
-    @Column({ length: 256 })
-    email!: string
-
-    @Column({ length: 64 })
-    type!: string
-
-    @Column('text')
-    description!: string
-
-    @Column({ length: 64, name: 'created_at' })
-    createdAt!: string
-
-    @Column({ length: 192 })
-    signature!: string
-
-    @UpdateDateColumn({ name: 'updated_at' })
-    updatedAt!: Date
-}
-
-@Entity('solutions')
-export class SolutionDO {
-    @PrimaryColumn({ length: 64, nullable: false, unique: true })
-    uid!: string
-
-    @Column({ length: 128 })
-    publisher!: string
-
-    @Column({ length: 128 })
-    name!: string
-
-    @Column({ length: 64 })
-    language!: string
-
-    @Column('text')
-    description!: string
-
-    @Column({ length: 192 })
-    signature!: string
-
-    @Column({ length: 64, name: 'created_at' })
-    createdAt!: string
-
-    @OneToMany(() => CardDO, (card) => card.solution, {
-        cascade: true
-    })
-    cards!: CardDO[]
-}
-
-@Entity('cards')
-export class CardDO {
-    @PrimaryGeneratedColumn()
-    id!: number
-
-    @Column({ length: 128 })
-    name!: string
-
-    @Column({ length: 64 })
-    price!: string
-
-    @Column('text')
-    variables!: string
-
-    @CreateDateColumn({ name: 'created_at' })
-    createdAt!: Date
-
-    @UpdateDateColumn({ name: 'updated_at' })
-    updatedAt!: Date
-
-    @ManyToOne(() => SolutionDO, (solution) => solution.cards, {
-        onDelete: 'CASCADE'
-    })
-    @JoinColumn({ name: 'solution_id', referencedColumnName: 'uid' })
-    solution!: SolutionDO
 }
 
 /**

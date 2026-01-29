@@ -10,7 +10,8 @@ erDiagram
   USERS ||--o{ APPLICATIONS : owns
   USERS ||--o{ SERVICES : owns
   AUDITS ||--o{ COMMENTS : has
-  SOLUTIONS ||--o{ CARDS : contains
+  SERVICES ||--o{ SERVICE_CONFIGS : config
+  APPLICATIONS ||--o{ APPLICATION_CONFIGS : config
 
   USERS {
     varchar did PK
@@ -26,20 +27,23 @@ erDiagram
     uuid uid PK
     varchar did
   }
+  SERVICE_CONFIGS {
+    uuid uid PK
+    varchar service_uid
+    varchar applicant
+  }
   AUDITS {
     uuid uid PK
     text app_or_service_metadata
   }
+  APPLICATION_CONFIGS {
+    uuid uid PK
+    varchar application_uid
+    varchar applicant
+  }
   COMMENTS {
     uuid uid PK
     text audit_id
-  }
-  SOLUTIONS {
-    varchar uid PK
-  }
-  CARDS {
-    int id PK
-    varchar solution_id FK
   }
 ```
 
@@ -110,6 +114,30 @@ erDiagram
 | status | varchar(64) | 业务状态（BUSINESS_STATUS_*） |
 | is_online | boolean | 上架标记 |
 
+## service_configs
+| 字段 | 类型 | 说明 |
+| --- | --- | --- |
+| uid | uuid PK | 配置主键 |
+| service_uid | varchar(64) | 服务 UID |
+| service_did | varchar(128) | 服务 DID |
+| service_version | int | 服务版本 |
+| applicant | varchar(128) | 申请人地址 |
+| config_json | text | 配置 JSON（code/instance 列表） |
+| created_at | varchar(64) | 创建时间 |
+| updated_at | varchar(64) | 更新时间 |
+
+## application_configs
+| 字段 | 类型 | 说明 |
+| --- | --- | --- |
+| uid | uuid PK | 配置主键 |
+| application_uid | varchar(64) | 应用 UID |
+| application_did | varchar(128) | 应用 DID |
+| application_version | int | 应用版本 |
+| applicant | varchar(128) | 申请人地址 |
+| config_json | text | 配置 JSON（code/instance 列表） |
+| created_at | varchar(64) | 创建时间 |
+| updated_at | varchar(64) | 更新时间 |
+
 ## audits
 | 字段 | 类型 | 说明 |
 | --- | --- | --- |
@@ -117,7 +145,7 @@ erDiagram
 | app_or_service_metadata | text | 申请对象元数据 JSON |
 | audit_type | text | 审批类型（application/service） |
 | applicant | text | 申请人（did::name） |
-| approver | text | 审核人列表（JSON 或拼接字符串） |
+| approver | text | 审核策略（JSON 对象或列表）；对象形如 `{ "approvers": [...], "requiredApprovals": 2 }` |
 | reason | text | 申请原因 |
 | created_at | timestamp | 创建时间 |
 | updated_at | timestamp | 更新时间 |
@@ -133,59 +161,7 @@ erDiagram
 | uid | uuid PK | 评论主键 |
 | audit_id | text | 关联 audits.uid |
 | text | text | 审批意见 |
-| status | text | 审批状态（agree/reject） |
+| status | text | 审批状态（COMMENT_STATUS_AGREE / COMMENT_STATUS_REJECT） |
 | created_at | varchar(64) | 创建时间 |
 | updated_at | varchar(64) | 更新时间 |
 | signature | varchar(192) | 签名（当前未校验） |
-
-## invitations
-| 字段 | 类型 | 说明 |
-| --- | --- | --- |
-| code | varchar(64) PK | 邀请码 |
-| scene | varchar(64) | 场景 |
-| inviter | varchar(128) | 邀请人 DID |
-| invitee | varchar(128) | 被邀请人 DID |
-| expired_at | varchar(64) | 过期时间 |
-| created_at | varchar(64) | 创建时间 |
-| signature | varchar(192) | 签名 |
-
-## events
-| 字段 | 类型 | 说明 |
-| --- | --- | --- |
-| uid | varchar(128) PK | 事件 ID |
-| type | varchar(64) | 事件类型 |
-| producers | text | 生产者 |
-| consumers | text | 消费者 |
-| signatures | text | 签名 |
-| content | text | 内容 |
-| opinions | text | 观点 |
-| extend | text | 扩展字段 |
-| created_at | varchar(64) | 创建时间 |
-| processed_at | varchar(64) | 处理时间 |
-
-## certificates
-| 字段 | 类型 | 说明 |
-| --- | --- | --- |
-| domain | varchar(256) PK | 域名 |
-| service_did | varchar(128) | 服务 DID |
-| cert | text | 证书 |
-| csr | text | CSR |
-| expired | varchar(64) | 过期时间 |
-| created_at | varchar(64) | 创建时间 |
-| updated_at | varchar(64) | 更新时间 |
-
-## supports
-| 字段 | 类型 | 说明 |
-| --- | --- | --- |
-| id | int PK | 自增 ID |
-| did | varchar(128) | 用户 DID |
-| email | varchar(256) | 邮箱 |
-| type | varchar(64) | 类型 |
-| description | text | 描述 |
-| created_at | varchar(64) | 创建时间 |
-| signature | varchar(192) | 签名 |
-| updated_at | timestamp | 更新时间 |
-
-## solutions / cards
-- `solutions`：解决方案主表，`cards` 为其子表（一对多）。
-- `cards.solution_id` 外键指向 `solutions.uid`。

@@ -1,12 +1,18 @@
 import { UserService } from '../domain/service/user';
-import { UserRoleEnum, UserStatusEnum } from '../yeying/api/user/user';
+import {
+  USER_ROLE_OWNER,
+  USER_STATUS_DELETED,
+  USER_STATUS_DISABLE,
+  USER_STATUS_FREEZE,
+  USER_STATUS_LOCK,
+} from '../domain/model/user';
 
-const ADMIN_ROLE = UserRoleEnum[UserRoleEnum.USER_ROLE_OWNER];
+const ADMIN_ROLE = USER_ROLE_OWNER;
 const BLOCKED_STATUSES = new Set([
-  UserStatusEnum[UserStatusEnum.USER_STATUS_DISABLE],
-  UserStatusEnum[UserStatusEnum.USER_STATUS_LOCK],
-  UserStatusEnum[UserStatusEnum.USER_STATUS_FREEZE],
-  UserStatusEnum[UserStatusEnum.USER_STATUS_DELETED],
+  USER_STATUS_DISABLE,
+  USER_STATUS_LOCK,
+  USER_STATUS_FREEZE,
+  USER_STATUS_DELETED,
 ]);
 
 function parseAdminList(value?: string) {

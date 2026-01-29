@@ -11,7 +11,7 @@ sequenceDiagram
   participant DB as 数据库
 
   U ->> FE: 填写应用信息
-  FE ->> BE: POST /api/v1/application/create
+  FE ->> BE: POST /api/v1/public/applications
   BE ->> DB: 保存 applications（is_online 默认 false）
   BE -->> FE: 创建成功
 ```
@@ -43,7 +43,7 @@ sequenceDiagram
   participant DB as 数据库
 
   U ->> FE: 填写服务信息
-  FE ->> BE: POST /api/v1/service/create
+  FE ->> BE: POST /api/v1/public/services
   BE ->> DB: 保存 services（is_online 默认 false）
   BE -->> FE: 创建成功
 ```
@@ -70,11 +70,11 @@ stateDiagram-v2
 flowchart TD
   A[申请人提交申请]
   B{校验通过?}
-  C[/audit/create]
+  C[POST /api/v1/public/audits]
   D[生成 audits 工单]
   E[进入待审核队列]
   F{是否撤销?}
-  G[/audit/cancel]
+  G[DELETE /api/v1/public/audits/:uid]
   H[删除 audits + comments]
   I[等待审核处理]
   J[返回错误]
@@ -88,18 +88,18 @@ flowchart TD
 
 ### 关键点
 - 服务端校验：资源存在、申请人是 owner、元数据 JSON 可解析、同一资源的未结工单不可重复提交。
-- `/audit/cancel` 会删除工单与其评论（`audits` + `comments`）。
+- `DELETE /api/v1/public/audits/:uid` 会删除工单与其评论（`audits` + `comments`）。
 
 ## 4) 审核流程（审批/拒绝）
 ```mermaid
 flowchart TD
   A[审核人检索工单
-/audit/search]
+POST /api/v1/public/audits/search]
   B[查看详情
-/audit/detail]
+GET /api/v1/public/audits/:uid]
   C{审核结果}
-  D[/audit/approve]
-  E[/audit/reject]
+  D[POST /api/v1/admin/audits/:uid/approve]
+  E[POST /api/v1/admin/audits/:uid/reject]
   F[写入 comments]
   G[目标：更新资源状态]
   H[通知/记录]
@@ -112,23 +112,24 @@ flowchart TD
 ```
 
 ### 关键点
-- `comments.status` 仅支持 `AGREE` / `REJECT`。
-- 审核单已做幂等限制：已有审批结果时不允许再次审批。
+- `comments.status` 仅支持 `COMMENT_STATUS_AGREE` / `COMMENT_STATUS_REJECT`。
+- 审核通过条件：**同意数 >= requiredApprovals** 且无拒绝记录。
+- 审核单已做幂等限制：已通过/已驳回后不允许再次审批。
 - 审核结果会同步更新应用/服务 `is_online`。
 
 ### 审核工单状态机（逻辑）
-> 说明：审核单无显式 `status` 字段，可由最新 comment 推断。
+> 说明：审核单无显式 `status` 字段，可由 comment 聚合（阈值 + 驳回）推断。
 ```mermaid
 stateDiagram-v2
-  [*] --> PENDING: /audit/create
-  PENDING --> APPROVED: /audit/approve
-  PENDING --> REJECTED: /audit/reject
-  PENDING --> CANCELED: /audit/cancel
+  [*] --> PENDING: POST /api/v1/public/audits
+  PENDING --> APPROVED: POST /api/v1/admin/audits/:uid/approve
+  PENDING --> REJECTED: POST /api/v1/admin/audits/:uid/reject
+  PENDING --> CANCELED: DELETE /api/v1/public/audits/:uid
   REJECTED --> PENDING: 重新提交(新工单)
 ```
 
 ## 5) 上架/下架流程（应用/服务）
-> 说明：已提供独立上/下架接口（`/application/publish`、`/application/unpublish`、`/service/publish`、`/service/unpublish`）。
+> 说明：已提供独立上/下架接口（`POST /api/v1/public/applications/:uid/publish`、`POST /api/v1/public/applications/:uid/unpublish`、`POST /api/v1/public/services/:uid/publish`、`POST /api/v1/public/services/:uid/unpublish`）。
 ```mermaid
 flowchart TD
   A[资源 owner 发起上/下架]
@@ -180,4 +181,4 @@ flowchart TD
 ## 7) 认证与权限
 - 所有业务接口要求 `Authorization: Bearer <JWT|UCAN>`。
 - UCAN `aud` 必须与服务端 `UCAN_AUD` 匹配，否则 401。
-- 角色/状态权限校验与签名校验**目前未强制**（详见 `permissions.md`）。
+- 角色/状态权限校验仍**未强制**；上架申请/审核签名已**强制**（详见 `permissions.md`）。

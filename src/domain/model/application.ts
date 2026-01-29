@@ -1,6 +1,5 @@
 import { ApplicationDO } from '../mapper/entity'
-import { ResponsePage } from '../../yeying/api/common/message'
-import { Api } from '../../models'
+import { ResponsePage } from '../../common/page'
 
 export interface SearchCondition {
     code?: string
@@ -38,32 +37,9 @@ export interface Application {
     isOnline: boolean
 }
 
-export function convertToApplication(metadata: Api.CommonApplicationMetadata): Application {
-  const resolvedStatus = Api.CommonApplicationStatusEnum.BUSINESSSTATUSPENDING
-  const resolvedIsOnline = false
-  // 检查必要字段，或提供默认值
-  return {
-    owner: metadata.owner ?? '',
-    ownerName: metadata.ownerName ?? '',
-    network: metadata.network ?? '',
-    address: metadata.address ?? '',
-    did: metadata.did ?? '',
-    version: metadata.version ?? 1,
-    name: metadata.name ?? '',
-    description: metadata.description ?? '',
-    code: metadata.code ?? 'APPLICATION_CODE_UNKNOWN',
-    location: metadata.location ?? '',
-    serviceCodes: (metadata.serviceCodes?.join(',') ?? '') as string, // 将枚举数组转为逗号分隔字符串
-    avatar: metadata.avatar ?? '',
-    createdAt: metadata.createdAt ?? new Date().toISOString(),
-    updatedAt: metadata.updatedAt ?? new Date().toISOString(),
-    signature: metadata.signature ?? '',
-    codePackagePath: metadata.codePackagePath ?? '',
-    uid: metadata.uid ?? '',
-    status: resolvedStatus as string,
-    isOnline: resolvedIsOnline
-  };
-}
+const STATUS_UNKNOWN = 'BUSINESS_STATUS_UNKNOWN'
+const STATUS_OFFLINE = 'BUSINESS_STATUS_OFFLINE'
+const STATUS_ONLINE = 'BUSINESS_STATUS_ONLINE'
 
 export function convertApplicationTo(application: Application): ApplicationDO {
     if (application === undefined) {
@@ -72,9 +48,7 @@ export function convertApplicationTo(application: Application): ApplicationDO {
 
     const resolvedStatus =
       application.status ||
-      (application.isOnline
-        ? Api.CommonApplicationStatusEnum.BUSINESSSTATUSONLINE
-        : Api.CommonApplicationStatusEnum.BUSINESSSTATUSOFFLINE)
+      (application.isOnline ? STATUS_ONLINE : STATUS_OFFLINE)
 
     const applicationDO = new ApplicationDO()
     applicationDO.owner = application.owner
@@ -95,7 +69,7 @@ export function convertApplicationTo(application: Application): ApplicationDO {
     applicationDO.codePackagePath = application.codePackagePath
     applicationDO.status = resolvedStatus
     applicationDO.isOnline =
-      application.isOnline ?? resolvedStatus === Api.CommonApplicationStatusEnum.BUSINESSSTATUSONLINE
+      application.isOnline ?? resolvedStatus === STATUS_ONLINE
     applicationDO.uid = application.uid
     return applicationDO
 }
@@ -120,15 +94,15 @@ export function convertApplicationFrom(applicationDO?: ApplicationDO | null | un
             signature: '',
             codePackagePath: '',
             uid: '',
-            status: Api.CommonApplicationStatusEnum.BUSINESSSTATUSUNKNOWN,
+            status: STATUS_UNKNOWN,
             isOnline: false
         }
     }
     const resolvedStatus =
       applicationDO.status ||
       (applicationDO.isOnline
-        ? Api.CommonApplicationStatusEnum.BUSINESSSTATUSONLINE
-        : Api.CommonApplicationStatusEnum.BUSINESSSTATUSOFFLINE)
+        ? STATUS_ONLINE
+        : STATUS_OFFLINE)
     return {
         owner: applicationDO.owner,
         ownerName: applicationDO.ownerName,
@@ -148,6 +122,6 @@ export function convertApplicationFrom(applicationDO?: ApplicationDO | null | un
         codePackagePath: applicationDO.codePackagePath,
         uid: applicationDO.uid,
         status: resolvedStatus,
-        isOnline: applicationDO.isOnline ?? resolvedStatus === Api.CommonApplicationStatusEnum.BUSINESSSTATUSONLINE
+        isOnline: applicationDO.isOnline ?? resolvedStatus === STATUS_ONLINE
     }
 }

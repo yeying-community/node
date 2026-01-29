@@ -2,6 +2,7 @@ import { randomBytes, randomUUID } from 'crypto';
 import * as jwt from 'jsonwebtoken';
 import type { JwtPayload } from 'jsonwebtoken';
 import { verifyMessage } from 'ethers';
+import { getConfig } from '../config/runtime';
 
 export type ChallengeRecord = {
   address: string;
@@ -31,16 +32,28 @@ type RefreshSession = {
   expiresAt: number;
 };
 
-const JWT_SECRET = process.env.JWT_SECRET || 'replace-this-in-production';
-const ACCESS_TTL_MS = parseNumber(process.env.ACCESS_TTL_MS, 15 * 60 * 1000);
-const REFRESH_TTL_MS = parseNumber(process.env.REFRESH_TTL_MS, 7 * 24 * 60 * 60 * 1000);
-const CHALLENGE_TTL_MS = parseNumber(process.env.AUTH_CHALLENGE_TTL_MS, 5 * 60 * 1000);
+const JWT_SECRET =
+  process.env.JWT_SECRET ||
+  getConfig<string>('auth.jwtSecret') ||
+  'replace-this-in-production';
+const ACCESS_TTL_MS = parseNumber(
+  process.env.ACCESS_TTL_MS ?? getConfig<number>('auth.accessTtlMs'),
+  15 * 60 * 1000
+);
+const REFRESH_TTL_MS = parseNumber(
+  process.env.REFRESH_TTL_MS ?? getConfig<number>('auth.refreshTtlMs'),
+  7 * 24 * 60 * 60 * 1000
+);
+const CHALLENGE_TTL_MS = parseNumber(
+  process.env.AUTH_CHALLENGE_TTL_MS ?? getConfig<number>('auth.challengeTtlMs'),
+  5 * 60 * 1000
+);
 
 const challenges = new Map<string, ChallengeRecord>();
 const refreshStore = new Map<string, { address: string; expiresAt: number }>();
 
-function parseNumber(value: string | undefined, fallback: number): number {
-  if (!value) return fallback;
+function parseNumber(value: unknown, fallback: number): number {
+  if (value === undefined || value === null || value === '') return fallback;
   const parsed = Number(value);
   return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
 }

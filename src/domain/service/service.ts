@@ -2,8 +2,6 @@ import { Logger } from 'winston'
 import { SingletonLogger } from '../facade/logger'
 import { ServiceManager } from '../manager/service'
 import { convertServiceFrom, convertServiceTo, PageResult, SearchCondition, Service } from '../model/service'
-import { ServiceMetadata } from '../../yeying/api/common/model'
-import { convertServiceMetadataTo } from '../../application/model/service'
 
 export class ServiceService {
     private logger: Logger = SingletonLogger.get()
@@ -56,12 +54,4 @@ export class ServiceService {
         return res
     }
 
-    async saveMyself(service: ServiceMetadata) {
-        const existing = await this.get(service.did, service.version)
-        if (existing) {
-            return
-        }
-        await this.add(convertServiceMetadataTo(service))
-        this.logger.info(`Successfully add node to database, metadata=${JSON.stringify(service, null, 2)}`)
-    }
 }

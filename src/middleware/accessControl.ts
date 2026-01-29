@@ -14,19 +14,28 @@ function getInternalTokenFromRequest(req: Request): string | undefined {
 
 function isApproverMatch(approver: string, address: string) {
   if (!approver) return false;
+  const normalizedAddress = address.trim().toLowerCase();
+  const matchEntry = (entry: string) => {
+    const normalizedEntry = entry.trim().toLowerCase();
+    return normalizedEntry === normalizedAddress || normalizedEntry.startsWith(`${normalizedAddress}::`) || normalizedEntry.includes(normalizedAddress);
+  };
   try {
     const parsed = JSON.parse(approver);
     if (Array.isArray(parsed)) {
-      return parsed.some((entry) => typeof entry === 'string' && (entry === address || entry.startsWith(`${address}::`) || entry.includes(address)));
+      return parsed.some((entry) => typeof entry === 'string' && matchEntry(entry));
+    }
+    if (parsed && typeof parsed === 'object') {
+      const list = Array.isArray((parsed as any).approvers) ? (parsed as any).approvers : [];
+      return list.some((entry: unknown) => typeof entry === 'string' && matchEntry(entry));
     }
   } catch {
     // ignore parse errors
   }
   const candidates = approver.split(',').map((item) => item.trim()).filter(Boolean);
   if (candidates.length > 1) {
-    return candidates.some((entry) => entry === address || entry.startsWith(`${address}::`) || entry.includes(address));
+    return candidates.some((entry) => matchEntry(entry));
   }
-  return approver === address || approver.startsWith(`${address}::`) || approver.includes(address);
+  return matchEntry(approver);
 }
 
 export async function requireAdmin(req: Request, res: Response, next: NextFunction) {
@@ -39,8 +48,8 @@ export async function requireAdmin(req: Request, res: Response, next: NextFuncti
     await ensureUserActive(user.address);
     const isAdmin = await isAdminUser(user.address);
     if (!isAdmin) {
-      if (req.path.startsWith('/audit/')) {
-        const auditId = req.body?.body?.metadata?.auditId;
+      if (req.path.startsWith('/audits/')) {
+        const auditId = req.params?.uid || req.body?.auditId || req.body?.metadata?.auditId;
         if (auditId) {
           const audit = await new AuditManager().queryById(auditId);
           const approver = audit?.approver || '';

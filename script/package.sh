@@ -16,8 +16,7 @@ if [ ! -z "$1" ]; then
   version="$1"
 fi
 
-src_conf_dir=${work_dir}/config
-src_resource_dir=${work_dir}/resource
+src_resource_dir=${work_dir}/resources
 src_script_dir=${work_dir}/script
 src_dir=${work_dir}/src
 src_third_party_dir=${work_dir}/third_party
@@ -40,8 +39,8 @@ mkdir -p "${node_dir}"
 
 index=$((index+1))
 echo -e "\nstep $index -- copy necessary file to  ${node_dir}"
-cp -rf "${src_conf_dir}" "${node_dir}"/
 cp -rf "${src_resource_dir}" "${node_dir}"/
+cp -f "${work_dir}"/config.json.template "${node_dir}"/
 cp -rf "${src_script_dir}" "${node_dir}"/
 cp -rf "${src_dir}" "${node_dir}"/
 cp -rf "${src_third_party_dir}" "${node_dir}"/

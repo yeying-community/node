@@ -4,7 +4,6 @@
   "main": "index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "check:api-prefixes": "node script/check_api_prefixes.js",
     "build": "rm -rf dist && rm -rf node_modules && npm install && tsc",
     "start": "node dist/server.js",
     "dev": "nodemon --watch 'src/**/*' -e ts --exec 'ts-node src/server.ts'"

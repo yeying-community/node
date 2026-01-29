@@ -34,7 +34,7 @@
 
 <script lang="ts" setup>
 import { userInfo } from '@/plugins/account'
-import $audit, { AuditAuditDetail, AuditCommentMetadata, AuditCommentStatusEnum } from '@/plugins/audit'
+import $audit, { AuditAuditDetail, AuditCommentMetadata, AuditCommentStatusEnum, resolveAuditState } from '@/plugins/audit'
 import { generateUuid, getCurrentUtcString } from '@/utils/common';
 import { ElForm } from 'element-plus';
 import { ElMessage } from 'element-plus';
@@ -45,7 +45,8 @@ import $service from '@/plugins/service'
 import { notifyError } from '@/utils/message';
 import { v4 as uuidv4 } from 'uuid';
 import { AuditDetailBox, useDataStore } from '@/stores/audit'
-import { getCurrentAccount } from '@/plugins/auth';
+import { getCurrentAccount, signWithWallet } from '@/plugins/auth';
+import { buildAuditDecisionMessage, normalizeAddress } from '@/utils/auditSignature';
 
 const store = useDataStore()
 const formRef = ref<InstanceType<typeof ElForm> | null>(null);
@@ -68,34 +69,6 @@ const props = defineProps({
 })
 
 
-function allEqualTo<T>(arr: T[], value: T): boolean {
-  return arr.every(item => item === value);
-}
-
-function getState(metas?: AuditCommentMetadata[]) {
-  let status: string = "待审批";
-  if (metas === undefined || metas.length === 0) {
-    return status;
-  }
-
-  // 过滤掉 status 为 undefined 的项
-  const statusList: AuditCommentStatusEnum[] = metas
-    .map(item => item.status)
-    .filter((status): status is AuditCommentStatusEnum => status !== undefined);
-
-  if (statusList.length === 0) {
-    return status; // 如果没有有效状态，仍为“待审批”
-  }
-
-  if (statusList.includes(AuditCommentStatusEnum.COMMENTSTATUSREJECT)) {
-    status = '审批驳回';
-  } else if (allEqualTo(statusList, AuditCommentStatusEnum.COMMENTSTATUSAGREE)) {
-    status = '审批通过';
-  }
-
-  return status;
-}
-
 function cvData(auditMyApply: AuditAuditDetail) {
     if (auditMyApply === undefined || auditMyApply.meta === undefined || auditMyApply.meta.appOrServiceMetadata === undefined || auditMyApply.meta.applicant === undefined) {
         return null
@@ -109,7 +82,7 @@ function cvData(auditMyApply: AuditAuditDetail) {
         desc: rawData.description,
         serviceType: rawData.code,
         applicantor: did,
-        state: getState(auditMyApply.commentMeta),
+        state: resolveAuditState(auditMyApply.commentMeta, auditMyApply.meta?.approver),
         date: auditMyApply.meta.createdAt
     };
     return metadata
@@ -159,14 +132,29 @@ const submitForm = () => {
             const applyOpinion = form.opinion
             if (applyResult === 'passed') {
                 try {
+                    const commentUid = generateUuid()
+                    const createdAt = getCurrentUtcString()
+                    const account = getCurrentAccount()
+                    if (!account) {
+                        notifyError('❌未查询到当前账户，请登录')
+                        return
+                    }
+                    const signatureMessage = buildAuditDecisionMessage({
+                        auditId: props.uid as string,
+                        decision: 'approve',
+                        approver: normalizeAddress(account),
+                        timestamp: createdAt,
+                        nonce: commentUid
+                    })
+                    const signature = await signWithWallet(signatureMessage)
                     const param = {
-                        uid: generateUuid(),
+                        uid: commentUid,
                         auditId: props.uid,
                         text: applyOpinion,
                         status: AuditCommentStatusEnum.COMMENTSTATUSAGREE,
-                        createdAt: getCurrentUtcString(),
-                        updatedAt: getCurrentUtcString(),
-                        signature: ''
+                        createdAt,
+                        updatedAt: createdAt,
+                        signature
                     }
                     const r: AuditCommentMetadata = await $audit.passed(param)
                     const reasonRes = await $audit.detail(props.uid as string)
@@ -187,14 +175,29 @@ const submitForm = () => {
                 }
             } else if (applyResult === 'reject') {
                 try {
+                    const commentUid = generateUuid()
+                    const createdAt = getCurrentUtcString()
+                    const account = getCurrentAccount()
+                    if (!account) {
+                        notifyError('❌未查询到当前账户，请登录')
+                        return
+                    }
+                    const signatureMessage = buildAuditDecisionMessage({
+                        auditId: props.uid as string,
+                        decision: 'reject',
+                        approver: normalizeAddress(account),
+                        timestamp: createdAt,
+                        nonce: commentUid
+                    })
+                    const signature = await signWithWallet(signatureMessage)
                     const param = {
-                        uid: generateUuid(),
+                        uid: commentUid,
                         auditId: props.uid,
                         text: applyOpinion,
                         status: AuditCommentStatusEnum.COMMENTSTATUSREJECT,
-                        createdAt: getCurrentUtcString(),
-                        updatedAt: getCurrentUtcString(),
-                        signature: ''
+                        createdAt,
+                        updatedAt: createdAt,
+                        signature
                     }
                     const r: AuditCommentMetadata = await $audit.reject(param)
                 } catch (e) {

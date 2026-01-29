@@ -128,20 +128,20 @@
                     @confirm="cancelApply"
                 >
                     <template #reference>
-                        <div v-if="mockApplyStatus === 'applying'" class="cursor">取消申请</div>
+                        <div v-if="applyStatus === 'applying'" class="cursor">取消申请</div>
                     </template>
                 </el-popconfirm>
 
                 <Popover
-                    :show="mockApplyStatus === 'success'"
+                    :show="applyStatus === 'success'"
                     title="您确定要解绑当前服务吗？"
                     subTitle="解绑后，当前服务将从当前列表移除，如需使用需重新申请。"
                     :okClick="confirmUnbind"
                     referenceText="解绑服务"
                 />
 
-                <el-divider v-if="mockApplyStatus === 'success'" direction="vertical" />
-                <div v-if="mockApplyStatus !== 'applying'" class="bottom-more">
+                <el-divider v-if="applyStatus === 'success'" direction="vertical" />
+                <div v-if="applyStatus !== 'applying'" class="bottom-more">
                     <el-dropdown placement="top-start">
                         <div>更多</div>
                         <template #dropdown>
@@ -157,7 +157,7 @@
                                 >
                                     <template #reference>
                                         <el-dropdown-item
-                                            v-if="mockApplyStatus === 'cancel' || mockApplyStatus === 'reject'"
+                                            v-if="applyStatus === 'cancel' || applyStatus === 'reject'"
                                         >
                                             <el-popconfirm
                                                 confirm-button-text="确定"
@@ -175,7 +175,7 @@
                                 </el-popconfirm>
 
                                 <el-dropdown-item
-                                    v-if="mockApplyStatus === 'cancel' || mockApplyStatus === 'reject'"
+                                    v-if="applyStatus === 'cancel' || applyStatus === 'reject'"
                                     @click="dialogVisible = true"
                                     >重新申请</el-dropdown-item
                                 >
@@ -194,7 +194,7 @@
         :closeClick="afterSubmit"
         :operateType="operateType"
     />
-    <ConfigServiceModal :modalVisible="modalVisible" :cancelModal="cancelModal" />
+    <ConfigServiceModal :modalVisible="modalVisible" :cancelModal="cancelModal" :detail="detail" operateType="service" />
     <ResultChooseModal
         v-model="innerVisible"
         title="服务申请上架"
@@ -223,11 +223,12 @@ import ApplyUseModal from './ApplyUseModal.vue'
 import ConfigServiceModal from './ConfigServiceModal.vue'
 import ResultChooseModal from './ResultChooseModal.vue'
 import { exportIdentityInfo } from '@/plugins/account'
-import $audit, { AuditAuditMetadata } from '@/plugins/audit'
+import $audit, { AuditAuditMetadata, resolveAuditState } from '@/plugins/audit'
 import $service, { businessStatusMap, resolveBusinessStatus } from '@/plugins/service'
 import { generateUuid, getCurrentUtcString } from '@/utils/common'
-import { getCurrentAccount } from '@/plugins/auth'
+import { getCurrentAccount, signWithWallet } from '@/plugins/auth'
 import { notifyError } from '@/utils/message'
+import { buildSubmitAuditMessage, normalizeAddress } from '@/utils/auditSignature'
 
 // 解绑服务
 const confirmUnbind = async () => {
@@ -262,7 +263,37 @@ const isOwner = () => {
 const businessStatus = computed(() => resolveBusinessStatus(props.detail))
 const businessInfo = computed(() => businessStatusMap[businessStatus.value] || businessStatusMap.BUSINESS_STATUS_UNKNOWN)
 const isOnline = computed(() => businessStatus.value === 'BUSINESS_STATUS_ONLINE')
-const mockApplyStatus = 'success'
+const applyStatus = ref('applying')
+
+const getApplyStatus = async () => {
+    const account = getCurrentAccount()
+    if (!account) {
+        applyStatus.value = 'cancel'
+        return
+    }
+    const applicant = `${account}::${account}`
+    const detail = await $audit.search({ applicant })
+    const candidates = Array.isArray(detail)
+        ? detail.filter((d) => d.meta?.reason === '申请使用' && d.meta?.appOrServiceMetadata?.includes(`"name":"${props.detail?.name}"`))
+        : []
+    if (candidates.length === 0) {
+        applyStatus.value = 'cancel'
+        return
+    }
+    const latest = candidates.sort((a, b) => {
+        const at = a.meta?.createdAt ? Date.parse(a.meta.createdAt) : 0
+        const bt = b.meta?.createdAt ? Date.parse(b.meta.createdAt) : 0
+        return bt - at
+    })[0]
+    const state = resolveAuditState(latest.commentMeta, latest.meta?.approver)
+    if (state === '审批通过') {
+        applyStatus.value = 'success'
+    } else if (state === '审批驳回') {
+        applyStatus.value = 'reject'
+    } else {
+        applyStatus.value = 'applying'
+    }
+}
 
 /**
  * 申请使用
@@ -298,7 +329,31 @@ const toEdit = () => {
  * 取消申请
  *
  */
-const cancelApply = () => {}
+const cancelApply = async () => {
+    const account = getCurrentAccount()
+    if (!account) {
+        notifyError('❌未查询到当前账户，请登录')
+        return
+    }
+    const applicant = `${account}::${account}`
+    const detail = await $audit.search({ applicant })
+    const auditUids = Array.isArray(detail)
+        ? detail
+              .filter(
+                  (d) =>
+                      d.meta?.reason === '申请使用' &&
+                      d.meta?.appOrServiceMetadata?.includes(`"name":"${props.detail?.name}"`)
+              )
+              .map((s) => s.meta.uid)
+        : []
+    for (const item of auditUids) {
+        await $audit.cancel(item)
+    }
+    applyStatus.value = 'cancel'
+    if (props.refreshCardList) {
+        props.refreshCardList()
+    }
+}
 
 const cancelModal = () => {
     modalVisible.value = false
@@ -327,10 +382,12 @@ const toDetail = () => {
     })
 }
 
+const isOkStatus = (code) => code === 0 || code === 1 || code === 'OK' || code === 'RESPONSE_CODE_OK'
+
 // 下架服务
 const handleOffline = async () => {
-    const status = await $service.offline(props.detail?.did, props.detail?.version)
-    if (status?.code === 'OK') {
+    const status = await $service.offline({ uid: props.detail?.uid, did: props.detail?.did, version: props.detail?.version })
+    if (isOkStatus(status?.code)) {
         ElMessage({
             message: '已下架',
             type: 'success'
@@ -391,6 +448,7 @@ const handleOnline = () => {
         customClass: 'messageBox-wrap'
     })
         .then(async () => {
+            try {
             /**
              * 创建上架申请
              * innerVisible.value = true 是上架成功后，打开一个弹窗提示用户上架成功了
@@ -403,9 +461,10 @@ const handleOnline = () => {
                 return
             }
             const applicant = `${account}::${account}`
-            const approver = import.meta.env.VITE_APPLICANT
             let searchList = await $audit.search({name: detailRst.name})
-            searchList = searchList.filter((a) => a.meta.applicant === applicant && a.meta.appOrServiceMetadata.includes(`"operateType":"service"`))
+            searchList = Array.isArray(searchList)
+                ? searchList.filter((a) => a.meta.applicant === applicant && a.meta.appOrServiceMetadata.includes(`"operateType":"service"`))
+                : []
             if (searchList.length > 0) {
                 ElMessageBox.alert('您已申请，无需重复申请', '提示')
                 .then(() => {
@@ -415,20 +474,36 @@ const handleOnline = () => {
                 return
             }
             detailRst.operateType = 'service'
+            const auditUid = generateUuid()
+            const createdAt = getCurrentUtcString()
+            const applicantAddress = normalizeAddress(account)
+            const signatureMessage = buildSubmitAuditMessage({
+                targetType: 'service',
+                targetDid: detailRst.did,
+                targetVersion: detailRst.version,
+                applicant: applicantAddress,
+                timestamp: createdAt,
+                nonce: auditUid
+            })
+            const signature = await signWithWallet(signatureMessage)
             const meta: AuditAuditMetadata = {
-                uid: generateUuid(),
+                uid: auditUid,
                 appOrServiceMetadata: JSON.stringify(detailRst),
                 auditType: 'service',
                 applicant: applicant, // 申请人身份，did::name
-                approver: approver,
                 reason: '上架申请',
-                createdAt: getCurrentUtcString(),
-                updatedAt: getCurrentUtcString(),
-                signature: 'mock'
+                createdAt,
+                updatedAt: createdAt,
+                signature
             }
             const status = await $audit.create(meta)
-            if (status.code === "OK") {
+            if (isOkStatus(status?.code)) {
                 innerVisible.value = true
+            } else {
+                notifyError(`❌申请失败: ${status?.message || '未知错误'}`)
+            }
+            } catch (error) {
+                notifyError(`❌申请失败: ${error}`)
             }
         })
         .catch(() => {})
@@ -436,6 +511,10 @@ const handleOnline = () => {
 
 const afterSubmit = () => {
     dialogVisible.value = false
+}
+
+if (props.pageFrom === 'myApply') {
+    getApplyStatus()
 }
 
 // const emit = defineEmits(['change']);

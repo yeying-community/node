@@ -62,7 +62,7 @@ sequenceDiagram
 前端环境变量：
 - `VITE_UCAN_AUD`（推荐显式配置）
 - `VITE_UCAN_RESOURCE` / `VITE_UCAN_ACTION`
-- `VITE_API_ENDPOINT`
+- `VITE_NODE_API_ENDPOINT`
 
 ## 常见错误
 - **UCAN audience mismatch**: UCAN `aud` 与后端 `UCAN_AUD` 不一致。

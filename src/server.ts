@@ -1,109 +1,65 @@
 // src/server.ts
 
 import express, { Request, Response } from 'express';
-import api from './index'; // 导入你提供的路由注册函数
-import { ApiImplementation } from './types'; // 假设 types.ts 中导出了 ApiImplementation 接口
-// 导入你的实现
-import application from './impl/application'
-import archive from './impl/archive'
-import asset from './impl/asset'
-import assignment from './impl/assignment'
-import audit from './impl/audit'
-import block from './impl/block'
-import bulletin from './impl/bulletin'
-import certificate from './impl/certificate'
-import config from './impl/config'
-import content from './impl/content'
-import context from './impl/context'
-import event from './impl/event'
-import experience from './impl/experience'
-import group from './impl/group'
-import homework from './impl/homework'
-import identity from './impl/identity'
-import invitation from './impl/invitation'
-import knowledge from './impl/knowledge'
-import link from './impl/link'
-import llm from './impl/llm'
-import mail from './impl/mail'
-import message from './impl/message'
-import minio from './impl/minio'
-import mistakes from './impl/mistakes'
-import namespace from './impl/namespace'
-import network from './impl/network'
-import node from './impl/node'
-import provider from './impl/provider'
-import recycle from './impl/recycle'
-import room from './impl/room'
-import service from './impl/service'
-import session from './impl/session'
-import social from './impl/social'
-import spider from './impl/spider'
-import support from './impl/support'
-import task from './impl/task'
-import taskTag from './impl/taskTag'
-import topic from './impl/topic'
-import user from './impl/user'
-import vector from './impl/vector'
-import wallet from './impl/wallet'
-import warehouse from './impl/warehouse'
-import swaggerUi from 'swagger-ui-express'
-import * as fs from 'fs';
-import * as path from 'path';
-import { DatabaseConfig, ServerConfig } from './config';
+import { DatabaseConfig } from './config';
 import { DataSourceBuilder } from './infrastructure/db';
 import {
     ApplicationDO,
-    CardDO,
-    CertificateDO,
-    EventDO,
-    InvitationDO,
     ServiceDO,
-    SolutionDO,
-    SupportDO,
     UserDO,
     UserStateDO,
     AuditDO,
-    CommentDO
+    CommentDO,
+    ServiceConfigDO,
+    ApplicationConfigDO
 } from './domain/mapper/entity'
-import config2 from 'config'
 import { SingletonDataSource } from './domain/facade/datasource';
 import { LoggerConfig, LoggerService } from './infrastructure/logger';
 import cors from 'cors';
 import authenticateToken from './middleware/authMiddleware';
 import { requireAdmin, requireInternal } from './middleware/accessControl';
 import { registerPublicAuthRoutes } from './routes/publicAuth';
-import { registerPrivateProfileRoute } from './routes/privateProfile';
-import { registerPublishRoutes } from './routes/publish';
-import { registerAdminUserRoleRoute } from './routes/adminUserRole';
+import { registerPublicProfileRoute } from './routes/privateProfile';
+import { registerPublicApplicationRoutes } from './routes/public/applications';
+import { registerPublicServiceRoutes } from './routes/public/services';
+import { registerPublicAuditRoutes } from './routes/public/audits';
+import { registerPublicHealthRoute } from './routes/public/health';
+import { registerAdminAuditRoutes } from './routes/admin/audits';
+import { registerAdminUserRoutes } from './routes/admin/users';
 import { InitSchema20260126120000 } from './migrations/20260126120000-init-schema';
+import { AddServiceConfig20260128194500 } from './migrations/20260128194500-add-service-config';
+import { AddApplicationConfig20260128195500 } from './migrations/20260128195500-add-application-config';
+import { getConfig } from './config/runtime';
 
 // 初始化日志
-new LoggerService(config2.get<LoggerConfig>('logger')).initialize()
+new LoggerService(getConfig<LoggerConfig>('logger')).initialize()
 
-const serverConfig: ServerConfig = config2.get<ServerConfig>('server')
-let port = 8001
+let port = 8100
+const configPort = getConfig<number>('app.port')
+if (typeof configPort === 'number' && Number.isFinite(configPort)) {
+    port = configPort
+}
 if (process.env.APP_PORT) {
-    port = Number(process.env.APP_PORT)
+    const envPort = Number(process.env.APP_PORT)
+    if (Number.isFinite(envPort) && envPort > 0) {
+        port = envPort
+    }
 }
 
 // 初始化数据库
-const databaseConfig: DatabaseConfig = config2.get<DatabaseConfig>('database')
+const databaseConfig: DatabaseConfig = getConfig<DatabaseConfig>('database')
 const builder = new DataSourceBuilder({ ...databaseConfig, synchronize: false })
 builder.entities([
     UserStateDO,
     UserDO,
     ServiceDO,
     ApplicationDO,
-    SupportDO,
-    SolutionDO,
-    EventDO,
-    CertificateDO,
-    InvitationDO,
-    CardDO,
     AuditDO,
-    CommentDO
+    CommentDO,
+    ServiceConfigDO,
+    ApplicationConfigDO
 ])
-builder.migrations([InitSchema20260126120000])
+builder.migrations([InitSchema20260126120000, AddServiceConfig20260128194500, AddApplicationConfig20260128195500])
 
 builder.build().initialize().then(async (conn) => {
     // 注册数据库连接
@@ -118,81 +74,41 @@ builder.build().initialize().then(async (conn) => {
     // 创建 Express 应用
     const app = express();
     app.use(cors({ origin: true, credentials: true }));
+    app.use((req, res, next) => {
+        const origin = req.headers.origin as string | undefined;
+        if (origin) {
+            res.header('Access-Control-Allow-Origin', origin);
+            res.header('Vary', 'Origin');
+            res.header('Access-Control-Allow-Credentials', 'true');
+        } else {
+            res.header('Access-Control-Allow-Origin', '*');
+        }
+        res.header('Access-Control-Allow-Methods', 'GET,POST,PUT,PATCH,DELETE,OPTIONS');
+        res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
+        if (req.method === 'OPTIONS') {
+            return res.status(204).end();
+        }
+        next();
+    });
 
     // 设置 JSON 解析中间件
     app.use(express.json());
 
     // ✅ 将鉴权中间件应用到所有 API 路由（公共认证/健康检查除外）
-    app.use('/api', authenticateToken);
+    app.use('/api/v1', authenticateToken);
     // ✅ 管理员与内部接口前缀控制
     app.use('/api/v1/admin', requireAdmin);
     app.use('/api/v1/internal', requireInternal);
 
 
-    const impl: ApiImplementation = {
-        application:application,
-        archive:archive,
-        asset:asset,
-        assignment:assignment,
-        audit:audit,
-        block:block,
-        bulletin:bulletin,
-        certificate:certificate,
-        config:config,
-        content:content,
-        context:context,
-        event:event,
-        experience:experience,
-        group:group,
-        homework:homework,
-        identity:identity,
-        invitation:invitation,
-        knowledge:knowledge,
-        link:link,
-        llm:llm,
-        mail:mail,
-        message:message,
-        minio:minio,
-        mistakes:mistakes,
-        namespace:namespace,
-        network:network,
-        node:node,
-        provider:provider,
-        recycle:recycle,
-        room:room,
-        service:service,
-        session:session,
-        social:social,
-        spider:spider,
-        support:support,
-        task:task,
-        taskTag:taskTag,
-        topic:topic,
-        user:user,
-        vector:vector,
-        wallet:wallet,
-        warehouse:warehouse,
-    };
-
-    const envValue = process.env.APP_ENV
-    if (envValue === "dev") {
-        // 🌟 注册 Swagger UI
-        // 读取你已有的 openapi.json 文件
-        const openapiPath = path.join(__dirname, '../openapi.json');
-        const openapiDocument = JSON.parse(fs.readFileSync(openapiPath, 'utf8'));
-        // 挂载 Swagger UI，使用你自己的 openapi.json
-        app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(openapiDocument));
-    }
-    // 注册公共认证路由（SIWE）
     registerPublicAuthRoutes(app);
-    // 示例私有接口（支持 JWT / UCAN）
-    registerPrivateProfileRoute(app);
-    // 上架/下架接口
-    registerPublishRoutes(app);
-    // 管理员角色更新
-    registerAdminUserRoleRoute(app);
-    // 注册所有路由
-    api(app, impl);
+    registerPublicHealthRoute(app);
+    registerPublicProfileRoute(app);
+    registerPublicApplicationRoutes(app);
+    registerPublicServiceRoutes(app);
+    registerPublicAuditRoutes(app);
+    registerAdminAuditRoutes(app);
+    registerAdminUserRoutes(app);
 
     // 启动服务器
     app.listen(port, '0.0.0.0', () => {

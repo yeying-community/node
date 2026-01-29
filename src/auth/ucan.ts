@@ -1,5 +1,6 @@
 import * as crypto from 'crypto';
 import { verifyMessage } from 'ethers';
+import { getConfig } from '../config/runtime';
 
 export type UcanCapability = {
   resource: string;
@@ -30,10 +31,18 @@ type UcanTokenPayload = {
   prf?: UcanProof[];
 };
 
-const DEFAULT_PORT = Number(process.env.APP_PORT || 8001);
-const UCAN_AUD = process.env.UCAN_AUD || `did:web:localhost:${DEFAULT_PORT}`;
-const UCAN_RESOURCE = process.env.UCAN_RESOURCE || 'profile';
-const UCAN_ACTION = process.env.UCAN_ACTION || 'read';
+const DEFAULT_PORT = parseNumber(
+  process.env.APP_PORT ?? getConfig<number>('app.port'),
+  8100
+);
+const UCAN_AUD =
+  process.env.UCAN_AUD ||
+  getConfig<string>('ucan.aud') ||
+  `did:web:localhost:${DEFAULT_PORT}`;
+const UCAN_RESOURCE =
+  process.env.UCAN_RESOURCE || getConfig<string>('ucan.resource') || 'profile';
+const UCAN_ACTION =
+  process.env.UCAN_ACTION || getConfig<string>('ucan.action') || 'read';
 const REQUIRED_UCAN_CAP: UcanCapability = { resource: UCAN_RESOURCE, action: UCAN_ACTION };
 
 const BASE58_ALPHABET = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz';
@@ -75,6 +84,12 @@ function base58Decode(value: string): Buffer {
     output[output.length - 1 - i] = bytes[i];
   }
   return output;
+}
+
+function parseNumber(value: unknown, fallback: number): number {
+  if (value === undefined || value === null || value === '') return fallback;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
 }
 
 function didKeyToPublicKey(did: string): Buffer {

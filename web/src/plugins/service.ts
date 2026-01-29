@@ -3,6 +3,7 @@ import $audit from '@/plugins/audit'
 import { getCurrentAccount, getAuthToken } from './auth'
 import { notifyError } from '@/utils/message'
 import { getWalletDataStore } from '@/stores/auth'
+import { apiUrl } from './api'
 
 export { businessStatusMap, businessStatusOptions, resolveBusinessStatus, isBusinessOnline } from '@/utils/businessStatus'
 
@@ -50,6 +51,31 @@ export interface ServiceSearchCondition {
     owner?: string;
     name?: string;
     keyword?: string;
+}
+
+export type ServiceConfigItem = {
+    code: string;
+    instance: string;
+}
+
+function toApiCodes(value: unknown): string[] {
+    if (Array.isArray(value)) {
+        return value.map((item) => String(item)).filter((item) => item.length > 0)
+    }
+    if (value === undefined || value === null) {
+        return []
+    }
+    const text = String(value)
+    if (!text) return []
+    return text.split(',').map((item) => item.trim()).filter((item) => item.length > 0)
+}
+
+function normalizeService<T extends Record<string, any>>(service: T | null | undefined): T | null | undefined {
+    if (!service) return service
+    if ('apiCodes' in service) {
+        return { ...service, apiCodes: toApiCodes(service.apiCodes) }
+    }
+    return service
 }
 
 export enum CommonServiceCodeEnum {
@@ -117,26 +143,18 @@ class $service {
             notifyError('❌未获取到访问令牌');
             return;
         }
-        const header = {
-            "did": "xxxx"
-        }
         const body = {
-            "header": header,
-            "body": {
-                "condition": {
-                    "code": condition.code,
-                    "status": condition.status,
-                    "owner": condition.owner,
-                    "name": condition.name,
-                    "keyword": condition.keyword
-                },
-                "page": {
-                    "page": page || 1,
-                    "pageSize": pageSize || 10
-                }
-            }
+            condition: {
+                code: condition.code,
+                status: condition.status,
+                owner: condition.owner,
+                name: condition.name,
+                keyword: condition.keyword
+            },
+            page: page || 1,
+            pageSize: pageSize || 10
         }
-        const response = await fetch('/api/v1/service/search', {
+        const response = await fetch(apiUrl('/api/v1/public/services/search'), {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -151,7 +169,11 @@ class $service {
         }
 
         const r =  await response.json();
-        return r.body.services
+        if (r.code !== 0) {
+            throw new Error(r.message || 'Search failed');
+        }
+        const items = r.data?.items || []
+        return items.map((item) => normalizeService(item))
     }
 
     async create(params: ServiceMetadata) {
@@ -166,6 +188,10 @@ class $service {
     async myApplyList(applyOwner: string) {
         const res = await indexedCache.indexAll('services_apply', 'applyOwner', applyOwner)
         return res
+    }
+
+    async myApplyDetailByUid(uid: string) {
+        return await indexedCache.getByKey('services_apply', uid)
     }
 
     async myCreateDetailByUid(uid: string) {
@@ -189,7 +215,7 @@ class $service {
         return await indexedCache.deleteByKey("services_apply", uid)
     }
 
-    async online(service: ServiceMetadata) {
+    async online(target: ServiceMetadata | { uid?: string; did?: string; version?: number } | string, version?: number) {
         if (localStorage.getItem("hasConnectedWallet") === "false") {
             notifyError('❌未检测到钱包，请先安装并连接钱包');
             return;
@@ -199,24 +225,29 @@ class $service {
             notifyError('❌未获取到访问令牌');
             return;
         }
-        const header = {
-            "did": "xxxx"
+        let uid = ''
+        if (typeof target === 'string') {
+            uid = target
+        } else if ((target as any)?.uid) {
+            uid = (target as any).uid
+        } else if ((target as any)?.did && (target as any)?.version !== undefined) {
+            const detail = await this.detail((target as any).did, Number((target as any).version))
+            uid = detail?.uid
+        } else if (typeof version === 'number') {
+            const detail = await this.detail(target as string, version)
+            uid = detail?.uid
         }
-        const body = {
-            "header": header,
-            "body": {
-                "did": service?.did,
-                "version": service?.version
-            }
+        if (!uid) {
+            notifyError('❌未找到服务 UID')
+            return;
         }
-        const response = await fetch('/api/v1/service/publish', {
+        const response = await fetch(apiUrl(`/api/v1/public/services/${uid}/publish`), {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
                 "authorization": `Bearer ${token}`,
                 'accept': 'application/json'
             },
-            body: JSON.stringify(body),
         });
         
         if (!response.ok) {
@@ -224,7 +255,7 @@ class $service {
         }
 
         const r =  await response.json();
-        return r.body.service
+        return r
     }
 
     /**
@@ -242,24 +273,14 @@ class $service {
             notifyError('❌未获取到访问令牌');
             return;
         }
-        const header = {
-            "did": "xxxx"
-        }
-        const body = {
-            "header": header,
-            "body": {
-                "did": did,
-                "version": version
-            }
-        }
-        const response = await fetch('/api/v1/service/detail', {
-            method: 'POST',
+        const url = apiUrl(`/api/v1/public/services/by-did?did=${encodeURIComponent(did)}&version=${version}`)
+        const response = await fetch(url, {
+            method: 'GET',
             headers: {
                 'Content-Type': 'application/json',
                 "authorization": `Bearer ${token}`,
                 'accept': 'application/json'
             },
-            body: JSON.stringify(body),
         });
         
         if (!response.ok) {
@@ -267,7 +288,10 @@ class $service {
         }
 
         const r =  await response.json();
-        return r.body.service
+        if (r.code !== 0) {
+            throw new Error(r.message || 'Fetch failed');
+        }
+        return normalizeService(r.data)
     }
     /**
      * 已上线的服务详情
@@ -283,23 +307,13 @@ class $service {
             notifyError('❌未获取到访问令牌');
             return;
         }
-        const header = {
-            "did": "xxxx"
-        }
-        const body = {
-            "header": header,
-            "body": {
-                "uid": uid,
-            }
-        }
-        const response = await fetch('/api/v1/service/querybyuid', {
-            method: 'POST',
+        const response = await fetch(apiUrl(`/api/v1/public/services/${uid}`), {
+            method: 'GET',
             headers: {
                 'Content-Type': 'application/json',
                 "authorization": `Bearer ${token}`,
                 'accept': 'application/json'
             },
-            body: JSON.stringify(body),
         });
         
         if (!response.ok) {
@@ -307,13 +321,13 @@ class $service {
         }
 
         const r =  await response.json();
-        return r.body.service
-    }
-    async myApplyCreate(params: ServiceMetadata) {
-        await indexedCache.insert('services_apply', params)
+        if (r.code !== 0) {
+            throw new Error(r.message || 'Fetch failed');
+        }
+        return normalizeService(r.data)
     }
 
-    async offline(did: string, version: number) {
+    async getConfig(uid: string) {
         if (localStorage.getItem("hasConnectedWallet") === "false") {
             notifyError('❌未检测到钱包，请先安装并连接钱包');
             return;
@@ -323,24 +337,89 @@ class $service {
             notifyError('❌未获取到访问令牌');
             return;
         }
-        const header = {
-            "did": "xxxx"
+        const response = await fetch(apiUrl(`/api/v1/public/services/${uid}/config`), {
+            method: 'GET',
+            headers: {
+                'Content-Type': 'application/json',
+                "authorization": `Bearer ${token}`,
+                'accept': 'application/json'
+            },
+        });
+        if (!response.ok) {
+            throw new Error(`Failed to fetch config: ${response.status} error: ${await response.text()}`);
         }
-        const body = {
-            "header": header,
-            "body": {
-                "did": did,
-                "version": version
-            }
+        const r = await response.json();
+        if (r.code !== 0) {
+            throw new Error(r.message || 'Fetch config failed');
         }
-        const response = await fetch('/api/v1/service/unpublish', {
+        return r.data?.config || [];
+    }
+
+    async saveConfig(uid: string, config: ServiceConfigItem[]) {
+        if (localStorage.getItem("hasConnectedWallet") === "false") {
+            notifyError('❌未检测到钱包，请先安装并连接钱包');
+            return;
+        }
+        const token = await getAuthToken()
+        if (!token) {
+            notifyError('❌未获取到访问令牌');
+            return;
+        }
+        const response = await fetch(apiUrl(`/api/v1/public/services/${uid}/config`), {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json',
+                "authorization": `Bearer ${token}`,
+                'accept': 'application/json'
+            },
+            body: JSON.stringify({ config }),
+        });
+        if (!response.ok) {
+            throw new Error(`Failed to save config: ${response.status} error: ${await response.text()}`);
+        }
+        const r = await response.json();
+        if (r.code !== 0) {
+            throw new Error(r.message || 'Save config failed');
+        }
+        return r.data;
+    }
+    async myApplyCreate(params: ServiceMetadata) {
+        await indexedCache.insert('services_apply', params)
+    }
+
+    async offline(target: { uid?: string; did?: string; version?: number } | string, version?: number) {
+        if (localStorage.getItem("hasConnectedWallet") === "false") {
+            notifyError('❌未检测到钱包，请先安装并连接钱包');
+            return;
+        }
+        const token = await getAuthToken()
+        if (!token) {
+            notifyError('❌未获取到访问令牌');
+            return;
+        }
+        let uid = ''
+        if (typeof target === 'string') {
+            uid = target
+        } else if (target?.uid) {
+            uid = target.uid
+        } else if (target?.did && target?.version !== undefined) {
+            const detail = await this.detail(target.did, Number(target.version))
+            uid = detail?.uid
+        } else if (typeof version === 'number') {
+            const detail = await this.detail(target as string, version)
+            uid = detail?.uid
+        }
+        if (!uid) {
+            notifyError('❌未找到服务 UID')
+            return;
+        }
+        const response = await fetch(apiUrl(`/api/v1/public/services/${uid}/unpublish`), {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
                 "authorization": `Bearer ${token}`,
                 'accept': 'application/json'
             },
-            body: JSON.stringify(body),
         });
         
         if (!response.ok) {
@@ -348,7 +427,7 @@ class $service {
         }
 
         const r =  await response.json();
-        return r.body.status
+        return r
     }
 
     async unbind(uid: string) {
@@ -361,10 +440,17 @@ class $service {
             notifyError("❌未查询到当前账户，请登录")
             return
         }
+        const res = await indexedCache.getByKey('services_apply', uid)
+        if (!res) {
+            notifyError('❌未找到服务申请记录')
+            return
+        }
         // 删除审批记录
         const applicant = `${account}::${account}`
         const detail = await $audit.search({applicant: applicant})
-        const auditUids = detail.filter((d) => d.meta.appOrServiceMetadata.includes(`"name":"${res.name}"`)).map((s) => s.meta.uid)
+        const auditUids = Array.isArray(detail)
+            ? detail.filter((d) => d.meta.appOrServiceMetadata.includes(`"name":"${res.name}"`)).map((s) => s.meta.uid)
+            : []
         // 删除申请
         for (const item of auditUids) {
             await $audit.cancel(item)

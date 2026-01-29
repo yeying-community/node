@@ -90,6 +90,24 @@ export class InitSchema20260126120000 implements MigrationInterface {
     `)
 
     await queryRunner.query(`
+      CREATE TABLE IF NOT EXISTS ${schemaRef}."service_configs" (
+        uid uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+        service_uid varchar(64) NOT NULL,
+        service_did varchar(128) NOT NULL,
+        service_version int NOT NULL,
+        applicant varchar(128) NOT NULL,
+        config_json text NOT NULL DEFAULT '',
+        created_at varchar(64) NOT NULL DEFAULT '',
+        updated_at varchar(64) NOT NULL DEFAULT ''
+      )
+    `)
+
+    await queryRunner.query(`
+      CREATE UNIQUE INDEX IF NOT EXISTS "idx_service_config_owner"
+      ON ${schemaRef}."service_configs" (service_uid, applicant)
+    `)
+
+    await queryRunner.query(`
       CREATE TABLE IF NOT EXISTS ${schemaRef}."comments" (
         uid uuid PRIMARY KEY DEFAULT gen_random_uuid(),
         audit_id text NOT NULL,
@@ -98,82 +116,6 @@ export class InitSchema20260126120000 implements MigrationInterface {
         created_at varchar(64) NOT NULL DEFAULT '',
         updated_at varchar(64) NOT NULL DEFAULT '',
         signature varchar(192) NOT NULL DEFAULT ''
-      )
-    `)
-
-    await queryRunner.query(`
-      CREATE TABLE IF NOT EXISTS ${schemaRef}."events" (
-        uid varchar(128) PRIMARY KEY,
-        type varchar(64) NOT NULL,
-        producers text NOT NULL,
-        consumers text NOT NULL,
-        signatures text NOT NULL,
-        content text NOT NULL,
-        opinions text NOT NULL,
-        extend text NOT NULL,
-        created_at varchar(64) NOT NULL DEFAULT '',
-        processed_at varchar(64) NOT NULL DEFAULT ''
-      )
-    `)
-
-    await queryRunner.query(`
-      CREATE TABLE IF NOT EXISTS ${schemaRef}."invitations" (
-        code varchar(64) PRIMARY KEY,
-        scene varchar(64) NOT NULL,
-        inviter varchar(128) NOT NULL,
-        invitee varchar(128),
-        expired_at varchar(64) NOT NULL DEFAULT '',
-        created_at varchar(64) NOT NULL DEFAULT '',
-        signature varchar(192) NOT NULL DEFAULT ''
-      )
-    `)
-
-    await queryRunner.query(`
-      CREATE TABLE IF NOT EXISTS ${schemaRef}."certificates" (
-        domain varchar(256) PRIMARY KEY,
-        service_did varchar(128) NOT NULL,
-        cert text NOT NULL,
-        csr text NOT NULL,
-        expired varchar(64) NOT NULL DEFAULT '',
-        created_at varchar(64) NOT NULL DEFAULT '',
-        updated_at varchar(64) NOT NULL DEFAULT ''
-      )
-    `)
-
-    await queryRunner.query(`
-      CREATE TABLE IF NOT EXISTS ${schemaRef}."supports" (
-        id serial PRIMARY KEY,
-        did varchar(128) NOT NULL,
-        email varchar(256) NOT NULL,
-        type varchar(64) NOT NULL,
-        description text NOT NULL,
-        created_at varchar(64) NOT NULL DEFAULT '',
-        signature varchar(192) NOT NULL DEFAULT '',
-        updated_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP
-      )
-    `)
-
-    await queryRunner.query(`
-      CREATE TABLE IF NOT EXISTS ${schemaRef}."solutions" (
-        uid varchar(64) PRIMARY KEY,
-        publisher varchar(128) NOT NULL,
-        name varchar(128) NOT NULL,
-        language varchar(64) NOT NULL,
-        description text NOT NULL,
-        signature varchar(192) NOT NULL DEFAULT '',
-        created_at varchar(64) NOT NULL DEFAULT ''
-      )
-    `)
-
-    await queryRunner.query(`
-      CREATE TABLE IF NOT EXISTS ${schemaRef}."cards" (
-        id serial PRIMARY KEY,
-        name varchar(128) NOT NULL,
-        price varchar(64) NOT NULL,
-        variables text NOT NULL,
-        created_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        updated_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        solution_id varchar(64) NOT NULL REFERENCES ${schemaRef}."solutions"("uid") ON DELETE CASCADE
       )
     `)
 
@@ -196,7 +138,7 @@ export class InitSchema20260126120000 implements MigrationInterface {
     `)
 
     await queryRunner.query(`
-      CREATE INDEX IF NOT EXISTS ${schemaRef}."idx_audit_target"
+      CREATE INDEX IF NOT EXISTS "idx_audit_target"
       ON ${schemaRef}."audits" (target_type, target_did, target_version)
     `)
   }
@@ -211,12 +153,6 @@ export class InitSchema20260126120000 implements MigrationInterface {
 
     await queryRunner.query(`DROP INDEX IF EXISTS ${schemaRef}."idx_audit_target"`)
     await queryRunner.query(`DROP TABLE IF EXISTS ${schemaRef}."audits"`)
-    await queryRunner.query(`DROP TABLE IF EXISTS ${schemaRef}."cards"`)
-    await queryRunner.query(`DROP TABLE IF EXISTS ${schemaRef}."solutions"`)
-    await queryRunner.query(`DROP TABLE IF EXISTS ${schemaRef}."supports"`)
-    await queryRunner.query(`DROP TABLE IF EXISTS ${schemaRef}."certificates"`)
-    await queryRunner.query(`DROP TABLE IF EXISTS ${schemaRef}."invitations"`)
-    await queryRunner.query(`DROP TABLE IF EXISTS ${schemaRef}."events"`)
     await queryRunner.query(`DROP TABLE IF EXISTS ${schemaRef}."comments"`)
     await queryRunner.query(`DROP TABLE IF EXISTS ${schemaRef}."applications"`)
     await queryRunner.query(`DROP TABLE IF EXISTS ${schemaRef}."services"`)
