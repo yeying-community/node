@@ -1,10 +1,10 @@
 import { indexedCache } from './account'
 import { setLocalStorage, getLocalStorage } from '@/utils/common'
-import { createIdentity } from '@yeying-community/yeying-web3'
 import $audit from '@/plugins/audit'
 import { getCurrentAccount, getAuthToken } from './auth'
 import { notifyError } from '@/utils/message'
 import { getWalletDataStore } from '@/stores/auth'
+import { apiUrl } from './api'
 
 export { businessStatusMap, businessStatusOptions, resolveBusinessStatus, isBusinessOnline } from '@/utils/businessStatus'
 
@@ -86,6 +86,31 @@ export interface ApplicationSearchCondition {
     keyword?: string;
 }
 
+export type ApplicationConfigItem = {
+    code: string;
+    instance: string;
+}
+
+function toServiceCodes(value: unknown): string[] {
+    if (Array.isArray(value)) {
+        return value.map((item) => String(item)).filter((item) => item.length > 0)
+    }
+    if (value === undefined || value === null) {
+        return []
+    }
+    const text = String(value)
+    if (!text) return []
+    return text.split(',').map((item) => item.trim()).filter((item) => item.length > 0)
+}
+
+function normalizeApplication<T extends Record<string, any>>(app: T | null | undefined): T | null | undefined {
+    if (!app) return app
+    if ('serviceCodes' in app) {
+        return { ...app, serviceCodes: toServiceCodes(app.serviceCodes) }
+    }
+    return app
+}
+
 class $application {
 
     /**
@@ -146,32 +171,19 @@ class $application {
             notifyError('❌未获取到访问令牌');
             return;
         }
-        let params: { page?: number; pageSize?: number; condition?: Record<string, any> } = {}
-        params.page = page || 1
-        params.pageSize = pageSize || 10
-        params.condition = condition || {}
-        const header = {
-            "did": "xxxx"
-        }
         const body = {
-            "header": header,
-            "body": {
-                "condition": {
-                    "code": condition.code,
-                    "owner": condition.owner,
-                    "name": condition.name,
-                    "keyword": condition.keyword,
-                    "status": condition.status
-                },
-                "page": {
-                    "page": page || 1,
-                    "pageSize": pageSize || 10
-                }
-            }
+            condition: {
+                code: condition.code,
+                owner: condition.owner,
+                name: condition.name,
+                keyword: condition.keyword,
+                status: condition.status
+            },
+            page: page || 1,
+            pageSize: pageSize || 10
         }
-        console.log(`authorization=${token}`)
-        
-        const response = await fetch('/api/v1/application/search', {
+
+        const response = await fetch(apiUrl('/api/v1/public/applications/search'), {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -180,13 +192,17 @@ class $application {
             },
             body: JSON.stringify(body),
         });
-        
+
         if (!response.ok) {
             throw new Error(`Failed to create post: ${response.status} error: ${await response.text()}`);
         }
 
-        const r =  await response.json();
-        return r.body.applications
+        const r = await response.json();
+        if (r.code !== 0) {
+            throw new Error(r.message || 'Search failed');
+        }
+        const items = r.data?.items || []
+        return items.map((item) => normalizeApplication(item))
     }
 
     async myApplyList(applyOwner: string) {
@@ -213,10 +229,6 @@ class $application {
         })
     }
 
-    async createIdentity(template, password) {
-        return await createIdentity(template, password)
-    }
-
     async delete(did, version) {
         return await applicationProvider.delete(did, version)
         // return new Promise((resolve, reject) => {
@@ -239,32 +251,25 @@ class $application {
             notifyError('❌未获取到访问令牌');
             return;
         }
-        const header = {
-            "did": "xxxx"
-        }
-        const body = {
-            "header": header,
-            "body": {
-                "did": did,
-                "version": version
-            }
-        }
-        const response = await fetch('/api/v1/application/detail', {
-            method: 'POST',
+        const url = apiUrl(`/api/v1/public/applications/by-did?did=${encodeURIComponent(did)}&version=${version}`)
+        const response = await fetch(url, {
+            method: 'GET',
             headers: {
                 'Content-Type': 'application/json',
                 "authorization": `Bearer ${token}`,
                 'accept': 'application/json'
             },
-            body: JSON.stringify(body),
         });
-        
+
         if (!response.ok) {
             throw new Error(`Failed to create post: ${response.status} error: ${await response.text()}`);
         }
 
-        const r =  await response.json();
-        return r.body.application
+        const r = await response.json();
+        if (r.code !== 0) {
+            throw new Error(r.message || 'Fetch failed');
+        }
+        return normalizeApplication(r.data)
     }
 
     /**
@@ -281,34 +286,27 @@ class $application {
             notifyError('❌未获取到访问令牌');
             return;
         }
-        const header = {
-            "did": "xxxx"
-        }
-        const body = {
-            "header": header,
-            "body": {
-                "uid": uid,
-            }
-        }
-        const response = await fetch('/api/v1/application/querybyuid', {
-            method: 'POST',
+        const response = await fetch(apiUrl(`/api/v1/public/applications/${uid}`), {
+            method: 'GET',
             headers: {
                 'Content-Type': 'application/json',
                 "authorization": `Bearer ${token}`,
                 'accept': 'application/json'
             },
-            body: JSON.stringify(body),
         });
-        
+
         if (!response.ok) {
             throw new Error(`Failed to create post: ${response.status} error: ${await response.text()}`);
         }
 
-        const r =  await response.json();
-        return r.body.application
+        const r = await response.json();
+        if (r.code !== 0) {
+            throw new Error(r.message || 'Fetch failed');
+        }
+        return normalizeApplication(r.data)
     }
 
-    async offline(did: string, version: number) {
+    async getConfig(uid: string) {
         if (localStorage.getItem("hasConnectedWallet") === "false") {
             notifyError('❌未检测到钱包，请先安装并连接钱包');
             return;
@@ -318,35 +316,27 @@ class $application {
             notifyError('❌未获取到访问令牌');
             return;
         }
-        const header = {
-            "did": "xxxx"
-        }
-        const body = {
-            "header": header,
-            "body": {
-                "did": did,
-                "version": version
-            }
-        }
-        const response = await fetch('/api/v1/application/unpublish', {
-            method: 'POST',
+        const response = await fetch(apiUrl(`/api/v1/public/applications/${uid}/config`), {
+            method: 'GET',
             headers: {
                 'Content-Type': 'application/json',
                 "authorization": `Bearer ${token}`,
                 'accept': 'application/json'
             },
-            body: JSON.stringify(body),
         });
-        
+
         if (!response.ok) {
-            throw new Error(`Failed to create post: ${response.status} error: ${await response.text()}`);
+            throw new Error(`Failed to fetch config: ${response.status} error: ${await response.text()}`);
         }
 
-        const r =  await response.json();
-        return r.body.status
+        const r = await response.json();
+        if (r.code !== 0) {
+            throw new Error(r.message || 'Fetch config failed');
+        }
+        return r.data?.config || [];
     }
 
-    async online(application: ApplicationMetadata) {
+    async saveConfig(uid: string, config: ApplicationConfigItem[]) {
         if (localStorage.getItem("hasConnectedWallet") === "false") {
             notifyError('❌未检测到钱包，请先安装并连接钱包');
             return;
@@ -356,32 +346,111 @@ class $application {
             notifyError('❌未获取到访问令牌');
             return;
         }
-        const header = {
-            "did": "xxxx"
+        const response = await fetch(apiUrl(`/api/v1/public/applications/${uid}/config`), {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json',
+                "authorization": `Bearer ${token}`,
+                'accept': 'application/json'
+            },
+            body: JSON.stringify({ config }),
+        });
+
+        if (!response.ok) {
+            throw new Error(`Failed to save config: ${response.status} error: ${await response.text()}`);
         }
-        const body = {
-            "header": header,
-            "body": {
-                "did": application?.did,
-                "version": application?.version
-            }
+
+        const r = await response.json();
+        if (r.code !== 0) {
+            throw new Error(r.message || 'Save config failed');
         }
-        const response = await fetch('/api/v1/application/publish', {
+        return r.data;
+    }
+
+    async offline(target: { uid?: string; did?: string; version?: number } | string, version?: number) {
+        if (localStorage.getItem("hasConnectedWallet") === "false") {
+            notifyError('❌未检测到钱包，请先安装并连接钱包');
+            return;
+        }
+        const token = await getAuthToken()
+        if (!token) {
+            notifyError('❌未获取到访问令牌');
+            return;
+        }
+        let uid = ''
+        if (typeof target === 'string') {
+            uid = target
+        } else if (target?.uid) {
+            uid = target.uid
+        } else if (target?.did && target?.version !== undefined) {
+            const detail = await this.detail(target.did, Number(target.version))
+            uid = detail?.uid
+        } else if (typeof version === 'number') {
+            const detail = await this.detail(target as string, version)
+            uid = detail?.uid
+        }
+        if (!uid) {
+            notifyError('❌未找到应用 UID')
+            return
+        }
+        const response = await fetch(apiUrl(`/api/v1/public/applications/${uid}/unpublish`), {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
                 "authorization": `Bearer ${token}`,
                 'accept': 'application/json'
             },
-            body: JSON.stringify(body),
         });
-        
+
         if (!response.ok) {
             throw new Error(`Failed to create post: ${response.status} error: ${await response.text()}`);
         }
 
-        const r =  await response.json();
-        return r.body.application
+        const r = await response.json();
+        return r
+    }
+
+    async online(target: ApplicationMetadata | { uid?: string; did?: string; version?: number } | string, version?: number) {
+        if (localStorage.getItem("hasConnectedWallet") === "false") {
+            notifyError('❌未检测到钱包，请先安装并连接钱包');
+            return;
+        }
+        const token = await getAuthToken()
+        if (!token) {
+            notifyError('❌未获取到访问令牌');
+            return;
+        }
+        let uid = ''
+        if (typeof target === 'string') {
+            uid = target
+        } else if ((target as any)?.uid) {
+            uid = (target as any).uid
+        } else if ((target as any)?.did && (target as any)?.version !== undefined) {
+            const detail = await this.detail((target as any).did, Number((target as any).version))
+            uid = detail?.uid
+        } else if (typeof version === 'number') {
+            const detail = await this.detail(target as string, version)
+            uid = detail?.uid
+        }
+        if (!uid) {
+            notifyError('❌未找到应用 UID')
+            return
+        }
+        const response = await fetch(apiUrl(`/api/v1/public/applications/${uid}/publish`), {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                "authorization": `Bearer ${token}`,
+                'accept': 'application/json'
+            },
+        });
+
+        if (!response.ok) {
+            throw new Error(`Failed to create post: ${response.status} error: ${await response.text()}`);
+        }
+
+        const r = await response.json();
+        return r
     }
 
     async unbind(uid: string) {
@@ -397,7 +466,7 @@ class $application {
         const res = await indexedCache.getByKey('applications_apply', uid)
         // 删除审批记录
         const applicant = `${account}::${account}`
-        const detail = await $audit.search({applicant: applicant})
+        const detail = await $audit.search({ applicant: applicant })
         const auditUids = detail.filter((d) => d.meta.appOrServiceMetadata.includes(`"name":"${res.name}"`)).map((s) => s.meta.uid)
         // 删除申请
         for (const item of auditUids) {
@@ -405,7 +474,7 @@ class $application {
         }
         await indexedCache.deleteByKey('applications_apply', uid)
     }
-    
+
     async audit(did, version, passed, signature, auditor, comment) {
         return await applicationProvider.audit(did, version, passed, signature, auditor, comment)
         // return new Promise((resolve, reject) => {

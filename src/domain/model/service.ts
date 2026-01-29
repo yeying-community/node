@@ -1,5 +1,5 @@
 import { ServiceDO } from '../mapper/entity'
-import { ResponsePage } from '../../yeying/api/common/message'
+import { ResponsePage } from '../../common/page'
 
 export interface SearchCondition {
     owner?: string

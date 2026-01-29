@@ -7,8 +7,8 @@ type AuthUser = {
   authType?: 'jwt' | 'ucan';
 };
 
-export function registerPrivateProfileRoute(app: Express) {
-  app.get('/api/v1/private/profile', (req: Request, res: Response) => {
+export function registerPublicProfileRoute(app: Express) {
+  app.get('/api/v1/public/profile/me', (req: Request, res: Response) => {
     const user = (req as Request & { user?: AuthUser }).user;
     if (!user?.address) {
       res.status(401).json(fail(401, 'Missing access token'));

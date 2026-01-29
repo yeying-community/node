@@ -177,8 +177,6 @@ import { getCurrentAccount, signWithWallet } from '@/plugins/auth'
 
 const defaultAvatar =
     import.meta.env.VITE_WEBDAV_AVATAR ||
-    import.meta.env.VITE_STORAGE_AVATAR ||
-    import.meta.env.VITE_MINIO_AVATAR ||
     'default.jpg'
 const webdavBase = (import.meta.env.VITE_WEBDAV_BASE_URL || '').replace(/\/+$/, '')
 const webdavPrefix = (import.meta.env.VITE_WEBDAV_PREFIX || '').replace(/\/+$/, '')
@@ -187,7 +185,6 @@ const webdavFallback = webdavBase
     : ''
 const prefixURL = (
     import.meta.env.VITE_WEBDAV_PUBLIC_BASE ||
-    import.meta.env.VITE_STORAGE_PUBLIC_BASE ||
     webdavFallback ||
     (typeof window !== 'undefined' ? window.location.origin : '')
 ).replace(/\/+$/, '')
@@ -371,7 +368,7 @@ const submitForm = async (formEl, andOnline) => {
                     return
                 }
                 params.signature = signature
-                const identity = await generateIdentity(params.code, params.apiCodes, '', '', params.name, params.description, params.avatar, signature)
+                const identity = await generateIdentity(params.code, params.apiCodes, '', '', params.name, params.description, params.avatar)
                 params.did = identity.metadata?.did
                 params.version = identity?.metadata?.version
                 params.owner = account

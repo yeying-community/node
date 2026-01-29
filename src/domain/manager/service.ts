@@ -2,7 +2,7 @@ import { Repository } from 'typeorm/repository/Repository'
 import { ServiceDO } from '../mapper/entity'
 import { SingletonDataSource } from '../facade/datasource'
 import { SearchCondition } from '../model/service'
-import { ResponsePage } from '../../yeying/api/common/message'
+import { createResponsePage } from '../../common/page'
 import { SingletonLogger } from '../facade/logger'
 import { Logger } from 'winston'
 import { Like } from "typeorm";
@@ -77,11 +77,7 @@ export class ServiceManager {
             })
             return {
                 data: services,
-                page: ResponsePage.create({
-                    total: total,
-                    page: page,
-                    pageSize: pageSize
-                })
+                page: createResponsePage(total, page, pageSize)
             }
         }
         const where = hasStatus ? { status: condition.status } : { isOnline: isOnline }
@@ -94,11 +90,7 @@ export class ServiceManager {
         console.log(`services=${JSON.stringify(services)}`)
         return {
             data: services,
-            page: ResponsePage.create({
-                total: total,
-                page: page,
-                pageSize: pageSize
-            })
+            page: createResponsePage(total, page, pageSize)
         }
     }
 

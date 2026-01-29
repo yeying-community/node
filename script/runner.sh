@@ -21,8 +21,7 @@ work_dir=$(
 usage() {
   printf "Usage: %s\n \
     -d <Set debug mode.> \n \
-    -h <Set http proxy port.> \n \
-    -g <Set grpc port.> \n \
+    -h <Set service port.> \n \
     -e <Set run environment, such as dev or prod.> \n \
     -t <Set http tls enable> \n \
     -s <Skip the compiler> \n \
@@ -34,7 +33,7 @@ env=dev
 tls=false
 skip=false
 # For macos`s getopt, reference: https://formulae.brew.sh/formula/gnu-getopt
-while getopts ":dtsh:g:e:" o; do
+while getopts ":dtsh:e:" o; do
   case "${o}" in
   t)
     tls=true
@@ -46,10 +45,7 @@ while getopts ":dtsh:g:e:" o; do
   #   debug_param='--debug'
   #   ;;
   h)
-    http_port=${OPTARG}
-    ;;
-  g)
-    grpc_port=${OPTARG}
+    app_port=${OPTARG}
     ;;
   e)
     env=${OPTARG}
@@ -65,21 +61,13 @@ envoy_parameter=""
 if [ "${env}" == "dev" ]; then
   export APP_ENV=dev
   # 默认开发环境的端口，为了方便调试，不同的服务，以及服务运行的环境不一样，端口也都会有区别，另外用户也可以强制指定端口
-  if [ -z "${http_port}" ]; then
-    http_port=8441
-  fi
-
-  if [ -z "${grpc_port}" ]; then
-    grpc_port=8001
+  if [ -z "${app_port}" ]; then
+    app_port=8100
   fi
   envoy_parameter="-l info"
 elif [ "${env}" == "prod" ]; then
-  if [ -z "${http_port}" ]; then
-    http_port=8442
-  fi
-
-  if [ -z "${grpc_port}" ]; then
-    grpc_port=8001
+  if [ -z "${app_port}" ]; then
+    app_port=8100
   fi
 else
   echo -e "${COLOR_RED}Not supported environment variable, please set dev or prod!${COLOR_NC}"
@@ -88,18 +76,16 @@ else
 fi
 
 # 设置 base_id
-base_id=${http_port}
+base_id=${app_port}
 
 index=1
 printf "\n"
 echo -e "step $index -- This is going to start node under ${COLOR_BLUE} ${env} ${COLOR_NC} environment. [$(date)]"
-echo "work dir=${work_dir}, http port=${http_port}, grpc port=${grpc_port}"
+echo "work dir=${work_dir}, port=${app_port}"
 
 run_dir=${work_dir}/run
 python_script=${work_dir}/script/load_template.py
 cert_dir=${run_dir}/cert
-
-src_conf_dir=${work_dir}/config
 
 des_conf_dir=${run_dir}/config
 des_log_dir=${run_dir}/log
@@ -108,18 +94,16 @@ if [ ! -d "${run_dir}" ]; then
   mkdir -p "${run_dir}"
 fi
 
+template_dir="${work_dir}/resources/template"
 if [ -d "${run_dir}"/template ]; then
   rm -rf "${run_dir}"/template
 fi
-cp -rf resource/template "${run_dir}"
+if [ -d "${template_dir}" ]; then
+  cp -rf "${template_dir}" "${run_dir}"
+fi
 
 if [ ! -d "${des_conf_dir}" ]; then
   mkdir -p "${des_conf_dir}"
-fi
-
-# nodejs的config模块加载配置文件使用标准命名方法
-if [ ! -f "${des_conf_dir}/default.json" ]; then
-  cp -rf "${src_conf_dir}"/default.json "${des_conf_dir}/"
 fi
 
 if [ ! -d "${des_log_dir}" ]; then
@@ -150,20 +134,25 @@ else
   envoy_config="envoy.yaml"
 fi
 
-if ! python_module_check_by_pip3 Jinja2; then
-  echo -e "${COLOR_RED}You have to install python module(Jinja2) manually firstly. ${COLOR_NC}"
-  exit 1
+envoy_template_dir="${work_dir}/resources/envoy"
+if [ -f "${envoy_template_dir}/${envoy_config}" ]; then
+  if ! python_module_check_by_pip3 Jinja2; then
+    echo -e "${COLOR_RED}You have to install python module(Jinja2) manually firstly. ${COLOR_NC}"
+    exit 1
+  fi
+  python3 "${python_script}" "${envoy_template_dir}/${envoy_config}" "${des_conf_dir}/envoy.yaml" "${cert_dir}" "${app_port}"
+else
+  echo -e "${COLOR_BLUE}Envoy template not found, skip envoy config generation.${COLOR_NC}"
 fi
-python3 "${python_script}" "${src_conf_dir}/${envoy_config}" "${des_conf_dir}/envoy.yaml" "${cert_dir}" "${http_port}" "${grpc_port}"
 
 # 设置配置文件路径
-export NODE_CONFIG_DIR="${des_conf_dir}"
+export APP_CONFIG_PATH="${work_dir}/config.json"
 
 cd "${run_dir}" || exit 1
 
 index=$((index+1))
 echo -e "step $index -- start node service"
-export APP_PORT="${grpc_port}"
+export APP_PORT="${app_port}"
 
 # start store service
 if [ "$skip" = true ]; then
@@ -177,11 +166,11 @@ echo $! >> "${pid_file}"
 
 index=$((index+1))
 printf "\n"
-echo -e "step $index -- check grpc port of node"
-if check_service_port 10 1 "${grpc_port}"; then
-  echo "grpc of node started successfully."
+echo -e "step $index -- check port of node"
+if check_service_port 10 1 "${app_port}"; then
+  echo "node started successfully."
 else
-  echo -e "${COLOR_RED}grpc of node Not started yet. ${COLOR_NC}"
+  echo -e "${COLOR_RED}node Not started yet. ${COLOR_NC}"
 fi
 
 echo $! >> "${pid_file}"

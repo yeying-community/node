@@ -118,7 +118,7 @@ function getUcanCapabilities(): UcanCapability[] {
 function resolveApiAudience(): string {
   const envAud = import.meta.env.VITE_UCAN_AUD;
   if (envAud) return envAud;
-  const endpoint = import.meta.env.VITE_API_ENDPOINT;
+  const endpoint = import.meta.env.VITE_NODE_API_ENDPOINT;
   if (endpoint) {
     if (/^https?:\/\//i.test(endpoint)) {
       return toDidWeb(endpoint);

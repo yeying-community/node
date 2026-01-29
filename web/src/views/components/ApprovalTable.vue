@@ -50,7 +50,7 @@ import dayjs from 'dayjs'
 import { Warning } from '@element-plus/icons-vue'
 import { ref, reactive, onMounted, watch } from 'vue'
 import { userInfo } from '@/plugins/account'
-import $audit, { AuditAuditDetail, AuditCommentMetadata, AuditCommentStatusEnum } from '@/plugins/audit'
+import $audit, { AuditAuditDetail, resolveAuditState } from '@/plugins/audit'
 import { AuditDetailBox, useDataStore } from '@/stores/audit'
 import { notifyError } from '@/utils/message'
 import { getCurrentAccount } from '@/plugins/auth'
@@ -91,34 +91,6 @@ const props = defineProps({
 
 
 
-function allEqualTo<T>(arr: T[], value: T): boolean {
-  return arr.every(item => item === value);
-}
-
-function getState(metas?: AuditCommentMetadata[]) {
-  let status: string = "待审批";
-  if (metas === undefined || metas.length === 0) {
-    return status;
-  }
-
-  // 过滤掉 status 为 undefined 的项
-  const statusList: AuditCommentStatusEnum[] = metas
-    .map(item => item.status)
-    .filter((status): status is AuditCommentStatusEnum => status !== undefined);
-
-  if (statusList.length === 0) {
-    return status; // 如果没有有效状态，仍为“待审批”
-  }
-
-  if (statusList.includes(AuditCommentStatusEnum.COMMENTSTATUSREJECT)) {
-    status = '审批驳回';
-  } else if (allEqualTo(statusList, AuditCommentStatusEnum.COMMENTSTATUSAGREE)) {
-    status = '审批通过';
-  }
-
-  return status;
-}
-
 function cvData(auditMyApply: AuditAuditDetail) {
     if (auditMyApply === undefined || auditMyApply.meta === undefined || auditMyApply.meta.appOrServiceMetadata === undefined || auditMyApply.meta.applicant === undefined) {
         return null
@@ -133,7 +105,7 @@ function cvData(auditMyApply: AuditAuditDetail) {
         desc: rawData.description,
         serviceType: auditMyApply.meta.auditType,
         applicantor: did,
-        state: getState(auditMyApply.commentMeta),
+        state: resolveAuditState(auditMyApply.commentMeta, auditMyApply.meta?.approver),
         date: auditMyApply.meta.createdAt
     };
     return metadata

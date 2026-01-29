@@ -5,10 +5,9 @@
 - **Service**: create/update, detail, query, search, unpublish
 - **Audit**: submit, approve/reject, cancel, detail, search
 - **User/State**: user detail, status update, role management (not enforced yet)
-- **Node**: health check, basic info
-- **Invitation**: create/validate invite codes (if enabled)
+- **Auth/Health**: login (SIWE/UCAN), refresh/logout, health check
 
-> The definitive list is in `openapi.json`.
+> The definitive list is in `docs/en/api.md`.
 
 ## Required Auth/Permission Rules (Should be enforced)
 - **Auth**: all non-public endpoints require `Authorization: Bearer <JWT|UCAN>`.
@@ -28,8 +27,9 @@
 3. **Publish/Unpublish**
    - Clear lifecycle states (created/audited/online/offline) (implemented)
    - Search/display aligned with state (implemented)
-   - Dedicated publish/unpublish endpoints (still missing)
+   - Endpoints are in place; keep tightening audit gating + owner checks
 4. **Permission model enforcement**
    - Role/status binding to endpoints
-5. **Signature/identity verification** (if reinstated)
-   - Reintroduce secure signing or an alternative
+5. **Signature verification (partial)**
+   - Enforced for audit submit/approve/reject (wallet `personal_sign`)
+   - Other flows remain unsigned for now

@@ -1,36 +1,28 @@
-import { CommentMetadata, CommentStatusEnum } from "../../yeying/api/audit/audit";
-import { CommentDO } from "../mapper/entity";
+import { CommentDO } from '../mapper/entity'
 
+export type CommentStatus = 'COMMENT_STATUS_AGREE' | 'COMMENT_STATUS_REJECT'
+
+export interface CommentMetadata {
+    uid: string
+    auditId: string
+    text: string
+    status: CommentStatus
+    createdAt: string
+    updatedAt: string
+    signature: string
+}
+
+export const COMMENT_STATUS_AGREE: CommentStatus = 'COMMENT_STATUS_AGREE'
+export const COMMENT_STATUS_REJECT: CommentStatus = 'COMMENT_STATUS_REJECT'
 
 export function convertCommentMetadata(comment: CommentDO): CommentMetadata {
-    return CommentMetadata.create({
+    return {
         uid: comment.uid,
         auditId: comment.auditId,
         text: comment.text,
-        status: convertCommentStatusFrom(comment.status),
+        status: (comment.status as CommentStatus) || COMMENT_STATUS_AGREE,
         createdAt: comment.createdAt,
         updatedAt: comment.updatedAt,
         signature: comment.signature
-    })
-}
-
-export function convertComment(meta: CommentMetadata): CommentDO {
-    const comment = new CommentDO()
-    comment.uid = meta.uid
-    comment.auditId = meta.auditId
-    comment.createdAt = meta.createdAt
-    comment.updatedAt = meta.updatedAt
-    comment.text = meta.text
-    comment.status = convertCommentStatusTo(meta.status)
-    comment.signature = meta.signature
-    return comment
-}
-
-export function convertCommentStatusTo(code: CommentStatusEnum) {
-    return CommentStatusEnum[code]
-}
-
-export function convertCommentStatusFrom(code: string) {
-    const v = CommentStatusEnum[code as keyof typeof CommentStatusEnum]
-    return v
+    }
 }

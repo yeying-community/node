@@ -22,7 +22,14 @@
                             :rules="rules.value"
                             class="inline-item"
                         >
-                            <el-select v-model="domain.value" placeholder="请选择" />
+                        <el-select v-model="domain.value" placeholder="请选择">
+                            <el-option
+                                v-for="(label, value) in serviceCodeOptions"
+                                :key="value"
+                                :label="label"
+                                :value="value"
+                            />
+                        </el-select>
                         </el-form-item>
                     </el-col>
                     <el-col :span="15" :xs="24">
@@ -53,13 +60,33 @@
 </template>
 
 <script lang="ts" setup>
-import { reactive, ref } from 'vue'
+import { reactive, ref, watch, computed } from 'vue'
 import type { FormInstance } from 'element-plus'
+import { ElMessage } from 'element-plus'
+import $service, { serviceCodeMap, type ServiceConfigItem } from '@/plugins/service'
+import $application, { type ApplicationConfigItem } from '@/plugins/application'
 const props = defineProps({
     modalVisible: Boolean,
     detail: Object,
     title: String,
-    cancelModal: Function
+    cancelModal: Function,
+    operateType: String
+})
+
+const serviceCodeOptions = computed(() => {
+    if (props.operateType === 'application') {
+        const codes = Array.isArray(props.detail?.serviceCodes)
+            ? props.detail?.serviceCodes
+            : typeof props.detail?.serviceCodes === 'string'
+              ? props.detail?.serviceCodes.split(',').map((item) => item.trim()).filter(Boolean)
+              : []
+        const options: Record<string, string> = {}
+        for (const code of codes) {
+            options[code] = code
+        }
+        return options
+    }
+    return serviceCodeMap
 })
 
 const formRef = ref<FormInstance>()
@@ -116,12 +143,28 @@ const addDomain = () => {
 const submitForm = (formEl: FormInstance | undefined) => {
     if (!formEl) return
     formEl.validate((valid) => {
-        if (valid) {
-            console.log('submit!', dynamicValidateForm.domains?.[0])
-        } else {
-            console.log('error submit!')
+        if (!valid) {
             return false
         }
+        void (async () => {
+            if (!props.detail?.uid) {
+                ElMessage.error('缺少服务信息')
+                return
+            }
+            const configItems = dynamicValidateForm.domains
+                .map((item) => ({
+                    code: item.value,
+                    instance: item.case
+                }))
+                .filter((item) => item.code && item.instance)
+            if (props.operateType === 'application') {
+                await $application.saveConfig(props.detail.uid, configItems as ApplicationConfigItem[])
+            } else {
+                await $service.saveConfig(props.detail.uid, configItems as ServiceConfigItem[])
+            }
+            ElMessage.success('保存成功')
+            props.cancelModal?.()
+        })()
     })
 }
 
@@ -129,6 +172,41 @@ const resetForm = (formEl: FormInstance | undefined) => {
     if (!formEl) return
     formEl.resetFields()
 }
+
+const loadConfig = async () => {
+    if (!props.detail?.uid) {
+        return
+    }
+    const configs = props.operateType === 'application'
+        ? await $application.getConfig(props.detail.uid)
+        : await $service.getConfig(props.detail.uid)
+    if (Array.isArray(configs) && configs.length > 0) {
+        dynamicValidateForm.domains = configs.map((item, index) => ({
+            key: Date.now() + index,
+            value: item.code,
+            case: item.instance
+        }))
+    } else {
+        dynamicValidateForm.domains = [
+            {
+                key: Date.now(),
+                value: '',
+                case: ''
+            }
+        ]
+    }
+}
+
+watch(
+    () => props.modalVisible,
+    (visible) => {
+        if (visible) {
+            void loadConfig()
+        } else {
+            resetForm(formRef.value)
+        }
+    }
+)
 </script>
 
 <style scoped lang="less">

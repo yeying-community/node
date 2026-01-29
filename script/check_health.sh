@@ -43,14 +43,18 @@ work_dir=$(
 
 
 config_file_envoy_yaml=${work_dir}/run/config/envoy.yaml
-if [ ! -f "${config_file_envoy_yaml}" ]; then
-  echo -e "${COLOR_RED}Cannot find file: ${config_file_envoy_yaml}  ${COLOR_NC}"
-  exit 1
+port_array=()
+if [ -f "${config_file_envoy_yaml}" ]; then
+  ports=$(sed -n '/port_value/p' "$config_file_envoy_yaml"|cut -d ':' -f 2)
+  IFS=$'\n' read -r -d '' -a port_array <<< "$ports"
+else
+  if [ -n "${APP_PORT}" ]; then
+    port_array=("${APP_PORT}")
+  else
+    port_array=(8100)
+  fi
 fi
 
-ports=$(sed -n '/port_value/p' "$config_file_envoy_yaml"|cut -d ':' -f 2)
-
-IFS=$'\n' read -r -d '' -a port_array <<< "$ports"
 echo -e "going to check ports: " "${port_array[@]}"
 
 for each_port in "${port_array[@]}"; do

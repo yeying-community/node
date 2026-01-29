@@ -10,7 +10,8 @@ erDiagram
   USERS ||--o{ APPLICATIONS : owns
   USERS ||--o{ SERVICES : owns
   AUDITS ||--o{ COMMENTS : has
-  SOLUTIONS ||--o{ CARDS : contains
+  SERVICES ||--o{ SERVICE_CONFIGS : config
+  APPLICATIONS ||--o{ APPLICATION_CONFIGS : config
 
   USERS {
     varchar did PK
@@ -26,20 +27,23 @@ erDiagram
     uuid uid PK
     varchar did
   }
+  SERVICE_CONFIGS {
+    uuid uid PK
+    varchar service_uid
+    varchar applicant
+  }
   AUDITS {
     uuid uid PK
     text app_or_service_metadata
   }
+  APPLICATION_CONFIGS {
+    uuid uid PK
+    varchar application_uid
+    varchar applicant
+  }
   COMMENTS {
     uuid uid PK
     text audit_id
-  }
-  SOLUTIONS {
-    varchar uid PK
-  }
-  CARDS {
-    int id PK
-    varchar solution_id FK
   }
 ```
 
@@ -110,6 +114,30 @@ erDiagram
 | status | varchar(64) | Business status (BUSINESS_STATUS_*) |
 | is_online | boolean | Online flag |
 
+## service_configs
+| Field | Type | Notes |
+| --- | --- | --- |
+| uid | uuid PK | Config ID |
+| service_uid | varchar(64) | Service UID |
+| service_did | varchar(128) | Service DID |
+| service_version | int | Service version |
+| applicant | varchar(128) | Applicant address |
+| config_json | text | Config JSON (code/instance list) |
+| created_at | varchar(64) | Created time |
+| updated_at | varchar(64) | Updated time |
+
+## application_configs
+| Field | Type | Notes |
+| --- | --- | --- |
+| uid | uuid PK | Config ID |
+| application_uid | varchar(64) | Application UID |
+| application_did | varchar(128) | Application DID |
+| application_version | int | Application version |
+| applicant | varchar(128) | Applicant address |
+| config_json | text | Config JSON (code/instance list) |
+| created_at | varchar(64) | Created time |
+| updated_at | varchar(64) | Updated time |
+
 ## audits
 | Field | Type | Notes |
 | --- | --- | --- |
@@ -117,7 +145,7 @@ erDiagram
 | app_or_service_metadata | text | Metadata JSON |
 | audit_type | text | application / service |
 | applicant | text | applicant (did::name) |
-| approver | text | approvers list (JSON/string) |
+| approver | text | audit policy (JSON object or list); object shape `{ "approvers": [...], "requiredApprovals": 2 }` |
 | reason | text | Reason |
 | created_at | timestamp | Created time |
 | updated_at | timestamp | Updated time |
@@ -133,59 +161,7 @@ erDiagram
 | uid | uuid PK | Comment ID |
 | audit_id | text | audits.uid |
 | text | text | Comment |
-| status | text | approve/reject |
+| status | text | COMMENT_STATUS_AGREE / COMMENT_STATUS_REJECT |
 | created_at | varchar(64) | Created time |
 | updated_at | varchar(64) | Updated time |
 | signature | varchar(192) | Signature (not verified) |
-
-## invitations
-| Field | Type | Notes |
-| --- | --- | --- |
-| code | varchar(64) PK | Invite code |
-| scene | varchar(64) | Scene |
-| inviter | varchar(128) | Inviter DID |
-| invitee | varchar(128) | Invitee DID |
-| expired_at | varchar(64) | Expiry |
-| created_at | varchar(64) | Created time |
-| signature | varchar(192) | Signature |
-
-## events
-| Field | Type | Notes |
-| --- | --- | --- |
-| uid | varchar(128) PK | Event ID |
-| type | varchar(64) | Event type |
-| producers | text | Producers |
-| consumers | text | Consumers |
-| signatures | text | Signatures |
-| content | text | Content |
-| opinions | text | Opinions |
-| extend | text | Extended fields |
-| created_at | varchar(64) | Created time |
-| processed_at | varchar(64) | Processed time |
-
-## certificates
-| Field | Type | Notes |
-| --- | --- | --- |
-| domain | varchar(256) PK | Domain |
-| service_did | varchar(128) | Service DID |
-| cert | text | Certificate |
-| csr | text | CSR |
-| expired | varchar(64) | Expiry |
-| created_at | varchar(64) | Created time |
-| updated_at | varchar(64) | Updated time |
-
-## supports
-| Field | Type | Notes |
-| --- | --- | --- |
-| id | int PK | Auto increment |
-| did | varchar(128) | User DID |
-| email | varchar(256) | Email |
-| type | varchar(64) | Type |
-| description | text | Description |
-| created_at | varchar(64) | Created time |
-| signature | varchar(192) | Signature |
-| updated_at | timestamp | Updated time |
-
-## solutions / cards
-- `solutions` is the parent table; `cards` is a child table (1:N).
-- `cards.solution_id` references `solutions.uid`.

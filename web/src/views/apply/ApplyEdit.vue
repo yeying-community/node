@@ -2,15 +2,15 @@
     <div class="edit">
         <el-breadcrumb separator="/">
             <el-breadcrumb-item :to="{ path: '/market/' }">应用中心</el-breadcrumb-item>
-            <el-breadcrumb-item>{{ isEdit ? '编辑' : '创建' }}应用身份</el-breadcrumb-item>
+            <el-breadcrumb-item>{{ isEdit ? '编辑' : '创建' }}应用</el-breadcrumb-item>
         </el-breadcrumb>
-        <BreadcrumbHeader :pageName="isEdit ? '编辑应用身份' : '创建应用身份'" />
+        <BreadcrumbHeader :pageName="isEdit ? '编辑应用' : '创建应用'" />
         <el-form label-position="top" label-width="auto" :model="detailInfo" :rules="rules" ref="ruleFormRef">
             <el-row class="content">
                 <el-col :span="19" :xs="24">
                     <div class="left" ref="containerRef">
                         <div id="part1">
-                            <div class="title">应用身份信息</div>
+                            <div class="title">应用基本信息</div>
                             <el-divider />
                             <div class="form">
                                 <el-form-item label="应用名称" prop="name">
@@ -168,8 +168,6 @@ import { getCurrentAccount, signWithWallet } from '@/plugins/auth'
 
 const defaultAvatar =
     import.meta.env.VITE_WEBDAV_AVATAR ||
-    import.meta.env.VITE_STORAGE_AVATAR ||
-    import.meta.env.VITE_MINIO_AVATAR ||
     'default.jpg'
 const webdavBase = (import.meta.env.VITE_WEBDAV_BASE_URL || '').replace(/\/+$/, '')
 const webdavPrefix = (import.meta.env.VITE_WEBDAV_PREFIX || '').replace(/\/+$/, '')
@@ -178,7 +176,6 @@ const webdavFallback = webdavBase
     : ''
 const prefixURL = (
     import.meta.env.VITE_WEBDAV_PUBLIC_BASE ||
-    import.meta.env.VITE_STORAGE_PUBLIC_BASE ||
     webdavFallback ||
     (typeof window !== 'undefined' ? window.location.origin : '')
 ).replace(/\/+$/, '')
@@ -339,7 +336,7 @@ const submitForm = async (formEl, andOnline) => {
                     return
                 }
                 params.signature = signature
-                const identity = await generateIdentity(params.code, params.serviceCodes, params.location, '', params.name, params.description, params.avatar, signature)
+                const identity = await generateIdentity(params.code, params.serviceCodes, params.location, '', params.name, params.description, params.avatar)
                 params.did = identity.metadata?.did
                 params.version = identity?.metadata?.version
                 params.owner = account
@@ -360,7 +357,7 @@ const toOnlineApply = async () => {
      * 点击保存按钮会弹出一个弹窗，左边按钮叫做上架应用
      * 目前调不通
      */
-    const rst = await $application.online(did, version)
+    const rst = await $application.online({ did, version })
 }
 const toList = () => {
     router.push({

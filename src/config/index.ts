@@ -1,22 +1,3 @@
-export interface ServerConfig {
-    name: string
-    grpc: GrpcConfig
-    ws: WsConfig
-}
-
-export interface GrpcConfig {
-    host: string
-    port: number
-    enableTls: boolean
-    certDir: string
-    checkClientCertificate: boolean
-}
-
-export interface WsConfig {
-    port: number
-    host: string
-}
-
 export interface DatabaseConfig {
     type: 'sqlite' | 'mysql' | 'postgres'
     database: string
@@ -28,23 +9,28 @@ export interface DatabaseConfig {
     logging?: boolean
 }
 
-export interface RedisConfig {
-    type: 'redis'
-    host: string
+export interface AppRuntimeConfig {
+    env: string
     port: number
-    db: number
-    password?: string
 }
 
-export interface AuthConfig {
-    user: string
-    pass: string
+export interface AuthRuntimeConfig {
+    jwtSecret: string
+    accessTtlMs: number
+    refreshTtlMs: number
+    challengeTtlMs: number
+    cookieSameSite?: 'lax' | 'strict' | 'none'
+    cookieSecure?: boolean
+    refreshCookieName?: string
 }
 
-export interface MailConfig {
-    type: 'smtp'
-    host: string
-    port: number
-    secure: boolean
-    auth?: AuthConfig
+export interface UcanRuntimeConfig {
+    aud: string
+    resource: string
+    action: string
+}
+
+export interface AuditRuntimeConfig {
+    approvers?: string[]
+    requiredApprovals?: number
 }

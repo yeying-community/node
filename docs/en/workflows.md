@@ -11,7 +11,7 @@ sequenceDiagram
   participant DB as Database
 
   U ->> FE: Fill application form
-  FE ->> BE: POST /api/v1/application/create
+  FE ->> BE: POST /api/v1/public/applications
   BE ->> DB: Save applications (is_online defaults to false)
   BE -->> FE: Success
 ```
@@ -43,7 +43,7 @@ sequenceDiagram
   participant DB as Database
 
   U ->> FE: Fill service form
-  FE ->> BE: POST /api/v1/service/create
+  FE ->> BE: POST /api/v1/public/services
   BE ->> DB: Save services (is_online defaults to false)
   BE -->> FE: Success
 ```
@@ -70,11 +70,11 @@ stateDiagram-v2
 flowchart TD
   A[Applicant submits request]
   B{Validation passed?}
-  C[/audit/create]
+  C[POST /api/v1/public/audits]
   D[Create audits ticket]
   E[Enter review queue]
   F{Cancel?}
-  G[/audit/cancel]
+  G[DELETE /api/v1/public/audits/:uid]
   H[Delete audits + comments]
   I[Wait for review]
   J[Return error]
@@ -88,18 +88,18 @@ flowchart TD
 
 ### Notes
 - Server checks: target exists, applicant is owner, metadata JSON is valid, no open tickets for the same target.
-- `/audit/cancel` deletes the ticket and its comments.
+- `DELETE /api/v1/public/audits/:uid` deletes the ticket and its comments.
 
 ## 4) Review Flow (Approve/Reject)
 ```mermaid
 flowchart TD
   A[Reviewer searches tickets
-/audit/search]
+POST /api/v1/public/audits/search]
   B[View detail
-/audit/detail]
+GET /api/v1/public/audits/:uid]
   C{Decision}
-  D[/audit/approve]
-  E[/audit/reject]
+  D[/api/v1/admin/audits/:uid/approve]
+  E[/api/v1/admin/audits/:uid/reject]
   F[Write comments]
   G[Target: update resource status]
   H[Notify/log]
@@ -112,23 +112,24 @@ flowchart TD
 ```
 
 ### Notes
-- `comments.status` supports `AGREE` / `REJECT` only.
-- Audit decisions are idempotent: once decided, further approvals/rejections are rejected.
+- `comments.status` supports `COMMENT_STATUS_AGREE` / `COMMENT_STATUS_REJECT` only.
+- Approval succeeds when **approvals >= requiredApprovals** and no rejection exists.
+- Audit decisions are idempotent: once decided (approved/rejected), further approvals/rejections are rejected.
 - Audit results now toggle `is_online`.
 
 ### Audit Ticket State Machine (Logical)
-> Note: there is no explicit `status` field; state is inferred from latest comment.
+> Note: there is no explicit `status` field; state is inferred from comment aggregation (threshold + rejection).
 ```mermaid
 stateDiagram-v2
-  [*] --> PENDING: /audit/create
-  PENDING --> APPROVED: /audit/approve
-  PENDING --> REJECTED: /audit/reject
-  PENDING --> CANCELED: /audit/cancel
+  [*] --> PENDING: POST /api/v1/public/audits
+  PENDING --> APPROVED: POST /api/v1/admin/audits/:uid/approve
+  PENDING --> REJECTED: POST /api/v1/admin/audits/:uid/reject
+  PENDING --> CANCELED: DELETE /api/v1/public/audits/:uid
   REJECTED --> PENDING: resubmit (new ticket)
 ```
 
 ## 5) Publish/Unpublish Flow (Application/Service)
-> Note: dedicated publish/unpublish APIs are available (`/application/publish`, `/application/unpublish`, `/service/publish`, `/service/unpublish`).
+> Note: dedicated publish/unpublish APIs are available (`POST /api/v1/public/applications/:uid/publish`, `POST /api/v1/public/applications/:uid/unpublish`, `POST /api/v1/public/services/:uid/publish`, `POST /api/v1/public/services/:uid/unpublish`).
 ```mermaid
 flowchart TD
   A[Owner requests publish/unpublish]
@@ -180,4 +181,4 @@ flowchart TD
 ## 7) Auth & Permission
 - All business APIs require `Authorization: Bearer <JWT|UCAN>`.
 - UCAN `aud` must match server `UCAN_AUD` exactly, otherwise 401.
-- Role/status checks and signature verification are **not enforced** (see `permissions.md`).
+- Role/status checks are still **not enforced**; audit signature verification is **enforced** (see `permissions.md`).

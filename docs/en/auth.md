@@ -62,7 +62,7 @@ Server env:
 Client env (web):
 - `VITE_UCAN_AUD` (preferred, explicit)
 - `VITE_UCAN_RESOURCE` / `VITE_UCAN_ACTION`
-- `VITE_API_ENDPOINT`
+- `VITE_NODE_API_ENDPOINT`
 
 ## Common Errors
 - **UCAN audience mismatch**: UCAN `aud` does not equal server `UCAN_AUD`.

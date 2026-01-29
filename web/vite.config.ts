@@ -114,7 +114,7 @@ export default defineConfig({
     proxy: {
       // 代理规则示例2：复杂路径代理
       '/api': {
-        target: 'http://localhost:8001', // 本地后端服务
+        target: 'http://localhost:8100', // 本地后端服务
         changeOrigin: true
       }
     },

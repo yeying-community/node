@@ -1,9 +1,9 @@
-import { ResponsePage } from "../../yeying/api/common/message"
-import { AuditDO, CommentDO } from "../mapper/entity"
-
+import { ResponsePage } from '../../common/page'
+import { AuditDO, CommentDO } from '../mapper/entity'
+import { CommentMetadata, convertCommentMetadata } from './comments'
 
 export interface PageResult {
-    data: Audit[]
+    data: AuditDetail[]
     page: ResponsePage
 }
 
@@ -16,8 +16,12 @@ export interface Audit {
     createdAt: string
     updatedAt: string
     signature: string
-    commonsMetadatas?: CommentDO[]
     auditType: string
+}
+
+export interface AuditDetail {
+    meta: Audit
+    commentMeta: CommentMetadata[]
 }
 
 export function convertAuditDOFrom(meta: Audit): AuditDO {
@@ -30,38 +34,30 @@ export function convertAuditDOFrom(meta: Audit): AuditDO {
         reason: meta.reason,
         createdAt: new Date(meta.createdAt),
         updatedAt: new Date(meta.updatedAt),
-        signature: meta.signature
+        signature: meta.signature,
+        targetType: '',
+        targetDid: '',
+        targetVersion: 0,
+        targetName: ''
     }
 }
 
-export function convertAuditMetadataTo(auditDO: AuditDO, userAges?: Map<string, CommentDO[]>) {
-    if (userAges === undefined || userAges === null) {
-        return {
-            uid: auditDO.uid,
-            appOrServiceMetadata: auditDO.appOrServiceMetadata,
-            auditType: auditDO.auditType,
-            applicant: auditDO.applicant,
-            approver: auditDO.approver,
-            reason: auditDO.reason,
-            createdAt: auditDO.createdAt.toISOString(),
-            updatedAt: auditDO.updatedAt.toISOString(),
-            signature: auditDO.signature
-        }
-    } else {
-        return {
-            uid: auditDO.uid,
-            appOrServiceMetadata: auditDO.appOrServiceMetadata,
-            auditType: auditDO.auditType,
-            applicant: auditDO.applicant,
-            approver: auditDO.approver,
-            reason: auditDO.reason,
-            createdAt: auditDO.createdAt.toISOString(),
-            updatedAt: auditDO.updatedAt.toISOString(),
-            signature: auditDO.signature,
-            commonsMetadatas: userAges.get(auditDO.uid)
-        }
+export function convertAuditMetadataTo(auditDO: AuditDO, comments?: CommentDO[] | null): AuditDetail {
+    const meta: Audit = {
+        uid: auditDO.uid,
+        appOrServiceMetadata: auditDO.appOrServiceMetadata,
+        auditType: auditDO.auditType,
+        applicant: auditDO.applicant,
+        approver: auditDO.approver,
+        reason: auditDO.reason,
+        createdAt: auditDO.createdAt.toISOString(),
+        updatedAt: auditDO.updatedAt.toISOString(),
+        signature: auditDO.signature
     }
-
+    return {
+        meta,
+        commentMeta: (comments || []).map(convertCommentMetadata)
+    }
 }
 
 export interface QueryCondition {

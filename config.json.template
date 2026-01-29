@@ -1,0 +1,40 @@
+{
+  "app": {
+    "env": "dev",
+    "port": 8100
+  },
+  "database": {
+    "type": "postgres",
+    "schema": "node",
+    "database": "postgres",
+    "host": "127.0.0.1",
+    "port": 5432,
+    "username": "postgres",
+    "password": "CHANGE_ME",
+    "logging": true,
+    "synchronize": true
+  },
+  "auth": {
+    "jwtSecret": "replace-this-in-production",
+    "accessTtlMs": 900000,
+    "refreshTtlMs": 604800000,
+    "challengeTtlMs": 300000,
+    "cookieSameSite": "lax",
+    "cookieSecure": false,
+    "refreshCookieName": "refresh_token"
+  },
+  "ucan": {
+    "aud": "did:web:localhost:8100",
+    "resource": "profile",
+    "action": "read"
+  },
+  "audit": {
+    "approvers": [
+      "0x0000000000000000000000000000000000000000"
+    ],
+    "requiredApprovals": 1
+  },
+  "logger": {
+    "level": "info"
+  }
+}

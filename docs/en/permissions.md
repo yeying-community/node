@@ -23,12 +23,13 @@ Role/status enums exist in the API schema but are **not enforced** by current se
 
 ## Current Enforcement Boundaries
 - **Enforced**: token validation (JWT/UCAN)
-- **Enforced**: ownership checks on create/delete for applications/services
+- **Enforced**: ownership checks on create/update/delete/publish/unpublish for applications/services
 - **Enforced**: approver-only audit approval/rejection
+- **Enforced**: multi-approver threshold (`audit.approvers` + `audit.requiredApprovals`); approve only after threshold, any reject fails
 - **Enforced**: admin prefix guard (`/api/v1/admin/*`, role `OWNER` or `ADMIN_DIDS` allowlist)
 - **Enforced**: blocked user status (disabled/freeze/lock) cannot publish/approve
 - **Not enforced**: role/status checks and fine-grained RBAC
-- **Signature verification**: disabled (no-op) since `@yeying-community/yeying-web3` removal
+- **Signature verification**: enforced for **audit submit / approve / reject** (wallet `personal_sign`); other signatures remain unenforced
 
 ## Recommended Target Model (Plan)
 Suggested rules to implement:
@@ -48,8 +49,8 @@ Suggested rules to implement:
 
 ## Gaps & TODOs (Suggested Priority)
 1. **Role checks**: bind `OWNER/NORMAL` to approval and publish/unpublish operations.
-2. **Ownership checks**: only owners can update/offline their apps/services (create/delete enforced; update/offline still missing).
+2. **Ownership checks**: keep owner-only update/publish/unpublish consistent across UI and API.
 3. **Audit permissions**: only reviewers/admins can approve/reject; record approver identity (approver-only enforcement is in place).
 4. **User status control**: only admins can freeze/unfreeze; frozen users cannot publish/approve.
-5. **Restore signature verification**: reintroduce a crypto/signature module or equivalent.
+5. **Extend signature verification**: decide whether to enforce signatures for create/update/apply flows beyond audits.
 6. **Online state constraints**: require audit pass before online; search should default to online only (implemented).

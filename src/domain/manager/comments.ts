@@ -1,8 +1,6 @@
 import { Repository } from 'typeorm/repository/Repository'
 import { CommentDO } from '../mapper/entity'
 import { SingletonDataSource } from '../facade/datasource'
-import { ResponsePage } from '../../yeying/api/common/message'
-import { CommentMetadata } from '../../yeying/api/audit/audit'
 
 export class CommentManager {
     private repository: Repository<CommentDO>
