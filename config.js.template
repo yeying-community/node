@@ -1,0 +1,65 @@
+/**
+ * Copy to config.js and adjust values for your environment.
+ *
+ * cp config.js.template config.js
+ */
+module.exports = {
+  app: {
+    // Runtime environment label.
+    env: 'dev',
+    // HTTP server port.
+    port: 8100
+  },
+  database: {
+    // sqlite | mysql | postgres
+    type: 'postgres',
+    // Database/schema name (for postgres, schema is defined by `schema` in TypeORM options).
+    database: 'postgres',
+    host: '127.0.0.1',
+    port: 5432,
+    username: 'postgres',
+    password: 'CHANGE_ME',
+    // Auto-sync schema (dev only).
+    synchronize: true,
+    // Enable TypeORM SQL logging.
+    // false | true | 'all' | ['error' | 'warn' | 'info' | 'log' | 'query' | 'schema' | 'migration']
+    logging: ['error', 'warn'],
+    // Optional: schema name for postgres.
+    schema: 'node'
+  },
+  auth: {
+    // JWT secret used by SIWE login.
+    jwtSecret: 'replace-this-in-production',
+    accessTtlMs: 15 * 60 * 1000,
+    refreshTtlMs: 7 * 24 * 60 * 60 * 1000,
+    challengeTtlMs: 5 * 60 * 1000,
+    cookieSameSite: 'lax',
+    cookieSecure: false,
+    refreshCookieName: 'refresh_token'
+  },
+  ucan: {
+    // UCAN audience (should match Node API URL host).
+    aud: 'did:web:localhost:8100',
+    resource: 'profile',
+    action: 'read'
+  },
+  audit: {
+    // List of approver wallet addresses.
+    approvers: ['0x0000000000000000000000000000000000000000'],
+    // How many approvals are required.
+    requiredApprovals: 1
+  },
+  logger: {
+    // If file is not set, logs go to console.
+    // Winston log level: debug | info | warn | error
+    level: 'info',
+    // Example file logging (uncomment to enable)
+    // file: {
+    //   filename: 'app-%DATE%.log',
+    //   dirname: 'logs',
+    //   datePattern: 'YYYY-MM-DD',
+    //   maxSize: '20m',
+    //   maxFiles: '14d'
+    // }
+  }
+}

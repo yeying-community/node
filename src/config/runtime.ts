@@ -15,7 +15,7 @@ export interface AppConfig {
 let cachedConfig: AppConfig | null = null
 
 function resolveConfigPath() {
-  return process.env.APP_CONFIG_PATH || path.join(process.cwd(), 'config.json')
+  return process.env.APP_CONFIG_PATH || path.join(process.cwd(), 'config.js')
 }
 
 export function loadConfig(): AppConfig {
@@ -23,11 +23,19 @@ export function loadConfig(): AppConfig {
     return cachedConfig
   }
   const configPath = resolveConfigPath()
-  if (!fs.existsSync(configPath)) {
-    throw new Error(`Config file not found: ${configPath}. Create it from config.json.template`)
+  const resolvedPath = path.isAbsolute(configPath) ? configPath : path.join(process.cwd(), configPath)
+  if (!fs.existsSync(resolvedPath)) {
+    throw new Error(`Config file not found: ${resolvedPath}. Create it from config.js.template`)
   }
-  const raw = fs.readFileSync(configPath, 'utf-8')
-  cachedConfig = JSON.parse(raw) as AppConfig
+  const ext = path.extname(resolvedPath).toLowerCase()
+  if (ext === '.js' || ext === '.cjs') {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const loaded = require(resolvedPath)
+    cachedConfig = (loaded && loaded.default ? loaded.default : loaded) as AppConfig
+  } else {
+    const raw = fs.readFileSync(resolvedPath, 'utf-8')
+    cachedConfig = JSON.parse(raw) as AppConfig
+  }
   return cachedConfig
 }
 

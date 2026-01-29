@@ -20,7 +20,7 @@ cp .env.template .env
 > - `VITE_WEBDAV_PUBLIC_BASE`：公开访问前缀（可选，未设置时回退为 `BASE_URL + PREFIX`）
 > - `VITE_WEBDAV_AVATAR`：默认头像路径或 URL（可选）
 
-> 说明：上架审核人/通过阈值在后端 `config.json` 的 `audit.approvers` / `audit.requiredApprovals` 中配置。
+> 说明：上架审核人/通过阈值在后端 `config.js` 的 `audit.approvers` / `audit.requiredApprovals` 中配置。
 
 ### 启动开发环境
 

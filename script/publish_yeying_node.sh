@@ -123,8 +123,8 @@ fi
 sleep 2
 index=$((index+1))
 echo -e "\nstep $index -- update files"
-if [[ -f "${running_path}/config.json" ]]; then
-  cp -a "${running_path}/config.json" "${untar_path}/"
+if [[ -f "${running_path}/config.js" ]]; then
+  cp -a "${running_path}/config.js" "${untar_path}/"
 fi
 cp -a "${running_path}"/node_modules  "${untar_path}"/
 cp -a "${running_path}"/run  "${untar_path}"/

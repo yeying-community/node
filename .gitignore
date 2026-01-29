@@ -2,9 +2,9 @@ node_modules
 dist
 .env
 run
-log
+logs
 .idea
 data/log
 data/start.log
 .DS_Store
-config.json
+config.js

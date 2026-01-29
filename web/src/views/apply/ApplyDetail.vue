@@ -365,12 +365,25 @@ const handleOnline = () => {
              * innerVisible.value = true 是上架成功后，打开一个弹窗提示用户上架成功了
              */
             const detailRst = await $application.myCreateDetailByUid(route.query.uid)
+            if (!detailRst) {
+                notifyError("❌应用不存在")
+                return
+            }
             // 重复申请检查
             const account = getCurrentAccount()
             if (account === undefined || account === null) {
                 notifyError("❌未查询到当前账户，请登录")
                 return
             }
+            const synced = await $application.syncToServer(detailRst)
+            if (!synced) {
+                return
+            }
+            detailRst.uid = detailRst.uid || synced.uid
+            detailRst.did = detailRst.did || synced.did
+            detailRst.version = detailRst.version ?? synced.version
+            detailRst.owner = detailRst.owner || synced.owner
+            detailRst.ownerName = detailRst.ownerName || synced.ownerName
             const applicant = `${account}::${account}`
             let searchList = await $audit.search({name: detailRst.name})
             searchList = Array.isArray(searchList)
