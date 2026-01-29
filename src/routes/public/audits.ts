@@ -111,7 +111,21 @@ export function registerPublicAuditRoutes(app: Express) {
       res.json(ok(created));
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Create audit failed';
-      const status = message === 'Approver is required' ? 400 : 500;
+      const normalized = message.toLowerCase();
+      const status =
+        message === 'Approver is required' ||
+        normalized.includes('missing') ||
+        normalized.includes('invalid') ||
+        normalized.includes('auditType') ||
+        normalized.includes('did/version')
+          ? 400
+          : normalized.includes('not found')
+          ? 404
+          : normalized.includes('mismatch') || normalized.includes('not owner')
+          ? 403
+          : normalized.includes('duplicate')
+          ? 409
+          : 500;
       res.status(status).json(fail(status, message));
     }
   });

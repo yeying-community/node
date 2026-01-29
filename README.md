@@ -18,7 +18,7 @@ YeYing 社区节点服务（Node.js）。提供 REST 接口与 SIWE/UCAN 鉴权�
 1. Node.js + npm
 2. 配置服务参数
    ```bash
-   cp config.json.template config.json
+   cp config.js.template config.js
    ```
    常用配置项：
    - `app.env` / `app.port`
@@ -41,8 +41,8 @@ npm run dev
 ```bash
 docker run --rm \
   -p 8100:8100 \
-  -v $(pwd)/config.json:/app/config.json:ro \
-  -e APP_CONFIG_PATH=/app/config.json \
+  -v $(pwd)/config.js:/app/config.js:ro \
+  -e APP_CONFIG_PATH=/app/config.js \
   yeying-community-node:latest
 ```
 
@@ -55,9 +55,9 @@ services:
     ports:
       - "8100:8100"
     volumes:
-      - ./config.json:/app/config.json:ro
+      - ./config.js:/app/config.js:ro
     environment:
-      - APP_CONFIG_PATH=/app/config.json
+      - APP_CONFIG_PATH=/app/config.js
 ```
 启动命令：
 ```bash

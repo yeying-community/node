@@ -274,6 +274,15 @@ const handleOnline = async () => {
         notifyError('❌未查询到当前账户，请登录')
         return
     }
+    const synced = await $service.syncToServer(detailRst)
+    if (!synced) {
+        return
+    }
+    detailRst.uid = detailRst.uid || synced.uid
+    detailRst.did = detailRst.did || synced.did
+    detailRst.version = detailRst.version ?? synced.version
+    detailRst.owner = detailRst.owner || synced.owner
+    detailRst.ownerName = detailRst.ownerName || synced.ownerName
     const applicant = `${account}::${account}`
     let searchList = await $audit.search({ name: detailRst.name })
     searchList = Array.isArray(searchList)

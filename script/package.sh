@@ -40,7 +40,7 @@ mkdir -p "${node_dir}"
 index=$((index+1))
 echo -e "\nstep $index -- copy necessary file to  ${node_dir}"
 cp -rf "${src_resource_dir}" "${node_dir}"/
-cp -f "${work_dir}"/config.json.template "${node_dir}"/
+cp -f "${work_dir}"/config.js.template "${node_dir}"/
 cp -rf "${src_script_dir}" "${node_dir}"/
 cp -rf "${src_dir}" "${node_dir}"/
 cp -rf "${src_third_party_dir}" "${node_dir}"/

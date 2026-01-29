@@ -120,6 +120,54 @@ class $application {
     async create(params: ApplicationMetadata) {
         await indexedCache.insert('applications', params)
     }
+
+    async syncToServer(params: ApplicationMetadata) {
+        if (!params) {
+            notifyError('❌应用数据为空，无法同步')
+            return
+        }
+        if (localStorage.getItem("hasConnectedWallet") === "false") {
+            notifyError('❌未检测到钱包，请先安装并连接钱包');
+            return;
+        }
+        const token = await getAuthToken()
+        if (!token) {
+            notifyError('❌未获取到访问令牌');
+            return;
+        }
+        const account = getCurrentAccount()
+        const payload: ApplicationMetadata = {
+            ...params,
+            owner: params.owner || account || '',
+            ownerName: params.ownerName || params.owner || account || '',
+            version: params.version !== undefined ? Number(params.version) : params.version
+        }
+        if (!payload.did || payload.version === undefined) {
+            notifyError('❌缺少应用 DID 或版本号')
+            return
+        }
+        if (!payload.owner) {
+            notifyError('❌缺少应用拥有者')
+            return
+        }
+        const response = await fetch(apiUrl('/api/v1/public/applications'), {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                "authorization": `Bearer ${token}`,
+                'accept': 'application/json'
+            },
+            body: JSON.stringify(payload),
+        });
+        if (!response.ok) {
+            throw new Error(`Failed to sync application: ${response.status} error: ${await response.text()}`);
+        }
+        const r = await response.json();
+        if (r.code !== 0) {
+            throw new Error(r.message || 'Sync application failed');
+        }
+        return normalizeApplication(r.data)
+    }
     /**
      * 应用中心 -> 我创建的列表展示接口
      * @param {*} did 

@@ -146,7 +146,7 @@ else
 fi
 
 # 设置配置文件路径
-export APP_CONFIG_PATH="${work_dir}/config.json"
+export APP_CONFIG_PATH="${work_dir}/config.js"
 
 cd "${run_dir}" || exit 1
 

@@ -1,4 +1,5 @@
 import '@/assets/style.css'
+import 'element-plus/dist/index.css'
 import { t } from '@yeying-community/yeying-i18n'
 import { createApp } from 'vue'
 import { createPinia } from 'pinia'
