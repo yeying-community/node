@@ -34,6 +34,43 @@ npm run dev
 ```
 默认端口：`http://localhost:8100`
 
+### 移动端中心化 UCAN Demo（方案 D）
+
+用于手机浏览器验证“中心化 Issuer 签发 UCAN”链路（不依赖钱包插件）。
+
+1. 启用中心化 Issuer（开发环境）：
+   ```bash
+   export UCAN_CENTRAL_ISSUER_ENABLED=true
+   # 可选：固定 Issuer 密钥（32 字节 hex 或 base64url），不设置则每次启动随机生成
+   # export UCAN_CENTRAL_ISSUER_SEED=0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+   npm run dev
+   ```
+2. 查看 Issuer DID：
+   ```bash
+   curl http://127.0.0.1:8100/api/v1/public/auth/central/issuer
+   ```
+3. 创建中心化会话（模拟 SSO 会话）：
+   ```bash
+   curl -X POST http://127.0.0.1:8100/api/v1/public/auth/central/session \
+     -H 'Content-Type: application/json' \
+     -d '{"subject":"mobile-user-001"}'
+   ```
+4. 用上一步返回的 `sessionToken` 签发 UCAN：
+   ```bash
+   curl -X POST http://127.0.0.1:8100/api/v1/public/auth/central/issue \
+     -H "Authorization: Bearer <sessionToken>" \
+     -H 'Content-Type: application/json' \
+     -d '{
+       "audience":"did:web:localhost:8100",
+       "capabilities":[{"resource":"profile","action":"read"}]
+     }'
+   ```
+5. 用返回的 `ucan` 调用业务接口：
+   ```bash
+   curl http://127.0.0.1:8100/api/v1/public/profile/me \
+     -H "Authorization: Bearer <ucan>"
+   ```
+
 ## Docker / Docker Compose（可选）
 
 ### Docker

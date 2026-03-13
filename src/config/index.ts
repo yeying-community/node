@@ -28,6 +28,8 @@ export interface UcanRuntimeConfig {
     aud: string
     resource: string
     action: string
+    centralIssuerEnabled?: boolean
+    centralIssuerDid?: string
 }
 
 export interface AuditRuntimeConfig {

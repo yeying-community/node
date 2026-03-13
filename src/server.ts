@@ -24,6 +24,7 @@ import cors from 'cors';
 import authenticateToken from './middleware/authMiddleware';
 import { requireAdmin, requireInternal } from './middleware/accessControl';
 import { registerPublicAuthRoutes } from './routes/publicAuth';
+import { registerPublicCentralUcanRoutes } from './routes/public/centralUcan';
 import { registerPublicProfileRoute } from './routes/privateProfile';
 import { registerPublicApplicationRoutes } from './routes/public/applications';
 import { registerPublicServiceRoutes } from './routes/public/services';
@@ -123,6 +124,7 @@ builder.build().initialize().then(async (conn) => {
 
 
     registerPublicAuthRoutes(app);
+    registerPublicCentralUcanRoutes(app);
     registerPublicHealthRoute(app);
     registerPublicProfileRoute(app);
     registerPublicApplicationRoutes(app);

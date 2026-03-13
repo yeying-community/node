@@ -1,6 +1,7 @@
 import * as crypto from 'crypto';
 import { verifyMessage } from 'ethers';
 import { getConfig } from '../config/runtime';
+import { getTrustedCentralIssuerDid } from './centralIssuer';
 
 export type UcanCapability = {
   resource: string;
@@ -24,6 +25,7 @@ export type UcanProof = UcanRootProof | string;
 
 type UcanTokenPayload = {
   iss?: string;
+  sub?: string;
   aud?: string;
   cap?: UcanCapability[];
   exp?: number;
@@ -322,6 +324,14 @@ function verifyUcanInvocationWithRequired(
   }
   if (!capsAllow(payload.cap || [], requiredCap)) {
     throw new Error('UCAN capability denied');
+  }
+  const trustedCentralIssuer = getTrustedCentralIssuerDid();
+  if (trustedCentralIssuer && payload.iss === trustedCentralIssuer) {
+    const subject = typeof payload.sub === 'string' ? payload.sub.trim() : '';
+    if (!subject) {
+      throw new Error('Central UCAN subject missing');
+    }
+    return { address: subject, issuer: payload.iss };
   }
   const root = verifyProofChain(payload.iss, payload.cap || [], exp, payload.prf || []);
   const address = root.iss.replace(/^did:pkh:eth:/, '');

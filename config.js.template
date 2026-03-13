@@ -41,7 +41,11 @@ module.exports = {
     // UCAN audience (should match Node API URL host).
     aud: 'did:web:localhost:8100',
     resource: 'profile',
-    action: 'read'
+    action: 'read',
+    // Demo only: centralized issuer mode for mobile browser flow.
+    centralIssuerEnabled: false,
+    // Optional: trust an external centralized issuer DID.
+    centralIssuerDid: ''
   },
   audit: {
     // List of approver wallet addresses.
