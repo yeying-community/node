@@ -9,7 +9,8 @@ function quoteIdent(value: string): string {
 
 function getSchemaRef() {
   const conn = SingletonDataSource.get()
-  const schema = (conn.options.schema as string) || 'public'
+  const schemaOption = (conn.options as { schema?: unknown }).schema
+  const schema = typeof schemaOption === 'string' && schemaOption.trim() ? schemaOption : 'public'
   return quoteIdent(schema)
 }
 

@@ -26,8 +26,8 @@ export interface AuthRuntimeConfig {
 
 export interface UcanRuntimeConfig {
     aud: string
-    resource: string
-    action: string
+    with?: string
+    can?: string
 }
 
 export interface AuditRuntimeConfig {
@@ -39,8 +39,8 @@ export interface MpcRuntimeConfig {
     messageRetentionDays?: number
     auditRetentionDays?: number
     cleanupIntervalMs?: number
-    ucanResource?: string
-    ucanAction?: string
+    ucanWith?: string
+    ucanCan?: string
 }
 
 export interface RedisRuntimeConfig {

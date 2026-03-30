@@ -40,8 +40,8 @@ module.exports = {
   ucan: {
     // UCAN audience (should match Node API URL host).
     aud: 'did:web:localhost:8100',
-    resource: 'profile',
-    action: 'read'
+    with: 'app:all:localhost-5173',
+    can: 'invoke'
   },
   audit: {
     // List of approver wallet addresses.
@@ -57,8 +57,8 @@ module.exports = {
     // Cleanup job interval (ms)
     cleanupIntervalMs: 15 * 60 * 1000,
     // UCAN capability required for MPC endpoints (optional)
-    ucanResource: 'mpc',
-    ucanAction: 'coordinate'
+    ucanWith: 'mpc',
+    ucanCan: 'coordinate'
   },
   redis: {
     // Enable redis pub/sub for MPC events

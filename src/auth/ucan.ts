@@ -3,8 +3,11 @@ import { verifyMessage } from 'ethers';
 import { getConfig } from '../config/runtime';
 
 export type UcanCapability = {
-  resource: string;
-  action: string;
+  with?: string;
+  can?: string;
+  resource?: string;
+  action?: string;
+  nb?: unknown;
 };
 
 export type UcanRootProof = {
@@ -39,11 +42,18 @@ const UCAN_AUD =
   process.env.UCAN_AUD ||
   getConfig<string>('ucan.aud') ||
   `did:web:localhost:${DEFAULT_PORT}`;
-const UCAN_RESOURCE =
-  process.env.UCAN_RESOURCE || getConfig<string>('ucan.resource') || 'profile';
-const UCAN_ACTION =
-  process.env.UCAN_ACTION || getConfig<string>('ucan.action') || 'read';
-const REQUIRED_UCAN_CAP: UcanCapability = { resource: UCAN_RESOURCE, action: UCAN_ACTION };
+const UCAN_WITH =
+  process.env.UCAN_WITH ||
+  getConfig<string>('ucan.with') ||
+  'app:all:localhost-5173';
+const UCAN_CAN =
+  process.env.UCAN_CAN ||
+  getConfig<string>('ucan.can') ||
+  'invoke';
+const REQUIRED_UCAN_CAP: UcanCapability = {
+  with: UCAN_WITH,
+  can: UCAN_CAN
+};
 
 const BASE58_ALPHABET = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz';
 
@@ -116,6 +126,50 @@ function normalizeEpochMillis(value: unknown): number | null {
   return value < 1e12 ? value * 1000 : value;
 }
 
+function normalizeActionExpression(raw: string): string {
+  const normalized = String(raw || '').trim().toLowerCase().replace(/\|/g, ',');
+  if (!normalized) return '';
+  const items = normalized
+    .split(',')
+    .map(item => item.trim())
+    .filter(Boolean);
+  if (!items.length) return '';
+  return Array.from(new Set(items)).join(',');
+}
+
+function getCapabilityResource(cap: UcanCapability | null | undefined): string {
+  if (!cap || typeof cap !== 'object') return '';
+  if (typeof cap.with === 'string' && cap.with.trim()) {
+    return cap.with.trim();
+  }
+  if (typeof cap.resource === 'string' && cap.resource.trim()) {
+    return cap.resource.trim();
+  }
+  return '';
+}
+
+function getCapabilityAction(cap: UcanCapability | null | undefined): string {
+  if (!cap || typeof cap !== 'object') return '';
+  if (typeof cap.can === 'string' && cap.can.trim()) {
+    return normalizeActionExpression(cap.can);
+  }
+  if (typeof cap.action === 'string' && cap.action.trim()) {
+    return normalizeActionExpression(cap.action);
+  }
+  return '';
+}
+
+function actionAllows(availableAction: string, requiredAction: string): boolean {
+  if (requiredAction === '*') return true;
+  if (availableAction === '*') return true;
+  const available = normalizeActionExpression(availableAction);
+  const required = normalizeActionExpression(requiredAction);
+  if (!available || !required) return false;
+  const availableSet = new Set(available.split(',').filter(Boolean));
+  const requiredList = required.split(',').filter(Boolean);
+  return requiredList.every(item => availableSet.has(item));
+}
+
 function matchPattern(pattern: string, value: string): boolean {
   if (pattern === '*') return true;
   if (pattern.endsWith('*')) {
@@ -126,15 +180,17 @@ function matchPattern(pattern: string, value: string): boolean {
 
 function capsAllow(available: UcanCapability[] | undefined, required: UcanCapability[]): boolean {
   if (!Array.isArray(available) || available.length === 0) return false;
-  return required.every(req =>
-    available.some(cap =>
-      cap &&
-      typeof cap.resource === 'string' &&
-      typeof cap.action === 'string' &&
-      matchPattern(cap.resource, req.resource) &&
-      matchPattern(cap.action, req.action)
-    )
-  );
+  return required.every(req => {
+    const reqResource = getCapabilityResource(req);
+    const reqAction = getCapabilityAction(req);
+    if (!reqResource || !reqAction) return false;
+    return available.some(cap => {
+      const capResource = getCapabilityResource(cap);
+      const capAction = getCapabilityAction(cap);
+      if (!capResource || !capAction) return false;
+      return matchPattern(capResource, reqResource) && actionAllows(capAction, reqAction);
+    });
+  });
 }
 
 function extractUcanStatement(message: string): { aud?: string; cap?: UcanCapability[]; exp?: number; nbf?: number } | null {
