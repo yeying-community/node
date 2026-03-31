@@ -34,7 +34,4 @@ WORKDIR /app
 COPY --from=builder --chown=nextjs:nodejs /app/dist ./dist
 COPY --from=builder --chown=nextjs:nodejs /app/node_modules ./node_modules
 COPY --from=builder --chown=nextjs:nodejs /app/package*.json ./
-COPY --from=builder --chown=nextjs:nodejs /app/script ./script
-
-# 确保启动脚本有执行权限
-RUN chmod +x script/startService.sh
+COPY --from=builder --chown=nextjs:nodejs /app/scripts ./scripts

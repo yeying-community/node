@@ -50,15 +50,15 @@ function requireMpcUcan(req: Request) {
     throw new Error('Missing access token')
   }
   const config = (getConfig<MpcRuntimeConfig>('mpc') || {}) as MpcRuntimeConfig
-  const resource = (config.ucanResource || '').trim()
-  const action = (config.ucanAction || '').trim()
+  const resource = (config.ucanWith || '').trim()
+  const action = (config.ucanCan || '').trim()
   if (!resource && !action) {
     return
   }
   verifyUcanInvocationWithCap(token, [
     {
-      resource: resource || '*',
-      action: action || '*'
+      with: resource || '*',
+      can: action || '*'
     }
   ])
 }

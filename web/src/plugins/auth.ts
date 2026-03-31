@@ -5,10 +5,13 @@ import {
   createUcanSession,
   clearUcanSession,
   getAccounts,
+  getCapabilityAction,
+  getCapabilityResource,
   getBalance as web3GetBalance,
   getChainId as web3GetChainId,
   getOrCreateUcanRoot,
   getProvider,
+  normalizeUcanCapabilities,
   onAccountsChanged,
   requestAccounts,
   type Eip1193Provider,
@@ -41,7 +44,7 @@ async function resolveProvider(timeoutMs = 5000) {
   if (cachedProvider) {
     return cachedProvider;
   }
-  cachedProvider = await getProvider({ timeoutMs });
+  cachedProvider = await getProvider({ preferYeYing: true, timeoutMs });
   return cachedProvider;
 }
 
@@ -109,10 +112,103 @@ function toDidWeb(value: string): string {
   }
 }
 
-function getUcanCapabilities(): UcanCapability[] {
-  const resource = import.meta.env.VITE_UCAN_RESOURCE || 'profile';
-  const action = import.meta.env.VITE_UCAN_ACTION || 'read';
-  return [{ resource, action }];
+function normalizeActionExpression(raw: string): string {
+  const normalized = String(raw || '').trim().toLowerCase().replace(/\|/g, ',');
+  if (!normalized) return '';
+  const items = normalized
+    .split(',')
+    .map(item => item.trim())
+    .filter(Boolean);
+  if (!items.length) return '';
+  return Array.from(new Set(items)).join(',');
+}
+
+function sanitizeAppId(value: string): string {
+  return String(value || '')
+    .trim()
+    .replace(/[^a-zA-Z0-9._-]/g, '-');
+}
+
+function resolveAppId(): string {
+  const envAppId = sanitizeAppId(import.meta.env.VITE_UCAN_APP_ID || '');
+  if (envAppId) return envAppId;
+  if (typeof window !== 'undefined') {
+    const host = sanitizeAppId(window.location.host || '');
+    if (host) return host;
+  }
+  return 'localhost';
+}
+
+function buildUcanCapability(resource: string, action: string): UcanCapability {
+  const normalizedResource = String(resource || '').trim();
+  const normalizedAction = normalizeActionExpression(action);
+  return {
+    with: normalizedResource,
+    can: normalizedAction,
+  };
+}
+
+function normalizeCapabilities(caps: UcanCapability[]): UcanCapability[] {
+  return normalizeUcanCapabilities(caps || []);
+}
+
+function buildCapsKey(caps: UcanCapability[]): string {
+  return normalizeUcanCapabilities(caps || [], { includeLegacyAliases: false })
+    .map((cap) => {
+      const resource = getCapabilityResource(cap);
+      const action = getCapabilityAction(cap);
+      return `${resource}:${action}`;
+    })
+    .filter((entry) => entry !== ':')
+    .sort()
+    .join('|');
+}
+
+function resolveApiCapabilityResource(): string {
+  return (
+    import.meta.env.VITE_UCAN_WITH ||
+    `app:all:${resolveAppId()}`
+  );
+}
+
+function resolveApiCapabilityAction(): string {
+  return (
+    import.meta.env.VITE_UCAN_CAN ||
+    'invoke'
+  );
+}
+
+function resolveWebDavCapabilityResource(): string {
+  return (
+    import.meta.env.VITE_WEBDAV_UCAN_WITH ||
+    resolveApiCapabilityResource()
+  );
+}
+
+function resolveWebDavCapabilityAction(): string {
+  return (
+    import.meta.env.VITE_WEBDAV_UCAN_CAN ||
+    'write'
+  );
+}
+
+function getApiUcanCapabilities(): UcanCapability[] {
+  return normalizeCapabilities([
+    buildUcanCapability(resolveApiCapabilityResource(), resolveApiCapabilityAction()),
+  ]);
+}
+
+function getWebDavUcanCapabilities(): UcanCapability[] {
+  return normalizeCapabilities([
+    buildUcanCapability(resolveWebDavCapabilityResource(), resolveWebDavCapabilityAction()),
+  ]);
+}
+
+function getRootUcanCapabilities(): UcanCapability[] {
+  return normalizeCapabilities([
+    ...getApiUcanCapabilities(),
+    ...getWebDavUcanCapabilities(),
+  ]);
 }
 
 function resolveApiAudience(): string {
@@ -141,6 +237,34 @@ function resolveWebDavAudience(): string {
     throw new Error('Missing VITE_WEBDAV_BASE_URL');
   }
   return toDidWeb(baseUrl);
+}
+
+function resolveServiceHost(rawUrl?: string): string | null {
+  if (!rawUrl) return null;
+  try {
+    const host = new URL(rawUrl).host.trim();
+    return host || null;
+  } catch {
+    const host = rawUrl.replace(/^https?:\/\//, '').split('/')[0].trim();
+    return host || null;
+  }
+}
+
+function buildUcanRootStatement(audience: string, capabilities: UcanCapability[]): string {
+  const payload: Record<string, unknown> = {
+    version: 'UCAN-AUTH-1',
+    aud: audience,
+    cap: normalizeCapabilities(capabilities),
+  };
+  const serviceHosts: Record<string, string> = {};
+  const routerHost = resolveServiceHost(import.meta.env.VITE_NODE_API_ENDPOINT);
+  const webdavHost = resolveServiceHost(import.meta.env.VITE_WEBDAV_BASE_URL);
+  if (routerHost) serviceHosts.router = routerHost;
+  if (webdavHost) serviceHosts.webdav = webdavHost;
+  if (Object.keys(serviceHosts).length > 0) {
+    payload.service_hosts = serviceHosts;
+  }
+  return `UCAN-AUTH ${JSON.stringify(payload)}`;
 }
 
 function parseCachedToken(token: string): CachedToken | null {
@@ -256,19 +380,21 @@ async function ensureUcanSession(provider: Eip1193Provider): Promise<UcanSession
 
 async function ensureUcanRoot(
   provider: Eip1193Provider,
-  capabilities: UcanCapability[],
   address?: string
 ): Promise<UcanRootProof> {
-  const capsKey = JSON.stringify(capabilities || []);
+  const capabilities = getRootUcanCapabilities();
+  const capsKey = buildCapsKey(capabilities);
   if (cachedRoot && cachedCapsKey === capsKey && !(cachedRoot.exp && Date.now() > cachedRoot.exp)) {
     return cachedRoot;
   }
   const session = await ensureUcanSession(provider);
+  const statement = buildUcanRootStatement(session.did, capabilities);
   const root = await getOrCreateUcanRoot({
     provider,
     session,
     capabilities,
     address,
+    statement,
   });
   cachedRoot = root;
   cachedCapsKey = capsKey;
@@ -303,7 +429,7 @@ async function issueInvocationToken(options: {
     throw new Error('No wallet provider');
   }
   const session = await ensureUcanSession(provider);
-  const root = await ensureUcanRoot(provider, options.capabilities, options.address);
+  const root = await ensureUcanRoot(provider, options.address);
   const token = await createInvocationUcan({
     issuer: session,
     audience: options.audience,
@@ -319,7 +445,7 @@ async function issueInvocationToken(options: {
 }
 
 export async function getAuthToken(providerOverride?: Eip1193Provider): Promise<string> {
-  const capabilities = getUcanCapabilities();
+  const capabilities = getApiUcanCapabilities();
   return await issueInvocationToken({
     provider: providerOverride,
     audience: resolveApiAudience(),
@@ -329,7 +455,7 @@ export async function getAuthToken(providerOverride?: Eip1193Provider): Promise<
 }
 
 export async function getWebDavToken(providerOverride?: Eip1193Provider): Promise<string> {
-  const capabilities = getUcanCapabilities();
+  const capabilities = getWebDavUcanCapabilities();
   return await issueInvocationToken({
     provider: providerOverride,
     audience: resolveWebDavAudience(),
@@ -421,7 +547,7 @@ export async function signWithWallet(message: string): Promise<string> {
   }
   if (!account) {
     try {
-      const accounts = await requestAccounts(provider);
+      const accounts = await requestAccounts({ provider });
       account = accounts?.[0];
     } catch {
       account = null;

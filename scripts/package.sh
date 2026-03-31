@@ -17,7 +17,7 @@ if [ ! -z "$1" ]; then
 fi
 
 src_resource_dir=${work_dir}/resources
-src_script_dir=${work_dir}/script
+src_script_dir=${work_dir}/scripts
 src_dir=${work_dir}/src
 src_third_party_dir=${work_dir}/third_party
 

@@ -8,8 +8,11 @@ interface ImportMetaEnv {
   readonly VITE_WEBDAV_AVATAR?: string
   readonly VITE_WEBDAV_AUD?: string
   readonly VITE_UCAN_AUD?: string
-  readonly VITE_UCAN_RESOURCE?: string
-  readonly VITE_UCAN_ACTION?: string
+  readonly VITE_UCAN_APP_ID?: string
+  readonly VITE_UCAN_WITH?: string
+  readonly VITE_UCAN_CAN?: string
+  readonly VITE_WEBDAV_UCAN_WITH?: string
+  readonly VITE_WEBDAV_UCAN_CAN?: string
 }
 
 interface ImportMeta {

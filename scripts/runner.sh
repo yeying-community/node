@@ -84,7 +84,7 @@ echo -e "step $index -- This is going to start node under ${COLOR_BLUE} ${env} $
 echo "work dir=${work_dir}, port=${app_port}"
 
 run_dir=${work_dir}/run
-python_script=${work_dir}/script/load_template.py
+python_script=${work_dir}/scripts/load_template.py
 cert_dir=${run_dir}/cert
 
 des_conf_dir=${run_dir}/config

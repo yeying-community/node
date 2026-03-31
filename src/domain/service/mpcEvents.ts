@@ -274,7 +274,7 @@ export function createMpcStreamReader(
   const loop = async () => {
     while (!closed) {
       try {
-        const response = await client.xread('BLOCK', 15000, 'COUNT', 100, 'STREAMS', streamKey, cursor)
+        const response = await client.xread('COUNT', 100, 'BLOCK', 15000, 'STREAMS', streamKey, cursor)
         if (!response || response.length === 0) {
           continue
         }
