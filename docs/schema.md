@@ -19,6 +19,11 @@ erDiagram
   USER_STATE {
     varchar did PK
   }
+  ACTION_REQUESTS {
+    uuid uid PK
+    varchar actor
+    varchar request_id
+  }
   APPLICATIONS {
     uuid uid PK
     varchar did
@@ -66,6 +71,32 @@ erDiagram
 | created_at | varchar(64) | 创建时间 |
 | updated_at | varchar(64) | 更新时间 |
 | signature | varchar(192) | 签名（当前未校验） |
+
+说明：
+- 首次认证成功或首次命中活跃校验时，后端会自动创建 `user_state`
+- 默认值为 `role=USER_ROLE_UNKNOWN`、`status=USER_STATUS_ACTIVE`
+
+## action_requests
+| 字段 | 类型 | 说明 |
+| --- | --- | --- |
+| uid | uuid PK | 主键 |
+| actor | varchar(128) | 请求发起人地址 |
+| action | varchar(64) | 业务动作 |
+| request_id | varchar(128) | 请求 nonce / requestId |
+| payload_hash | varchar(64) | 参与签名的 payload 哈希 |
+| signed_at | varchar(64) | 签名时间 |
+| signature | varchar(192) | 钱包签名 |
+| created_at | varchar(64) | 服务端消费时间 |
+| status | varchar(32) | 幂等记录状态（`pending` / `completed`） |
+| response_code | int | 首次响应的 HTTP 状态码 |
+| response_body | text | 首次响应的序列化响应体 |
+| completed_at | varchar(64) | 首次完成时间 |
+
+说明：
+- 对 `(actor, request_id)` 做唯一约束（索引 `idx_action_request_dedup`）
+- 业务写接口会先写入 `pending` 记录，完成后回填响应
+- 同一 `(actor, request_id)` 的重复请求可直接回放首个已完成响应
+- 后台清理任务会删除过期完成记录与超时 `pending` 记录，避免表无限增长
 
 ## services
 | 字段 | 类型 | 说明 |
@@ -154,6 +185,14 @@ erDiagram
 | target_did | varchar(128) | 目标 DID |
 | target_version | int | 目标版本 |
 | target_name | varchar(128) | 目标名称 |
+| previous_target_status | varchar(64) | 提交审核前的资源状态，用于撤销恢复 |
+| previous_target_is_online | boolean | 提交审核前的上架标记，用于撤销恢复 |
+
+说明：
+- `target_type + target_did + target_version` 上有组合索引 `idx_audit_target`，用于同资源审核单去重和检索
+- `target_*` 字段是从 `app_or_service_metadata` 冗余出来的索引列，避免依赖 JSON 模糊匹配
+- `previous_target_*` 用于撤销“上架申请”时恢复资源提交前状态，不用于“申请使用”
+- 审核单本身没有显式 `status` 列；前端/接口返回的“待审批 / 审批通过 / 审批驳回”来自 `comments` 聚合
 
 ## comments
 | 字段 | 类型 | 说明 |
@@ -165,6 +204,10 @@ erDiagram
 | created_at | varchar(64) | 创建时间 |
 | updated_at | varchar(64) | 更新时间 |
 | signature | varchar(192) | 签名（当前未校验） |
+
+说明：
+- 每条记录表示一次审批意见；审批通过/驳回由 `status` 表达
+- 当前未建立数据库级外键；审核单撤销时由业务层显式删除关联 `comments`
 
 ## mpc_sessions
 | 字段 | 类型 | 说明 |

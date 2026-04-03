@@ -8,11 +8,11 @@
         <div class="header">
             <div class="left-header">
                 <BreadcrumbHeader :pageName="detailInfo.name" />
-                <ApplyStatus :status="applyStatus" v-if="urlQuery.pageFrom === 'myApply'" />
+                <ApplyStatus :status="applyStatus" v-if="pageFrom === 'myApply'" />
             </div>
 
             <!-- 服务中心-我的创建的详情 -->
-            <div v-if="urlQuery.pageFrom === 'myCreate'">
+            <div v-if="pageFrom === 'myCreate'">
                 <div v-if="isOnline">
                     <el-button plain @click="exportIdentity">导出身份</el-button>
                     <el-button type="danger" plain @click="handleOfflineConfirm">下架服务</el-button>
@@ -31,21 +31,16 @@
                     </el-popconfirm>
 
                     <el-button plain @click="exportIdentity">导出身份</el-button>
-                    <el-button plain>编辑</el-button>
+                    <el-button plain @click="toEdit">编辑</el-button>
                     <el-button type="danger" plain @click="handleOnlineConfirm">上架服务</el-button>
                 </div>
             </div>
             <!-- 服务中心-我的申请的详情 -->
-            <div v-if="urlQuery.pageFrom === 'myApply'">
+            <div v-if="pageFrom === 'myApply'">
                 <div>
                     <el-button v-if="applyStatus === 'applying'" type="danger" @click="cancelApply">取消申请</el-button>
-                    <el-button v-if="applyStatus === 'success'" type="danger" @click="handleUnbindConfirm">解绑服务</el-button>
                     <el-button v-if="applyStatus === 'success'" plain @click="toConfigService">配置服务</el-button>
-                    <el-button
-                        v-if="applyStatus === 'cancel' || applyStatus === 'reject'"
-                        plain
-                        @click="dialogVisible = true"
-                    >重新申请</el-button>
+                    <el-button v-if="applyStatus === 'reject'" plain @click="dialogVisible = true">重新申请</el-button>
                 </div>
             </div>
         </div>
@@ -72,7 +67,7 @@
                 <el-col :span="8" :xs="24">服务状态:{{ '-' }}</el-col>
             </el-row>
             <el-row class="part-row">
-                <el-col :span="24">创建时间: {{ detailInfo.createTime }}</el-col>
+                <el-col :span="24">创建时间: {{ detailInfo.createdAt }}</el-col>
             </el-row>
             <el-row class="part-row">
                 <el-col :span="24">服务描述: {{ detailInfo.description }}</el-col>
@@ -84,12 +79,12 @@
                 <el-col :span="8" :xs="24">服务代码: {{ detailInfo.code }}</el-col>
                 <el-col :span="8" :xs="24"
                     >接口代码:
-                    {{ detailInfo.serviceCodes && detailInfo.serviceCodes.join(',') }}
+                    {{ detailInfo.apiCodes && detailInfo.apiCodes.join(',') }}
                 </el-col>
-                <el-col :span="8" :xs="24">代理地址: {{ detailInfo.location }} </el-col>
+                <el-col :span="8" :xs="24">代理地址: {{ detailInfo.proxy }} </el-col>
             </el-row>
             <el-row class="part-row">
-                <el-col :span="8" :xs="24">服务地址:{{ detail.serviceIP }} </el-col>
+                <el-col :span="8" :xs="24">服务地址:{{ detailInfo.grpc }} </el-col>
             </el-row>
         </div>
         <div class="part">
@@ -106,6 +101,8 @@
                 </el-col>
             </el-row>
         </div>
+
+        <AuditSummaryPanel v-if="pageFrom === 'myApply' && auditDetail" :audit="auditDetail" />
     </div>
 
     <ApplyUseModal
@@ -126,19 +123,23 @@ import ApplyStatus from '@/views/components/ApplyStatus.vue'
 import { WarningFilled } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { exportIdentityInfo } from '@/plugins/account'
-import { useRoute } from 'vue-router'
-import $service from '@/plugins/service'
-import $audit, { resolveAuditState } from '@/plugins/audit'
-import { getCurrentAccount, signWithWallet } from '@/plugins/auth'
-import { generateUuid, getCurrentUtcString } from '@/utils/common'
-import { buildSubmitAuditMessage, normalizeAddress } from '@/utils/auditSignature'
+import { useRoute, useRouter } from 'vue-router'
+import $service, { ServiceMetadata } from '@/plugins/service'
+import $audit, {
+    AuditAuditDetail,
+    isAuditForResource,
+    parseAuditTargetMetadata,
+    resolveUsageAuditStatus
+} from '@/plugins/audit'
 import { notifyError } from '@/utils/message'
 import ApplyUseModal from '@/views/components/ApplyUseModal.vue'
 import ConfigServiceModal from '@/views/components/ConfigServiceModal.vue'
-import { Link } from '@element-plus/icons-vue'
+import AuditSummaryPanel from '@/views/components/AuditSummaryPanel.vue'
 const route = useRoute()
-const urlQuery = ref({})
-const detailInfo = ref({})
+const router = useRouter()
+const pageFrom = String(route.query.pageFrom || '')
+const detailInfo = ref<ServiceMetadata>({})
+const serviceUid = String(route.query.uid || '').trim()
 /**
  * 应用是否上架，这里需要调用接口查询应用的上架状态
  */
@@ -147,110 +148,162 @@ const isOnline = ref(false) // 是否已经上架
 const applyStatus = ref('applying')
 const dialogVisible = ref(false)
 const modalVisible = ref(false)
+const textarea = ref('')
+const currentAuditId = ref(String(route.query.auditId || ''))
+const auditDetail = ref<AuditAuditDetail | null>(null)
 
-const detail = async () => {
-    if (route.query.pageFrom === 'myCreate') {
-        const detailRst = await $service.myCreateDetailByUid(route.query.uid as string)
-        detailInfo.value = detailRst || {}
-    } else if (route.query.pageFrom === 'myApply') {
-        const detailRst = await $service.myApplyDetailByUid(route.query.uid as string)
-        if (detailRst) {
-            detailInfo.value = detailRst || {}
-        } else {
-            const remote = await $service.queryByUid(route.query.uid as string)
-            detailInfo.value = remote || {}
-        }
-    } else {
-        const detailRst = await $service.queryByUid(route.query.uid as string)
-        detailInfo.value = detailRst || {}
-    }
+const updateOnlineState = () => {
     const status = detailInfo.value?.status
     isOnline.value = Boolean(detailInfo.value?.isOnline) || status === 'BUSINESS_STATUS_ONLINE'
 }
 
-const resolveApplyStatus = async () => {
-    const account = getCurrentAccount()
-    if (!account) {
-        applyStatus.value = 'cancel'
-        return
-    }
-    const applicant = `${account}::${account}`
-    const detailList = await $audit.search({ applicant })
-    const candidates = Array.isArray(detailList)
-        ? detailList.filter((d) => d.meta?.reason === '申请使用' && d.meta?.appOrServiceMetadata?.includes(`"name":"${detailInfo.value?.name}"`))
-        : []
-    if (candidates.length === 0) {
-        applyStatus.value = 'cancel'
-        return
-    }
-    const latest = candidates.sort((a, b) => {
-        const at = a.meta?.createdAt ? Date.parse(a.meta.createdAt) : 0
-        const bt = b.meta?.createdAt ? Date.parse(b.meta.createdAt) : 0
-        return bt - at
-    })[0]
-    const state = resolveAuditState(latest.commentMeta, latest.meta?.approver)
-    if (state === '审批通过') {
-        applyStatus.value = 'success'
-    } else if (state === '审批驳回') {
-        applyStatus.value = 'reject'
-    } else {
-        applyStatus.value = 'applying'
-    }
+const sortAuditsByCreatedAtDesc = (left: AuditAuditDetail, right: AuditAuditDetail) => {
+    const leftTime = left.meta?.createdAt ? Date.parse(left.meta.createdAt) : 0
+    const rightTime = right.meta?.createdAt ? Date.parse(right.meta.createdAt) : 0
+    return rightTime - leftTime
 }
 
-const props = defineProps({
-    detail: Object,
-    selectId: Number,
-    refreshCardList: Function,
-    pageFrom: String
-})
+const fillDetailFromAudit = async (audit: AuditAuditDetail) => {
+    const parsed = parseAuditTargetMetadata(audit.meta?.appOrServiceMetadata)
+    if (!parsed) {
+        throw new Error('审批单缺少服务信息')
+    }
+    let remote: ServiceMetadata | null | undefined = null
+    try {
+        if (parsed.uid) {
+            remote = await $service.queryByUid(parsed.uid)
+        } else if (parsed.did && parsed.version !== undefined) {
+            remote = await $service.detail(parsed.did, parsed.version)
+        }
+    } catch {
+        remote = null
+    }
+    detailInfo.value = {
+        ...(parsed.raw as ServiceMetadata),
+        ...(remote || {}),
+        uid: remote?.uid || parsed.uid || (parsed.raw.uid ? String(parsed.raw.uid) : ''),
+        did: remote?.did || parsed.did || (parsed.raw.did ? String(parsed.raw.did) : ''),
+        version:
+            remote?.version ??
+            parsed.version ??
+            (parsed.raw.version !== undefined ? Number(parsed.raw.version) : undefined),
+        owner: remote?.owner || parsed.owner || (parsed.raw.owner ? String(parsed.raw.owner) : ''),
+        ownerName:
+            remote?.ownerName ||
+            parsed.ownerName ||
+            (parsed.raw.ownerName ? String(parsed.raw.ownerName) : '')
+    }
+    currentAuditId.value = audit.meta?.uid || currentAuditId.value
+    auditDetail.value = audit
+    applyStatus.value = resolveUsageAuditStatus(audit)
+    updateOnlineState()
+}
 
+const resolveCurrentAuditId = async () => {
+    if (currentAuditId.value) {
+        return currentAuditId.value
+    }
+    const routeDid = String(route.query.did || '').trim()
+    const routeVersionValue = route.query.version !== undefined ? Number(route.query.version) : undefined
+    const routeVersion = Number.isFinite(routeVersionValue) ? routeVersionValue : undefined
+    const audits = await $audit.search({})
+    const latest = Array.isArray(audits)
+        ? audits
+              .filter((audit) =>
+                  isAuditForResource(audit, {
+                      auditType: 'service',
+                      reason: '申请使用',
+                      uid: serviceUid || detailInfo.value?.uid,
+                      did: routeDid || detailInfo.value?.did,
+                      version: routeVersion ?? detailInfo.value?.version,
+                      name: detailInfo.value?.name
+                  })
+              )
+              .sort(sortAuditsByCreatedAtDesc)[0]
+        : undefined
+    currentAuditId.value = String(latest?.meta?.uid || '')
+    return currentAuditId.value
+}
+
+const detail = async () => {
+    if (pageFrom === 'myCreate') {
+        auditDetail.value = null
+        const detailRst = await $service.myCreateDetailByUid(serviceUid)
+        detailInfo.value = detailRst || {}
+        updateOnlineState()
+        return
+    }
+    if (pageFrom === 'myApply') {
+        const auditId = await resolveCurrentAuditId()
+        if (!auditId) {
+            throw new Error('未找到申请记录')
+        }
+        const audit = await $audit.detail(auditId)
+        if (!audit) {
+            throw new Error('申请记录不存在')
+        }
+        await fillDetailFromAudit(audit)
+        return
+    }
+    auditDetail.value = null
+    const detailRst = await $service.queryByUid(serviceUid)
+    detailInfo.value = detailRst || {}
+    updateOnlineState()
+}
 
 /**
  * 导出身份
  */
 const exportIdentity = async () => {
-    if (props.pageFrom === 'myCreate') {
-        const detailRst = await $service.myCreateDetailByUid(props.detail?.uid)
+    if (pageFrom === 'myCreate') {
+        const detailRst = await $service.myCreateDetailByUid(serviceUid)
         await exportIdentityInfo(detailRst.did, detailRst.name)
     } else {
-        const detailRst = await $service.queryByUid(props.detail?.uid)
+        const detailRst = await $service.queryByUid(serviceUid)
         await exportIdentityInfo(detailRst.did, detailRst.name)
     }
 }
 
-/**
- * todo 学虎，删除应用接口
- */
+const toEdit = () => {
+    router.push({
+        path: '/market/service-edit',
+        query: {
+            uid: serviceUid
+        }
+    })
+}
 
-const toDelete = () => {}
+const toDelete = async () => {
+    if (pageFrom === 'myCreate') {
+        await $service.myCreateDelete(serviceUid)
+    }
+    router.push({
+        path: '/market/service'
+    })
+}
 
 const cancelApply = async () => {
-    const account = getCurrentAccount()
-    if (!account) {
-        notifyError('❌未查询到当前账户，请登录')
+    const auditId = await resolveCurrentAuditId()
+    if (!auditId) {
+        notifyError('❌未找到申请记录')
         return
     }
-    const applicant = `${account}::${account}`
-    const detailList = await $audit.search({ applicant })
-    const auditUids = Array.isArray(detailList)
-        ? detailList
-              .filter(
-                  (d) =>
-                      d.meta?.reason === '申请使用' &&
-                      d.meta?.appOrServiceMetadata?.includes(`"name":"${detailInfo.value?.name}"`)
-              )
-              .map((s) => s.meta.uid)
-        : []
-    for (const item of auditUids) {
-        await $audit.cancel(item)
-    }
-    applyStatus.value = 'cancel'
+    await $audit.cancel(auditId)
+    router.push({
+        path: '/market/service'
+    })
 }
 
 const afterSubmit = () => {
     dialogVisible.value = false
     applyStatus.value = 'applying'
+    currentAuditId.value = ''
+    auditDetail.value = null
+    if (pageFrom === 'myApply') {
+        void detail().catch((error) => {
+            notifyError(`❌获取服务详情失败: ${error instanceof Error ? error.message : String(error)}`)
+        })
+    }
 }
 
 const toConfigService = () => {
@@ -261,71 +314,20 @@ const cancelModal = () => {
     modalVisible.value = false
 }
 
-const isOkStatus = (code) => code === 0 || code === 1 || code === 'OK' || code === 'RESPONSE_CODE_OK'
-
 const handleOnline = async () => {
-    const detailRst = await $service.myCreateDetailByUid(route.query.uid as string)
+    const detailRst = await $service.myCreateDetailByUid(serviceUid)
     if (!detailRst) {
         notifyError('❌服务不存在')
         return
     }
-    const account = getCurrentAccount()
-    if (!account) {
-        notifyError('❌未查询到当前账户，请登录')
-        return
-    }
-    const synced = await $service.syncToServer(detailRst)
-    if (!synced) {
-        return
-    }
-    detailRst.uid = detailRst.uid || synced.uid
-    detailRst.did = detailRst.did || synced.did
-    detailRst.version = detailRst.version ?? synced.version
-    detailRst.owner = detailRst.owner || synced.owner
-    detailRst.ownerName = detailRst.ownerName || synced.ownerName
-    const applicant = `${account}::${account}`
-    let searchList = await $audit.search({ name: detailRst.name })
-    searchList = Array.isArray(searchList)
-        ? searchList.filter(
-              (a) =>
-                  a.meta.applicant === applicant &&
-                  a.meta.appOrServiceMetadata.includes(`"operateType":"service"`)
-          )
-        : []
-    if (searchList.length > 0) {
-        ElMessageBox.alert('您已申请，无需重复申请', '提示')
-            .then(() => {})
-            .catch(() => {})
-        return
-    }
-    detailRst.operateType = 'service'
-    const auditUid = generateUuid()
-    const createdAt = getCurrentUtcString()
-    const signatureMessage = buildSubmitAuditMessage({
-        targetType: 'service',
-        targetDid: detailRst.did,
-        targetVersion: detailRst.version,
-        applicant: normalizeAddress(account),
-        timestamp: createdAt,
-        nonce: auditUid
-    })
-    const signature = await signWithWallet(signatureMessage)
-    const meta = {
-        uid: auditUid,
-        appOrServiceMetadata: JSON.stringify(detailRst),
+    const created = await $audit.submitPublishRequest({
         auditType: 'service',
-        applicant,
-        reason: '上架申请',
-        createdAt,
-        updatedAt: createdAt,
-        signature
+        resource: detailRst as Record<string, unknown>
+    })
+    if (!created?.meta?.uid) {
+        return
     }
-    const status = await $audit.create(meta)
-    if (isOkStatus(status?.code)) {
-        ElMessage({ message: '已提交上架申请', type: 'success' })
-    } else {
-        ElMessage({ message: status?.message || '上架申请失败', type: 'error' })
-    }
+    ElMessage({ message: '已提交上架申请', type: 'success' })
 }
 
 const handleOffline = async () => {
@@ -334,26 +336,11 @@ const handleOffline = async () => {
         did: detailInfo.value?.did,
         version: detailInfo.value?.version
     })
-    if (isOkStatus(offlineRst?.code)) {
+    if (offlineRst?.unpublished) {
         isOnline.value = false
         ElMessage({ message: '已下架', type: 'success' })
-        const account = getCurrentAccount()
-        if (!account) {
-            notifyError('❌未查询到当前账户，请登录')
-            return
-        }
-        const applicant = `${account}::${account}`
-        const detail = await $audit.search({ applicant })
-        const uids = Array.isArray(detail)
-            ? detail
-                  .filter((d) => d.meta.appOrServiceMetadata.includes(`"name":"${detailInfo.value?.name}"`))
-                  .map((s) => s.meta.uid)
-            : []
-        for (const item of uids) {
-            await $audit.cancel(item)
-        }
     } else {
-        ElMessage({ message: offlineRst?.message || '下架失败', type: 'error' })
+        ElMessage({ message: '下架失败', type: 'error' })
     }
 }
 
@@ -377,28 +364,10 @@ const handleOfflineConfirm = () => {
         .catch(() => {})
 }
 
-const handleUnbindConfirm = () => {
-    ElMessageBox.confirm('确定要解绑当前服务吗？', '提示', {
-        type: 'warning',
-        confirmButtonText: '确定',
-        cancelButtonText: '取消'
-    })
-        .then(async () => {
-            await $service.unbind(route.query.uid as string)
-            applyStatus.value = 'cancel'
-            ElMessage({ message: '已解绑', type: 'success' })
-        })
-        .catch(() => {})
-}
-
 onMounted(() => {
-    urlQuery.value = route.query
-    void (async () => {
-        await detail()
-        if (route.query.pageFrom === 'myApply') {
-            await resolveApplyStatus()
-        }
-    })()
+    void detail().catch((error) => {
+        notifyError(`❌获取服务详情失败: ${error instanceof Error ? error.message : String(error)}`)
+    })
 })
 </script>
 

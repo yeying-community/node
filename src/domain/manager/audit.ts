@@ -2,6 +2,7 @@ import { Repository } from 'typeorm/repository/Repository'
 import { AuditDO } from '../mapper/entity'
 import { SingletonDataSource } from '../facade/datasource'
 import { createResponsePage } from '../../common/page'
+import { QueryCondition } from '../model/audit'
 
 export class AuditManager {
     private repository: Repository<AuditDO>
@@ -17,30 +18,34 @@ export class AuditManager {
         return await this.repository.findOneBy({ uid: uid})
     }
 
-    async queryByCondition(
-        approver: string | null | undefined,
-        applicant: string | null | undefined,
-        name: string | null | undefined,
-        startTime: string | null | undefined,
-        endTime: string | null | undefined,
-        page: number,
-        pageSize: number
-    ) {
+    private buildQueryByCondition(condition: Partial<QueryCondition>) {
         const qb = this.repository.createQueryBuilder('audit')
+        const approver = condition.approver
+        const applicant = condition.applicant
+        const name = condition.name
+        const auditType = condition.auditType
+        const startTime = condition.startTime
+        const endTime = condition.endTime
         if (typeof approver === 'string' && approver.trim() !== '') {
             const normalized = approver.split('::')[0]?.trim().toLowerCase()
             if (normalized) {
                 qb.andWhere('LOWER(audit.approver) like :approverLike', { approverLike: `%${normalized}%` })
             }
         }
-        if (applicant !== undefined && applicant !== ``) {
-            qb.andWhere('audit.applicant = :applicant', { applicant })
+        if (typeof applicant === 'string' && applicant.trim() !== '') {
+            const normalizedApplicant = applicant.split('::')[0]?.trim().toLowerCase()
+            if (normalizedApplicant) {
+                qb.andWhere('LOWER(audit.applicant) like :applicantLike', { applicantLike: `%${normalizedApplicant}%` })
+            }
         }
         if (name !== undefined && name !== ``) {
             qb.andWhere('(audit.targetName like :name OR audit.appOrServiceMetadata like :legacyName)', {
                 name: `%${name}%`,
                 legacyName: `%"name":"${name}"%`
             })
+        }
+        if (typeof auditType === 'string' && auditType.trim() !== '') {
+            qb.andWhere('audit.auditType = :auditType', { auditType: auditType.trim() })
         }
         if (startTime !== undefined && startTime !== ``) {
             qb.andWhere('audit.createdAt >= :startTime', { startTime })
@@ -49,15 +54,23 @@ export class AuditManager {
             qb.andWhere('audit.createdAt <= :endTime', { endTime })
         }
         qb.orderBy('audit.createdAt', 'DESC')
-          .skip((page - 1) * pageSize)
-          .take(pageSize)
+        return qb
+    }
 
+    async queryByCondition(condition: Partial<QueryCondition>, page: number, pageSize: number) {
+        const qb = this.buildQueryByCondition(condition)
+        qb.skip((page - 1) * pageSize)
+            .take(pageSize)
         const [audits, total] = await qb.getManyAndCount()
 
         return {
             data: audits,
             page: createResponsePage(total, page, pageSize)
         }
+    }
+
+    async queryByConditionAll(condition: Partial<QueryCondition>) {
+        return await this.buildQueryByCondition(condition).getMany()
     }
 
     async delete(uid: string) {

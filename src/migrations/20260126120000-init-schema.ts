@@ -41,6 +41,28 @@ export class InitSchema20260126120000 implements MigrationInterface {
     `)
 
     await queryRunner.query(`
+      CREATE TABLE IF NOT EXISTS ${schemaRef}."action_requests" (
+        uid uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+        actor varchar(128) NOT NULL,
+        action varchar(64) NOT NULL,
+        request_id varchar(128) NOT NULL,
+        payload_hash varchar(64) NOT NULL,
+        signed_at varchar(64) NOT NULL,
+        signature varchar(192) NOT NULL DEFAULT '',
+        created_at varchar(64) NOT NULL DEFAULT '',
+        status varchar(32) NOT NULL DEFAULT 'pending',
+        response_code int NOT NULL DEFAULT 0,
+        response_body text NOT NULL DEFAULT '',
+        completed_at varchar(64) NOT NULL DEFAULT ''
+      )
+    `)
+
+    await queryRunner.query(`
+      CREATE UNIQUE INDEX IF NOT EXISTS "idx_action_request_dedup"
+      ON ${schemaRef}."action_requests" (actor, request_id)
+    `)
+
+    await queryRunner.query(`
       CREATE TABLE IF NOT EXISTS ${schemaRef}."services" (
         uid uuid PRIMARY KEY DEFAULT gen_random_uuid(),
         did varchar(128) NOT NULL,
@@ -133,7 +155,9 @@ export class InitSchema20260126120000 implements MigrationInterface {
         target_type varchar(32) NOT NULL DEFAULT '',
         target_did varchar(128) NOT NULL DEFAULT '',
         target_version int NOT NULL DEFAULT 0,
-        target_name varchar(128) NOT NULL DEFAULT ''
+        target_name varchar(128) NOT NULL DEFAULT '',
+        previous_target_status varchar(64) NOT NULL DEFAULT 'BUSINESS_STATUS_PENDING',
+        previous_target_is_online boolean NOT NULL DEFAULT false
       )
     `)
 
@@ -152,10 +176,12 @@ export class InitSchema20260126120000 implements MigrationInterface {
     const schemaRef = quoteIdent(schema)
 
     await queryRunner.query(`DROP INDEX IF EXISTS ${schemaRef}."idx_audit_target"`)
+    await queryRunner.query(`DROP INDEX IF EXISTS ${schemaRef}."idx_action_request_dedup"`)
     await queryRunner.query(`DROP TABLE IF EXISTS ${schemaRef}."audits"`)
     await queryRunner.query(`DROP TABLE IF EXISTS ${schemaRef}."comments"`)
     await queryRunner.query(`DROP TABLE IF EXISTS ${schemaRef}."applications"`)
     await queryRunner.query(`DROP TABLE IF EXISTS ${schemaRef}."services"`)
+    await queryRunner.query(`DROP TABLE IF EXISTS ${schemaRef}."action_requests"`)
     await queryRunner.query(`DROP TABLE IF EXISTS ${schemaRef}."user_state"`)
     await queryRunner.query(`DROP TABLE IF EXISTS ${schemaRef}."users"`)
   }

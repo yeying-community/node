@@ -6,6 +6,7 @@
 ## 文档目录
 - [overview.md](./overview.md): 核心业务与优先事项
 - [architecture.md](./architecture.md): 系统架构与运行组件
+- [runtime-config.md](./runtime-config.md): 运行配置、环境变量与默认值
 - [auth.md](./auth.md): SIWE + UCAN 认证与鉴权流程
 - [workflows.md](./workflows.md): 社区市场核心业务流程
 - [api.md](./api.md): API 结构与约定

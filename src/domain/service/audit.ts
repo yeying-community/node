@@ -1,17 +1,33 @@
 import { Logger } from 'winston'
 import { SingletonLogger } from '../facade/logger'
 import { AuditManager } from '../manager/audit'
-import { Audit, AuditDetail, convertAuditDOFrom, convertAuditMetadataTo, PageResult, QueryCondition } from '../model/audit'
+import {
+    Audit,
+    AuditDecisionSummary,
+    AuditDetail,
+    convertAuditDOFrom,
+    convertAuditMetadataTo,
+    PageResult,
+    QueryCondition
+} from '../model/audit'
 import { CommentManager } from '../manager/comments';
 import { COMMENT_STATUS_AGREE, COMMENT_STATUS_REJECT } from '../model/comments'
-import { CommentDO } from '../mapper/entity';
+import { AuditDO, CommentDO } from '../mapper/entity';
 import { getRequestUser } from '../../common/requestContext';
-import { ensureUserActive, isAdminUser } from '../../common/permission';
+import {
+    ensureUserActive,
+    ensureUserCanApproveAudit,
+    ensureUserCanSubmitAudit,
+    ensureUserCanWriteBusinessData,
+    isAdminUser
+} from '../../common/permission';
 import { ApplicationManager } from '../manager/application';
 import { ServiceManager } from '../manager/service';
 import { getConfig } from '../../config/runtime';
 import { AuditRuntimeConfig } from '../../config';
 import { v4 as uuidv4 } from 'uuid'
+import { isApproverMatch, normalizeAuditAddress } from '../../common/auditAccess';
+import { createResponsePage } from '../../common/page';
 
 export class AuditService {
     private logger: Logger = SingletonLogger.get()
@@ -117,9 +133,18 @@ export class AuditService {
         return { approvers, requiredApprovals }
     }
 
+    private normalizeApproverActors(approvers: string[]) {
+        return Array.from(
+            new Set(
+                approvers
+                    .map((entry) => this.normalizeActor(entry))
+                    .filter(Boolean)
+            )
+        )
+    }
+
     private getCommentActor(comment: CommentDO) {
-        const signature = (comment.signature || '').trim()
-        return signature ? signature.toLowerCase() : ''
+        return this.normalizeActor(comment.signature || '')
     }
 
     private summarizeDecision(comments: CommentDO[], requiredApprovals: number) {
@@ -128,7 +153,7 @@ export class AuditService {
         const approvals = new Set<string>()
         const rejections = new Set<string>()
         for (const comment of comments) {
-            const actor = this.getCommentActor(comment) || comment.uid
+            const actor = this.getCommentActor(comment) || String(comment.uid || '').trim().toLowerCase()
             if (comment.status === agreeStatus) {
                 approvals.add(actor)
             }
@@ -145,30 +170,44 @@ export class AuditService {
         }
     }
 
-    private isApproverMatch(approver: string, address: string) {
-        if (!approver) return false
-        const normalizedAddress = address.trim().toLowerCase()
-        const matchEntry = (entry: string) => {
-            const normalizedEntry = entry.trim().toLowerCase()
-            return normalizedEntry === normalizedAddress || normalizedEntry.startsWith(`${normalizedAddress}::`) || normalizedEntry.includes(normalizedAddress)
+    private buildDecisionSummary(comments: CommentDO[], approverRaw?: string): AuditDecisionSummary {
+        const policy = this.parseApproverPolicy(approverRaw)
+        const decision = this.summarizeDecision(comments || [], policy.requiredApprovals)
+        const approvers = this.normalizeApproverActors(policy.approvers)
+        const approvedBy = Array.from(decision.approvals)
+        const rejectedBy = Array.from(decision.rejections)
+        const pendingApprovers = approvers.filter(
+            (actor) => !decision.approvals.has(actor) && !decision.rejections.has(actor)
+        )
+        let state: AuditDecisionSummary['state'] = '待审批'
+        if (decision.rejectionCount > 0) {
+            state = '审批驳回'
+        } else if (decision.approvalCount >= policy.requiredApprovals) {
+            state = '审批通过'
         }
-        try {
-            const parsed = JSON.parse(approver)
-            if (Array.isArray(parsed)) {
-                return parsed.some((entry) => typeof entry === 'string' && matchEntry(entry))
-            }
-            if (parsed && typeof parsed === 'object') {
-                const list = Array.isArray((parsed as any).approvers) ? (parsed as any).approvers : []
-                return list.some((entry: unknown) => typeof entry === 'string' && matchEntry(entry))
-            }
-        } catch {
-            // ignore parse errors
+        return {
+            state,
+            approvers,
+            requiredApprovals: decision.requiredApprovals,
+            approvalCount: decision.approvalCount,
+            rejectionCount: decision.rejectionCount,
+            approvedBy,
+            rejectedBy,
+            pendingApprovers,
+            isDecided: state !== '待审批'
         }
-        const candidates = approver.split(',').map((item) => item.trim()).filter(Boolean)
-        if (candidates.length > 1) {
-            return candidates.some((entry) => matchEntry(entry))
-        }
-        return matchEntry(approver)
+    }
+
+    private resolveAuditState(comments: CommentDO[], approverRaw?: string) {
+        return this.buildDecisionSummary(comments || [], approverRaw).state
+    }
+
+    private toAuditDetail(auditDO: AuditDO, comments: CommentDO[]) {
+        return convertAuditMetadataTo(
+            auditDO,
+            comments,
+            this.buildDecisionSummary(comments || [], auditDO?.approver)
+        )
     }
 
     private parseAuditTarget(meta: Audit) {
@@ -205,6 +244,74 @@ export class AuditService {
         }
     }
 
+    private normalizeActor(value: string) {
+        return normalizeAuditAddress(value)
+    }
+
+    private extractApplicantAddress(applicant: string) {
+        return this.normalizeActor((applicant || '').split('::')[0] || '')
+    }
+
+    private enrichAuditMetadata(
+        metadataRaw: string,
+        target: { operateType: string; did: string; version: number },
+        existingTarget: any
+    ) {
+        let parsed: Record<string, unknown> = {}
+        try {
+            const value = JSON.parse(metadataRaw)
+            if (value && typeof value === 'object' && !Array.isArray(value)) {
+                parsed = value as Record<string, unknown>
+            }
+        } catch {
+            // keep validated raw content unchanged on parse failure
+        }
+        const enriched: Record<string, unknown> = {
+            ...parsed,
+            operateType: target.operateType,
+            did: target.did,
+            version: target.version
+        }
+        if (!enriched.owner && existingTarget?.owner) {
+            enriched.owner = existingTarget.owner
+        }
+        if (!enriched.name && existingTarget?.name) {
+            enriched.name = existingTarget.name
+        }
+        return JSON.stringify(enriched)
+    }
+
+    private resolvePreviousTargetState(audit: { previousTargetStatus?: string; previousTargetIsOnline?: boolean }) {
+        const status =
+            typeof audit.previousTargetStatus === 'string' && audit.previousTargetStatus.trim() !== ''
+                ? audit.previousTargetStatus.trim()
+                : 'BUSINESS_STATUS_PENDING'
+        return {
+            status,
+            isOnline: Boolean(audit.previousTargetIsOnline)
+        }
+    }
+
+    private isPublishReason(reason?: string) {
+        return !!reason && reason.includes('上架')
+    }
+
+    private isDuplicatePendingAudit(
+        existing: { reason?: string; applicant?: string },
+        incoming: { reason?: string; applicant?: string }
+    ) {
+        const existingPublish = this.isPublishReason(existing.reason)
+        const incomingPublish = this.isPublishReason(incoming.reason)
+        if (existingPublish || incomingPublish) {
+            return existingPublish && incomingPublish
+        }
+        return (
+            String(existing.reason || '').trim() === String(incoming.reason || '').trim() &&
+            this.extractApplicantAddress(String(existing.applicant || '')) ===
+                this.extractApplicantAddress(String(incoming.applicant || ''))
+        )
+    }
+
     private async ensureTargetExists(target: { operateType: string; did: string; version: number }) {
         if (target.operateType === 'application') {
             const app = await this.applicationManager.query(target.did, target.version)
@@ -220,13 +327,16 @@ export class AuditService {
         return service
     }
 
-    private async hasPendingAudit(applicant: string, target: { operateType: string; did: string; version: number }) {
+    private async hasPendingAudit(
+        target: { operateType: string; did: string; version: number },
+        current: { reason?: string; applicant?: string }
+    ) {
         const audits = await this.auditManager.queryByTarget(target.operateType, target.did, target.version)
         if (!audits || audits.length === 0) {
             return false
         }
         for (const audit of audits) {
-            if (applicant && audit.applicant !== applicant) {
+            if (!this.isDuplicatePendingAudit(audit, current)) {
                 continue
             }
             const comments = await this.commentManager.queryByAuditId(audit.uid)
@@ -253,29 +363,31 @@ export class AuditService {
     async detail(id: string): Promise<AuditDetail> {
         const auditDO = await this.auditManager.queryById(id)
         if (auditDO === undefined || auditDO === null) {
-            throw new Error("auditDO is undefined")
+            throw new Error('Audit not found')
         }
         const comments = await this.commentManager.queryByAuditId(id)
-        return convertAuditMetadataTo(auditDO, comments)
+        return this.toAuditDetail(auditDO, comments)
     }
 
     async create(meta: Audit) {
         const user = getRequestUser()
         if (user?.address && meta.applicant) {
             await ensureUserActive(user.address)
+            await ensureUserCanSubmitAudit(user.address)
             const applicantDid = meta.applicant.split('::')[0]
             const normalizedApplicant = applicantDid?.trim().toLowerCase()
-            const normalizedUser = user.address.trim().toLowerCase()
+            const normalizedUser = this.normalizeActor(user.address)
             if (normalizedApplicant && normalizedApplicant !== normalizedUser) {
                 throw new Error('Applicant mismatch')
             }
         }
         const target = this.parseAuditTarget(meta)
-        await this.ensureTargetExists(target)
-        if (meta.applicant) {
+        const targetRecord = await this.ensureTargetExists(target)
+        const isPublishRequest = this.isPublishReason(meta.reason)
+        if (isPublishRequest && meta.applicant) {
             const applicantDid = meta.applicant.split('::')[0]
             const normalizedApplicant = applicantDid?.trim().toLowerCase()
-            const normalizedOwner = target.owner?.trim().toLowerCase()
+            const normalizedOwner = targetRecord.owner?.trim().toLowerCase()
             if (normalizedOwner && normalizedApplicant && normalizedOwner !== normalizedApplicant) {
                 throw new Error('Applicant is not owner')
             }
@@ -285,7 +397,11 @@ export class AuditService {
             throw new Error('Approver is required')
         }
         meta.approver = approverPolicy.raw
-        const hasPending = await this.hasPendingAudit(meta.applicant, target)
+        meta.appOrServiceMetadata = this.enrichAuditMetadata(meta.appOrServiceMetadata, target, targetRecord)
+        const hasPending = await this.hasPendingAudit(target, {
+            reason: meta.reason,
+            applicant: meta.applicant
+        })
         if (hasPending) {
             throw new Error('Duplicate pending audit')
         }
@@ -293,10 +409,12 @@ export class AuditService {
         auditDO.targetType = target.operateType
         auditDO.targetDid = target.did
         auditDO.targetVersion = target.version
-        auditDO.targetName = target.name || ''
+        auditDO.targetName = targetRecord.name || target.name || ''
+        auditDO.previousTargetStatus = targetRecord.status || 'BUSINESS_STATUS_PENDING'
+        auditDO.previousTargetIsOnline = Boolean(targetRecord.isOnline)
         auditDO.uid = auditDO.uid || uuidv4()
-        const res = await this.auditManager.save(auditDO)
-        if (meta.reason && meta.reason.includes('上架')) {
+        await this.auditManager.save(auditDO)
+        if (isPublishRequest) {
             await this.updateTargetPublishState(target, 'BUSINESS_STATUS_REVIEWING', false)
         }
         return await this.queryById(auditDO.uid)
@@ -305,36 +423,83 @@ export class AuditService {
     async queryById(uid: string): Promise<AuditDetail> {
         const auditDO = await this.auditManager.queryById(uid)
         if (auditDO === undefined || auditDO === null) {
-            throw new Error("auditDO is undefined")
+            throw new Error('Audit not found')
         }
         const comments = await this.commentManager.queryByAuditId(auditDO.uid)
-        return convertAuditMetadataTo(auditDO, comments)
+        return this.toAuditDetail(auditDO, comments)
     }
 
     async queryByCondition(queryCondition: QueryCondition): Promise<PageResult> {
-        const result = await this.auditManager.queryByCondition(
-            queryCondition.approver, queryCondition.applicant, queryCondition.name, queryCondition.startTime, queryCondition.endTime, queryCondition.page, queryCondition.pageSize
-        )
-        
-        const uids = result.data.map((u) => u.uid)
-        const commentsByAudit = new Map<string, CommentDO[]>()
-        for (const id of uids) {
-            const comments = await this.commentManager.queryByAuditId(id)
-            commentsByAudit.set(id, comments)
+        const condition = {
+            approver: queryCondition.approver,
+            applicant: queryCondition.applicant,
+            name: queryCondition.name,
+            auditType: queryCondition.auditType,
+            startTime: queryCondition.startTime,
+            endTime: queryCondition.endTime
         }
+        const states = Array.isArray(queryCondition.states)
+            ? queryCondition.states.map((item) => String(item).trim()).filter(Boolean)
+            : []
+
+        if (states.length === 0) {
+            const result = await this.auditManager.queryByCondition(
+                condition,
+                queryCondition.page,
+                queryCondition.pageSize
+            )
+            const commentsByAudit = new Map<string, CommentDO[]>()
+            for (const item of result.data) {
+                const comments = await this.commentManager.queryByAuditId(item.uid)
+                commentsByAudit.set(item.uid, comments)
+            }
+            return {
+                data: result.data.map((item) => this.toAuditDetail(item, commentsByAudit.get(item.uid) || [])),
+                page: result.page
+            }
+        }
+
+        const audits = await this.auditManager.queryByConditionAll(condition)
+        const commentsByAudit = new Map<string, CommentDO[]>()
+        for (const item of audits) {
+            const comments = await this.commentManager.queryByAuditId(item.uid)
+            commentsByAudit.set(item.uid, comments)
+        }
+        const filtered = audits.filter((item) =>
+            states.includes(this.resolveAuditState(commentsByAudit.get(item.uid) || [], item.approver))
+        )
+        const start = Math.max(0, (queryCondition.page - 1) * queryCondition.pageSize)
+        const paged = filtered.slice(start, start + queryCondition.pageSize)
         return {
-            data: result.data.map((s) => convertAuditMetadataTo(s, commentsByAudit.get(s.uid))),
-            page: result.page
+            data: paged.map((item) => this.toAuditDetail(item, commentsByAudit.get(item.uid) || [])),
+            page: createResponsePage(filtered.length, queryCondition.page, queryCondition.pageSize)
         }
     }
 
     async cancel(uid: string) {
-        const comments: CommentDO[] = await this.commentManager.queryByAuditId(uid)
+        const user = getRequestUser()
         const audit = await this.auditManager.queryById(uid)
-        for (let i = 0; i < comments.length; i++) {
-            await this.commentManager.delete(comments[i].uid)
+        if (!audit) {
+            throw new Error('Audit not found')
         }
-        if (audit?.reason && audit.reason.includes('上架') && audit.appOrServiceMetadata) {
+        if (user?.address) {
+            await ensureUserActive(user.address)
+            const isAdmin = await isAdminUser(user.address)
+            if (!isAdmin) {
+                await ensureUserCanWriteBusinessData(user.address)
+            }
+            const applicantAddress = this.extractApplicantAddress(audit.applicant)
+            if (!isAdmin && applicantAddress !== this.normalizeActor(user.address)) {
+                throw new Error('Applicant permission denied')
+            }
+        }
+        const comments: CommentDO[] = await this.commentManager.queryByAuditId(uid)
+        const policy = this.parseApproverPolicy(audit.approver)
+        const decision = this.summarizeDecision(comments, policy.requiredApprovals)
+        if (decision.rejectionCount > 0 || decision.approvalCount >= policy.requiredApprovals) {
+            throw new Error('Audit already decided')
+        }
+        if (this.isPublishReason(audit.reason) && audit.appOrServiceMetadata) {
             const target = this.parseAuditTarget({
                 uid: audit.uid,
                 appOrServiceMetadata: audit.appOrServiceMetadata,
@@ -346,7 +511,11 @@ export class AuditService {
                 updatedAt: audit.updatedAt.toISOString(),
                 signature: audit.signature,
             })
-            await this.updateTargetPublishState(target, 'BUSINESS_STATUS_PENDING', false)
+            const previousState = this.resolvePreviousTargetState(audit)
+            await this.updateTargetPublishState(target, previousState.status, previousState.isOnline)
+        }
+        for (let i = 0; i < comments.length; i++) {
+            await this.commentManager.delete(comments[i].uid)
         }
         return await this.auditManager.delete(uid)
     }
@@ -357,8 +526,9 @@ export class AuditService {
         let actor = ''
         if (user?.address) {
             await ensureUserActive(user.address)
+            await ensureUserCanApproveAudit(user.address)
             const isAdmin = await isAdminUser(user.address)
-            if (!audit || (!isAdmin && !this.isApproverMatch(audit.approver, user.address))) {
+            if (!audit || (!isAdmin && !isApproverMatch(audit.approver, user.address))) {
                 throw new Error('Approver permission denied')
             }
             actor = user.address.trim().toLowerCase()
@@ -379,7 +549,7 @@ export class AuditService {
         if (!audit) {
             audit = await this.auditManager.queryById(comment.auditId)
         }
-        if (audit) {
+        if (audit && this.isPublishReason(audit.reason)) {
             const updated = await this.commentManager.queryByAuditId(comment.auditId)
             const updatedDecision = this.summarizeDecision(updated, policy.requiredApprovals)
             if (updatedDecision.approvalCount >= policy.requiredApprovals) {
@@ -406,8 +576,9 @@ export class AuditService {
         let actor = ''
         if (user?.address) {
             await ensureUserActive(user.address)
+            await ensureUserCanApproveAudit(user.address)
             const isAdmin = await isAdminUser(user.address)
-            if (!audit || (!isAdmin && !this.isApproverMatch(audit.approver, user.address))) {
+            if (!audit || (!isAdmin && !isApproverMatch(audit.approver, user.address))) {
                 throw new Error('Approver permission denied')
             }
             actor = user.address.trim().toLowerCase()
@@ -428,7 +599,7 @@ export class AuditService {
         if (!audit) {
             audit = await this.auditManager.queryById(comment.auditId)
         }
-        if (audit) {
+        if (audit && this.isPublishReason(audit.reason)) {
             const target = this.parseAuditTarget({
                 uid: audit.uid,
                 appOrServiceMetadata: audit.appOrServiceMetadata,

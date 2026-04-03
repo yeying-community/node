@@ -64,11 +64,8 @@ import { onMounted, ref, watch } from 'vue'
 import { Search } from '@element-plus/icons-vue'
 import $application, { ApplicationMetadata, businessStatusOptions } from '@/plugins/application'
 import MarketBlock from '@/views/components/MarketBlock.vue'
-import { useRouter, useRoute, RouteLocationAsPathGeneric, RouteLocationAsRelativeGeneric } from 'vue-router'
-import { userInfo } from '@/plugins/account'
-import $audit, { AuditAuditDetail, AuditAuditMetadata, convertAuditMetadata } from '@/plugins/audit'
+import { useRouter, RouteLocationAsPathGeneric, RouteLocationAsRelativeGeneric } from 'vue-router'
 import { notifyError } from '@/utils/message'
-import { AuditDetailBox } from '@/stores/audit'
 import { getCurrentAccount } from '@/plugins/auth'
 
 const searchVal = ref<string>('')
@@ -130,19 +127,16 @@ const search = async () => {
             return;
         } else if (activeService.value === 'myApply') {
             let res = await $application.myApplyList(account)
-            // 过滤出审批通过的
-            const applicant = `${account}::${account}`
-            let auditMyApply: AuditAuditDetail[] = await $audit.search({applicant: applicant})
-            if (auditMyApply === undefined) {
-                return;
+            if (searchVal.value) {
+                res = res.filter((item) => {
+                    const keyword = searchVal.value.toLowerCase()
+                    return (
+                        String(item.name || '').toLowerCase().includes(keyword) ||
+                        String(item.owner || '').toLowerCase().includes(keyword) ||
+                        String(item.ownerName || '').toLowerCase().includes(keyword)
+                    )
+                })
             }
-            auditMyApply = auditMyApply.filter((item) => item.meta?.reason === '申请使用')
-            if (auditMyApply === undefined) {
-                return;
-            }
-            let resApp: AuditDetailBox[] = convertAuditMetadata(auditMyApply)
-            let names: string[] = resApp.filter((s) => s.state === '审批通过' && s.serviceType === 'application').map(a => a.name)
-            res = res.filter((b) => names.includes(b.name))
             if (Array.isArray(res)) {
                 applicationList.value = res
             } else {

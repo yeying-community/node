@@ -163,17 +163,17 @@ import Uploader from '@/components/common/Uploader.vue'
 import { Upload } from '@element-plus/icons-vue'
 import { useRoute, useRouter } from 'vue-router'
 import BreadcrumbHeader from '@/views/components/BreadcrumbHeader.vue'
-import { ElMessageBox } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import { h } from 'vue'
 import { SuccessFilled } from '@element-plus/icons-vue'
 import ResultChooseModal from '@/views/components/ResultChooseModal.vue'
 import { generateIdentity } from '@/plugins/account'
-import { v4 as uuidv4 } from 'uuid';
 import { notifyError } from '@/utils/message'
 import $service, {codeMap, serviceCodeMap, ServiceMetadata } from '@/plugins/service'
-import { getCurrentUtcString } from '@/utils/common'
+import $audit from '@/plugins/audit'
 import $storage from "@/plugins/storage";
-import { getCurrentAccount, signWithWallet } from '@/plugins/auth'
+import { getCurrentAccount } from '@/plugins/auth'
+import { normalizeAddress } from '@/utils/actionSignature'
 
 const defaultAvatar =
     import.meta.env.VITE_WEBDAV_AVATAR ||
@@ -214,11 +214,14 @@ const toOnlineApply = () => {
         showClose: false,
         customClass: 'messageBox-wrap'
     })
-        .then(() => {
-            /**
-             * todo 学虎 上架服务接口
-             *
-             */
+        .then(async () => {
+            innerVisible.value = false
+            if (!savedService.value) {
+                notifyError('❌未找到刚创建的服务')
+                return
+            }
+            await submitPublishRequest(savedService.value)
+            toList()
         })
         .catch(() => {})
 }
@@ -263,7 +266,7 @@ const detailInfo = ref<ServiceMetadata>({
 const codeUrl = ref(detailInfo.value.codePackagePath)
 
 const innerVisible = ref(false)
-const userMeta = ref({})
+const savedService = ref<ServiceMetadata | null>(null)
 const handleClick = (e) => {
     e.preventDefault()
 }
@@ -280,102 +283,118 @@ const getDetailInfo = async () => {
         const res = await $service.myCreateDetailByUid(route.query.uid as string)
         if (res) {
             detailInfo.value = res
-            detailInfo.value.code = String(res.code)
-            detailInfo.value.apiCodes = res.apiCodes.map((v) => String(v))
+            savedService.value = res
+            detailInfo.value.code = String(res.code || '')
+            detailInfo.value.apiCodes = Array.isArray(res.apiCodes)
+                ? res.apiCodes.map((v) => String(v))
+                : []
             avatarChk.value = res.avatar === '1' ? '1' : '2'
             avatarList.value =
                 res.avatar !== '1'
                     ? [
                           {
-                              name: res.avatarName,
-                              url: res.avatar
+                              name: res.avatarName || res.name || 'avatar',
+                              url: res.avatar || ''
                           }
                       ]
                     : []
-            codeChk.value = res.codeType
+            codeChk.value = res.codeType || '2'
             codeList.value =
                 res.codeType === '2'
                     ? [
                           {
-                              name: res.codePackageName,
-                              url: res.codePackagePath
+                              name: res.codePackageName || res.name || 'package',
+                              url: res.codePackagePath || ''
                           }
                       ]
                     : []
+            imageUrl.value = res.avatar || imageUrl.value
+            codeUrl.value = res.codePackagePath || ''
         }
     }
 }
 
-const submitForm = async (formEl, andOnline) => {
+const buildSubmitParams = () => {
+    return {
+        ...detailInfo.value,
+        avatar: imageUrl.value,
+        codePackagePath: codeUrl.value || detailInfo.value.codePackagePath || '',
+        codeType: codeChk.value,
+        owner: normalizeAddress(getCurrentAccount() || ''),
+        ownerName: normalizeAddress(getCurrentAccount() || '')
+    }
+}
+
+const submitPublishRequest = async (service: ServiceMetadata) => {
+    const created = await $audit.submitPublishRequest({
+        auditType: 'service',
+        resource: service as Record<string, unknown>
+    })
+    if (!created?.meta?.uid) {
+        return
+    }
+    ElMessage.success('已提交上架申请')
+}
+
+const submitForm = async (formEl, andOnline = false) => {
     const account = getCurrentAccount()
     if (account === undefined || account === null) {
         notifyError("❌未查询到当前账户，请登录")
         return
     }
     if (!formEl) return
-    detailInfo.value.avatar = imageUrl.value
-    if (detailInfo.value.codePackagePath === undefined) {
-        detailInfo.value.codePackagePath = codeUrl.value
-    }
     
     await formEl.validate(async (valid: boolean, fields) => {
         if (valid) {
-            const params = JSON.parse(JSON.stringify(detailInfo.value))
+            const params = JSON.parse(JSON.stringify(buildSubmitParams())) as ServiceMetadata & {
+                codeType?: string
+            }
             const existsList = await $service.myCreateList(account)
             if (Array.isArray(existsList)) {
                 for (const item of existsList) {
-                    if (item.name === params.name) {
+                    if (item.name === params.name && item.uid !== route.query.uid) {
                         notifyError(`❌ 服务[${params.name}]已存在，请勿重复创建 `)
                         return
                     }
                 }
             }
-            params.codeType = codeChk.value
             if (route.query.uid) {
-                const rr = await $service.myCreateDetailByUid(route.query.uid as string)
-                rr.code = params.code
-                rr.codePackagePath = params.codePackagePath
-                rr.codeType = params.codeType
-                rr.description = params.description
-                rr.proxy = params.proxy
-                rr.name = params.name
-                rr.apiCodes = params.apiCodes
-                rr.owner = account
-                rr.ownerName = account
-                const myCreateUpdate = await $service.myCreateUpdate(rr)
-                if (!andOnline) {
-                    innerVisible.value = true
-                } else {
-                    /**
-                     * todo学虎 编辑页面-上架接口
-                     * 这块走的是保存并上架的逻辑，需要调用上架接口
-                     */
-                }
-            } else {
-                params.uid = uuidv4()
-                let signature = ''
-                try {
-                    signature = await signWithWallet(
-                        JSON.stringify({
-                            action: 'create_service',
-                            owner: account,
-                            name: params.name,
-                            timestamp: new Date().toISOString()
-                        })
-                    )
-                } catch (error) {
-                    notifyError(`❌签名失败: ${error}`)
+                const updated = await $service.myCreateUpdate({
+                    uid: route.query.uid as string,
+                    code: params.code,
+                    codePackagePath: params.codePackagePath,
+                    description: params.description,
+                    proxy: params.proxy,
+                    grpc: params.grpc,
+                    name: params.name,
+                    apiCodes: params.apiCodes,
+                    owner: normalizeAddress(account),
+                    ownerName: normalizeAddress(account),
+                    avatar: params.avatar
+                })
+                if (!updated) {
                     return
                 }
-                params.signature = signature
+                detailInfo.value = { ...detailInfo.value, ...updated }
+                savedService.value = updated
+                if (andOnline) {
+                    await submitPublishRequest(updated)
+                    toList()
+                    return
+                }
+                ElMessage.success('保存成功')
+            } else {
                 const identity = await generateIdentity(params.code, params.apiCodes, '', '', params.name, params.description, params.avatar)
                 params.did = identity.metadata?.did
                 params.version = identity?.metadata?.version
-                params.owner = account
-                params.ownerName = account
-                params.createdAt = getCurrentUtcString()
-                params.updatedAt = getCurrentUtcString()
-                await $service.create(params)
+                params.owner = normalizeAddress(account)
+                params.ownerName = normalizeAddress(account)
+                const created = await $service.create(params)
+                if (!created) {
+                    return
+                }
+                detailInfo.value = { ...detailInfo.value, ...created }
+                savedService.value = created
                 innerVisible.value = true
             }
         } else {
@@ -390,7 +409,7 @@ const submitForm = async (formEl, andOnline) => {
  *
  */
 const submitFormAndOnline = (formEl) => {
-    submitForm(formEl)
+    void submitForm(formEl, true)
 }
 const changeFileAvatar = (uploadFile) => {
     changeFile(1, uploadFile)
@@ -420,7 +439,7 @@ const changeFile = async (fileType, uploadFile) => {
 
 
 onMounted(() => {
-    getDetailInfo()
+    void getDetailInfo()
     // await getDetailInfo();
 })
 </script>

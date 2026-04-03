@@ -132,53 +132,15 @@
                     </template>
                 </el-popconfirm>
 
-                <Popover
-                    :show="applyStatus === 'success'"
-                    title="您确定要解绑当前服务吗？"
-                    subTitle="解绑后，当前服务将从当前列表移除，如需使用需重新申请。"
-                    :okClick="confirmUnbind"
-                    referenceText="解绑服务"
-                />
+                <div v-if="applyStatus === 'success'" @click="toConfigService" class="cursor">配置服务</div>
 
-                <el-divider v-if="applyStatus === 'success'" direction="vertical" />
-                <div v-if="applyStatus !== 'applying'" class="bottom-more">
+                <el-divider v-if="applyStatus === 'success' || applyStatus === 'reject'" direction="vertical" />
+                <div v-if="applyStatus === 'reject'" class="bottom-more">
                     <el-dropdown placement="top-start">
                         <div>更多</div>
                         <template #dropdown>
                             <el-dropdown-menu>
-                                <el-popconfirm
-                                    confirm-button-text="确定"
-                                    cancel-button-text="取消"
-                                    :icon="WarningFilled"
-                                    icon-color="#FB9A0E"
-                                    title="您确定要取消当前服务的申请吗？"
-                                    width="220px"
-                                    @confirm="cancelApply"
-                                >
-                                    <template #reference>
-                                        <el-dropdown-item
-                                            v-if="applyStatus === 'cancel' || applyStatus === 'reject'"
-                                        >
-                                            <el-popconfirm
-                                                confirm-button-text="确定"
-                                                cancel-button-text="取消"
-                                                :icon="WarningFilled"
-                                                icon-color="#FB9A0E"
-                                                title="您确定要删除该服务吗？"
-                                                width="220px"
-                                                @confirm="toDelete"
-                                            >
-                                                <template #reference> 删除 </template>
-                                            </el-popconfirm>
-                                        </el-dropdown-item>
-                                    </template>
-                                </el-popconfirm>
-
-                                <el-dropdown-item
-                                    v-if="applyStatus === 'cancel' || applyStatus === 'reject'"
-                                    @click="dialogVisible = true"
-                                    >重新申请</el-dropdown-item
-                                >
+                                <el-dropdown-item @click="dialogVisible = true">重新申请</el-dropdown-item>
                             </el-dropdown-menu>
                         </template>
                     </el-dropdown>
@@ -212,30 +174,21 @@
     </ResultChooseModal>
 </template>
 <script lang="ts" setup>
-import { SuccessFilled } from '@element-plus/icons-vue'
+import { SuccessFilled, WarningFilled } from '@element-plus/icons-vue'
 import { ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import dayjs from 'dayjs'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { h } from 'vue'
-import Popover from '@/views/components/Popover.vue'
 import ApplyUseModal from './ApplyUseModal.vue'
 import ConfigServiceModal from './ConfigServiceModal.vue'
 import ResultChooseModal from './ResultChooseModal.vue'
 import { exportIdentityInfo } from '@/plugins/account'
-import $audit, { AuditAuditMetadata, resolveAuditState } from '@/plugins/audit'
-import $service, { businessStatusMap, resolveBusinessStatus } from '@/plugins/service'
-import { generateUuid, getCurrentUtcString } from '@/utils/common'
-import { getCurrentAccount, signWithWallet } from '@/plugins/auth'
+import $audit, { isAuditForResource, resolveUsageAuditStatus } from '@/plugins/audit'
+import $service, { ServiceMetadata, businessStatusMap, resolveBusinessStatus } from '@/plugins/service'
+import { getCurrentAccount } from '@/plugins/auth'
 import { notifyError } from '@/utils/message'
-import { buildSubmitAuditMessage, normalizeAddress } from '@/utils/auditSignature'
-
-// 解绑服务
-const confirmUnbind = async () => {
-    // 执行解绑逻辑
-    await $service.unbind(props.detail?.uid)
-    props.refreshCardList()
-}
+import { normalizeAddress } from '@/utils/actionSignature'
 
 const innerVisible = ref(false)
 const dialogVisible = ref(false)
@@ -245,7 +198,7 @@ const operateType = ref('service')
 
 const router = useRouter()
 const props = defineProps({
-    detail: Object,
+    detail: Object as () => ServiceMetadata,
     selectId: Number,
     refreshCardList: Function,
     pageFrom: String
@@ -255,29 +208,42 @@ const isOwner = () => {
     const account = getCurrentAccount()
     if (account === undefined || account === null) {
         notifyError("❌未查询到当前账户，请登录")
-        return
+        return false
     }
-    return account === props.detail?.owner
+    return normalizeAddress(account) === normalizeAddress(String(props.detail?.owner || ''))
 }
 
 const businessStatus = computed(() => resolveBusinessStatus(props.detail))
 const businessInfo = computed(() => businessStatusMap[businessStatus.value] || businessStatusMap.BUSINESS_STATUS_UNKNOWN)
 const isOnline = computed(() => businessStatus.value === 'BUSINESS_STATUS_ONLINE')
-const applyStatus = ref('applying')
+const applyStatus = ref(props.detail?.applyStatus || 'applying')
 
 const getApplyStatus = async () => {
+    if (props.detail?.applyStatus) {
+        applyStatus.value = props.detail.applyStatus
+        return
+    }
     const account = getCurrentAccount()
     if (!account) {
-        applyStatus.value = 'cancel'
+        applyStatus.value = 'applying'
         return
     }
     const applicant = `${account}::${account}`
     const detail = await $audit.search({ applicant })
     const candidates = Array.isArray(detail)
-        ? detail.filter((d) => d.meta?.reason === '申请使用' && d.meta?.appOrServiceMetadata?.includes(`"name":"${props.detail?.name}"`))
+        ? detail.filter((audit) =>
+              isAuditForResource(audit, {
+                  auditType: 'service',
+                  reason: '申请使用',
+                  uid: props.detail?.uid,
+                  did: props.detail?.did,
+                  version: props.detail?.version,
+                  name: props.detail?.name
+              })
+          )
         : []
     if (candidates.length === 0) {
-        applyStatus.value = 'cancel'
+        applyStatus.value = 'applying'
         return
     }
     const latest = candidates.sort((a, b) => {
@@ -285,14 +251,7 @@ const getApplyStatus = async () => {
         const bt = b.meta?.createdAt ? Date.parse(b.meta.createdAt) : 0
         return bt - at
     })[0]
-    const state = resolveAuditState(latest.commentMeta, latest.meta?.approver)
-    if (state === '审批通过') {
-        applyStatus.value = 'success'
-    } else if (state === '审批驳回') {
-        applyStatus.value = 'reject'
-    } else {
-        applyStatus.value = 'applying'
-    }
+    applyStatus.value = resolveUsageAuditStatus(latest)
 }
 
 /**
@@ -304,15 +263,7 @@ const applyUse = async () => {
 
 const toDelete = async () => {
     if (props.pageFrom === 'myCreate') {
-        /**
-         * todo 学虎 我创建的-删除
-         */
         await $service.myCreateDelete(props.detail?.uid)
-    } else {
-        /**
-         * todo 学虎 我申请的-删除
-         */
-        await $service.myApplyDelete(props.detail?.uid)
     }
     props.refreshCardList()
 }
@@ -330,26 +281,39 @@ const toEdit = () => {
  *
  */
 const cancelApply = async () => {
-    const account = getCurrentAccount()
-    if (!account) {
-        notifyError('❌未查询到当前账户，请登录')
-        return
+    const auditId = props.detail?.applyAuditId
+    if (auditId) {
+        await $audit.cancel(auditId)
+    } else {
+        const account = getCurrentAccount()
+        if (!account) {
+            notifyError('❌未查询到当前账户，请登录')
+            return
+        }
+        const applicant = `${account}::${account}`
+        const detail = await $audit.search({ applicant })
+        const latest = Array.isArray(detail)
+            ? detail
+                  .filter((audit) =>
+                      isAuditForResource(audit, {
+                          auditType: 'service',
+                          reason: '申请使用',
+                          uid: props.detail?.uid,
+                          did: props.detail?.did,
+                          version: props.detail?.version,
+                          name: props.detail?.name
+                      })
+                  )
+                  .sort((left, right) => {
+                      const leftTime = left.meta?.createdAt ? Date.parse(left.meta.createdAt) : 0
+                      const rightTime = right.meta?.createdAt ? Date.parse(right.meta.createdAt) : 0
+                      return rightTime - leftTime
+                  })[0]
+            : undefined
+        if (latest?.meta?.uid) {
+            await $audit.cancel(latest.meta.uid)
+        }
     }
-    const applicant = `${account}::${account}`
-    const detail = await $audit.search({ applicant })
-    const auditUids = Array.isArray(detail)
-        ? detail
-              .filter(
-                  (d) =>
-                      d.meta?.reason === '申请使用' &&
-                      d.meta?.appOrServiceMetadata?.includes(`"name":"${props.detail?.name}"`)
-              )
-              .map((s) => s.meta.uid)
-        : []
-    for (const item of auditUids) {
-        await $audit.cancel(item)
-    }
-    applyStatus.value = 'cancel'
     if (props.refreshCardList) {
         props.refreshCardList()
     }
@@ -357,6 +321,10 @@ const cancelApply = async () => {
 
 const cancelModal = () => {
     modalVisible.value = false
+}
+
+const toConfigService = () => {
+    modalVisible.value = true
 }
 
 const toList = () => {
@@ -377,34 +345,26 @@ const toDetail = () => {
         path: '/market/service-detail',
         query: {
             uid: props.detail?.uid,
-            pageFrom: props.pageFrom
+            pageFrom: props.pageFrom,
+            auditId: props.pageFrom === 'myApply' ? props.detail?.applyAuditId : undefined
         }
     })
 }
 
-const isOkStatus = (code) => code === 0 || code === 1 || code === 'OK' || code === 'RESPONSE_CODE_OK'
-
 // 下架服务
 const handleOffline = async () => {
     const status = await $service.offline({ uid: props.detail?.uid, did: props.detail?.did, version: props.detail?.version })
-    if (isOkStatus(status?.code)) {
+    if (status?.unpublished) {
         ElMessage({
             message: '已下架',
             type: 'success'
         })
         props.refreshCardList()
-        const account = getCurrentAccount()
-        if (account === undefined || account === null) {
-            notifyError("❌未查询到当前账户，请登录")
-            return
-        }
-        const applicant = `${account}::${account}`
-        const detail = await $audit.search({applicant: applicant})
-        const uids = detail.filter((d) => d.meta.appOrServiceMetadata.includes(`"name":"${props.detail?.name}"`)).map((s) => s.meta.uid)
-        // 删除申请
-        for (const item of uids) {
-            await $audit.cancel(item)
-        }
+    } else {
+        ElMessage({
+            message: '下架失败',
+            type: 'error'
+        })
     }
 }
 
@@ -449,72 +409,19 @@ const handleOnline = () => {
     })
         .then(async () => {
             try {
-            /**
-             * 创建上架申请
-             * innerVisible.value = true 是上架成功后，打开一个弹窗提示用户上架成功了
-             */
             const detailRst = await $service.myCreateDetailByUid(props.detail?.uid)
             if (!detailRst) {
                 notifyError("❌服务不存在")
                 return
             }
-            // 重复申请检查
-            const account = getCurrentAccount()
-            if (account === undefined || account === null) {
-                notifyError("❌未查询到当前账户，请登录")
-                return
-            }
-            const synced = await $service.syncToServer(detailRst)
-            if (!synced) {
-                return
-            }
-            detailRst.uid = detailRst.uid || synced.uid
-            detailRst.did = detailRst.did || synced.did
-            detailRst.version = detailRst.version ?? synced.version
-            detailRst.owner = detailRst.owner || synced.owner
-            detailRst.ownerName = detailRst.ownerName || synced.ownerName
-            const applicant = `${account}::${account}`
-            let searchList = await $audit.search({name: detailRst.name})
-            searchList = Array.isArray(searchList)
-                ? searchList.filter((a) => a.meta.applicant === applicant && a.meta.appOrServiceMetadata.includes(`"operateType":"service"`))
-                : []
-            if (searchList.length > 0) {
-                ElMessageBox.alert('您已申请，无需重复申请', '提示')
-                .then(() => {
-                })
-                .catch(() => {
-                });
-                return
-            }
-            detailRst.operateType = 'service'
-            const auditUid = generateUuid()
-            const createdAt = getCurrentUtcString()
-            const applicantAddress = normalizeAddress(account)
-            const signatureMessage = buildSubmitAuditMessage({
-                targetType: 'service',
-                targetDid: detailRst.did,
-                targetVersion: detailRst.version,
-                applicant: applicantAddress,
-                timestamp: createdAt,
-                nonce: auditUid
-            })
-            const signature = await signWithWallet(signatureMessage)
-            const meta: AuditAuditMetadata = {
-                uid: auditUid,
-                appOrServiceMetadata: JSON.stringify(detailRst),
+            const created = await $audit.submitPublishRequest({
                 auditType: 'service',
-                applicant: applicant, // 申请人身份，did::name
-                reason: '上架申请',
-                createdAt,
-                updatedAt: createdAt,
-                signature
+                resource: detailRst as Record<string, unknown>
+            })
+            if (!created?.meta?.uid) {
+                return
             }
-            const status = await $audit.create(meta)
-            if (isOkStatus(status?.code)) {
-                innerVisible.value = true
-            } else {
-                notifyError(`❌申请失败: ${status?.message || '未知错误'}`)
-            }
+            innerVisible.value = true
             } catch (error) {
                 notifyError(`❌申请失败: ${error}`)
             }
@@ -524,6 +431,9 @@ const handleOnline = () => {
 
 const afterSubmit = () => {
     dialogVisible.value = false
+    if (props.refreshCardList) {
+        props.refreshCardList()
+    }
 }
 
 if (props.pageFrom === 'myApply') {

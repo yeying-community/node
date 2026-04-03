@@ -1,371 +1,557 @@
-import { getWalletDataStore } from "@/stores/auth";
-import { notifyError } from "@/utils/message";
-import { getAuthToken } from "@/plugins/auth";
-import { apiUrl } from './api'
+import { getAuthToken, getCurrentAccount, signWithWallet } from '@/plugins/auth'
+import { apiUrl } from '@/plugins/api'
+import { createSignedActionBody, normalizeAddress } from '@/utils/actionSignature'
+import { notifyError } from '@/utils/message'
 
 export interface AuditAuditMetadata {
-    uid?: string;
-    appOrServiceMetadata?: string;
-    auditType?: string
-    applicant?: string;
-    approver?: string;
-    reason?: string;
-    createdAt?: string;
-    updatedAt?: string;
-    signature?: string;
+  uid?: string
+  appOrServiceMetadata?: string
+  auditType?: string
+  applicant?: string
+  approver?: string
+  reason?: string
+  createdAt?: string
+  updatedAt?: string
+  signature?: string
 }
 
 export interface AuditAuditSearchCondition {
-    approver?: string;
-    name?: string;
-    'type'?: string;
-    applicant?: string;
-    startTime?: string;
-    endTime?: string;
+  approver?: string
+  name?: string
+  type?: string
+  auditType?: string
+  applicant?: string
+  states?: string[]
+  startTime?: string
+  endTime?: string
 }
 
 export enum AuditCommentStatusEnum {
-    COMMENTSTATUSAGREE = 'COMMENT_STATUS_AGREE',
-    COMMENTSTATUSREJECT = 'COMMENT_STATUS_REJECT'
+  COMMENTSTATUSAGREE = 'COMMENT_STATUS_AGREE',
+  COMMENTSTATUSREJECT = 'COMMENT_STATUS_REJECT'
 }
 
 export interface AuditCommentMetadata {
-    uid?: string;
-    auditId?: string;
-    text?: string;
-    status?: AuditCommentStatusEnum;
-    createdAt?: string;
-    updatedAt?: string;
-    signature?: string;
+  uid?: string
+  auditId?: string
+  text?: string
+  status?: AuditCommentStatusEnum
+  createdAt?: string
+  updatedAt?: string
+  signature?: string
+}
+
+export interface AuditDecisionSummary {
+  state: '待审批' | '审批通过' | '审批驳回'
+  approvers: string[]
+  requiredApprovals: number
+  approvalCount: number
+  rejectionCount: number
+  approvedBy: string[]
+  rejectedBy: string[]
+  pendingApprovers: string[]
+  isDecided: boolean
 }
 
 export interface AuditAuditDetail {
-    meta?: AuditAuditMetadata;
-    commentMeta?: AuditCommentMetadata[];
-}
-
-export interface AuditCommentMetadata {
-    uid?: string;
-    auditId?: string;
-    text?: string;
-    status?: AuditCommentStatusEnum;
-    createdAt?: string;
-    updatedAt?: string;
-    signature?: string;
+  meta?: AuditAuditMetadata
+  commentMeta?: AuditCommentMetadata[]
+  summary?: AuditDecisionSummary
 }
 
 export interface AuditDetailBox {
-    uid?: string,
-    name? : string,
-    desc? : string,
-    applicantor?: string,
-    state?: string,
-    date?: string,
-    serviceType?: string
+  uid?: string
+  name?: string
+  desc?: string
+  applicantor?: string
+  state?: string
+  date?: string
+  serviceType?: string
+  auditType?: string
+  msg?: string
+  progress?: string
+  summary?: AuditDecisionSummary
 }
 
-export interface ApproverPolicy {
-  approvers: string[];
-  requiredApprovals: number;
+export interface AuditSearchPage {
+  total: number
+  page: number
+  pageSize: number
 }
 
-function normalizeApproverList(input: unknown): string[] {
-  if (!input) return [];
-  if (Array.isArray(input)) {
-    return input.map((entry) => String(entry).trim()).filter(Boolean);
-  }
-  if (typeof input === 'string') {
-    const trimmed = input.trim();
-    if (!trimmed) return [];
-    try {
-      const parsed = JSON.parse(trimmed);
-      return normalizeApproverList(parsed);
-    } catch {
-      return trimmed.split(',').map((item) => item.trim()).filter(Boolean);
-    }
-  }
-  if (typeof input === 'object') {
-    const obj = input as any;
-    if (Array.isArray(obj.approvers)) {
-      return normalizeApproverList(obj.approvers);
-    }
-  }
-  return [];
+export interface AuditSearchResult {
+  items: AuditAuditDetail[]
+  page: AuditSearchPage
 }
 
-function normalizeRequiredApprovals(value: unknown, maxApprovers: number) {
-  const numeric = typeof value === 'number' ? value : Number(value);
-  let required = Number.isFinite(numeric) && numeric > 0 ? Math.floor(numeric) : 1;
-  if (maxApprovers > 0) {
-    required = Math.min(required, maxApprovers);
-  }
-  return required;
+type AuditTargetType = 'application' | 'service'
+
+export type AuditApplyStatus = 'success' | 'applying' | 'reject'
+
+export type ParsedAuditTarget = {
+  raw: Record<string, unknown>
+  operateType: string
+  uid?: string
+  did?: string
+  version?: number
+  name?: string
+  owner?: string
+  ownerName?: string
+  key: string
 }
 
-export function parseApproverPolicy(raw?: string): ApproverPolicy {
-  if (!raw || !raw.trim()) {
-    return { approvers: [], requiredApprovals: 1 };
-  }
-  try {
-    const parsed = JSON.parse(raw);
-    if (Array.isArray(parsed)) {
-      const approvers = normalizeApproverList(parsed);
-      return { approvers, requiredApprovals: normalizeRequiredApprovals(1, approvers.length) };
-    }
-    if (parsed && typeof parsed === 'object') {
-      const approvers = normalizeApproverList((parsed as any).approvers);
-      const requiredApprovals = normalizeRequiredApprovals((parsed as any).requiredApprovals, approvers.length);
-      return { approvers, requiredApprovals };
-    }
-  } catch {
-    // ignore parse errors
-  }
-  const approvers = normalizeApproverList(raw);
-  return { approvers, requiredApprovals: normalizeRequiredApprovals(1, approvers.length) };
+function getAuditState(summary?: AuditDecisionSummary) {
+  return summary?.state || '待审批'
 }
 
-export function resolveAuditState(metas?: AuditCommentMetadata[], approverRaw?: string) {
-  let status: string = "待审批";
-  if (metas === undefined || metas.length === 0) {
-    return status;
+function buildDecisionProgress(summary?: AuditDecisionSummary) {
+  if (!summary) {
+    return ''
   }
-
-  const statusList: AuditCommentStatusEnum[] = metas
-    .map(item => item.status)
-    .filter((status): status is AuditCommentStatusEnum => status !== undefined);
-
-  if (statusList.length === 0) {
-    return status;
+  if (summary.rejectionCount > 0) {
+    return `已驳回 ${summary.rejectionCount} 人`
   }
-
-  if (statusList.includes(AuditCommentStatusEnum.COMMENTSTATUSREJECT)) {
-    return '审批驳回';
-  }
-  const { requiredApprovals } = parseApproverPolicy(approverRaw);
-  const approvals = statusList.filter((item) => item === AuditCommentStatusEnum.COMMENTSTATUSAGREE).length;
-  if (approvals >= Math.max(1, requiredApprovals)) {
-    return '审批通过';
-  }
-  return status;
+  return `已同意 ${summary.approvalCount}/${Math.max(1, summary.requiredApprovals)}`
 }
 
 function cvData(auditMyApply: AuditAuditDetail) {
-    if (auditMyApply === undefined || auditMyApply.meta === undefined || auditMyApply.meta.appOrServiceMetadata === undefined || auditMyApply.meta.applicant === undefined) {
-        return null
-    }
-    const rawData = JSON.parse(auditMyApply.meta.appOrServiceMetadata);
-    const did = auditMyApply.meta.applicant.split('::')[0]
+  if (
+    auditMyApply === undefined ||
+    auditMyApply.meta === undefined ||
+    auditMyApply.meta.appOrServiceMetadata === undefined ||
+    auditMyApply.meta.applicant === undefined
+  ) {
+    return null
+  }
+  const parsed = parseAuditTargetMetadata(auditMyApply.meta.appOrServiceMetadata)
+  if (!parsed) {
+    return null
+  }
+  const did = auditMyApply.meta.applicant.split('::')[0]
+  const latestComment = [...(auditMyApply.commentMeta || [])]
+    .sort((left, right) => toAuditTimestamp(right.createdAt) - toAuditTimestamp(left.createdAt))[0]
+  const auditType = String(auditMyApply.meta.auditType || parsed.operateType || '').trim()
+  const summary = auditMyApply.summary
 
-    const metadata: AuditDetailBox = {
-        uid: auditMyApply.meta.uid,
-        name: rawData.name,
-        desc: rawData.description,
-        serviceType: auditMyApply.meta.auditType,
-        applicantor: did,
-        state: resolveAuditState(auditMyApply.commentMeta, auditMyApply.meta.approver),
-        date: auditMyApply.meta.createdAt
-    };
-    return metadata
- 
+  const metadata: AuditDetailBox = {
+    uid: auditMyApply.meta.uid,
+    name: parsed.name || String(parsed.raw.name || ''),
+    desc: String(parsed.raw.description || ''),
+    serviceType: auditType === 'service' ? '服务' : auditType === 'application' ? '应用' : auditType,
+    auditType,
+    applicantor: did,
+    state: getAuditState(summary),
+    date: auditMyApply.meta.createdAt,
+    msg: latestComment?.text ? String(latestComment.text) : '',
+    progress: buildDecisionProgress(summary),
+    summary
+  }
+  return metadata
 }
 
 export function convertAuditMetadata(auditMyApply: AuditAuditDetail[]) {
-  return auditMyApply
-    .map(cvData)
-    .filter((item): item is AuditDetailBox => item !== null) // ✅ 过滤 null 并类型收窄
+  return auditMyApply.map(cvData).filter((item): item is AuditDetailBox => item !== null)
 }
 
-class $audit {
-
-    async create(meta: AuditAuditMetadata) {
-        if (localStorage.getItem("hasConnectedWallet") === "false") {
-            notifyError('❌未检测到钱包，请先安装并连接钱包');
-            return;
-        }
-        const token = await getAuthToken()
-        if (!token) {
-            notifyError('❌未获取到访问令牌');
-            return;
-        }
-        
-        const response = await fetch(apiUrl('/api/v1/public/audits'), {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                "authorization": `Bearer ${token}`,
-                'accept': 'application/json'
-            },
-            body: JSON.stringify(meta),
-        });
-        
-        if (!response.ok) {
-            throw new Error(`Failed to create post: ${response.status} error: ${await response.text()}`);
-        }
-
-        const r =  await response.json();
-        if (r.code !== 0) {
-            throw new Error(r.message || 'Create audit failed');
-        }
-        return r
-    }
-
-    async search(condition: AuditAuditSearchCondition) {
-        if (localStorage.getItem("hasConnectedWallet") === "false") {
-            notifyError('❌未检测到钱包，请先安装并连接钱包');
-            return;
-        }
-        const token = await getAuthToken()
-        if (!token) {
-            notifyError('❌未获取到访问令牌');
-            return;
-        }
-        console.log(`token=${token}`)
-        const body = {
-            condition: condition || {}
-        }
-        const response = await fetch(apiUrl('/api/v1/public/audits/search'), {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                "authorization": `Bearer ${token}`,
-                'accept': 'application/json'
-            },
-            body: JSON.stringify(body),
-        });
-        
-        if (!response.ok) {
-            throw new Error(`Failed to create post: ${response.status} error: ${await response.text()}`);
-        }
-
-        const r =  await response.json();
-        if (r.code !== 0) {
-            throw new Error(r.message || 'Search audits failed');
-        }
-        return r.data?.items || []
-    }
-
-    async passed(metadata: AuditCommentMetadata) {
-        if (localStorage.getItem("hasConnectedWallet") === "false") {
-            notifyError('❌未检测到钱包，请先安装并连接钱包');
-            return;
-        }
-        const token = await getAuthToken()
-        if (!token) {
-            notifyError('❌未获取到访问令牌');
-            return;
-        }
-        const response = await fetch(apiUrl(`/api/v1/admin/audits/${metadata.auditId}/approve`), {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                "authorization": `Bearer ${token}`,
-                'accept': 'application/json'
-            },
-            body: JSON.stringify({ text: metadata.text || '', signature: metadata.signature || '' }),
-        });
-        
-        if (!response.ok) {
-            throw new Error(`Failed to create post: ${response.status} error: ${await response.text()}`);
-        }
-
-        const r =  await response.json();
-        if (r.code !== 0) {
-            throw new Error(r.message || 'Approve failed');
-        }
-        return r.data
-    }
-
-    async reject(metadata: AuditCommentMetadata) {
-        if (localStorage.getItem("hasConnectedWallet") === "false") {
-            notifyError('❌未检测到钱包，请先安装并连接钱包');
-            return;
-        }
-        const token = await getAuthToken()
-        if (!token) {
-            notifyError('❌未获取到访问令牌');
-            return;
-        }
-        const response = await fetch(apiUrl(`/api/v1/admin/audits/${metadata.auditId}/reject`), {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                "authorization": `Bearer ${token}`,
-                'accept': 'application/json'
-            },
-            body: JSON.stringify({ text: metadata.text || '', signature: metadata.signature || '' }),
-        });
-        
-        if (!response.ok) {
-            throw new Error(`Failed to create post: ${response.status} error: ${await response.text()}`);
-        }
-
-        const r =  await response.json();
-        if (r.code !== 0) {
-            throw new Error(r.message || 'Reject failed');
-        }
-        return r.data
-    }
-
-    async detail(uid: string) {
-        if (localStorage.getItem("hasConnectedWallet") === "false") {
-            notifyError('❌未检测到钱包，请先安装并连接钱包');
-            return;
-        }
-        const token = await getAuthToken()
-        if (!token) {
-            notifyError('❌未获取到访问令牌');
-            return;
-        }
-        const response = await fetch(apiUrl(`/api/v1/public/audits/${uid}`), {
-            method: 'GET',
-            headers: {
-                'Content-Type': 'application/json',
-                "authorization": `Bearer ${token}`,
-                'accept': 'application/json'
-            },
-        });
-        
-        if (!response.ok) {
-            throw new Error(`Failed to create post: ${response.status} error: ${await response.text()}`);
-        }
-
-        const r =  await response.json();
-        if (r.code !== 0) {
-            throw new Error(r.message || 'Fetch audit failed');
-        }
-        return r.data
-    }
-
-    async cancel(uid: string) {
-        if (localStorage.getItem("hasConnectedWallet") === "false") {
-            notifyError('❌未检测到钱包，请先安装并连接钱包');
-            return;
-        }
-        const token = await getAuthToken()
-        if (!token) {
-            notifyError('❌未获取到访问令牌');
-            return;
-        }
-        const response = await fetch(apiUrl(`/api/v1/public/audits/${uid}`), {
-            method: 'DELETE',
-            headers: {
-                'Content-Type': 'application/json',
-                "authorization": `Bearer ${token}`,
-                'accept': 'application/json'
-            },
-        });
-        
-        if (!response.ok) {
-            throw new Error(`Failed to create post: ${response.status} error: ${await response.text()}`);
-        }
-
-        const r =  await response.json();
-        if (r.code !== 0) {
-            throw new Error(r.message || 'Cancel audit failed');
-        }
-        return r.data
-    }
-    
+function toAuditTimestamp(value?: string) {
+  const timestamp = value ? Date.parse(value) : 0
+  return Number.isFinite(timestamp) ? timestamp : 0
 }
 
-export default new $audit()
+export function parseAuditTargetMetadata(metadataRaw?: string): ParsedAuditTarget | null {
+  if (!metadataRaw) {
+    return null
+  }
+  try {
+    const parsed = JSON.parse(metadataRaw) as Record<string, unknown>
+    const operateType = String(parsed.operateType || '').trim()
+    const uid = parsed.uid ? String(parsed.uid).trim() : ''
+    const did = parsed.did ? String(parsed.did).trim() : ''
+    const versionRaw = parsed.version
+    const version = versionRaw !== undefined && versionRaw !== null ? Number(versionRaw) : undefined
+    const normalizedVersion = Number.isFinite(version) ? version : undefined
+    const name = parsed.name ? String(parsed.name).trim() : ''
+    const key =
+      uid ||
+      (did && normalizedVersion !== undefined ? `${did}:${normalizedVersion}` : '') ||
+      (operateType && name ? `${operateType}:${name}` : '')
+    return {
+      raw: parsed,
+      operateType,
+      uid: uid || undefined,
+      did: did || undefined,
+      version: normalizedVersion,
+      name: name || undefined,
+      owner: parsed.owner ? String(parsed.owner).trim() : undefined,
+      ownerName: parsed.ownerName ? String(parsed.ownerName).trim() : undefined,
+      key
+    }
+  } catch {
+    return null
+  }
+}
+
+export function isAuditForResource(
+  audit: AuditAuditDetail,
+  target: {
+    auditType?: string
+    uid?: string
+    did?: string
+    version?: number
+    name?: string
+    reason?: string
+  }
+) {
+  if (target.reason && audit.meta?.reason !== target.reason) {
+    return false
+  }
+  if (target.auditType && audit.meta?.auditType !== target.auditType) {
+    return false
+  }
+  const parsed = parseAuditTargetMetadata(audit.meta?.appOrServiceMetadata)
+  if (!parsed) {
+    return false
+  }
+  if (target.auditType && parsed.operateType && parsed.operateType !== target.auditType) {
+    return false
+  }
+  if (target.uid && parsed.uid) {
+    return target.uid === parsed.uid
+  }
+  if (target.did && target.version !== undefined && parsed.did && parsed.version !== undefined) {
+    return target.did === parsed.did && Number(target.version) === Number(parsed.version)
+  }
+  if (target.name && parsed.name) {
+    return target.name === parsed.name
+  }
+  return false
+}
+
+export function resolveUsageAuditStatus(audit?: AuditAuditDetail): AuditApplyStatus {
+  const state = getAuditState(audit?.summary)
+  if (state === '审批通过') {
+    return 'success'
+  }
+  if (state === '审批驳回') {
+    return 'reject'
+  }
+  return 'applying'
+}
+
+export function pickLatestAuditsByResource(
+  audits: AuditAuditDetail[],
+  input: { auditType: AuditTargetType; reason: string }
+) {
+  const latestByKey = new Map<string, AuditAuditDetail>()
+  for (const audit of audits) {
+    if (audit.meta?.auditType !== input.auditType || audit.meta?.reason !== input.reason) {
+      continue
+    }
+    const parsed = parseAuditTargetMetadata(audit.meta?.appOrServiceMetadata)
+    if (!parsed?.key) {
+      continue
+    }
+    const existing = latestByKey.get(parsed.key)
+    if (!existing || toAuditTimestamp(audit.meta?.createdAt) > toAuditTimestamp(existing.meta?.createdAt)) {
+      latestByKey.set(parsed.key, audit)
+    }
+  }
+  return Array.from(latestByKey.values()).sort(
+    (left, right) => toAuditTimestamp(right.meta?.createdAt) - toAuditTimestamp(left.meta?.createdAt)
+  )
+}
+
+function ensureWalletConnected() {
+  if (localStorage.getItem('hasConnectedWallet') === 'false') {
+    notifyError('❌未检测到钱包，请先安装并连接钱包')
+    return false
+  }
+  return true
+}
+
+async function requireReadToken() {
+  if (!ensureWalletConnected()) {
+    return null
+  }
+  const token = await getAuthToken()
+  if (!token) {
+    notifyError('❌未获取到访问令牌')
+    return null
+  }
+  return token
+}
+
+async function requireWriteSession() {
+  const token = await requireReadToken()
+  if (!token) {
+    return null
+  }
+  const account = getCurrentAccount()
+  if (!account) {
+    notifyError('❌未查询到当前账户，请登录')
+    return null
+  }
+  return { token, actor: normalizeAddress(account) }
+}
+
+async function parseEnvelope<T>(response: Response, fallbackMessage: string): Promise<T> {
+  if (!response.ok) {
+    throw new Error(`${fallbackMessage}: ${response.status} error: ${await response.text()}`)
+  }
+  const result = await response.json()
+  if (result.code !== 0) {
+    throw new Error(result.message || fallbackMessage)
+  }
+  return result.data as T
+}
+
+function normalizeMetadataString(metadata: unknown): string {
+  if (typeof metadata === 'string') {
+    return metadata
+  }
+  if (metadata && typeof metadata === 'object') {
+    return JSON.stringify(metadata)
+  }
+  throw new Error('Invalid audit metadata')
+}
+
+function buildAuditSubmitPayload(meta: AuditAuditMetadata, metadataJson: string) {
+  let parsed: Record<string, unknown>
+  try {
+    parsed = JSON.parse(metadataJson) as Record<string, unknown>
+  } catch {
+    throw new Error('Invalid audit metadata')
+  }
+  const targetType = String(parsed.operateType || meta.auditType || '').trim()
+  const targetDid = String(parsed.did || '').trim()
+  const targetVersion = Number(parsed.version)
+  if (!targetType || !targetDid || !Number.isFinite(targetVersion)) {
+    throw new Error('Missing audit target fields')
+  }
+  return {
+    auditType: String(meta.auditType || ''),
+    targetType,
+    targetDid,
+    targetVersion,
+    applicant: String(meta.applicant || ''),
+    approver: String(meta.approver || ''),
+    reason: String(meta.reason || ''),
+    appOrServiceMetadata: metadataJson
+  }
+}
+
+class AuditClient {
+  async create(meta: AuditAuditMetadata) {
+    const session = await requireWriteSession()
+    if (!session) {
+      return
+    }
+    const metadataJson = normalizeMetadataString(meta.appOrServiceMetadata)
+    const applicant = String(meta.applicant || `${session.actor}::${session.actor}`)
+    const body = {
+      ...(meta.uid ? { uid: meta.uid } : {}),
+      appOrServiceMetadata: metadataJson,
+      auditType: String(meta.auditType || ''),
+      applicant,
+      approver: String(meta.approver || ''),
+      reason: String(meta.reason || '')
+    }
+    const signedBody = await createSignedActionBody({
+      action: 'audit_submit',
+      actor: session.actor,
+      payload: buildAuditSubmitPayload({ ...meta, applicant }, metadataJson),
+      body,
+      sign: signWithWallet
+    })
+    const response = await fetch(apiUrl('/api/v1/public/audits'), {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        authorization: `Bearer ${session.token}`,
+        accept: 'application/json'
+      },
+      body: JSON.stringify(signedBody)
+    })
+    return parseEnvelope<AuditAuditDetail>(response, 'Create audit failed')
+  }
+
+  async submitPublishRequest(input: { auditType: AuditTargetType; resource: Record<string, unknown> }) {
+    const account = getCurrentAccount()
+    if (!account) {
+      notifyError('❌未查询到当前账户，请登录')
+      return
+    }
+    const actor = normalizeAddress(account)
+    return this.create({
+      auditType: input.auditType,
+      applicant: `${actor}::${actor}`,
+      reason: '上架申请',
+      appOrServiceMetadata: JSON.stringify({
+        ...input.resource,
+        operateType: input.auditType
+      })
+    })
+  }
+
+  async submitUsageRequest(input: {
+    auditType: AuditTargetType
+    resource: Record<string, unknown>
+    approver: string
+  }) {
+    const account = getCurrentAccount()
+    if (!account) {
+      notifyError('❌未查询到当前账户，请登录')
+      return
+    }
+    const actor = normalizeAddress(account)
+    return this.create({
+      auditType: input.auditType,
+      applicant: `${actor}::${actor}`,
+      approver: input.approver,
+      reason: '申请使用',
+      appOrServiceMetadata: JSON.stringify({
+        ...input.resource,
+        operateType: input.auditType
+      })
+    })
+  }
+
+  async search(condition: AuditAuditSearchCondition) {
+    const result = await this.searchPage({ condition })
+    return result?.items || []
+  }
+
+  async searchPage(input: {
+    condition?: AuditAuditSearchCondition
+    page?: number
+    pageSize?: number
+  }) {
+    const token = await requireReadToken()
+    if (!token) {
+      return
+    }
+    const response = await fetch(apiUrl('/api/v1/public/audits/search'), {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        authorization: `Bearer ${token}`,
+        accept: 'application/json'
+      },
+      body: JSON.stringify({
+        condition: input.condition || {},
+        page: input.page,
+        pageSize: input.pageSize
+      })
+    })
+    const data = await parseEnvelope<{
+      items?: AuditAuditDetail[]
+      page?: AuditSearchPage
+    }>(response, 'Search audits failed')
+    return {
+      items: data.items || [],
+      page: data.page || {
+        total: 0,
+        page: input.page || 1,
+        pageSize: input.pageSize || 10
+      }
+    } satisfies AuditSearchResult
+  }
+
+  private async submitDecision(
+    decision: 'approve' | 'reject',
+    metadata: AuditCommentMetadata
+  ) {
+    const session = await requireWriteSession()
+    if (!session) {
+      return
+    }
+    const auditId = String(metadata.auditId || '').trim()
+    if (!auditId) {
+      throw new Error('Missing audit id')
+    }
+    const body = {
+      ...(metadata.uid ? { uid: metadata.uid } : {}),
+      text: metadata.text || ''
+    }
+    const signedBody = await createSignedActionBody({
+      action: 'audit_decision',
+      actor: session.actor,
+      payload: {
+        auditId,
+        decision,
+        approver: session.actor,
+        text: String(metadata.text || '')
+      },
+      body,
+      sign: signWithWallet
+    })
+    const response = await fetch(
+      apiUrl(`/api/v1/admin/audits/${auditId}/${decision === 'approve' ? 'approve' : 'reject'}`),
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          authorization: `Bearer ${session.token}`,
+          accept: 'application/json'
+        },
+        body: JSON.stringify(signedBody)
+      }
+    )
+    return parseEnvelope<AuditCommentMetadata>(
+      response,
+      decision === 'approve' ? 'Approve failed' : 'Reject failed'
+    )
+  }
+
+  async passed(metadata: AuditCommentMetadata) {
+    return this.submitDecision('approve', metadata)
+  }
+
+  async reject(metadata: AuditCommentMetadata) {
+    return this.submitDecision('reject', metadata)
+  }
+
+  async detail(uid: string) {
+    const token = await requireReadToken()
+    if (!token) {
+      return
+    }
+    const response = await fetch(apiUrl(`/api/v1/public/audits/${uid}`), {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+        authorization: `Bearer ${token}`,
+        accept: 'application/json'
+      }
+    })
+    return parseEnvelope<AuditAuditDetail>(response, 'Fetch audit failed')
+  }
+
+  async cancel(uid: string) {
+    const session = await requireWriteSession()
+    if (!session) {
+      return
+    }
+    const signedBody = await createSignedActionBody({
+      action: 'audit_cancel',
+      actor: session.actor,
+      payload: {
+        auditId: uid
+      },
+      body: {},
+      sign: signWithWallet
+    })
+    const response = await fetch(apiUrl(`/api/v1/public/audits/${uid}`), {
+      method: 'DELETE',
+      headers: {
+        'Content-Type': 'application/json',
+        authorization: `Bearer ${session.token}`,
+        accept: 'application/json'
+      },
+      body: JSON.stringify(signedBody)
+    })
+    return parseEnvelope<{ uid?: string }>(response, 'Cancel audit failed')
+  }
+}
+
+export default new AuditClient()

@@ -53,8 +53,10 @@
 </template>
 
 <script lang="ts" setup>
-import { userInfo } from '@/plugins/account'
-import $audit, { AuditAuditMetadata } from '@/plugins/audit'
+import $audit, {
+  isAuditForResource,
+  resolveUsageAuditStatus
+} from '@/plugins/audit'
 import $application from '@/plugins/application'
 import $service from '@/plugins/service'
 import ResultChooseModal from './ResultChooseModal.vue'
@@ -62,20 +64,17 @@ import { ref, reactive } from 'vue'
 import { useRouter } from 'vue-router'
 import { SuccessFilled } from '@element-plus/icons-vue'
 import { notifyError } from '@/utils/message'
-import { v4 as uuidv4 } from 'uuid';
-import { generateUuid, getCurrentUtcString } from '@/utils/common'
-import { ElMessageBox } from 'element-plus'
 import { getCurrentAccount } from '@/plugins/auth'
+import { normalizeAddress } from '@/utils/actionSignature'
 
-const mainMsg = ref<string>()
 const innerVisible = ref(false)
 const formRef = ref(null)
 const form = reactive({
   reason: '',
 })
 const router = useRouter()
-
-const emits = defineEmits(['update:dialogVisible'])
+const submittedAuditId = ref('')
+const submittedResourceUid = ref('')
 
 const rules = reactive({
   reason: [{ required: true, message: '请输入申请原因', trigger: 'blur' }],
@@ -110,75 +109,58 @@ const submitForm = () => {
               notifyError("应用不存在")
               return
           }
-
-          const r = await $application.myApplyList(account)
-          const names: string[] = r.map((d) => d.name)
-          if (names.includes(detailRst.name)) {
-            notifyError("❌申请使用已经提交，请勿重复操作")
-            return
-          }
         } else if (props.operateType === `service`) {
           detailRst = await $service.detail(props.detail?.did, props.detail?.version)
           if (detailRst === undefined || detailRst === null) {
               notifyError("❌服务不存在")
               return
           }
-
-          const r = await $service.myApplyList(account)
-          const names: string[] = r.map((d) => d.name)
-          if (names.includes(detailRst.name)) {
+        }
+        const applicant = `${normalizeAddress(account)}::${normalizeAddress(account)}`
+        const audits = await $audit.search({ applicant })
+        const latestAudit = Array.isArray(audits)
+          ? audits
+              .filter((audit) =>
+                isAuditForResource(audit, {
+                  auditType: props.operateType as 'application' | 'service',
+                  reason: '申请使用',
+                  uid: detailRst.uid,
+                  did: detailRst.did,
+                  version: detailRst.version,
+                  name: detailRst.name
+                })
+              )
+              .sort((left, right) => {
+                const leftTime = left.meta?.createdAt ? Date.parse(left.meta.createdAt) : 0
+                const rightTime = right.meta?.createdAt ? Date.parse(right.meta.createdAt) : 0
+                return rightTime - leftTime
+              })[0]
+          : undefined
+        if (latestAudit) {
+          const latestStatus = resolveUsageAuditStatus(latestAudit)
+          if (latestStatus === 'applying' || latestStatus === 'success') {
             notifyError("❌申请使用已经提交，请勿重复操作")
             return
           }
         }
-        const applicant = `${account}::${account}`
-        const approver = `${props.detail?.owner}::${props.detail?.ownerName}`
-        const auditUid = generateUuid()
         detailRst.operateType = props.operateType
-        const meta: AuditAuditMetadata = {
-            uid: auditUid,
-            appOrServiceMetadata: JSON.stringify(detailRst),
-            auditType: '',
-            applicant: applicant, // 申请人身份，did::name
-            approver: approver,
-            reason: '申请使用',
-            createdAt: getCurrentUtcString(),
-            updatedAt: getCurrentUtcString(),
-            signature: 'xxx'
+        const approverActor = normalizeAddress(String(props.detail?.owner || ''))
+        if (!approverActor) {
+          notifyError('❌缺少审批人')
+          return
         }
-        if (props.operateType === `application`) {
-          meta.auditType = 'application'
-        } else if (props.operateType === `service`) {
-          meta.auditType = 'service'
+        const auditR = await $audit.submitUsageRequest({
+          auditType: props.operateType as 'application' | 'service',
+          resource: detailRst as Record<string, unknown>,
+          approver: `${approverActor}::${String(props.detail?.ownerName || approverActor)}`
+        })
+        if (!auditR?.meta?.uid) {
+          return
         }
-        const auditR = await $audit.create(meta)
-        props.closeClick()
-        try {
-          const rs = await $audit.detail(auditUid)
-          const appOrService = JSON.parse(rs.meta.appOrServiceMetadata)
-          if (props.operateType === `application`) {
-            const detailRstApp = await $application.detail(appOrService.did, appOrService.version)
-            if (detailRstApp === undefined || detailRstApp === null) {
-                notifyError("❌应用不存在")
-                return
-            }
-            detailRstApp.applyOwner = account
-            detailRstApp.uid = uuidv4()
-            const r = await $application.myApplyCreate(detailRstApp)
-          } else if (props.operateType === `service`) {
-            const detailRstService = await $service.detail(appOrService.did, appOrService.version)
-            if (detailRstService === undefined || detailRstService === null) {
-                notifyError("❌服务不存在")
-                return
-            }
-            detailRstService.applyOwner = account
-            detailRstService.uid = uuidv4()
-            const r = await $service.myApplyCreate(detailRstService)
-            innerVisible.value = true
-          }
-        } catch (e) {
-            notifyError(`❌创建申请的应用/服务异常，error=${e}`)
-        }
+        submittedAuditId.value = auditR.meta.uid || ''
+        submittedResourceUid.value = String(detailRst.uid || props.detail?.uid || '')
+        props.closeClick?.()
+        innerVisible.value = true
     } else {
       notifyError('❌请先填写申请原因')
     }
@@ -187,10 +169,11 @@ const submitForm = () => {
 
 const toDetail = () => {
   router.push({
-    path: '/market/apply-detail',
+    path: props.operateType === 'service' ? '/market/service-detail' : '/market/apply-detail',
     query: {
-      did: props.detail?.did,
-      version: props.detail?.version,
+      uid: submittedResourceUid.value || props.detail?.uid,
+      pageFrom: 'myApply',
+      auditId: submittedAuditId.value || props.detail?.applyAuditId,
     },
   })
 }

@@ -1,9 +1,9 @@
 import { Express, Request, Response } from 'express'
-import { v4 as uuidv4 } from 'uuid'
+import { executeSignedAction, getActionSignatureErrorStatus } from '../../auth/actionSignature'
 import { ok, fail } from '../../auth/envelope'
 import { verifyUcanInvocationWithCap } from '../../auth/ucan'
 import { getRequestUser } from '../../common/requestContext'
-import { ensureUserActive } from '../../common/permission'
+import { ensureUserActive, ensureUserCanWriteBusinessData } from '../../common/permission'
 import { getConfig } from '../../config/runtime'
 import { MpcRuntimeConfig, RedisRuntimeConfig } from '../../config'
 import { MpcService } from '../../domain/service/mpc'
@@ -65,6 +65,10 @@ function requireMpcUcan(req: Request) {
 
 function mapMpcError(error: unknown): { status: number; message: string } {
   const raw = error instanceof Error ? error.message : 'MPC request failed'
+  const signatureStatus = getActionSignatureErrorStatus(raw)
+  if (signatureStatus !== undefined) {
+    return { status: signatureStatus, message: raw }
+  }
   switch (raw) {
     case 'SESSION_NOT_FOUND':
       return { status: 404, message: 'Session not found' }
@@ -92,6 +96,10 @@ function mapMpcError(error: unknown): { status: number; message: string } {
       return { status: 400, message: 'Threshold exceeds participant count' }
     case 'Missing access token':
       return { status: 401, message: 'Missing access token' }
+    case 'USER_BLOCKED':
+      return { status: 403, message: 'User blocked' }
+    case 'USER_ROLE_DENIED':
+      return { status: 403, message: 'User role denied' }
     case 'UCAN capability denied':
       return { status: 403, message: 'UCAN capability denied' }
     case 'UCAN audience mismatch':
@@ -117,6 +125,7 @@ export function registerPublicMpcRoutes(app: Express) {
       }
       requireMpcUcan(req)
       await ensureUserActive(user.address)
+      await ensureUserCanWriteBusinessData(user.address)
       const body = req.body || {}
       const type = String(body.type || '').trim()
       const walletId = String(body.walletId || '').trim()
@@ -125,21 +134,44 @@ export function registerPublicMpcRoutes(app: Express) {
       const curve = String(body.curve || '').trim()
       const expiresAt = body.expiresAt !== undefined ? String(body.expiresAt) : ''
       const sessionId = body.id || body.sessionId || ''
-      const session = await service.createSession(
-        {
-          id: sessionId ? String(sessionId) : undefined,
+      const result = await executeSignedAction({
+        raw: body,
+        action: 'mpc_session_create',
+        actor: user.address,
+        payload: {
+          requestedSessionId: sessionId ? String(sessionId) : '',
           type,
           walletId,
           threshold,
           participants,
-          curve: curve || undefined,
-          expiresAt: expiresAt || undefined,
+          curve: curve || '',
+          expiresAt: expiresAt || '',
           keyVersion: parseNumber(body.keyVersion),
-          shareVersion: parseNumber(body.shareVersion)
+          shareVersion: parseNumber(body.shareVersion),
         },
-        user.address
-      )
-      res.json(ok(session))
+        execute: async () => {
+          const session = await service.createSession(
+            {
+              id: sessionId ? String(sessionId) : undefined,
+              type,
+              walletId,
+              threshold,
+              participants,
+              curve: curve || undefined,
+              expiresAt: expiresAt || undefined,
+              keyVersion: parseNumber(body.keyVersion),
+              shareVersion: parseNumber(body.shareVersion)
+            },
+            user.address
+          )
+          return { status: 200, body: ok(session) }
+        },
+        onError: (error) => {
+          const mapped = mapMpcError(error)
+          return { status: mapped.status, body: fail(mapped.status, mapped.message) }
+        }
+      })
+      res.status(result.status).json(result.body)
     } catch (error) {
       const mapped = mapMpcError(error)
       res.status(mapped.status).json(fail(mapped.status, mapped.message))
@@ -155,6 +187,7 @@ export function registerPublicMpcRoutes(app: Express) {
       }
       requireMpcUcan(req)
       await ensureUserActive(user.address)
+      await ensureUserCanWriteBusinessData(user.address)
       const body = req.body || {}
       const sessionId = req.params.sessionId
       const participantId = String(body.participantId || '').trim()
@@ -167,19 +200,38 @@ export function registerPublicMpcRoutes(app: Express) {
         res.status(400).json(fail(400, 'Missing participant info'))
         return
       }
-
-      const result = await service.joinSession(
-        sessionId,
-        {
+      const result = await executeSignedAction({
+        raw: body,
+        action: 'mpc_session_join',
+        actor: user.address,
+        payload: {
+          sessionId,
           participantId,
           deviceId,
           identity,
           e2ePublicKey,
-          signingPublicKey: signingPublicKey || undefined
+          signingPublicKey: signingPublicKey || ''
         },
-        user.address
-      )
-      res.json(ok(result))
+        execute: async () => {
+          const joined = await service.joinSession(
+            sessionId,
+            {
+              participantId,
+              deviceId,
+              identity,
+              e2ePublicKey,
+              signingPublicKey: signingPublicKey || undefined
+            },
+            user.address
+          )
+          return { status: 200, body: ok(joined) }
+        },
+        onError: (error) => {
+          const mapped = mapMpcError(error)
+          return { status: mapped.status, body: fail(mapped.status, mapped.message) }
+        }
+      })
+      res.status(result.status).json(result.body)
     } catch (error) {
       const mapped = mapMpcError(error)
       res.status(mapped.status).json(fail(mapped.status, mapped.message))
@@ -195,29 +247,65 @@ export function registerPublicMpcRoutes(app: Express) {
       }
       requireMpcUcan(req)
       await ensureUserActive(user.address)
+      await ensureUserCanWriteBusinessData(user.address)
       const sessionId = req.params.sessionId
       const payload = req.body?.message ?? req.body ?? {}
-      const messageId = String(payload.id || uuidv4())
+      const rawSignature =
+        req.body?.message && typeof req.body.message === 'object'
+          ? {
+              ...(req.body.message as Record<string, unknown>),
+              requestId: req.body?.requestId ?? (req.body.message as Record<string, unknown>).requestId,
+              timestamp: req.body?.timestamp ?? (req.body.message as Record<string, unknown>).timestamp,
+              signature: req.body?.signature ?? (req.body.message as Record<string, unknown>).signature
+            }
+          : (req.body || {})
+      const messageId = String(payload.id || '').trim()
       const sender = String(payload.from || '').trim()
       const messageType = String(payload.type || '').trim()
+      if (!messageId) {
+        res.status(400).json(fail(400, 'Missing message id'))
+        return
+      }
       if (!sender || !messageType) {
         res.status(400).json(fail(400, 'Missing message sender or type'))
         return
       }
-      const response = await service.sendMessage(
-        sessionId,
-        {
-          id: messageId,
+      const result = await executeSignedAction({
+        raw: rawSignature,
+        action: 'mpc_message_send',
+        actor: user.address,
+        payload: {
+          sessionId,
+          messageId,
           from: sender,
-          to: payload.to ? String(payload.to) : undefined,
+          to: payload.to ? String(payload.to) : '',
           round: parseNumber(payload.round),
           type: messageType,
           seq: parseNumber(payload.seq),
           envelope: payload.envelope ?? {}
         },
-        user.address
-      )
-      res.json(ok(response))
+        execute: async () => {
+          const response = await service.sendMessage(
+            sessionId,
+            {
+              id: messageId,
+              from: sender,
+              to: payload.to ? String(payload.to) : undefined,
+              round: parseNumber(payload.round),
+              type: messageType,
+              seq: parseNumber(payload.seq),
+              envelope: payload.envelope ?? {}
+            },
+            user.address
+          )
+          return { status: 200, body: ok(response) }
+        },
+        onError: (error) => {
+          const mapped = mapMpcError(error)
+          return { status: mapped.status, body: fail(mapped.status, mapped.message) }
+        }
+      })
+      res.status(result.status).json(result.body)
     } catch (error) {
       const mapped = mapMpcError(error)
       res.status(mapped.status).json(fail(mapped.status, mapped.message))

@@ -8,7 +8,7 @@
 - **鉴权中间件**: 校验 `Authorization: Bearer <JWT|UCAN>`。
 - **SIWE 认证路由**: `POST /api/v1/public/auth/*` 颁发 JWT（access + refresh）。
 - **UCAN 校验**: 校验 `aud`、`cap`、`exp` 及证明链。
-- **HTTP 路由**: `src/routes/*` 按 `public/admin/internal` 分组。
+- **HTTP 路由**: `src/routes/*` 按 `public/admin` 分组。
 - **数据库**: TypeORM 实体，存储应用、服务、审核、用户等核心数据。
 - **存储（前端直连）**: 文件上传由前端通过 WebDAV 处理，后端不再代理。
 

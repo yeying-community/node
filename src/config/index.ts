@@ -24,6 +24,14 @@ export interface AuthRuntimeConfig {
     refreshCookieName?: string
 }
 
+export interface IdempotencyRuntimeConfig {
+    responseRetentionDays?: number
+    successRetentionDays?: number
+    failureRetentionDays?: number
+    pendingTimeoutMs?: number
+    cleanupIntervalMs?: number
+}
+
 export interface UcanRuntimeConfig {
     aud: string
     with?: string
