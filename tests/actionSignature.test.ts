@@ -1,20 +1,22 @@
 import { Wallet } from 'ethers'
-import {
+import { mockClass } from './support/mockClass'
+
+const mockBegin = vi.fn()
+const mockComplete = vi.fn()
+
+vi.doMock('../src/domain/service/actionRequest', () => ({
+  ActionRequestService: mockClass(() => ({
+    begin: mockBegin,
+    complete: mockComplete
+  })),
+}))
+
+const {
   buildActionSignatureMessage,
   executeSignedAction,
   getActionSignatureErrorStatus
-} from '../src/auth/actionSignature'
-import { fail, ok } from '../src/auth/envelope'
-
-const mockBegin = jest.fn()
-const mockComplete = jest.fn()
-
-jest.mock('../src/domain/service/actionRequest', () => ({
-  ActionRequestService: jest.fn().mockImplementation(() => ({
-    begin: mockBegin,
-    complete: mockComplete
-  }))
-}))
+} = await import('../src/auth/actionSignature')
+const { fail, ok } = await import('../src/auth/envelope')
 
 function mapSignedActionError(error: unknown) {
   const message = error instanceof Error ? error.message : 'unknown'
@@ -71,7 +73,7 @@ describe('executeSignedAction', () => {
     mockBegin.mockResolvedValue({ kind: 'new' })
     mockComplete.mockResolvedValue(undefined)
 
-    const execute = jest.fn().mockResolvedValue({
+    const execute = vi.fn().mockResolvedValue({
       status: 200,
       body: ok({ published: true })
     })
@@ -122,7 +124,7 @@ describe('executeSignedAction', () => {
       responseBody: JSON.stringify(cachedBody)
     })
 
-    const execute = jest.fn()
+    const execute = vi.fn()
 
     const result = await executeSignedAction({
       raw,
@@ -151,7 +153,7 @@ describe('executeSignedAction', () => {
 
     mockBegin.mockRejectedValue(new Error('Request replay payload mismatch'))
 
-    const execute = jest.fn()
+    const execute = vi.fn()
 
     const result = await executeSignedAction({
       raw,
@@ -186,7 +188,7 @@ describe('executeSignedAction', () => {
 
     mockBegin.mockRejectedValue(new Error('Request in progress'))
 
-    const execute = jest.fn()
+    const execute = vi.fn()
 
     const result = await executeSignedAction({
       raw,

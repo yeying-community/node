@@ -1,16 +1,14 @@
 import express, { Express } from 'express'
 import { AddressInfo } from 'net'
 import { Wallet } from 'ethers'
-import { buildActionSignatureMessage } from '../src/auth/actionSignature'
 import { runWithRequestContext } from '../src/common/requestContext'
-
-jest.setTimeout(30000)
+import { mockClass } from './support/mockClass'
 
 const applicationStore = new Map<string, any>()
 const applicationConfigStore = new Map<string, any>()
-const saveApplicationMock = jest.fn()
-const deleteApplicationMock = jest.fn()
-const upsertApplicationConfigMock = jest.fn()
+const saveApplicationMock = vi.fn()
+const deleteApplicationMock = vi.fn()
+const upsertApplicationConfigMock = vi.fn()
 
 const requestReplayStore = new Map<
   string,
@@ -23,14 +21,14 @@ const requestReplayStore = new Map<
   }
 >()
 
-jest.mock('../src/common/permission', () => ({
-  ensureUserActive: jest.fn().mockResolvedValue({}),
-  ensureUserCanWriteBusinessData: jest.fn().mockResolvedValue({}),
-  isAdminUser: jest.fn().mockResolvedValue(false),
+vi.doMock('../src/common/permission', () => ({
+  ensureUserActive: vi.fn().mockResolvedValue({}),
+  ensureUserCanWriteBusinessData: vi.fn().mockResolvedValue({}),
+  isAdminUser: vi.fn().mockResolvedValue(false),
 }))
 
-jest.mock('../src/domain/service/application', () => ({
-  ApplicationService: jest.fn().mockImplementation(() => ({
+vi.doMock('../src/domain/service/application', () => ({
+  ApplicationService: mockClass(() => ({
     queryByUid: async (uid: string) => applicationStore.get(`uid:${uid}`) || null,
     query: async (did: string, version: number) => applicationStore.get(`did:${did}:${version}`) || null,
     save: async (application: any) => {
@@ -51,8 +49,8 @@ jest.mock('../src/domain/service/application', () => ({
   })),
 }))
 
-jest.mock('../src/domain/service/applicationConfig', () => ({
-  ApplicationConfigService: jest.fn().mockImplementation(() => ({
+vi.doMock('../src/domain/service/applicationConfig', () => ({
+  ApplicationConfigService: mockClass(() => ({
     getByApplicationAndApplicant: async (applicationUid: string, applicant: string) =>
       applicationConfigStore.get(`${applicationUid}:${applicant}`) || null,
     upsert: async (config: any) => {
@@ -64,8 +62,8 @@ jest.mock('../src/domain/service/applicationConfig', () => ({
   })),
 }))
 
-jest.mock('../src/domain/service/actionRequest', () => ({
-  ActionRequestService: jest.fn().mockImplementation(() => ({
+vi.doMock('../src/domain/service/actionRequest', () => ({
+  ActionRequestService: mockClass(() => ({
     begin: async (input: any) => {
       const key = `${input.actor}:${input.requestId}`
       const existing = requestReplayStore.get(key)
@@ -107,6 +105,9 @@ jest.mock('../src/domain/service/actionRequest', () => ({
   })),
 }))
 
+const { buildActionSignatureMessage } = await import('../src/auth/actionSignature')
+const { registerPublicApplicationRoutes } = await import('../src/routes/public/applications')
+
 function createTestApp(address: string) {
   const app = express()
   app.use(express.json())
@@ -119,7 +120,6 @@ function createTestApp(address: string) {
       next
     )
   })
-  const { registerPublicApplicationRoutes } = require('../src/routes/public/applications') as typeof import('../src/routes/public/applications')
   registerPublicApplicationRoutes(app)
   return app
 }

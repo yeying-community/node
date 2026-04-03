@@ -1,5 +1,5 @@
 export interface DatabaseConfig {
-    type: 'sqlite' | 'mysql' | 'postgres'
+    type: 'sqlite' | 'better-sqlite3' | 'mysql' | 'postgres'
     database: string
     username?: string
     password?: string

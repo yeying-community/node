@@ -1,15 +1,13 @@
 import express, { Express } from 'express'
 import { AddressInfo } from 'net'
 import { Wallet } from 'ethers'
-import { buildActionSignatureMessage } from '../src/auth/actionSignature'
 import { runWithRequestContext } from '../src/common/requestContext'
+import { mockClass } from './support/mockClass'
 import {
   USER_ROLE_OWNER,
   USER_STATUS_ACTIVE,
   USER_STATUS_DISABLE
 } from '../src/domain/model/user'
-
-jest.setTimeout(30000)
 
 const serviceStore = new Map<string, any>()
 const auditStore = new Map<string, any>()
@@ -21,18 +19,18 @@ const serviceConfigStore = new Map<string, any>()
 const approvedServiceAuditStore = new Map<string, any[]>()
 const auditCommentStore = new Map<string, any[]>()
 
-const saveServiceMock = jest.fn()
-const deleteServiceMock = jest.fn()
-const updateServicePublishStateMock = jest.fn()
-const createAuditMock = jest.fn()
-const approveAuditMock = jest.fn()
-const cancelAuditMock = jest.fn()
-const queryAuditMock = jest.fn()
-const saveUserStateMock = jest.fn()
-const createMpcSessionMock = jest.fn()
-const joinMpcSessionMock = jest.fn()
-const sendMpcMessageMock = jest.fn()
-const upsertServiceConfigMock = jest.fn()
+const saveServiceMock = vi.fn()
+const deleteServiceMock = vi.fn()
+const updateServicePublishStateMock = vi.fn()
+const createAuditMock = vi.fn()
+const approveAuditMock = vi.fn()
+const cancelAuditMock = vi.fn()
+const queryAuditMock = vi.fn()
+const saveUserStateMock = vi.fn()
+const createMpcSessionMock = vi.fn()
+const joinMpcSessionMock = vi.fn()
+const sendMpcMessageMock = vi.fn()
+const upsertServiceConfigMock = vi.fn()
 let auditSearchResult: { data: any[]; page: { total: number; page: number; pageSize: number } } = {
   data: [],
   page: {
@@ -53,14 +51,14 @@ const requestReplayStore = new Map<
   }
 >()
 
-jest.mock('../src/common/permission', () => ({
-  ensureUserActive: jest.fn().mockResolvedValue({}),
-  ensureUserCanWriteBusinessData: jest.fn().mockResolvedValue({}),
-  isAdminUser: jest.fn().mockResolvedValue(false),
+vi.doMock('../src/common/permission', () => ({
+  ensureUserActive: vi.fn().mockResolvedValue({}),
+  ensureUserCanWriteBusinessData: vi.fn().mockResolvedValue({}),
+  isAdminUser: vi.fn().mockResolvedValue(false),
 }))
 
-jest.mock('../src/domain/service/actionRequest', () => ({
-  ActionRequestService: jest.fn().mockImplementation(() => ({
+vi.doMock('../src/domain/service/actionRequest', () => ({
+  ActionRequestService: mockClass(() => ({
     begin: async (input: any) => {
       const key = `${input.actor}:${input.requestId}`
       const existing = requestReplayStore.get(key)
@@ -102,8 +100,8 @@ jest.mock('../src/domain/service/actionRequest', () => ({
   })),
 }))
 
-jest.mock('../src/domain/service/service', () => ({
-  ServiceService: jest.fn().mockImplementation(() => ({
+vi.doMock('../src/domain/service/service', () => ({
+  ServiceService: mockClass(() => ({
     getByUid: async (uid: string) => serviceStore.get(`uid:${uid}`) || null,
     get: async (did: string, version: number) => serviceStore.get(`did:${did}:${version}`) || null,
     save: async (service: any) => {
@@ -124,8 +122,8 @@ jest.mock('../src/domain/service/service', () => ({
   })),
 }))
 
-jest.mock('../src/domain/service/serviceConfig', () => ({
-  ServiceConfigService: jest.fn().mockImplementation(() => ({
+vi.doMock('../src/domain/service/serviceConfig', () => ({
+  ServiceConfigService: mockClass(() => ({
     getByServiceAndApplicant: async (serviceUid: string, applicant: string) =>
       serviceConfigStore.get(`${serviceUid}:${applicant}`) || null,
     upsert: async (config: any) => {
@@ -137,8 +135,8 @@ jest.mock('../src/domain/service/serviceConfig', () => ({
   })),
 }))
 
-jest.mock('../src/domain/manager/service', () => ({
-  ServiceManager: jest.fn().mockImplementation(() => ({
+vi.doMock('../src/domain/manager/service', () => ({
+  ServiceManager: mockClass(() => ({
     updatePublishState: async (did: string, version: number, status: string, isOnline: boolean) => {
       updateServicePublishStateMock(did, version, status, isOnline)
       const existing = serviceStore.get(`did:${did}:${version}`) || null
@@ -157,21 +155,21 @@ jest.mock('../src/domain/manager/service', () => ({
   })),
 }))
 
-jest.mock('../src/domain/manager/audit', () => ({
-  AuditManager: jest.fn().mockImplementation(() => ({
+vi.doMock('../src/domain/manager/audit', () => ({
+  AuditManager: mockClass(() => ({
     queryByTarget: async (_type: string, did: string, version: number) =>
       approvedServiceAuditStore.get(`${did}:${version}`) || [],
   })),
 }))
 
-jest.mock('../src/domain/manager/comments', () => ({
-  CommentManager: jest.fn().mockImplementation(() => ({
+vi.doMock('../src/domain/manager/comments', () => ({
+  CommentManager: mockClass(() => ({
     queryByAuditId: async (uid: string) => auditCommentStore.get(uid) || [],
   })),
 }))
 
-jest.mock('../src/domain/service/audit', () => ({
-  AuditService: jest.fn().mockImplementation(() => ({
+vi.doMock('../src/domain/service/audit', () => ({
+  AuditService: mockClass(() => ({
     create: async (meta: any) => {
       createAuditMock(meta)
       const created = { ...meta }
@@ -208,8 +206,8 @@ jest.mock('../src/domain/service/audit', () => ({
   })),
 }))
 
-jest.mock('../src/domain/service/user', () => ({
-  UserService: jest.fn().mockImplementation(() => ({
+vi.doMock('../src/domain/service/user', () => ({
+  UserService: mockClass(() => ({
     getUser: async () => null,
     getState: async (did: string) => userStateStore.get(did) || null,
     listUsers: async () => ({ users: [], total: 0 }),
@@ -222,8 +220,8 @@ jest.mock('../src/domain/service/user', () => ({
   })),
 }))
 
-jest.mock('../src/domain/service/mpc', () => ({
-  MpcService: jest.fn().mockImplementation(() => ({
+vi.doMock('../src/domain/service/mpc', () => ({
+  MpcService: mockClass(() => ({
     createSession: async (input: any, actor: string) => {
       createMpcSessionMock(input, actor)
       const session = {
@@ -311,6 +309,13 @@ jest.mock('../src/domain/service/mpc', () => ({
   })),
 }))
 
+const { buildActionSignatureMessage } = await import('../src/auth/actionSignature')
+const { registerPublicServiceRoutes } = await import('../src/routes/public/services')
+const { registerPublicAuditRoutes } = await import('../src/routes/public/audits')
+const { registerAdminAuditRoutes } = await import('../src/routes/admin/audits')
+const { registerAdminUserRoutes } = await import('../src/routes/admin/users')
+const { registerPublicMpcRoutes } = await import('../src/routes/public/mpc')
+
 function createTestApp(address: string) {
   const app = express()
   app.use(express.json())
@@ -323,12 +328,6 @@ function createTestApp(address: string) {
       next
     )
   })
-  const { registerPublicServiceRoutes } = require('../src/routes/public/services') as typeof import('../src/routes/public/services')
-  const { registerPublicAuditRoutes } = require('../src/routes/public/audits') as typeof import('../src/routes/public/audits')
-  const { registerAdminAuditRoutes } = require('../src/routes/admin/audits') as typeof import('../src/routes/admin/audits')
-  const { registerAdminUserRoutes } = require('../src/routes/admin/users') as typeof import('../src/routes/admin/users')
-  const { registerPublicMpcRoutes } = require('../src/routes/public/mpc') as typeof import('../src/routes/public/mpc')
-
   registerPublicServiceRoutes(app)
   registerPublicAuditRoutes(app)
   registerAdminAuditRoutes(app)

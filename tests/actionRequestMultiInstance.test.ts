@@ -21,7 +21,7 @@ function createDbPath() {
 
 async function initDatasource(database: string) {
   const builder = new DataSourceBuilder({
-    type: 'sqlite',
+    type: 'better-sqlite3',
     database,
     synchronize: true,
   })

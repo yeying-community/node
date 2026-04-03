@@ -42,15 +42,15 @@ cp config.js.template config.js
 
 ### `database`
 - `database.type`
-  - 说明：数据库类型，支持 `sqlite` / `mysql` / `postgres`
+  - 说明：数据库类型，支持 `better-sqlite3` / `sqlite` / `mysql` / `postgres`
 - `database.database`
-  - 说明：数据库名；sqlite 场景下为文件路径
+  - 说明：数据库名；`better-sqlite3` / `sqlite` 场景下为文件路径
 - `database.host`
 - `database.port`
 - `database.username`
 - `database.password`
 - `database.synchronize`
-  - 说明：默认模板的 sqlite 快速启动模式可开启；mysql/postgres 场景应保持关闭并走 migration
+  - 说明：默认模板的本地 sqlite 快速启动模式可开启；mysql/postgres 场景应保持关闭并走 migration
 - `database.logging`
 - `database.schema`
   - 说明：Postgres schema 名
