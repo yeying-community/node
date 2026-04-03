@@ -28,16 +28,6 @@ const authenticateToken = (req: Request, res: Response, next: NextFunction) => {
     return runWithRequestContext(undefined, () => next());
   }
 
-  if (req.path.startsWith('/internal/')) {
-    const internalToken = process.env.INTERNAL_TOKEN;
-    const provided = Array.isArray(req.headers['x-internal-token'])
-      ? req.headers['x-internal-token'][0]
-      : (req.headers['x-internal-token'] as string | undefined);
-    if (internalToken && provided === internalToken) {
-      return runWithRequestContext(undefined, () => next());
-    }
-  }
-
   const authHeader = req.headers.authorization || '';
   const [scheme, rawToken] = authHeader.split(' ');
   const token = scheme?.toLowerCase() === 'bearer' ? rawToken : authHeader;

@@ -9,6 +9,7 @@ import {
   revokeRefreshToken,
   verifyChallengeSignature,
 } from '../auth/siwe';
+import { provisionUserState } from '../common/permission';
 import { getConfig } from '../config/runtime';
 
 const BASE_PATH = '/api/v1/public/auth';
@@ -77,69 +78,81 @@ export function registerPublicAuthRoutes(app: Express) {
     res.json(ok(challenge));
   });
 
-  app.post(`${BASE_PATH}/verify`, (req: Request, res: Response) => {
-    const address = req.body?.address;
-    const signature = req.body?.signature;
-    if (!address || typeof address !== 'string' || !signature || typeof signature !== 'string') {
-      res.status(400).json(fail(400, 'Missing address or signature'));
-      return;
-    }
+  app.post(`${BASE_PATH}/verify`, async (req: Request, res: Response) => {
+    try {
+      const address = req.body?.address;
+      const signature = req.body?.signature;
+      if (!address || typeof address !== 'string' || !signature || typeof signature !== 'string') {
+        res.status(400).json(fail(400, 'Missing address or signature'));
+        return;
+      }
 
-    const record = getChallenge(address);
-    if (!record) {
-      res.status(400).json(fail(400, 'Challenge expired'));
-      return;
-    }
+      const record = getChallenge(address);
+      if (!record) {
+        res.status(400).json(fail(400, 'Challenge expired'));
+        return;
+      }
 
-    if (Date.now() > record.expiresAt) {
+      if (Date.now() > record.expiresAt) {
+        deleteChallenge(record.address);
+        res.status(400).json(fail(400, 'Challenge expired'));
+        return;
+      }
+
+      const valid = verifyChallengeSignature(record.challenge, signature, record.address);
+      if (!valid) {
+        res.status(401).json(fail(401, 'Invalid signature'));
+        return;
+      }
+
       deleteChallenge(record.address);
-      res.status(400).json(fail(400, 'Challenge expired'));
-      return;
+      await provisionUserState(record.address);
+      const tokens = issueTokens(record.address);
+      setRefreshCookie(res, tokens.refreshToken, tokens.refreshExpiresAt - Date.now());
+      res.json(
+        ok({
+          address: record.address,
+          token: tokens.accessToken,
+          expiresAt: tokens.accessExpiresAt,
+          refreshExpiresAt: tokens.refreshExpiresAt,
+        })
+      );
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Verify failed';
+      res.status(500).json(fail(500, message));
     }
-
-    const valid = verifyChallengeSignature(record.challenge, signature, record.address);
-    if (!valid) {
-      res.status(401).json(fail(401, 'Invalid signature'));
-      return;
-    }
-
-    deleteChallenge(record.address);
-    const tokens = issueTokens(record.address);
-    setRefreshCookie(res, tokens.refreshToken, tokens.refreshExpiresAt - Date.now());
-    res.json(
-      ok({
-        address: record.address,
-        token: tokens.accessToken,
-        expiresAt: tokens.accessExpiresAt,
-        refreshExpiresAt: tokens.refreshExpiresAt,
-      })
-    );
   });
 
-  app.post(`${BASE_PATH}/refresh`, (req: Request, res: Response) => {
-    const refreshToken = getCookie(req, REFRESH_COOKIE_NAME);
-    if (!refreshToken) {
-      res.status(401).json(fail(401, 'Missing refresh token'));
-      return;
-    }
+  app.post(`${BASE_PATH}/refresh`, async (req: Request, res: Response) => {
+    try {
+      const refreshToken = getCookie(req, REFRESH_COOKIE_NAME);
+      if (!refreshToken) {
+        res.status(401).json(fail(401, 'Missing refresh token'));
+        return;
+      }
 
-    const session = consumeRefreshToken(refreshToken);
-    if (!session) {
-      clearRefreshCookie(res);
-      res.status(401).json(fail(401, 'Invalid refresh token'));
-      return;
-    }
+      const session = consumeRefreshToken(refreshToken);
+      if (!session) {
+        clearRefreshCookie(res);
+        res.status(401).json(fail(401, 'Invalid refresh token'));
+        return;
+      }
 
-    const tokens = issueTokens(session.address);
-    setRefreshCookie(res, tokens.refreshToken, tokens.refreshExpiresAt - Date.now());
-    res.json(
-      ok({
-        address: session.address,
-        token: tokens.accessToken,
-        expiresAt: tokens.accessExpiresAt,
-        refreshExpiresAt: tokens.refreshExpiresAt,
-      })
-    );
+      await provisionUserState(session.address);
+      const tokens = issueTokens(session.address);
+      setRefreshCookie(res, tokens.refreshToken, tokens.refreshExpiresAt - Date.now());
+      res.json(
+        ok({
+          address: session.address,
+          token: tokens.accessToken,
+          expiresAt: tokens.accessExpiresAt,
+          refreshExpiresAt: tokens.refreshExpiresAt,
+        })
+      );
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Refresh failed';
+      res.status(500).json(fail(500, message));
+    }
   });
 
   app.post(`${BASE_PATH}/logout`, (req: Request, res: Response) => {

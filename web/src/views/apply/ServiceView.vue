@@ -80,11 +80,9 @@ import { onMounted, ref, watch } from "vue";
 import { Search } from "@element-plus/icons-vue";
 import $service, { ServiceMetadata, businessStatusOptions } from "@/plugins/service";
 import ServiceBlock from "@/views/components/ServiceBlock.vue";
-import { useRouter, useRoute, RouteLocationAsPathGeneric, RouteLocationAsRelativeGeneric } from 'vue-router'
+import { useRouter, RouteLocationAsPathGeneric, RouteLocationAsRelativeGeneric } from 'vue-router'
 import { notifyError } from "@/utils/message";
-import { userInfo } from '@/plugins/account'
 import { getCurrentAccount } from "@/plugins/auth";
-import $audit, { AuditAuditDetail, AuditDetailBox, convertAuditMetadata } from "@/plugins/audit";
 const searchVal = ref<string>("");
 const activeService = ref<string>("market");
 const serviceList = ref<ServiceMetadata[]>([])
@@ -142,19 +140,16 @@ const search = async () => {
             return;
         } else if (activeService.value === 'myApply') {
             let res = await $service.myApplyList(account)
-            // 过滤出审批通过的
-            const applicant = `${account}::${account}`
-            let auditMyApply: AuditAuditDetail[] = await $audit.search({applicant: applicant})
-            if (auditMyApply === undefined) {
-                return;
+            if (searchVal.value) {
+                res = res.filter((item) => {
+                    const keyword = searchVal.value.toLowerCase()
+                    return (
+                        String(item.name || '').toLowerCase().includes(keyword) ||
+                        String(item.owner || '').toLowerCase().includes(keyword) ||
+                        String(item.ownerName || '').toLowerCase().includes(keyword)
+                    )
+                })
             }
-            auditMyApply = auditMyApply.filter((item) => item.meta?.reason === '申请使用')
-            if (auditMyApply === undefined) {
-                return;
-            }
-            let resApp: AuditDetailBox[] = convertAuditMetadata(auditMyApply)
-            let names: string[] = resApp.filter((s) => s.state === '审批通过' && s.serviceType === 'service').map(a => a.name)
-            res = res.filter((b) => names.includes(b.name))
             if (Array.isArray(res)) {
                 serviceList.value = res
             } else {

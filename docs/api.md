@@ -18,14 +18,36 @@
 - 公共接口：`/api/v1/public/auth/*`、`/api/v1/public/health`
 - 其余接口需要 `Authorization: Bearer <JWT|UCAN>`
  - 管理员接口：`/api/v1/admin/*` 需要管理员身份（角色 `OWNER` 或 `ADMIN_DIDS` 白名单）
- - 内部接口：`/api/v1/internal/*` 需要 `x-internal-token` 与 `INTERNAL_TOKEN` 匹配
+
+## 用户状态默认化
+- `POST /api/v1/public/auth/verify`、`POST /api/v1/public/auth/refresh` 成功后会自动补齐 `user_state`
+- 默认值为 `role=USER_ROLE_UNKNOWN`、`status=USER_STATUS_ACTIVE`
+- `UNKNOWN` 仅允许读操作；应用/服务/配置/审核申请等写操作要求 `NORMAL` 或 `OWNER`
+- MPC 写操作（创建会话/加入会话/发送消息）同样要求 `NORMAL` 或 `OWNER`
+- 审批接口除 approver 命中外，还要求治理角色 `OWNER` 或 `ADMIN_DIDS` 白名单
+
+## 写接口签名协议
+所有业务写接口统一要求请求体顶层携带：
+- `requestId`
+- `timestamp`
+- `signature`
+
+说明：
+- `requestId` 是本次请求的签名 nonce / 请求 ID，不是资源主键
+- `timestamp` 是本次签名时间，不等同于资源自身的 `createdAt`
+- 服务端对每个写接口使用 `Action + Actor + Timestamp + RequestId + PayloadHash` 重建签名消息
+- `PayloadHash` 为该接口实际执行 payload 的 canonical JSON 的 `sha256`
+- 服务端会持久化消费 `(actor, requestId)`，已完成的重复请求会返回首次响应
+- 若重复请求对应的首个请求仍在处理中，或 payload 不一致，则返回 `409`
+- 服务端默认校验签名时间窗，超时或未来时间偏移过大将拒绝请求
+- `POST /api/v1/public/mpc/sessions/:sessionId/messages` 要求请求体显式提供稳定的消息 `id`，该 `id` 会参与签名与幂等
+- 服务端会后台清理过期幂等记录，默认保留成功响应 7 天、失败响应 1 天、清理超时 pending 15 分钟
 
 ## 接口前缀归类表
 | 前缀 | 访问范围 | 鉴权 | 现状 | 示例 |
 | --- | --- | --- | --- | --- |
 | `/api/v1/public/*` | 公开访问 | 公开或需要 Bearer（除 auth/health） | 已实现 | `/api/v1/public/applications/*` |
 | `/api/v1/admin/*` | 管理员访问 | 管理员凭证 | 已实现 | `/api/v1/admin/audits/*` |
-| `/api/v1/internal/*` | 内部服务访问 | `x-internal-token` | 保留 | `/api/v1/internal/*` |
 
 ## 接口前缀归类表（模块级）
 | 模块 | 前缀 | 说明 |
@@ -33,9 +55,9 @@
 | Auth | `/api/v1/public/*` | 公共认证与健康检查 |
 | Application | `/api/v1/public/*` | create/detail/search/delete/publish/unpublish |
 | Service | `/api/v1/public/*` | create/detail/search/delete/publish/unpublish |
-| Audit | `/api/v1/public/*` + `/api/v1/admin/*` | create/search/cancel/detail 在 public，approve/reject 在 admin（审批人也可调用） |
+| Audit | `/api/v1/public/*` + `/api/v1/admin/*` | create/search/cancel/detail 在 public，approve/reject 在 admin（治理角色审批人可调用） |
 | User | `/api/v1/admin/*` | 用户管理与状态变更 |
-| MPC | `/api/v1/public/*` | MPC 协调器会话/消息接口（需 UCAN） |
+| MPC | `/api/v1/public/*` | MPC 协调器会话/消息接口（需 UCAN；写操作需 `NORMAL/OWNER`） |
 
 ## 模块分组（常见）
 - **Application**: create/detail/search/delete/publish/unpublish
@@ -66,6 +88,7 @@
   - `PUT /api/v1/public/applications/:uid/config`
   - `GET /api/v1/public/applications/by-did?did=...&version=...`
   - `POST /api/v1/public/applications/search`
+    - 支持 `condition.includeOffline=true`，用于 owner/backoffice 视图查询离线或待审资源
   - `DELETE /api/v1/public/applications/:uid`
   - `POST /api/v1/public/applications/:uid/publish`
   - `POST /api/v1/public/applications/:uid/unpublish`
@@ -77,13 +100,27 @@
   - `PUT /api/v1/public/services/:uid/config`
   - `GET /api/v1/public/services/by-did?did=...&version=...`
   - `POST /api/v1/public/services/search`
+    - 支持 `condition.includeOffline=true`，用于 owner/backoffice 视图查询离线或待审资源
   - `DELETE /api/v1/public/services/:uid`
   - `POST /api/v1/public/services/:uid/publish`
   - `POST /api/v1/public/services/:uid/unpublish`
 - **Audits**
   - `POST /api/v1/public/audits`
   - `POST /api/v1/public/audits/search`
+    - 请求体支持：
+      - `condition.approver`：按审批人过滤
+      - `condition.applicant`：按申请人过滤
+      - `condition.name`：按目标名称过滤
+      - `condition.auditType` / `condition.type`：按 `application` / `service` 过滤
+      - `condition.states` / `condition.state`：按聚合态过滤，支持 `待审批`、`审批通过`、`审批驳回`
+      - `condition.startTime` / `condition.endTime`：按申请时间范围过滤
+      - `page` / `pageSize`：服务端分页
+    - 返回：
+      - `data.items`：审批单明细列表
+      - `data.items[].summary`：服务端聚合后的审批摘要，包含 `state`、`approvalCount`、`rejectionCount`、`requiredApprovals`、`approvedBy`、`rejectedBy`、`pendingApprovers`
+      - `data.page.total` / `data.page.page` / `data.page.pageSize`
   - `GET /api/v1/public/audits/:uid`
+    - 返回结构与搜索项一致，包含 `meta`、`commentMeta`、`summary`
   - `DELETE /api/v1/public/audits/:uid`
 - **MPC Coordinator**
   - `POST /api/v1/public/mpc/sessions`
@@ -107,3 +144,9 @@
 
 ## 存储
 后端存储接口已弃用，前端通过 WebDAV 直连上传。
+
+## 说明
+- 上述所有 `POST/PATCH/PUT/DELETE` 业务写接口均要求统一签名协议。
+- `GET /POST .../search` 等纯读接口不要求业务签名，但仍要求 Bearer 鉴权（若接口本身需要鉴权）。
+- `POST /api/v1/public/audits/search` 的 `states/state` 过滤基于 comment 聚合态计算；当传入该条件时，服务端会先聚合审批状态再分页，避免前端本地分页失真。
+- 审核详情与搜索结果中的 `summary` 也由服务端统一聚合，前端不再自行推导审批状态与阈值进度。

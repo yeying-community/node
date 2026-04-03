@@ -48,6 +48,46 @@ export class UserStateDO {
     signature!: string
 }
 
+@Entity('action_requests')
+@Index('idx_action_request_dedup', ['actor', 'requestId'], { unique: true })
+export class ActionRequestDO {
+    @PrimaryGeneratedColumn('uuid')
+    uid!: string
+
+    @Column({ length: 128 })
+    actor!: string
+
+    @Column({ length: 64 })
+    action!: string
+
+    @Column({ length: 128, name: 'request_id' })
+    requestId!: string
+
+    @Column({ length: 64, name: 'payload_hash' })
+    payloadHash!: string
+
+    @Column({ length: 64, name: 'signed_at' })
+    signedAt!: string
+
+    @Column({ length: 192 })
+    signature!: string
+
+    @Column({ length: 64, name: 'created_at' })
+    createdAt!: string
+
+    @Column({ length: 32, default: 'pending' })
+    status!: string
+
+    @Column({ type: 'int', name: 'response_code', default: 0 })
+    responseCode!: number
+
+    @Column({ type: 'text', name: 'response_body', default: '' })
+    responseBody!: string
+
+    @Column({ length: 64, name: 'completed_at', default: '' })
+    completedAt!: string
+}
+
 @Entity('services')
 export class ServiceDO {
     @PrimaryGeneratedColumn("uuid")
@@ -327,6 +367,12 @@ export class AuditDO {
 
     @Column({ length: 128, name: 'target_name', default: '' })
     targetName!: string
+
+    @Column({ length: 64, name: 'previous_target_status', default: 'BUSINESS_STATUS_PENDING' })
+    previousTargetStatus!: string
+
+    @Column({ type: 'boolean', name: 'previous_target_is_online', default: false })
+    previousTargetIsOnline!: boolean
 
 }
 

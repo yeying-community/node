@@ -1,6 +1,8 @@
-import { verifyMessage } from 'ethers';
-
-const MESSAGE_PREFIX = 'YeYing Market';
+import {
+  buildActionSignatureMessage,
+  normalizeAddress,
+  verifyWalletSignature,
+} from './actionSignature';
 
 export type SubmitAuditSignatureInput = {
   targetType: string;
@@ -15,13 +17,10 @@ export type AuditDecisionSignatureInput = {
   auditId: string;
   decision: 'approve' | 'reject';
   approver: string;
+  text?: string;
   timestamp: string;
   nonce: string;
 };
-
-export function normalizeAddress(value: string): string {
-  return (value || '').trim().toLowerCase();
-}
 
 function normalizeType(value: string): string {
   return (value || '').trim().toLowerCase();
@@ -29,35 +28,33 @@ function normalizeType(value: string): string {
 
 export function buildSubmitAuditMessage(input: SubmitAuditSignatureInput): string {
   const version = Number(input.targetVersion);
-  return [
-    MESSAGE_PREFIX,
-    'Action: submit_audit',
-    `TargetType: ${normalizeType(input.targetType)}`,
-    `TargetDid: ${input.targetDid}`,
-    `TargetVersion: ${Number.isFinite(version) ? version : input.targetVersion}`,
-    `Applicant: ${normalizeAddress(input.applicant)}`,
-    `Timestamp: ${input.timestamp}`,
-    `Nonce: ${input.nonce}`,
-  ].join('\n');
+  return buildActionSignatureMessage({
+    action: 'submit_audit',
+    actor: input.applicant,
+    timestamp: input.timestamp,
+    requestId: input.nonce,
+    payload: {
+      targetType: normalizeType(input.targetType),
+      targetDid: input.targetDid,
+      targetVersion: Number.isFinite(version) ? version : input.targetVersion,
+      applicant: normalizeAddress(input.applicant),
+    },
+  });
 }
 
 export function buildAuditDecisionMessage(input: AuditDecisionSignatureInput): string {
-  return [
-    MESSAGE_PREFIX,
-    'Action: audit_decision',
-    `AuditId: ${input.auditId}`,
-    `Decision: ${normalizeType(input.decision)}`,
-    `Approver: ${normalizeAddress(input.approver)}`,
-    `Timestamp: ${input.timestamp}`,
-    `Nonce: ${input.nonce}`,
-  ].join('\n');
+  return buildActionSignatureMessage({
+    action: 'audit_decision',
+    actor: input.approver,
+    timestamp: input.timestamp,
+    requestId: input.nonce,
+    payload: {
+      auditId: input.auditId,
+      decision: normalizeType(input.decision),
+      approver: normalizeAddress(input.approver),
+      text: String(input.text || ''),
+    },
+  });
 }
 
-export function verifyWalletSignature(message: string, signature: string, expectedAddress: string): boolean {
-  try {
-    const recovered = verifyMessage(message, signature);
-    return normalizeAddress(recovered) === normalizeAddress(expectedAddress);
-  } catch {
-    return false;
-  }
-}
+export { normalizeAddress, verifyWalletSignature };

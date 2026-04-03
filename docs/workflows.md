@@ -19,6 +19,8 @@ sequenceDiagram
 ### 关键点
 - `applications.is_online` 在创建时被设置为 `false`（`convertApplicationTo`）。
 - `applications.status` 默认 `BUSINESS_STATUS_PENDING`。
+- 创建/更新/删除/上下架/配置写入要求用户角色为 `NORMAL` 或 `OWNER`。
+- 创建/更新/删除/上下架/配置写入统一要求 `requestId + timestamp + signature`。
 - 审核通过置为 `BUSINESS_STATUS_ONLINE`，拒绝置为 `BUSINESS_STATUS_REJECTED`。
 
 ### 应用生命周期（目标模型）
@@ -51,6 +53,8 @@ sequenceDiagram
 ### 关键点
 - `services.is_online` 在创建时被设置为 `false`（`convertServiceTo`）。
 - `services.status` 默认 `BUSINESS_STATUS_PENDING`。
+- 创建/更新/删除/上下架/配置写入要求用户角色为 `NORMAL` 或 `OWNER`。
+- 创建/更新/删除/上下架/配置写入统一要求 `requestId + timestamp + signature`。
 - 审核通过置为 `BUSINESS_STATUS_ONLINE`，拒绝置为 `BUSINESS_STATUS_REJECTED`。
 
 ### 服务生命周期（目标模型）
@@ -87,8 +91,15 @@ flowchart TD
 ```
 
 ### 关键点
-- 服务端校验：资源存在、申请人是 owner、元数据 JSON 可解析、同一资源的未结工单不可重复提交。
+- 服务端校验：资源存在、元数据 JSON 可解析。
+- `上架申请` 要求申请人是资源 owner；`申请使用` 可由普通用户提交，但必须显式指定审批人（通常为资源 owner）。
+- 幂等去重会按业务语义细分：同一资源只允许一个未结的上架申请；同一申请人对同一资源的同类使用申请不可重复提交。
+- 提交/撤销审核要求申请人具备业务写角色（`NORMAL` / `OWNER`），管理员可覆盖。
+- 提交/撤销审核统一要求签名，且签名绑定实际申请 payload / 撤销目标。
+- 验签成功后会持久化记录 `requestId`；已完成的重复请求会回放首次响应。
+- 后台会定期清理过期缓存响应与卡住的 `pending` 请求。
 - `DELETE /api/v1/public/audits/:uid` 会删除工单与其评论（`audits` + `comments`）。
+- 上架审核单在创建时会显式记录资源提交前的状态；撤销时按该快照恢复，不再依赖 comment 聚合反推。
 
 ## 4) 审核流程（审批/拒绝）
 ```mermaid
@@ -113,9 +124,15 @@ GET /api/v1/public/audits/:uid]
 
 ### 关键点
 - `comments.status` 仅支持 `COMMENT_STATUS_AGREE` / `COMMENT_STATUS_REJECT`。
+- 审批人除命中 approver 列表外，还必须具备治理角色（`OWNER` 或 `ADMIN_DIDS` 白名单）。
+- 审批通过/驳回统一要求签名，签名会绑定审批意见文本。
+- 审批签名同样受时间窗和 `requestId` 去重保护。
 - 审核通过条件：**同意数 >= requiredApprovals** 且无拒绝记录。
 - 审核单已做幂等限制：已通过/已驳回后不允许再次审批。
-- 审核结果会同步更新应用/服务 `is_online`。
+- 仅“上架申请”的审核结果会同步更新应用/服务发布状态与 `is_online`；“申请使用”只记录审核结论，不改资源发布状态。
+- 审批列表查询已支持服务端过滤与分页：可按 `approver/applicant/name/auditType/states/startTime/endTime` 过滤，并返回 `page.total/page/pageSize`。
+- `states/state` 过滤是按 comment 聚合态计算后再分页，前端“待我审批 / 审批完成”不再依赖本地二次分页。
+- 审核详情与搜索列表都会返回服务端聚合的 `summary`，统一提供 `state`、审批阈值、同意/驳回人数与待处理审批人。
 
 ### 审核工单状态机（逻辑）
 > 说明：审核单无显式 `status` 字段，可由 comment 聚合（阈值 + 驳回）推断。
@@ -149,6 +166,7 @@ flowchart TD
 
 ### 关键点
 - 上线需审核通过，且仅 owner/管理员可操作。
+- 资源离线时，详情与配置接口仅 owner/管理员可见。
 - 已提供独立上/下架接口，审核通过后可上线；下架为手动触发。
 - 搜索与展示统一使用“审核 + 上线”状态组合。
 
@@ -176,9 +194,15 @@ flowchart TD
 ```
 
 ### 关键点
-- 任意搜索均默认 `is_online=true`（包含 keyword / name / owner / code）。
+- 默认搜索仍按 `is_online=true` 过滤（包含 keyword / name / owner / code）。
+- owner/backoffice 视图可显式传 `condition.includeOffline=true`，查询离线、待审、驳回等非在线资源。
 
 ## 7) 认证与权限
 - 所有业务接口要求 `Authorization: Bearer <JWT|UCAN>`。
 - UCAN `aud` 必须与服务端 `UCAN_AUD` 匹配，否则 401。
-- 角色/状态权限校验仍**未强制**；上架申请/审核签名已**强制**（详见 `permissions.md`）。
+- 首次认证成功或首次命中活跃校验时，服务端会自动补 `user_state`，默认 `UNKNOWN + ACTIVE`。
+- `UNKNOWN` 为只读；市场业务写接口要求 `NORMAL`/`OWNER`；审批要求治理角色 `OWNER`。
+- 所有业务写接口签名已**强制**，统一使用 `requestId + timestamp + signature`（详见 `permissions.md`）。
+- MPC 发送消息时，消息 `id` 必须由客户端显式提供且保持稳定；服务端不再为签名请求隐式生成消息 ID。
+- `requestId` 已做持久化去重与响应缓存；默认签名时间窗为短时有效，进一步限制重放。
+- `action_requests` 具备后台保留与清理策略，避免幂等缓存无限累积。

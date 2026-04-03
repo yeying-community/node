@@ -1,9 +1,12 @@
 // src/server.ts
 
-import express, { Request, Response } from 'express';
+import fs from 'fs';
+import path from 'path';
+import express, { Express, Request, Response } from 'express';
 import { DatabaseConfig } from './config';
 import { DataSourceBuilder } from './infrastructure/db';
 import {
+    ActionRequestDO,
     ApplicationDO,
     ServiceDO,
     UserDO,
@@ -22,7 +25,7 @@ import { SingletonDataSource } from './domain/facade/datasource';
 import { LoggerConfig, LoggerService } from './infrastructure/logger';
 import cors from 'cors';
 import authenticateToken from './middleware/authMiddleware';
-import { requireAdmin, requireInternal } from './middleware/accessControl';
+import { requireAdmin } from './middleware/accessControl';
 import { registerPublicAuthRoutes } from './routes/publicAuth';
 import { registerPublicProfileRoute } from './routes/privateProfile';
 import { registerPublicApplicationRoutes } from './routes/public/applications';
@@ -36,12 +39,57 @@ import { InitSchema20260126120000 } from './migrations/20260126120000-init-schem
 import { AddServiceConfig20260128194500 } from './migrations/20260128194500-add-service-config';
 import { AddApplicationConfig20260128195500 } from './migrations/20260128195500-add-application-config';
 import { AddMpcCoordinator20260205120000 } from './migrations/20260205120000-add-mpc-coordinator';
+import { AddAuditPreviousStateColumns20260402110000 } from './migrations/20260402110000-add-audit-previous-state-columns';
+import { AddActionRequestDedup20260402170000 } from './migrations/20260402170000-add-action-request-dedup';
 import { getConfig } from './config/runtime';
+import { startActionRequestCleanupJobs } from './domain/service/actionRequestCleanup';
 import { startMpcCleanupJobs } from './domain/service/mpcCleanup';
 import { initMpcEventBus } from './domain/service/mpcEvents';
 
 // 初始化日志
 new LoggerService(getConfig<LoggerConfig>('logger')).initialize()
+
+function resolveWebDistDir() {
+    const candidates: string[] = []
+    const envDir = process.env.WEB_DIST_DIR?.trim()
+    if (envDir) {
+        candidates.push(path.resolve(envDir))
+    }
+    candidates.push(path.resolve(process.cwd(), 'web/dist'))
+    for (const candidate of candidates) {
+        if (fs.existsSync(path.join(candidate, 'index.html'))) {
+            return candidate
+        }
+    }
+    return ''
+}
+
+function registerWebStaticRoutes(app: Express, webDistDir: string) {
+    if (!webDistDir) {
+        return
+    }
+
+    app.use(express.static(webDistDir, { index: false }))
+    app.use((req: Request, res: Response, next) => {
+        if (req.method !== 'GET' && req.method !== 'HEAD') {
+            next()
+            return
+        }
+        if (req.path === '/api' || req.path.startsWith('/api/')) {
+            next()
+            return
+        }
+        if (path.extname(req.path)) {
+            next()
+            return
+        }
+        res.sendFile(path.join(webDistDir, 'index.html'), (error) => {
+            if (error) {
+                next(error)
+            }
+        })
+    })
+}
 
 let port = 8100
 const configPort = getConfig<number>('app.port')
@@ -57,8 +105,10 @@ if (process.env.APP_PORT) {
 
 // 初始化数据库
 const databaseConfig: DatabaseConfig = getConfig<DatabaseConfig>('database')
-const builder = new DataSourceBuilder({ ...databaseConfig, synchronize: false })
+const shouldSynchronizeSchema = databaseConfig.type === 'sqlite' && Boolean(databaseConfig.synchronize)
+const builder = new DataSourceBuilder({ ...databaseConfig, synchronize: shouldSynchronizeSchema })
 builder.entities([
+    ActionRequestDO,
     UserStateDO,
     UserDO,
     ServiceDO,
@@ -77,23 +127,31 @@ builder.migrations([
     InitSchema20260126120000,
     AddServiceConfig20260128194500,
     AddApplicationConfig20260128195500,
-    AddMpcCoordinator20260205120000
+    AddMpcCoordinator20260205120000,
+    AddAuditPreviousStateColumns20260402110000,
+    AddActionRequestDedup20260402170000
 ])
 
 builder.build().initialize().then(async (conn) => {
     // 注册数据库连接
     SingletonDataSource.set(conn)
-    if (conn.options.type === 'postgres') {
-        const schema = (conn.options.schema as string) || 'public'
-        const schemaRef = `"${schema.replace(/"/g, '""')}"`
-        await conn.query(`CREATE SCHEMA IF NOT EXISTS ${schemaRef}`)
+    if (!shouldSynchronizeSchema) {
+        if (conn.options.type === 'postgres') {
+            const schema = (conn.options.schema as string) || 'public'
+            const schemaRef = `"${schema.replace(/"/g, '""')}"`
+            await conn.query(`CREATE SCHEMA IF NOT EXISTS ${schemaRef}`)
+        }
+        await conn.runMigrations()
+    } else {
+        console.log('SQLite synchronize mode enabled, skipping migrations.')
     }
-    await conn.runMigrations()
     console.log('The database has been initialized.')
     initMpcEventBus()
+    startActionRequestCleanupJobs()
     startMpcCleanupJobs()
     // 创建 Express 应用
     const app = express();
+    const webDistDir = resolveWebDistDir()
     app.use(cors({ origin: true, credentials: true }));
     app.use((req, res, next) => {
         const origin = req.headers.origin as string | undefined;
@@ -117,9 +175,8 @@ builder.build().initialize().then(async (conn) => {
 
     // ✅ 将鉴权中间件应用到所有 API 路由（公共认证/健康检查除外）
     app.use('/api/v1', authenticateToken);
-    // ✅ 管理员与内部接口前缀控制
+    // ✅ 管理员接口前缀控制
     app.use('/api/v1/admin', requireAdmin);
-    app.use('/api/v1/internal', requireInternal);
 
 
     registerPublicAuthRoutes(app);
@@ -131,9 +188,13 @@ builder.build().initialize().then(async (conn) => {
     registerPublicMpcRoutes(app);
     registerAdminAuditRoutes(app);
     registerAdminUserRoutes(app);
+    registerWebStaticRoutes(app, webDistDir);
 
     // 启动服务器
     app.listen(port, '0.0.0.0', () => {
+        if (webDistDir) {
+            console.log(`📦 Serving frontend assets from ${webDistDir}`)
+        }
         console.log(`🚀 Server is running on http://localhost:${port}`);
     });
 

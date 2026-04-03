@@ -39,17 +39,23 @@ export class ServiceManager {
     async queryByCondition(condition: SearchCondition, page: number, pageSize: number) {
         let completeCondition: object[] = [];
         const hasStatus = condition.status !== undefined && condition.status !== ''
-        const isOnline = hasStatus ? undefined : (condition.isOnline !== undefined ? condition.isOnline : true)
+        const includeOffline = condition.includeOffline === true
+        const isOnline = hasStatus
+            ? undefined
+            : includeOffline
+              ? undefined
+              : (condition.isOnline !== undefined ? condition.isOnline : true)
         const baseFilter: Record<string, any> = {}
         if (hasStatus) {
             baseFilter.status = condition.status
         } else if (isOnline !== undefined) {
             baseFilter.isOnline = isOnline
         }
-        if (condition.keyword) {
+        if (condition.keyword && condition.keyword !== '') {
             const safeKeyword = condition.keyword.replace(/([%_])/g, "\\$1");
             completeCondition.push({name: Like(`%${safeKeyword}%`), ...baseFilter})
             completeCondition.push({owner: Like(`%${safeKeyword}%`), ...baseFilter})
+            completeCondition.push({code: Like(`%${safeKeyword}%`), ...baseFilter})
         } else {
             const cond: SearchCondition = {}
             if (condition.name) {
@@ -80,7 +86,7 @@ export class ServiceManager {
                 page: createResponsePage(total, page, pageSize)
             }
         }
-        const where = hasStatus ? { status: condition.status } : { isOnline: isOnline }
+        const where = hasStatus ? { status: condition.status } : (isOnline !== undefined ? { isOnline: isOnline } : {})
         const [services, total] = await this.repository.findAndCount({
             where: where,
             skip: (page - 1) * pageSize,

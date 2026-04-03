@@ -8,6 +8,7 @@ export interface SearchCondition {
     keyword?: string
     status?: string
     isOnline?: boolean
+    includeOffline?: boolean
 }
 
 export interface PageResult {

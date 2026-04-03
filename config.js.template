@@ -11,19 +11,23 @@ module.exports = {
     port: 8100
   },
   database: {
+    // Default: local sqlite file for quick start and packaged smoke tests.
+    // Switch to mysql/postgres for shared test or production deployments.
     // sqlite | mysql | postgres
-    type: 'postgres',
-    // Database/schema name (for postgres, schema is defined by `schema` in TypeORM options).
-    database: 'postgres',
+    type: 'sqlite',
+    // Database/schema name (for sqlite, this is the file path).
+    database: 'data/app.sqlite',
     host: '127.0.0.1',
     port: 5432,
     username: 'postgres',
     password: 'CHANGE_ME',
-    // Auto-sync schema (dev only).
+    // Auto-sync schema.
+    // For the default sqlite quick-start template this should stay true.
+    // For mysql/postgres shared deployments, keep it false and rely on migrations.
     synchronize: true,
     // Enable TypeORM SQL logging.
     // false | true | 'all' | ['error' | 'warn' | 'info' | 'log' | 'query' | 'schema' | 'migration']
-    logging: ['error', 'warn'],
+    logging: false,
     // Optional: schema name for postgres.
     schema: 'node'
   },
@@ -36,6 +40,16 @@ module.exports = {
     cookieSameSite: 'lax',
     cookieSecure: false,
     refreshCookieName: 'refresh_token'
+  },
+  idempotency: {
+    // Retain completed successful responses for replay (days)
+    successRetentionDays: 7,
+    // Retain completed failed responses for replay (days)
+    failureRetentionDays: 1,
+    // Remove stale pending requests after this timeout (ms)
+    pendingTimeoutMs: 15 * 60 * 1000,
+    // Cleanup job interval (ms)
+    cleanupIntervalMs: 15 * 60 * 1000
   },
   ucan: {
     // UCAN audience (should match Node API URL host).

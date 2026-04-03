@@ -8,3 +8,4 @@ data/log
 data/start.log
 .DS_Store
 config.js
+output

@@ -55,6 +55,24 @@ npm run dev
 - `VITE_WEBDAV_PUBLIC_BASE`：可选公开访问前缀（未设置时回退为 `VITE_WEBDAV_BASE_URL + VITE_WEBDAV_PREFIX`）
 - `VITE_WEBDAV_AVATAR`：默认头像路径（可选）
 
+## 部署脚本
+
+项目根目录提供两个部署相关脚本：
+
+```bash
+bash scripts/starter.sh
+bash scripts/starter.sh stop
+bash scripts/starter.sh restart
+
+bash scripts/package.sh
+bash scripts/package.sh v1.0.1
+```
+
+- `scripts/starter.sh` 支持 `start` / `stop` / `restart`，默认无参数等价于 `start`
+- `scripts/package.sh` 输出到 `output/`，并按 `<project>-<tag>-<short-hash>.tar.gz` 命名
+- 安装包内包含后端构建产物、`config.js.template`、`web/dist` 静态资源和 `scripts/starter.sh`
+- 解压安装包后，进入目录执行 `bash scripts/starter.sh` 即可启动；若包内存在 `web/dist`，后端会自动托管前端静态资源
+
 ![alt text](image.png)
 
 ![alt text](container.png)
