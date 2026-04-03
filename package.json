@@ -21,7 +21,6 @@
     "class-validator": "^0.14.2",
     "config": "^3.3.12",
     "cors": "^2.8.5",
-    "crypto": "^1.0.1",
     "elliptic": "^6.6.1",
     "ethers": "^6.16.0",
     "express": "^5.1.0",
