@@ -1,4 +1,4 @@
-# yeying-community-node
+# node
 
 YeYing 社区节点服务（Node.js）。提供 REST 接口与 SIWE/UCAN 鉴权。文件存储通过前端使用 `@yeying-community/web3-bs` 的 WebDAV 接口直接访问。
 

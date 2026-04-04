@@ -105,7 +105,9 @@ if (process.env.APP_PORT) {
 
 // 初始化数据库
 const databaseConfig: DatabaseConfig = getConfig<DatabaseConfig>('database')
-const shouldSynchronizeSchema = databaseConfig.type === 'sqlite' && Boolean(databaseConfig.synchronize)
+const shouldSynchronizeSchema =
+    (databaseConfig.type === 'sqlite' || databaseConfig.type === 'better-sqlite3') &&
+    Boolean(databaseConfig.synchronize)
 const builder = new DataSourceBuilder({ ...databaseConfig, synchronize: shouldSynchronizeSchema })
 builder.entities([
     ActionRequestDO,
@@ -143,7 +145,7 @@ builder.build().initialize().then(async (conn) => {
         }
         await conn.runMigrations()
     } else {
-        console.log('SQLite synchronize mode enabled, skipping migrations.')
+        console.log('Local sqlite synchronize mode enabled, skipping migrations.')
     }
     console.log('The database has been initialized.')
     initMpcEventBus()

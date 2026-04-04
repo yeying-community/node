@@ -11,18 +11,18 @@ module.exports = {
     port: 8100
   },
   database: {
-    // Default: local sqlite file for quick start and packaged smoke tests.
+    // Default: local better-sqlite3 file for quick start and packaged smoke tests.
     // Switch to mysql/postgres for shared test or production deployments.
-    // sqlite | mysql | postgres
-    type: 'sqlite',
-    // Database/schema name (for sqlite, this is the file path).
+    // better-sqlite3 | sqlite | mysql | postgres
+    type: 'better-sqlite3',
+    // Database/schema name (for better-sqlite3/sqlite, this is the file path).
     database: 'data/app.sqlite',
     host: '127.0.0.1',
     port: 5432,
     username: 'postgres',
     password: 'CHANGE_ME',
     // Auto-sync schema.
-    // For the default sqlite quick-start template this should stay true.
+    // For the default local sqlite quick-start template this should stay true.
     // For mysql/postgres shared deployments, keep it false and rely on migrations.
     synchronize: true,
     // Enable TypeORM SQL logging.

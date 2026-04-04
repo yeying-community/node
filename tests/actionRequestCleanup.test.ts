@@ -4,11 +4,10 @@ import path from 'path'
 import { DataSource } from 'typeorm'
 import { SingletonDataSource } from '../src/domain/facade/datasource'
 import { ActionRequestDO } from '../src/domain/mapper/entity'
-import { runActionRequestCleanupOnce } from '../src/domain/service/actionRequestCleanup'
 import { DataSourceBuilder } from '../src/infrastructure/db'
 
-jest.mock('../src/config/runtime', () => ({
-  getConfig: jest.fn().mockImplementation((key: string) => {
+vi.doMock('../src/config/runtime', () => ({
+  getConfig: vi.fn().mockImplementation((key: string) => {
     if (key === 'idempotency') {
       return {
         successRetentionDays: 7,
@@ -21,6 +20,8 @@ jest.mock('../src/config/runtime', () => ({
   }),
 }))
 
+const { runActionRequestCleanupOnce } = await import('../src/domain/service/actionRequestCleanup')
+
 function createDbPath() {
   return path.join(
     os.tmpdir(),
@@ -30,7 +31,7 @@ function createDbPath() {
 
 async function initDatasource(database: string) {
   const builder = new DataSourceBuilder({
-    type: 'sqlite',
+    type: 'better-sqlite3',
     database,
     synchronize: true,
   })

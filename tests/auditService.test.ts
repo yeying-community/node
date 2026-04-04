@@ -1,12 +1,13 @@
 import { runWithRequestContext } from '../src/common/requestContext'
+import { mockClass } from './support/mockClass'
 
 const auditStore = new Map<string, any>()
 const commentStore = new Map<string, any[]>()
 const applicationStore = new Map<string, any>()
 const serviceStore = new Map<string, any>()
 
-const updateApplicationPublishStateMock = jest.fn()
-const updateServicePublishStateMock = jest.fn()
+const updateApplicationPublishStateMock = vi.fn()
+const updateServicePublishStateMock = vi.fn()
 
 function normalizeAuditLike(raw?: string) {
   if (!raw) return ''
@@ -64,20 +65,20 @@ function filterAudits(condition: {
     .sort((left, right) => right.createdAt.getTime() - left.createdAt.getTime())
 }
 
-jest.mock('../src/common/permission', () => ({
-  ensureUserActive: jest.fn().mockResolvedValue(undefined),
-  ensureUserCanApproveAudit: jest.fn().mockResolvedValue(undefined),
-  ensureUserCanSubmitAudit: jest.fn().mockResolvedValue(undefined),
-  ensureUserCanWriteBusinessData: jest.fn().mockResolvedValue(undefined),
-  isAdminUser: jest.fn().mockResolvedValue(false),
+vi.doMock('../src/common/permission', () => ({
+  ensureUserActive: vi.fn().mockResolvedValue(undefined),
+  ensureUserCanApproveAudit: vi.fn().mockResolvedValue(undefined),
+  ensureUserCanSubmitAudit: vi.fn().mockResolvedValue(undefined),
+  ensureUserCanWriteBusinessData: vi.fn().mockResolvedValue(undefined),
+  isAdminUser: vi.fn().mockResolvedValue(false),
 }))
 
-jest.mock('../src/config/runtime', () => ({
-  getConfig: jest.fn().mockReturnValue({}),
+vi.doMock('../src/config/runtime', () => ({
+  getConfig: vi.fn().mockReturnValue({}),
 }))
 
-jest.mock('../src/domain/manager/audit', () => ({
-  AuditManager: jest.fn().mockImplementation(() => ({
+vi.doMock('../src/domain/manager/audit', () => ({
+  AuditManager: mockClass(() => ({
     queryByTarget: async (targetType: string, did: string, version: number) =>
       Array.from(auditStore.values()).filter(
         (item) =>
@@ -110,8 +111,8 @@ jest.mock('../src/domain/manager/audit', () => ({
   })),
 }))
 
-jest.mock('../src/domain/manager/comments', () => ({
-  CommentManager: jest.fn().mockImplementation(() => ({
+vi.doMock('../src/domain/manager/comments', () => ({
+  CommentManager: mockClass(() => ({
     queryByAuditId: async (auditId: string) => commentStore.get(auditId) || [],
     save: async (comment: any) => {
       const list = commentStore.get(comment.auditId) || []
@@ -131,8 +132,8 @@ jest.mock('../src/domain/manager/comments', () => ({
   })),
 }))
 
-jest.mock('../src/domain/manager/application', () => ({
-  ApplicationManager: jest.fn().mockImplementation(() => ({
+vi.doMock('../src/domain/manager/application', () => ({
+  ApplicationManager: mockClass(() => ({
     query: async (did: string, version: number) =>
       applicationStore.get(`${did}:${version}`) || null,
     updatePublishState: async (did: string, version: number, status: string, isOnline: boolean) => {
@@ -151,8 +152,8 @@ jest.mock('../src/domain/manager/application', () => ({
   })),
 }))
 
-jest.mock('../src/domain/manager/service', () => ({
-  ServiceManager: jest.fn().mockImplementation(() => ({
+vi.doMock('../src/domain/manager/service', () => ({
+  ServiceManager: mockClass(() => ({
     query: async (did: string, version: number) => serviceStore.get(`${did}:${version}`) || null,
     updatePublishState: async (did: string, version: number, status: string, isOnline: boolean) => {
       updateServicePublishStateMock(did, version, status, isOnline)
@@ -170,7 +171,7 @@ jest.mock('../src/domain/manager/service', () => ({
   })),
 }))
 
-const { AuditService } = jest.requireActual('../src/domain/service/audit') as typeof import('../src/domain/service/audit')
+const { AuditService } = await import('../src/domain/service/audit')
 
 function runAs<T>(address: string, execute: () => Promise<T>) {
   return new Promise<T>((resolve, reject) => {
