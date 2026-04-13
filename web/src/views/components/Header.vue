@@ -6,7 +6,22 @@
         <div class="hidden lg:flex">
         </div>
         <div class="account">
-            <span v-if="shortAddress">{{ shortAddress }}</span>
+            <el-dropdown
+                v-if="shortAddress"
+                trigger="click"
+                placement="bottom-end"
+                @command="handleAccountCommand"
+            >
+                <span class="account-trigger">
+                    {{ shortAddress }}
+                    <span class="account-arrow">v</span>
+                </span>
+                <template #dropdown>
+                    <el-dropdown-menu>
+                        <el-dropdown-item command="logout">退出登录</el-dropdown-item>
+                    </el-dropdown-menu>
+                </template>
+            </el-dropdown>
             <span v-else>--</span>
         </div>
     </div>
@@ -14,13 +29,22 @@
 <script lang="ts" setup>
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
-import { getCurrentAccount } from '@/plugins/auth'
+import { getCurrentAccount, logoutWithUcan } from '@/plugins/auth'
 
 const router = useRouter();
 const currentAccount = ref<string | null>(null)
 
 const go = async (url: string) => {
     router.push(url)
+}
+
+const handleAccountCommand = async (command: string | number | object) => {
+    if (command !== 'logout') {
+        return
+    }
+    logoutWithUcan({ redirect: false })
+    currentAccount.value = null
+    await router.push('/')
 }
 
 const shortAddress = computed(() => {
@@ -64,6 +88,17 @@ onBeforeUnmount(() => {
     .account{
         font-size: 14px;
         color: rgba(0,0,0,0.85);
+        .account-trigger{
+            display: inline-flex;
+            align-items: center;
+            cursor: pointer;
+            user-select: none;
+        }
+        .account-arrow{
+            margin-left: 6px;
+            font-size: 12px;
+            color: rgba(0,0,0,0.45);
+        }
     }
 }
 </style>

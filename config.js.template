@@ -54,7 +54,8 @@ module.exports = {
   ucan: {
     // UCAN audience (should match Node API URL host).
     aud: 'did:web:localhost:8100',
-    with: 'app:all:localhost-5173',
+    // Recommended localhost wildcard for local dev across different frontend ports.
+    with: 'app:all:localhost-*',
     can: 'invoke'
   },
   audit: {
@@ -96,16 +97,18 @@ module.exports = {
     streamApprox: true
   },
   logger: {
-    // If file is not set, logs go to console.
     // Winston log level: debug | info | warn | error
     level: 'info',
-    // Example file logging (uncomment to enable)
-    // file: {
-    //   filename: 'app-%DATE%.log',
-    //   dirname: 'logs',
-    //   datePattern: 'YYYY-MM-DD',
-    //   maxSize: '20m',
-    //   maxFiles: '14d'
-    // }
+    // Keep console output (default true).
+    console: true,
+    // Default: write logs to ./logs and rotate daily.
+    file: {
+      filename: 'app-%DATE%.log',
+      dirname: 'logs',
+      datePattern: 'YYYY-MM-DD',
+      maxSize: '20m',
+      maxFiles: '14d',
+      zippedArchive: true
+    }
   }
 }

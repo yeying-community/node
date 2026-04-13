@@ -11,7 +11,7 @@
 ## UCAN 授权规则（已实现）
 服务端严格校验：
 - `aud` == `UCAN_AUD`（完全匹配）
-- capability 包含 `{ resource: UCAN_RESOURCE, action: UCAN_ACTION }`
+- capability 包含 `{ with: UCAN_WITH, can: UCAN_CAN }`
 - `exp` 未过期、证明链有效
 
 > 注意：前端必须生成与后端 `UCAN_AUD` 完全一致的 audience，否则返回 `UCAN audience mismatch`。

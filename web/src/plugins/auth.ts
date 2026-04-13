@@ -29,6 +29,7 @@ type CachedToken = {
 const UCAN_API_TOKEN_KEY = 'ucanToken';
 const UCAN_WEBDAV_TOKEN_KEY = 'webdavToken';
 const AUTH_TOKEN_KEY = 'authToken';
+const AUTH_MANUAL_LOGOUT_KEY = 'authManualLogout';
 const TOKEN_SKEW_MS = 5000;
 
 let cachedProvider: Eip1193Provider | null = null;
@@ -299,6 +300,21 @@ function clearStoredToken(key: string) {
   localStorage.removeItem(key);
 }
 
+function isManualLogout(): boolean {
+  if (typeof localStorage === 'undefined') return false;
+  return localStorage.getItem(AUTH_MANUAL_LOGOUT_KEY) === '1';
+}
+
+function markManualLogout() {
+  if (typeof localStorage === 'undefined') return;
+  localStorage.setItem(AUTH_MANUAL_LOGOUT_KEY, '1');
+}
+
+function clearManualLogoutMark() {
+  if (typeof localStorage === 'undefined') return;
+  localStorage.removeItem(AUTH_MANUAL_LOGOUT_KEY);
+}
+
 function updateAuthTokenCache(token: string) {
   const parsed = parseCachedToken(token);
   if (!parsed) return;
@@ -408,6 +424,10 @@ async function issueInvocationToken(options: {
   address?: string;
   cache: 'api' | 'webdav';
 }): Promise<string> {
+  if (isManualLogout()) {
+    throw new Error('User logged out');
+  }
+
   const cache = options.cache === 'api' ? cachedApiToken : cachedWebDavToken;
   if (isTokenValid(cache)) {
     return cache!.token;
@@ -531,6 +551,16 @@ export function getCurrentAccount() {
   return localStorage.getItem('currentAccount');
 }
 
+export function logoutWithUcan(options: { redirect?: boolean } = {}) {
+  const redirect = options.redirect !== false;
+  markManualLogout();
+  clearAuthSession();
+  emitAccountChange(null);
+  if (redirect) {
+    redirectHome();
+  }
+}
+
 export async function signWithWallet(message: string): Promise<string> {
   const provider = await resolveProvider();
   if (!provider) {
@@ -565,6 +595,12 @@ export async function signWithWallet(message: string): Promise<string> {
 
 export async function ensureWalletSession(options: { redirect?: boolean } = {}) {
   const redirect = options.redirect !== false;
+  if (isManualLogout()) {
+    if (redirect) {
+      redirectHome();
+    }
+    return false;
+  }
   const provider = await resolveProvider();
   if (!provider) {
     if (hasValidApiToken()) {
@@ -749,6 +785,7 @@ export async function loginWithUcan(
       } else {
         localStorage.setItem('currentAccount', currentAccount);
       }
+      clearManualLogoutMark();
       await getAuthToken(provider);
       try {
         await getWebDavToken(provider);

@@ -45,7 +45,7 @@ const UCAN_AUD =
 const UCAN_WITH =
   process.env.UCAN_WITH ||
   getConfig<string>('ucan.with') ||
-  'app:all:localhost-5173';
+  'app:all:localhost-*';
 const UCAN_CAN =
   process.env.UCAN_CAN ||
   getConfig<string>('ucan.can') ||
@@ -178,6 +178,16 @@ function matchPattern(pattern: string, value: string): boolean {
   return pattern === value;
 }
 
+function resourceIntersects(availableResource: string, requiredResource: string): boolean {
+  // Allow intersection semantics:
+  // - token wildcard covers required concrete value
+  // - required wildcard accepts token concrete value
+  return (
+    matchPattern(availableResource, requiredResource) ||
+    matchPattern(requiredResource, availableResource)
+  );
+}
+
 function capsAllow(available: UcanCapability[] | undefined, required: UcanCapability[]): boolean {
   if (!Array.isArray(available) || available.length === 0) return false;
   return required.every(req => {
@@ -188,7 +198,7 @@ function capsAllow(available: UcanCapability[] | undefined, required: UcanCapabi
       const capResource = getCapabilityResource(cap);
       const capAction = getCapabilityAction(cap);
       if (!capResource || !capAction) return false;
-      return matchPattern(capResource, reqResource) && actionAllows(capAction, reqAction);
+      return resourceIntersects(capResource, reqResource) && actionAllows(capAction, reqAction);
     });
   });
 }
@@ -353,6 +363,25 @@ export function isUcanToken(token: string): boolean {
 
 export function verifyUcanInvocation(token: string): { address: string; issuer: string } {
   return verifyUcanInvocationWithRequired(token, [REQUIRED_UCAN_CAP]);
+}
+
+export function getRequiredUcanCapability(): UcanCapability {
+  return { ...REQUIRED_UCAN_CAP };
+}
+
+export function getRequiredUcanAudience(): string {
+  return UCAN_AUD;
+}
+
+export function peekUcanTokenPayload(
+  token: string
+): { iss?: string; aud?: string; cap?: UcanCapability[]; exp?: number; nbf?: number } | null {
+  try {
+    const decoded = decodeUcanToken(token);
+    return decoded.payload;
+  } catch {
+    return null;
+  }
 }
 
 export function verifyUcanInvocationWithCap(

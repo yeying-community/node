@@ -125,7 +125,7 @@ cp config.js.template config.js
   - 默认：`did:web:localhost:8100`
   - 环境变量：`UCAN_AUD`
 - `ucan.with`
-  - 默认：`app:all:localhost-5173`
+  - 默认：`app:all:localhost-*`
   - 环境变量：`UCAN_WITH`
 - `ucan.can`
   - 默认：`invoke`
@@ -182,15 +182,27 @@ cp config.js.template config.js
 ### `logger`
 - `logger.level`
   - 默认：`info`
+- `logger.console`
+  - 默认：`true`
+  - 说明：是否保留控制台输出
 - `logger.file`
-  - 可选：开启按日切分文件日志
+  - 默认：开启（写入 `./logs`，按天轮转）
   - 字段：
     - `filename`
     - `dirname`
     - `datePattern`
     - `maxSize`
     - `maxFiles`
+    - `zippedArchive`
 - 环境变量覆盖：无
+
+默认文件日志参数：
+- `filename=app-%DATE%.log`
+- `dirname=logs`
+- `datePattern=YYYY-MM-DD`
+- `maxSize=20m`
+- `maxFiles=14d`
+- `zippedArchive=true`
 
 ### 管理员白名单（env-only）
 - `ADMIN_DIDS`

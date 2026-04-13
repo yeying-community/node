@@ -21,6 +21,7 @@ npm install
 npm run dev
 ```
 默认端口：`http://localhost:8100`
+默认日志目录：`./logs`（按天轮转，保留 14 天）
 
 常用配置项（`config.js`）：
 - `app.env` / `app.port`

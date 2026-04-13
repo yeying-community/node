@@ -8,23 +8,59 @@ import { SingletonLogger } from '../../domain/facade/logger'
 const { combine, timestamp, printf, align } = format
 
 export interface FileConfig {
-    filename: string
-    dirname: string
-    datePattern: string
-    maxSize: string
-    maxFiles: string
+    filename?: string
+    dirname?: string
+    datePattern?: string
+    maxSize?: string
+    maxFiles?: string
+    zippedArchive?: boolean
 }
 
 export interface LoggerConfig {
-    level: 'debug' | 'info' | 'warn' | 'error'
+    level?: 'debug' | 'info' | 'warn' | 'error'
     file?: FileConfig
+    console?: boolean
 }
 
 export class LoggerService {
-    private config: LoggerConfig
+    private config: Required<Omit<LoggerConfig, 'file'>> & { file: Required<FileConfig> }
 
-    constructor(config: LoggerConfig) {
-        this.config = config
+    constructor(config?: LoggerConfig) {
+        const defaultFileConfig: Required<FileConfig> = {
+            filename: 'app-%DATE%.log',
+            dirname: path.join(process.cwd(), 'logs'),
+            datePattern: 'YYYY-MM-DD',
+            maxSize: '20m',
+            maxFiles: '14d',
+            zippedArchive: true
+        }
+        const fileConfig = {
+            ...defaultFileConfig,
+            ...(config?.file || {})
+        }
+        this.config = {
+            level: config?.level || 'info',
+            console: config?.console !== false,
+            file: fileConfig
+        }
+    }
+
+    private static serializeMeta(info: TransformableInfo): string {
+        const meta: Record<string, unknown> = {}
+        for (const [key, value] of Object.entries(info)) {
+            if (key === 'level' || key === 'message' || key === 'timestamp' || key === 'stack') {
+                continue
+            }
+            meta[key] = value
+        }
+        if (Object.keys(meta).length === 0) {
+            return ''
+        }
+        try {
+            return ` ${JSON.stringify(meta)}`
+        } catch {
+            return ' {"meta":"[unserializable]"}'
+        }
     }
 
     public initialize(): void {
@@ -34,22 +70,20 @@ export class LoggerService {
 
         const transportList = []
 
-        if (this.config.file) {
-            const fileConfig = { ...this.config.file }
-            if (!fileConfig.dirname) {
-                fileConfig.dirname = path.join(process.cwd(), 'logs')
-            }
-            if (!existsSync(fileConfig.dirname)) {
-                mkdirSync(fileConfig.dirname, { recursive: true })
-            }
-            // 使用直接导入的 DailyRotateFile
-            transportList.push(new DailyRotateFile(fileConfig))
-        } else {
+        const fileConfig = { ...this.config.file }
+        if (!existsSync(fileConfig.dirname)) {
+            mkdirSync(fileConfig.dirname, { recursive: true })
+        }
+        // 默认启用文件落盘，并按天轮转
+        transportList.push(new DailyRotateFile(fileConfig))
+
+        if (this.config.console) {
             transportList.push(new transports.Console())
         }
 
         const templateFunction = (info: TransformableInfo) => {
-            return `${info.timestamp} [${info.level.toUpperCase()}] - ${info.stack || info.message}`
+            const baseMessage = `${info.timestamp} [${String(info.level).toUpperCase()}] - ${info.stack || info.message}`
+            return `${baseMessage}${LoggerService.serializeMeta(info)}`
         }
 
         SingletonLogger.set(

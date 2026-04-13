@@ -45,6 +45,7 @@ import { getConfig } from './config/runtime';
 import { startActionRequestCleanupJobs } from './domain/service/actionRequestCleanup';
 import { startMpcCleanupJobs } from './domain/service/mpcCleanup';
 import { initMpcEventBus } from './domain/service/mpcEvents';
+import { SingletonLogger } from './domain/facade/logger';
 
 // 初始化日志
 new LoggerService(getConfig<LoggerConfig>('logger')).initialize()
@@ -88,6 +89,37 @@ function registerWebStaticRoutes(app: Express, webDistDir: string) {
                 next(error)
             }
         })
+    })
+}
+
+function resolveClientIp(req: Request): string {
+    const forwarded = req.headers['x-forwarded-for']
+    if (Array.isArray(forwarded) && forwarded.length > 0) {
+        return forwarded[0]
+    }
+    if (typeof forwarded === 'string' && forwarded.trim()) {
+        return forwarded.split(',')[0].trim()
+    }
+    return req.socket.remoteAddress || ''
+}
+
+function registerApiRequestLogger(app: Express) {
+    app.use((req: Request, res: Response, next) => {
+        const startAt = Date.now()
+        res.on('finish', () => {
+            if (!req.originalUrl.startsWith('/api/')) {
+                return
+            }
+            const durationMs = Date.now() - startAt
+            SingletonLogger.get().info('request completed', {
+                method: req.method,
+                path: req.originalUrl,
+                status: res.statusCode,
+                durationMs,
+                ip: resolveClientIp(req)
+            })
+        })
+        next()
     })
 }
 
@@ -174,6 +206,7 @@ builder.build().initialize().then(async (conn) => {
 
     // 设置 JSON 解析中间件
     app.use(express.json());
+    registerApiRequestLogger(app);
 
     // ✅ 将鉴权中间件应用到所有 API 路由（公共认证/健康检查除外）
     app.use('/api/v1', authenticateToken);

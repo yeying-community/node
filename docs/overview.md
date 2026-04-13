@@ -18,7 +18,7 @@
 
 ## 必要的鉴权/权限规则（应落地）
 - **统一鉴权**：除 public auth 外，所有接口必须 `Authorization: Bearer <JWT|UCAN>`。
-- **UCAN 规则**：`aud == UCAN_AUD`；capabilities 含 `UCAN_RESOURCE/UCAN_ACTION`。
+- **UCAN 规则**：`aud == UCAN_AUD`；capabilities 含 `UCAN_WITH/UCAN_CAN`。
 - **统一写签名**：
   - 所有业务写接口要求 `requestId`、`timestamp`、`signature`
   - 签名内容绑定实际执行 payload 的哈希
