@@ -50,6 +50,9 @@ export const serviceCodeMapTrans = {
 }
 
 export const codeMap = {
+  APPLICATION_CODE_CHAT: 'Chat 应用',
+  APPLICATION_CODE_ROUTER: 'Router 网关',
+  APPLICATION_CODE_WAREHOUSE: 'Warehouse 仓储',
   APPLICATION_CODE_UNKNOWN: '未知',
   APPLICATION_CODE_MARKET: '社区集市',
   APPLICATION_CODE_ASSET: '资产应用',

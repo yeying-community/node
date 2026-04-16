@@ -23,6 +23,10 @@
                         {{ dayjs(detail.createdAt).format('YYYY-MM-DD') }}</span
                     >
                 </div>
+                <div class="meta">
+                    <span>分类：{{ applicationCodeText }}</span>
+                    <span v-if="serviceCodeText !== '-'">依赖：{{ serviceCodeText }}</span>
+                </div>
                 <div class="desc">
                     <div class="ownerWrap" v-if="detail.ownerName && pageFrom !== 'myCreate'">
                         <div>所有者名称：</div>
@@ -168,7 +172,13 @@ import { h } from 'vue'
 import ApplyUseModal from './ApplyUseModal.vue'
 import ConfigServiceModal from './ConfigServiceModal.vue'
 import ResultChooseModal from './ResultChooseModal.vue'
-import $application, { ApplicationMetadata, businessStatusMap, resolveBusinessStatus } from '@/plugins/application'
+import $application, {
+    ApplicationMetadata,
+    businessStatusMap,
+    codeMap,
+    resolveBusinessStatus,
+    serviceCodeMap
+} from '@/plugins/application'
 import { notifyError } from '@/utils/message'
 import { getCurrentAccount } from '@/plugins/auth'
 import { normalizeAddress } from '@/utils/actionSignature'
@@ -198,6 +208,25 @@ const operateType = ref('application')
 const businessStatus = computed(() => resolveBusinessStatus(props.detail))
 const businessInfo = computed(() => businessStatusMap[businessStatus.value] || businessStatusMap.BUSINESS_STATUS_UNKNOWN)
 const isOnline = computed(() => businessStatus.value === 'BUSINESS_STATUS_ONLINE')
+const applicationCodeText = computed(() => {
+    const code = String(props.detail?.code || '').trim()
+    if (!code) {
+        return '未分类'
+    }
+    return codeMap[code] || code
+})
+const serviceCodeText = computed(() => {
+    const raw = props.detail?.serviceCodes
+    const codes = Array.isArray(raw)
+        ? raw.map((item) => String(item).trim()).filter(Boolean)
+        : typeof raw === 'string'
+          ? raw.split(',').map((item) => item.trim()).filter(Boolean)
+          : []
+    if (codes.length === 0) {
+        return '-'
+    }
+    return codes.map((code) => serviceCodeMap[code] || code).join('、')
+})
 
 /**
  * 申请应用的状态
@@ -471,6 +500,13 @@ if (props.pageFrom === 'myApply') {
                 .el-tag {
                     margin-top: -4px;
                 }
+            }
+            .meta {
+                display: flex;
+                flex-wrap: wrap;
+                gap: 8px 16px;
+                color: rgba(0, 0, 0, 0.6);
+                font-size: 13px;
             }
             .ownerWrap {
                 display: flex;

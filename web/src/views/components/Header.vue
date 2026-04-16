@@ -14,7 +14,9 @@
             >
                 <span class="account-trigger">
                     {{ shortAddress }}
-                    <span class="account-arrow">v</span>
+                    <span class="account-arrow" aria-hidden="true">
+                        <el-icon><ArrowDown /></el-icon>
+                    </span>
                 </span>
                 <template #dropdown>
                     <el-dropdown-menu>
@@ -29,6 +31,7 @@
 <script lang="ts" setup>
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
+import { ArrowDown } from '@element-plus/icons-vue'
 import { getCurrentAccount, logoutWithUcan } from '@/plugins/auth'
 
 const router = useRouter();
@@ -96,6 +99,8 @@ onBeforeUnmount(() => {
         }
         .account-arrow{
             margin-left: 6px;
+            display: inline-flex;
+            align-items: center;
             font-size: 12px;
             color: rgba(0,0,0,0.45);
         }

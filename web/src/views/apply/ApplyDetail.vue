@@ -68,7 +68,7 @@
             <el-row class="part-row">
                 <el-col :span="8" :xs="24">应用名称: {{ detailInfo.name }}</el-col>
                 <el-col :span="8" :xs="24">创建人: {{ detailInfo.owner }}</el-col>
-                <el-col :span="8" :xs="24">应用状态:{{ '-' }}</el-col>
+                <el-col :span="8" :xs="24">应用状态: {{ businessStatusText }}</el-col>
             </el-row>
             <el-row class="part-row">
                 <el-col :span="24">应用描述: {{ detailInfo.description }}</el-col>
@@ -77,19 +77,30 @@
         <div class="part">
             <div class="title">应用信息</div>
             <el-row class="part-row">
-                <el-col :span="8" :xs="24">应用代号: {{ detailInfo.code }}</el-col>
+                <el-col :span="8" :xs="24">应用分类: {{ applicationCodeText }}</el-col>
                 <el-col :span="8" :xs="24"
-                    >绑定服务代号:
-                    {{ detailInfo.serviceCodes && detailInfo.serviceCodes.join(',') }}
+                    >依赖服务:
+                    {{ serviceCodeText }}
                 </el-col>
                 <el-col :span="8" :xs="24">访问地址(URL): {{ detailInfo.location }} </el-col>
             </el-row>
             <el-row class="part-row">
                 <el-col :span="8" :xs="24"
-                    >代码包:
-                    <a class="link-url" :href="detailInfo.codePackagePath" style="color: rgba(22, 119, 255, 1)">
-                        <el-link type="primary" :icon="Link">{{ detailInfo.code }}</el-link>
-                    </a>
+                    >源码路径:
+                    <template v-if="detailInfo.codePackagePath && isCodePackageUrl">
+                        <a
+                            class="link-url"
+                            :href="detailInfo.codePackagePath"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            style="color: rgba(22, 119, 255, 1)"
+                        >
+                            <el-link type="primary" :icon="Link">{{ detailInfo.codePackagePath }}</el-link>
+                        </a>
+                    </template>
+                    <template v-else>
+                        {{ detailInfo.codePackagePath || '-' }}
+                    </template>
                 </el-col>
             </el-row>
         </div>
@@ -124,7 +135,7 @@
 </template>
 
 <script lang="ts" setup>
-import { onMounted, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import BreadcrumbHeader from '@/views/components/BreadcrumbHeader.vue'
 import ApplyStatus from '@/views/components/ApplyStatus.vue'
 import { WarningFilled, SuccessFilled } from '@element-plus/icons-vue'
@@ -132,7 +143,13 @@ import ResultChooseModal from '@/views/components/ResultChooseModal.vue'
 import { ElMessageBox } from 'element-plus'
 import { h } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import $application, { ApplicationMetadata } from '@/plugins/application'
+import $application, {
+    ApplicationMetadata,
+    businessStatusMap,
+    codeMap,
+    resolveBusinessStatus,
+    serviceCodeMap
+} from '@/plugins/application'
 import { Link } from '@element-plus/icons-vue'
 import ConfigServiceModal from '@/views/components/ConfigServiceModal.vue'
 import ApplyUseModal from '@/views/components/ApplyUseModal.vue'
@@ -179,6 +196,37 @@ const isOnline = ref(true) // 是否已经上架
 const applyStatus = ref('applying')
 
 const applyUid = String(route.query.uid || '').trim()
+
+const businessStatusText = computed(() => {
+    const status = resolveBusinessStatus(detailInfo.value)
+    return businessStatusMap[status]?.text || '-'
+})
+
+const applicationCodeText = computed(() => {
+    const code = String(detailInfo.value.code || '').trim()
+    if (!code) {
+        return '-'
+    }
+    return codeMap[code] || code
+})
+
+const serviceCodeText = computed(() => {
+    const raw = detailInfo.value.serviceCodes
+    const codes = Array.isArray(raw)
+        ? raw.map((item) => String(item).trim()).filter(Boolean)
+        : typeof raw === 'string'
+          ? raw.split(',').map((item) => item.trim()).filter(Boolean)
+          : []
+    if (codes.length === 0) {
+        return '-'
+    }
+    return codes.map((code) => serviceCodeMap[code] || code).join('、')
+})
+
+const isCodePackageUrl = computed(() => {
+    const source = String(detailInfo.value.codePackagePath || '').trim()
+    return /^https?:\/\//i.test(source)
+})
 
 const updateOnlineState = () => {
     const status = detailInfo.value?.status
