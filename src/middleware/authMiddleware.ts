@@ -23,6 +23,7 @@ const PUBLIC_ROUTES = [
 type AuthUser = {
   address: string;
   issuer?: string;
+  ucanSource?: 'wallet' | 'central';
   authType: 'jwt' | 'ucan';
 };
 
@@ -68,6 +69,7 @@ const authenticateToken = (req: Request, res: Response, next: NextFunction) => {
       const user: AuthUser = {
         address: result.address,
         issuer: result.issuer,
+        ucanSource: result.source,
         authType: 'ucan',
       };
       (req as Request & { user?: AuthUser }).user = user;
@@ -85,6 +87,7 @@ const authenticateToken = (req: Request, res: Response, next: NextFunction) => {
         tokenAud: claims?.aud,
         tokenCap: claims?.cap,
         tokenIss: claims?.iss,
+        tokenSub: claims?.sub,
       });
       res.status(401).json(fail(401, message));
       return;

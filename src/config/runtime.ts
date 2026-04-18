@@ -1,6 +1,6 @@
 import fs from 'fs'
 import path from 'path'
-import { AppRuntimeConfig, AuthRuntimeConfig, AuditRuntimeConfig, DatabaseConfig, UcanRuntimeConfig, MpcRuntimeConfig, RedisRuntimeConfig, IdempotencyRuntimeConfig } from './index'
+import { AppRuntimeConfig, AuthRuntimeConfig, AuditRuntimeConfig, DatabaseConfig, UcanRuntimeConfig, MpcRuntimeConfig, RedisRuntimeConfig, IdempotencyRuntimeConfig, UcanIssuerRuntimeConfig } from './index'
 import { LoggerConfig } from '../infrastructure/logger'
 
 export interface AppConfig {
@@ -10,6 +10,7 @@ export interface AppConfig {
   auth: AuthRuntimeConfig
   idempotency?: IdempotencyRuntimeConfig
   ucan: UcanRuntimeConfig
+  ucanIssuer?: UcanIssuerRuntimeConfig
   audit?: AuditRuntimeConfig
   mpc?: MpcRuntimeConfig
   redis?: RedisRuntimeConfig

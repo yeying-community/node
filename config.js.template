@@ -58,6 +58,29 @@ module.exports = {
     with: 'app:all:localhost-*',
     can: 'invoke'
   },
+  ucanIssuer: {
+    // Enable centralized issuer mode.
+    // Central issuer endpoints: /api/v1/public/auth/central/*
+    enabled: false,
+    // verify | issue | hybrid
+    // verify: wallet UCAN verify only
+    // issue: centralized UCAN issue + verify centralized issuer only
+    // hybrid: wallet UCAN verify + centralized UCAN issue/verify
+    mode: 'verify',
+    // did:key of centralized issuer. Must match private key derived DID when enabled.
+    did: '',
+    // Ed25519 private key (PEM / base64 seed / hex seed). Keep empty in template.
+    privateKey: '',
+    // Session TTL for /auth/central/session
+    sessionTtlMs: 5 * 60 * 1000,
+    // UCAN TTL for /auth/central/issue
+    tokenTtlMs: 10 * 60 * 1000,
+    // Default audience/capability if request body does not provide.
+    defaultAudience: 'did:web:localhost:8100',
+    defaultCapabilities: [
+      { with: 'app:all:localhost-*', can: 'invoke' }
+    ]
+  },
   audit: {
     // List of approver wallet addresses.
     approvers: ['0x0000000000000000000000000000000000000000'],

@@ -38,6 +38,24 @@ export interface UcanRuntimeConfig {
     can?: string
 }
 
+export type UcanIssuerMode = 'verify' | 'issue' | 'hybrid'
+
+export interface UcanIssuerCapabilityConfig {
+    with: string
+    can: string
+}
+
+export interface UcanIssuerRuntimeConfig {
+    enabled?: boolean
+    mode?: UcanIssuerMode
+    did?: string
+    privateKey?: string
+    sessionTtlMs?: number
+    tokenTtlMs?: number
+    defaultAudience?: string
+    defaultCapabilities?: UcanIssuerCapabilityConfig[]
+}
+
 export interface AuditRuntimeConfig {
     approvers?: string[]
     requiredApprovals?: number

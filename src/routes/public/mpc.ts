@@ -109,8 +109,12 @@ function mapMpcError(error: unknown): { status: number; message: string } {
       return { status: 403, message: 'UCAN capability denied' }
     case 'UCAN token required':
       return { status: 401, message: 'UCAN token required' }
+    case 'UCAN issuer mode denied':
+    case 'UCAN wallet mode denied':
+      return { status: 401, message: 'Invalid UCAN token' }
     case 'UCAN audience mismatch':
     case 'Invalid UCAN token':
+    case 'Invalid UCAN subject':
     case 'Invalid UCAN signature':
     case 'UCAN expired':
     case 'UCAN not active':
