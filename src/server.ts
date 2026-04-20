@@ -28,6 +28,7 @@ import authenticateToken from './middleware/authMiddleware';
 import { requireAdmin } from './middleware/accessControl';
 import { registerPublicAuthRoutes } from './routes/publicAuth';
 import { registerPublicAuthCentralRoutes } from './routes/publicAuthCentral';
+import { registerPublicAuthMobileRoutes } from './routes/publicAuthMobile';
 import { registerPublicProfileRoute } from './routes/privateProfile';
 import { registerPublicApplicationRoutes } from './routes/public/applications';
 import { registerPublicServiceRoutes } from './routes/public/services';
@@ -217,6 +218,7 @@ builder.build().initialize().then(async (conn) => {
 
     registerPublicAuthRoutes(app);
     registerPublicAuthCentralRoutes(app);
+    registerPublicAuthMobileRoutes(app);
     registerPublicHealthRoute(app);
     registerPublicProfileRoute(app);
     registerPublicApplicationRoutes(app);

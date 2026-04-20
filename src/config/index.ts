@@ -56,6 +56,19 @@ export interface UcanIssuerRuntimeConfig {
     defaultCapabilities?: UcanIssuerCapabilityConfig[]
 }
 
+export interface MobileAuthRuntimeConfig {
+    enabled?: boolean
+    issuerName?: string
+    verifyPath?: string
+    portalBaseUrl?: string
+    requestTtlMs?: number
+    codeDigits?: number
+    codePeriodSec?: number
+    codeWindow?: number
+    maxAttempts?: number
+    totpMasterKey?: string
+}
+
 export interface AuditRuntimeConfig {
     approvers?: string[]
     requiredApprovals?: number
