@@ -62,11 +62,18 @@ export interface MobileAuthRuntimeConfig {
     verifyPath?: string
     portalBaseUrl?: string
     requestTtlMs?: number
+    exchangeCodeTtlMs?: number
     codeDigits?: number
     codePeriodSec?: number
     codeWindow?: number
     maxAttempts?: number
     totpMasterKey?: string
+    clients?: {
+        clientId: string
+        redirectUris: string[]
+        defaultAudience?: string
+        defaultCapabilities?: UcanIssuerCapabilityConfig[]
+    }[]
 }
 
 export interface AuditRuntimeConfig {

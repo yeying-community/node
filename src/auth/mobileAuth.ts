@@ -508,6 +508,35 @@ export function getMobileAuthStatus(): MobileAuthStatus {
   };
 }
 
+export function assertMobileAuthReady(): MobileAuthStatus {
+  const status = getMobileAuthStatus();
+  if (!status.enabled) {
+    throw new MobileAuthError(403, 'MOBILE_AUTH_DISABLED', 'Mobile auth is disabled');
+  }
+  if (!status.ready) {
+    throw new MobileAuthError(503, 'MOBILE_AUTH_NOT_READY', status.error || 'Mobile auth is not ready');
+  }
+  return status;
+}
+
+export function buildMobileVerifyUrl(requestIdInput: string): string {
+  assertMobileAuthReady();
+  const requestId = normalizeRequestId(requestIdInput);
+  if (!requestId) {
+    throw new MobileAuthError(400, 'MOBILE_AUTH_REQUEST_REQUIRED', 'Missing requestId');
+  }
+  return buildVerifyUrl(requestId);
+}
+
+export function verifyMobileTotp(subjectInput: string, codeInput: string): boolean {
+  assertMobileAuthReady();
+  const subject = normalizeSubject(subjectInput);
+  if (!subject) {
+    return false;
+  }
+  return verifyTotpCode(subject, codeInput);
+}
+
 export function getMobileTotpProvision(subjectInput: string): MobileTotpProvision {
   const runtime = ensureMobileAuthReady();
   const subject = normalizeSubject(subjectInput);

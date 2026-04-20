@@ -14,6 +14,7 @@
   - UCAN 校验模式：`Authorization: Bearer <UCAN>`，服务端验证 `aud/cap/proof`
   - 中心化签发接口：`/api/v1/public/auth/central/issuer|session|issue|revoke`
   - 手机桥接签发接口：`/api/v1/public/auth/mobile/status|totp/provision|bind/request|bind/approve`
+  - 手机地址授权接口：`/api/v1/public/auth/mobile/authorize/request|approve|exchange`
   - 中心化 UCAN 校验分支：支持 `UCAN_ISSUER_DID` 信任 + `mode` 分支（`verify|issue|hybrid`）
 - 未实现（后续阶段）：
   - key rotation（active/next）
@@ -69,6 +70,22 @@
   - 输入：`requestId`、`code`（认证器验证码）
   - 输出：`JWT access token` + `sessionToken` + `UCAN`
 
+### 4.2 接口定义（手机地址授权 + code 兑换）
+
+接口前缀：`/api/v1/public/auth/mobile/authorize`
+
+- `POST /request`
+  - 输入：`address`、`clientId`、`redirectUri`、`state`（可选）
+  - 输出：`requestId`、`verifyUrl`
+- `GET /request/:requestId`
+  - 输出：授权请求状态与摘要
+- `POST /approve`
+  - 输入：`requestId`、`code`
+  - 输出：`authorizationCode` + `redirectTo`
+- `POST /exchange`
+  - 输入：`code`、`clientId`、`redirectUri`
+  - 输出：`JWT access token` + `UCAN`
+
 ## 5. 配置项
 
 `config.js` / 环境变量：
@@ -89,11 +106,13 @@
 - `mobileAuth.verifyPath` / `MOBILE_AUTH_VERIFY_PATH`
 - `mobileAuth.portalBaseUrl` / `MOBILE_AUTH_PORTAL_BASE_URL`
 - `mobileAuth.requestTtlMs` / `MOBILE_AUTH_REQUEST_TTL_MS`
+- `mobileAuth.exchangeCodeTtlMs` / `MOBILE_AUTH_EXCHANGE_CODE_TTL_MS`
 - `mobileAuth.codeDigits` / `MOBILE_AUTH_CODE_DIGITS`
 - `mobileAuth.codePeriodSec` / `MOBILE_AUTH_CODE_PERIOD_SEC`
 - `mobileAuth.codeWindow` / `MOBILE_AUTH_CODE_WINDOW`
 - `mobileAuth.maxAttempts` / `MOBILE_AUTH_MAX_ATTEMPTS`
 - `mobileAuth.totpMasterKey` / `MOBILE_AUTH_TOTP_MASTER_KEY`
+- `mobileAuth.clients` / `MOBILE_AUTH_CLIENTS`
 
 ## 6. 服务端验证逻辑（第三方无感）
 

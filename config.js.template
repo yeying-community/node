@@ -92,11 +92,25 @@ module.exports = {
     portalBaseUrl: 'http://127.0.0.1:8100',
     // One-time bind request TTL.
     requestTtlMs: 5 * 60 * 1000,
+    // Auth code TTL for /auth/mobile/authorize/exchange.
+    exchangeCodeTtlMs: 60 * 1000,
     // TOTP config (RFC 6238).
     codeDigits: 6,
     codePeriodSec: 30,
     codeWindow: 1,
     maxAttempts: 5,
+    // OAuth-like client allow-list for mobile authorize flow.
+    // redirectUris must match exactly.
+    clients: [
+      {
+        clientId: 'chat-web',
+        redirectUris: ['http://127.0.0.1:8001/examples/frontend/chat-callback.html'],
+        defaultAudience: 'did:web:localhost:8100',
+        defaultCapabilities: [
+          { with: 'app:all:localhost-*', can: 'invoke' }
+        ]
+      }
+    ],
     // Required when enabled. Supports plain text / base64 / hex.
     // IMPORTANT: replace with env injection in production.
     totpMasterKey: ''

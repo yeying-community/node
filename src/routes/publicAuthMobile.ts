@@ -8,6 +8,13 @@ import {
   MobileAuthError,
 } from '../auth/mobileAuth';
 import {
+  createMobileAuthorizeCode,
+  createMobileAuthorizeRequest,
+  consumeMobileAuthorizeRequest,
+  exchangeMobileAuthorizeCode,
+  getMobileAuthorizeRequest,
+} from '../auth/mobileAuthorize';
+import {
   createCentralIssueSession,
   getCentralIssuerStatus,
   issueCentralUcanBySession,
@@ -234,6 +241,121 @@ export function registerPublicAuthMobileRoutes(app: Express) {
       const issuerMapped = mapIssuerError(error);
       const mappedStatus = issuerMapped.status >= 500 ? 500 : issuerMapped.status;
       res.status(mappedStatus).json(fail(mappedStatus, issuerMapped.message));
+    }
+  });
+
+  app.post(`${BASE_PATH}/authorize/request`, (req: Request, res: Response) => {
+    try {
+      const result = createMobileAuthorizeRequest({
+        subject: String(req.body?.address || req.body?.subject || '').trim(),
+        clientId: req.body?.clientId,
+        redirectUri: req.body?.redirectUri,
+        state: req.body?.state,
+        audience: req.body?.audience,
+        capabilities: parseCapabilities(req.body?.capabilities),
+        appName: req.body?.appName,
+        requestTtlMs: parseOptionalPositiveNumber(req.body?.requestTtlMs),
+        sessionTtlMs: parseOptionalPositiveNumber(req.body?.sessionTtlMs),
+        tokenTtlMs: parseOptionalPositiveNumber(req.body?.tokenTtlMs ?? req.body?.expiresInMs),
+      });
+      res.json(ok(result));
+    } catch (error) {
+      const mapped = mapMobileError(error);
+      res.status(mapped.status).json(fail(mapped.status, mapped.message));
+    }
+  });
+
+  app.get(`${BASE_PATH}/authorize/request/:requestId`, (req: Request, res: Response) => {
+    try {
+      const requestId = String(req.params.requestId || '').trim();
+      const result = getMobileAuthorizeRequest(requestId);
+      if (!result) {
+        res.status(404).json(fail(404, 'Mobile authorize request not found'));
+        return;
+      }
+      res.json(ok(result));
+    } catch (error) {
+      const mapped = mapMobileError(error);
+      res.status(mapped.status).json(fail(mapped.status, mapped.message));
+    }
+  });
+
+  app.post(`${BASE_PATH}/authorize/approve`, async (req: Request, res: Response) => {
+    try {
+      const requestId = String(req.body?.requestId || '').trim();
+      const code = String(req.body?.code || '').trim();
+      if (!requestId || !code) {
+        res.status(400).json(fail(400, 'Missing requestId or code'));
+        return;
+      }
+
+      const consumed = consumeMobileAuthorizeRequest({
+        requestId,
+        code,
+      });
+
+      await provisionUserState(consumed.subject);
+      const tokens = issueTokens(consumed.subject);
+      const session = createCentralIssueSession({
+        subject: consumed.subject,
+        expiresInMs: consumed.sessionTtlMs,
+      });
+      const issued = issueCentralUcanBySession({
+        sessionToken: session.sessionToken,
+        audience: consumed.audience,
+        capabilities: consumed.capabilities,
+        expiresInMs: consumed.tokenTtlMs,
+      });
+
+      const authCode = createMobileAuthorizeCode({
+        requestId: consumed.requestId,
+        subject: consumed.subject,
+        clientId: consumed.clientId,
+        redirectUri: consumed.redirectUri,
+        state: consumed.state,
+        token: tokens.accessToken,
+        expiresAt: tokens.accessExpiresAt,
+        refreshExpiresAt: tokens.refreshExpiresAt,
+        ucan: issued.ucan,
+        issuer: issued.issuer,
+        audience: issued.audience,
+        capabilities: issued.capabilities,
+        notBefore: issued.notBefore,
+        ucanExpiresAt: issued.expiresAt,
+      });
+
+      res.json(
+        ok({
+          requestId: consumed.requestId,
+          appName: consumed.appName,
+          approvedAt: consumed.approvedAt,
+          authorizationCode: authCode.code,
+          authorizationCodeExpiresAt: authCode.expiresAt,
+          redirectTo: authCode.redirectTo,
+        })
+      );
+    } catch (error) {
+      if (error instanceof MobileAuthError) {
+        res.status(error.status).json(fail(error.status, error.message));
+        return;
+      }
+      const issuerMapped = mapIssuerError(error);
+      const mappedStatus = issuerMapped.status >= 500 ? 500 : issuerMapped.status;
+      res.status(mappedStatus).json(fail(mappedStatus, issuerMapped.message));
+    }
+  });
+
+  app.post(`${BASE_PATH}/authorize/exchange`, (req: Request, res: Response) => {
+    try {
+      const result = exchangeMobileAuthorizeCode({
+        code: req.body?.code,
+        clientId: req.body?.clientId,
+        redirectUri: req.body?.redirectUri,
+      });
+      res.json(ok(result));
+    } catch (error) {
+      const mapped = mapMobileError(error);
+      res.status(mapped.status).json(fail(mapped.status, mapped.message));
     }
   });
 }
