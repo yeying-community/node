@@ -5,8 +5,8 @@
         <img class="w-28 h-8 mr-2" src="../../assets/img/logo.svg" />
         <div class="block sm:flex items-center">
           <div class="flex my-5 sm:my-0">
-            <span class="text-sm font-puhuiBold">{{ $t("common.contactUs") }}：</span>
-            <span class="text-sm text-black-400 font-puhuiRegular"
+            <span class="text-sm font-display font-semibold">{{ $t("common.contactUs") }}：</span>
+            <span class="text-sm text-black-400 font-body"
               >yeying.community@gmail.com</span
             >
           </div>
@@ -20,7 +20,7 @@
         </div>
       </div>
       <hr class="my-10 bg-gray-500" />
-      <div class="text-sm font-puhuiRegular text-black flex justify-between">
+      <div class="text-sm font-body text-black flex justify-between">
         <!-- <a href="https://beian.miit.gov.cn" target="_blank">
                     浙ICP备2024126729号-2
                 </a> -->

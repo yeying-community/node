@@ -105,6 +105,8 @@ const toggleSidebar = () => {
       color: rgba(0, 0, 0, 0.65);
       display: flex;
       align-items: center;
+      font-weight: 400;
+      letter-spacing: 0.01em;
     }
   }
 }
@@ -117,6 +119,8 @@ const toggleSidebar = () => {
 
 .active {
   background: rgba(0, 0, 0, 0.03);
+  font-family: var(--app-font-display);
+  font-weight: 500;
   color: black !important;
   opacity: 1;
 }

@@ -7,9 +7,10 @@ export default {
   theme: {
     extend: {
       fontFamily: {
-        puhuiBold: ['Puhui-Bold'],
-        puhuiRegular: ['Puhui-Regular'],
-        puhuiMedium: ['Puhui-Medium'],
+        sans: ['var(--app-font-body)'],
+        display: ['var(--app-font-display)'],
+        body: ['var(--app-font-body)'],
+        mono: ['var(--app-font-mono)'],
       },
     },
   },

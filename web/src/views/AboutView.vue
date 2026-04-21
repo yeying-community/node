@@ -1,6 +1,6 @@
 <template>
   <div class="about">
-    <h1 class="text-red-500	 font-bold underline">
+    <h1 class="text-red-500 font-medium underline">
       about--{{ $t['name'] }}
     </h1>
   </div>

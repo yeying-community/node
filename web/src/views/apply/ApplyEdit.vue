@@ -543,7 +543,7 @@ onMounted(() => {
 
 .panel-title {
     font-size: 18px;
-    font-weight: 600;
+    font-weight: 500;
     color: rgba(0, 0, 0, 0.88);
 }
 
@@ -565,7 +565,7 @@ onMounted(() => {
 .section-title {
     margin-bottom: 12px;
     font-size: 15px;
-    font-weight: 600;
+    font-weight: 500;
     color: rgba(0, 0, 0, 0.85);
 }
 

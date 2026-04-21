@@ -17,7 +17,7 @@
           <span class="iconfont icon-horizon scale-125" />
         </button>
       </div>
-      <div class="hidden lg:flex lg:gap-x-12 font-puhuiRegular text-base">
+      <div class="hidden lg:flex lg:gap-x-12 font-body text-base">
         <span
           class="cursor-pointer opacity-85"
           :class="item.name == selectName ? 'text-blue-600' : ''"
@@ -57,7 +57,7 @@
                 @click="() => changeRouter(item.to)"
                 v-for="item in navigation"
                 :key="item.name"
-                class="block px-3 py-2 text-base/7 font-puhuiRegular text-gray-900 hover:bg-gray-50"
+                class="block px-3 py-2 text-base/7 font-body text-gray-900 hover:bg-gray-50"
                 :style="{ color: item.name == selectName ? 'blue' : '' }"
                 >{{ item.title }}</span
               >

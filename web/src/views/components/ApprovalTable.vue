@@ -110,8 +110,18 @@ const props = defineProps({
     background-color: #fafafa !important;
     color: rgba(0, 0, 0, 0.88) !important;
 }
+
+:deep(.el-table__header .cell) {
+    font-weight: 500;
+}
+
+:deep(.el-table__body .cell) {
+    font-weight: 400;
+}
+
 .name {
     color: rgba(22, 119, 255, 1);
+    font-weight: 500;
 }
 
 :deep(.el-badge__content.is-dot) {

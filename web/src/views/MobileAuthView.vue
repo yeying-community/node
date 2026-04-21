@@ -431,7 +431,7 @@ onBeforeUnmount(() => {
 h1 {
   margin: 0;
   font-size: 22px;
-  font-weight: 600;
+  font-weight: 500;
 }
 
 .subtitle {

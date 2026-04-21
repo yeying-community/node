@@ -23,12 +23,17 @@ const props = defineProps({
   align-items: center;
   justify-content: flex-start;
   gap: 8px;
+  font-family: var(--app-font-display);
   font-weight: 500;
-  font-size: 18px;
+  font-size: 20px;
+  line-height: 1.2;
+  letter-spacing: 0.01em;
   margin: 10px 0 24px;
   color: rgba(0, 0, 0, 0.85);
 
   .back-icon {
+    color: rgba(0, 0, 0, 0.55);
+    transition: color 0.2s ease;
     &:hover {
       color: #409eff;
     }

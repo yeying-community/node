@@ -229,13 +229,14 @@ onMounted(() => {
         border-radius: 6px;
         .header {
             font-size: 16px;
-            font-weight: 500;
+            font-weight: 400;
             color: rgba(0, 0, 0, 0.45);
             display: flex;
             gap: 30px;
         }
         .active {
             color: rgba(0, 0, 0, 0.85);
+            font-weight: 500;
         }
     }
     .demo-form-inline .el-input {

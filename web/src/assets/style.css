@@ -2,23 +2,149 @@
 @tailwind components;
 @tailwind utilities;
 
-@font-face {
-    font-family: "Puhui-Bold";
-    src:url("@/assets/fonts/puhui/AlibabaPuHuiTi-3-85-Bold.woff2") format("woff2");
-    font-display: swap;
-}
-@font-face {
-    font-family: "Puhui-Regular";
-    src:url("@/assets/fonts/puhui/AlibabaPuHuiTi-2-55-Regular.woff2") format("truetype");
-    font-display: swap;
-}
-@font-face {
-    font-family: "Puhui-Medium";
-    src:url("@/assets/fonts/puhui/AlibabaPuHuiTi-3-65-Medium.woff2") format("truetype");
-    font-display: swap;
-}
-.blue-color{
-    color:#1677FF;
+:root {
+    --app-font-body:
+        "PingFang SC",
+        "SF Pro Text",
+        "Hiragino Sans GB",
+        "Noto Sans CJK SC",
+        "Source Han Sans SC",
+        "Microsoft YaHei",
+        sans-serif;
+    --app-font-display:
+        "SF Pro Display",
+        "SF Pro Text",
+        "PingFang SC",
+        "Hiragino Sans GB",
+        "Noto Sans CJK SC",
+        "Source Han Sans SC",
+        "Microsoft YaHei",
+        sans-serif;
+    --app-font-mono:
+        "SF Mono",
+        "Monaco",
+        "Menlo",
+        "Consolas",
+        "Liberation Mono",
+        monospace;
+    --type-size-body: 14px;
+    --type-size-label: 13px;
+    --type-size-subtitle: 16px;
+    --type-size-title: 20px;
+    --type-size-hero: clamp(30px, 4vw, 52px);
+    --type-line-body: 1.6;
+    --type-line-tight: 1.3;
+    --el-font-family: var(--app-font-body);
 }
 
+html,
+body,
+#app {
+    font-family: var(--app-font-body);
+    font-size: var(--type-size-body);
+    font-weight: 400;
+    line-height: var(--type-line-body);
+    font-synthesis: none;
+    font-feature-settings: "kern" 1;
+    text-rendering: optimizeLegibility;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    letter-spacing: 0.005em;
+    color: rgba(0, 0, 0, 0.85);
+}
 
+h1,
+h2,
+h3,
+h4,
+h5,
+h6,
+.font-display,
+.el-page-header__title,
+.el-dialog__title,
+.el-drawer__title,
+.el-card__header,
+.el-tabs__item.is-active {
+    font-family: var(--app-font-display);
+    font-weight: 500;
+    letter-spacing: 0.01em;
+}
+
+h1 {
+    font-size: var(--type-size-hero);
+    line-height: 1.12;
+}
+
+h2 {
+    font-size: clamp(22px, 2.8vw, 32px);
+    line-height: 1.18;
+}
+
+h3 {
+    font-size: clamp(18px, 2vw, 24px);
+    line-height: 1.24;
+}
+
+h4,
+h5,
+h6 {
+    font-size: var(--type-size-subtitle);
+    line-height: var(--type-line-tight);
+}
+
+button,
+input,
+textarea,
+select,
+table,
+th,
+td {
+    font-family: inherit;
+    font-weight: inherit;
+}
+
+.el-breadcrumb__inner {
+    font-weight: 400;
+}
+
+.el-breadcrumb__item:last-child .el-breadcrumb__inner {
+    font-family: var(--app-font-display);
+    font-weight: 500;
+}
+
+.el-menu-item,
+.el-dropdown-menu__item,
+.el-form-item__label,
+.el-button {
+    font-weight: 400;
+}
+
+.el-tabs__item {
+    font-size: 14px;
+    font-weight: 400;
+}
+
+.el-form-item__label {
+    font-size: var(--type-size-label);
+    color: rgba(0, 0, 0, 0.65);
+}
+
+.el-table th .cell {
+    font-size: var(--type-size-label);
+    letter-spacing: 0.01em;
+}
+
+.el-table td .cell {
+    font-size: var(--type-size-body);
+}
+
+code,
+kbd,
+pre,
+samp {
+    font-family: var(--app-font-mono);
+}
+
+.blue-color {
+    color: #1677FF;
+}

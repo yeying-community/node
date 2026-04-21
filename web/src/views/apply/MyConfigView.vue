@@ -638,7 +638,7 @@ onMounted(async () => {
 
   .status-title {
     font-size: 16px;
-    font-weight: 600;
+    font-weight: 500;
     margin-bottom: 12px;
   }
 
@@ -673,7 +673,7 @@ onMounted(async () => {
 
   .totp-title {
     font-size: 14px;
-    font-weight: 600;
+    font-weight: 500;
     margin-bottom: 8px;
   }
 
