@@ -1,6 +1,7 @@
 import * as crypto from 'crypto';
 import { getConfig } from '../config/runtime';
-import type { UcanCapability } from './ucanIssuer';
+import { ApplicationService } from '../domain/service/application';
+import { getCentralIssuerStatus, type UcanCapability } from './ucanIssuer';
 import {
   MobileAuthError,
   assertMobileAuthReady,
@@ -13,6 +14,7 @@ export type MobileAuthorizeRequestStatus = 'pending' | 'used' | 'expired' | 'rev
 export type MobileAuthorizeClient = {
   clientId: string;
   redirectUris: string[];
+  appName?: string;
   defaultAudience?: string;
   defaultCapabilities?: UcanCapability[];
 };
@@ -126,10 +128,19 @@ const MAX_EXCHANGE_CODE_TTL_MS = 5 * 60 * 1000;
 const MAX_STATE_LENGTH = 1024;
 const MAX_APP_NAME_LENGTH = 128;
 const GC_RETENTION_MS = 24 * 60 * 60 * 1000;
+const DYNAMIC_CLIENT_CACHE_TTL_MS = 60 * 1000;
+const APP_ID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 const AUTHORIZE_REQUESTS = new Map<string, MobileAuthorizeRequestRecord>();
 const AUTHORIZE_CODES = new Map<string, MobileAuthorizeCodeRecord>();
 const AUTHORIZE_RUNTIME = loadAuthorizeRuntime();
+const DYNAMIC_CLIENT_CACHE = new Map<
+  string,
+  {
+    expiresAt: number;
+    client: MobileAuthorizeClient | null;
+  }
+>();
 
 function parsePositiveNumber(value: unknown, fallback: number): number {
   if (value === undefined || value === null || value === '') return fallback;
@@ -292,9 +303,14 @@ function parseClientConfig(raw: unknown): Map<string, MobileAuthorizeClient> {
         ? source.defaultAudience.trim()
         : undefined;
     const defaultCapabilities = parseCapabilityList(source.defaultCapabilities);
+    const appName =
+      typeof source.appName === 'string' && source.appName.trim()
+        ? normalizeAppName(source.appName)
+        : undefined;
     clients.set(clientId, {
       clientId,
       redirectUris,
+      appName,
       defaultAudience,
       defaultCapabilities: defaultCapabilities.length > 0 ? defaultCapabilities : undefined,
     });
@@ -314,6 +330,12 @@ function loadAuthorizeRuntime(): MobileAuthorizeRuntimeState {
 }
 
 function cleanupAuthorizeRecords(nowMs = Date.now()): void {
+  for (const [clientId, cacheItem] of DYNAMIC_CLIENT_CACHE.entries()) {
+    if (cacheItem.expiresAt <= nowMs) {
+      DYNAMIC_CLIENT_CACHE.delete(clientId);
+    }
+  }
+
   for (const [requestId, record] of AUTHORIZE_REQUESTS.entries()) {
     if (record.status === 'pending' && nowMs > record.expiresAt) {
       record.status = 'expired';
@@ -336,16 +358,78 @@ function cleanupAuthorizeRecords(nowMs = Date.now()): void {
   }
 }
 
-function getAuthorizeClient(clientIdInput: unknown): MobileAuthorizeClient {
+function deriveRedirectUrisByAppLocation(locationInput: unknown): string[] {
+  const location = String(locationInput || '').trim();
+  if (!location) return [];
+  let parsed: URL;
+  try {
+    parsed = new URL(location);
+  } catch {
+    return [];
+  }
+  if (!/^https?:$/i.test(parsed.protocol)) {
+    return [];
+  }
+  const redirectUris = new Set<string>();
+  redirectUris.add(new URL('/central-ucan-callback.html', parsed.origin).toString());
+  redirectUris.add(new URL('/chat-callback.html', parsed.origin).toString());
+  return [...redirectUris];
+}
+
+async function resolveAppClientByAppId(clientId: string): Promise<MobileAuthorizeClient | null> {
+  if (!APP_ID_REGEX.test(clientId)) {
+    return null;
+  }
+  const nowMs = Date.now();
+  const cached = DYNAMIC_CLIENT_CACHE.get(clientId);
+  if (cached && cached.expiresAt > nowMs) {
+    return cached.client;
+  }
+
+  const service = new ApplicationService();
+  const app = await service.queryByUid(clientId);
+  if (!app || !app.uid || !app.isOnline) {
+    DYNAMIC_CLIENT_CACHE.set(clientId, { client: null, expiresAt: nowMs + DYNAMIC_CLIENT_CACHE_TTL_MS });
+    return null;
+  }
+
+  const redirectUris = deriveRedirectUrisByAppLocation(app.location);
+  if (redirectUris.length === 0) {
+    DYNAMIC_CLIENT_CACHE.set(clientId, { client: null, expiresAt: nowMs + DYNAMIC_CLIENT_CACHE_TTL_MS });
+    return null;
+  }
+
+  const issuerStatus = getCentralIssuerStatus();
+  const defaultCapabilities =
+    Array.isArray(issuerStatus.defaultCapabilities) && issuerStatus.defaultCapabilities.length > 0
+      ? issuerStatus.defaultCapabilities
+      : undefined;
+
+  const client: MobileAuthorizeClient = {
+    clientId,
+    appName: normalizeAppName(app.name || app.code || clientId),
+    redirectUris,
+    defaultAudience: issuerStatus.defaultAudience || undefined,
+    defaultCapabilities,
+  };
+  DYNAMIC_CLIENT_CACHE.set(clientId, { client, expiresAt: nowMs + DYNAMIC_CLIENT_CACHE_TTL_MS });
+  return client;
+}
+
+async function getAuthorizeClient(clientIdInput: unknown): Promise<MobileAuthorizeClient> {
   const clientId = normalizeClientId(clientIdInput);
   if (!clientId) {
     throw new MobileAuthError(400, 'MOBILE_AUTH_CLIENT_REQUIRED', 'Missing clientId');
   }
-  const client = AUTHORIZE_RUNTIME.clients.get(clientId);
-  if (!client) {
-    throw new MobileAuthError(403, 'MOBILE_AUTH_CLIENT_DENIED', 'Unauthorized clientId');
+  const staticClient = AUTHORIZE_RUNTIME.clients.get(clientId);
+  if (staticClient) {
+    return staticClient;
   }
-  return client;
+  const appClient = await resolveAppClientByAppId(clientId);
+  if (appClient) {
+    return appClient;
+  }
+  throw new MobileAuthError(403, 'MOBILE_AUTH_CLIENT_DENIED', 'Unauthorized clientId');
 }
 
 function requireClientRedirect(client: MobileAuthorizeClient, redirectUriInput: unknown): string {
@@ -429,7 +513,7 @@ function appendQuery(baseUrl: string, query: Record<string, string>): string {
   return parsed.toString();
 }
 
-export function createMobileAuthorizeRequest(input: {
+export async function createMobileAuthorizeRequest(input: {
   subject: string;
   clientId: string;
   redirectUri: string;
@@ -440,20 +524,12 @@ export function createMobileAuthorizeRequest(input: {
   requestTtlMs?: number;
   sessionTtlMs?: number;
   tokenTtlMs?: number;
-}): MobileAuthorizeRequestCreateResult {
+}): Promise<MobileAuthorizeRequestCreateResult> {
   const mobileStatus = assertMobileAuthReady();
   cleanupAuthorizeRecords();
 
-  if (AUTHORIZE_RUNTIME.clients.size === 0) {
-    throw new MobileAuthError(
-      503,
-      'MOBILE_AUTH_CLIENTS_EMPTY',
-      'Mobile auth clients are not configured'
-    );
-  }
-
   const subject = requireWalletAddress(input.subject);
-  const client = getAuthorizeClient(input.clientId);
+  const client = await getAuthorizeClient(input.clientId);
   const redirectUri = requireClientRedirect(client, input.redirectUri);
   const state = normalizeState(input.state);
   const capabilitiesInput = Array.isArray(input.capabilities) ? input.capabilities : [];
@@ -492,7 +568,7 @@ export function createMobileAuthorizeRequest(input: {
     state,
     audience,
     capabilities: resolvedCapabilities,
-    appName: normalizeAppName(input.appName),
+    appName: normalizeAppName(input.appName || client.appName || client.clientId),
     createdAt: nowMs,
     updatedAt: nowMs,
     expiresAt,
@@ -571,7 +647,7 @@ export function consumeMobileAuthorizeRequest(input: {
   };
 }
 
-export function createMobileAuthorizeCode(input: {
+export async function createMobileAuthorizeCode(input: {
   requestId: string;
   subject: string;
   clientId: string;
@@ -588,11 +664,11 @@ export function createMobileAuthorizeCode(input: {
   ucanExpiresAt: number;
   issuedAt?: number;
   codeTtlMs?: number;
-}): MobileAuthorizeCodeCreateResult {
+}): Promise<MobileAuthorizeCodeCreateResult> {
   assertMobileAuthReady();
   cleanupAuthorizeRecords();
 
-  const client = getAuthorizeClient(input.clientId);
+  const client = await getAuthorizeClient(input.clientId);
   const redirectUri = requireClientRedirect(client, input.redirectUri);
   const requestId = normalizeRequestId(input.requestId);
   if (!requestId) {
@@ -645,11 +721,11 @@ export function createMobileAuthorizeCode(input: {
   };
 }
 
-export function exchangeMobileAuthorizeCode(input: {
+export async function exchangeMobileAuthorizeCode(input: {
   code: string;
   clientId: string;
   redirectUri: string;
-}): MobileAuthorizeCodeExchangeResult {
+}): Promise<MobileAuthorizeCodeExchangeResult> {
   assertMobileAuthReady();
   cleanupAuthorizeRecords();
 
@@ -657,7 +733,7 @@ export function exchangeMobileAuthorizeCode(input: {
   if (!code) {
     throw new MobileAuthError(400, 'MOBILE_AUTH_CODE_REQUIRED', 'Missing authorization code');
   }
-  const client = getAuthorizeClient(input.clientId);
+  const client = await getAuthorizeClient(input.clientId);
   const redirectUri = requireClientRedirect(client, input.redirectUri);
   const record = AUTHORIZE_CODES.get(code);
   if (!record) {

@@ -76,6 +76,7 @@
 
 - `POST /request`
   - 输入：`address`、`clientId`、`redirectUri`、`state`（可选）
+  - 建议：`clientId` 直接使用应用市场 `AppId`（`applications.uid`）
   - 输出：`requestId`、`verifyUrl`
 - `GET /request/:requestId`
   - 输出：授权请求状态与摘要
@@ -118,6 +119,7 @@
 - `mobileAuth.maxAttempts` / `MOBILE_AUTH_MAX_ATTEMPTS`
 - `mobileAuth.totpMasterKey` / `MOBILE_AUTH_TOTP_MASTER_KEY`
 - `mobileAuth.clients` / `MOBILE_AUTH_CLIENTS`
+  - 可选覆盖：未命中 `AppId` 自动识别时，使用该白名单显式配置 `clientId + redirectUris`
 
 ## 6. 服务端验证逻辑（第三方无感）
 
@@ -196,3 +198,4 @@
 | 2026-04-17 | 首版创建 | 建立 Node UCAN 签发模式长期维护文档 |
 | 2026-04-17 | 明确中心化接口 | 采用 `/api/v1/public/auth/central/*` 路由并保持业务验 token 无感 |
 | 2026-04-21 | 增加 `/mobile-auth` 承载页约定 | 明确手机地址授权流程中的 Node 公共审批页职责（查询/授权/回跳） |
+| 2026-04-21 | 引入 `AppId` 客户端识别 | 支持 `clientId=applications.uid` 动态解析回跳白名单，降低 Chat 集成配置复杂度 |

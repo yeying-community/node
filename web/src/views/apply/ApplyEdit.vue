@@ -326,6 +326,17 @@ function handlePresetChange(value: string | number | boolean) {
     applyPreset(key)
 }
 
+function resolveSubmitError(error: unknown): string {
+    const message = error instanceof Error ? error.message : String(error || '未知错误')
+    if (message.includes('USER_ROLE_DENIED')) {
+        return '当前账号暂无发布权限（USER_ROLE_DENIED）。请重新登录后重试，或联系管理员确认角色为 NORMAL/OWNER。'
+    }
+    if (message.includes('USER_BLOCKED')) {
+        return '当前账号已被禁用或冻结，无法发布应用。'
+    }
+    return message
+}
+
 async function getDetailInfo() {
     const uid = String(route.query.uid || '').trim()
     if (!uid) {
@@ -410,68 +421,73 @@ async function submitForm(andPublish: boolean) {
         return
     }
 
-    const params = buildSubmitParams(account)
-    const uid = String(route.query.uid || '').trim()
+    try {
+        const params = buildSubmitParams(account)
+        const uid = String(route.query.uid || '').trim()
 
-    if (!uid) {
-        const existsList = await $application.myCreateList(account)
-        if (Array.isArray(existsList)) {
-            const duplicated = existsList.find((item) => item.name === params.name)
-            if (duplicated) {
-                notifyError(`❌应用 [${params.name}] 已存在，请勿重复创建`)
-                return
+        if (!uid) {
+            const existsList = await $application.myCreateList(account)
+            if (Array.isArray(existsList)) {
+                const duplicated = existsList.find((item) => item.name === params.name)
+                if (duplicated) {
+                    notifyError(`❌应用 [${params.name}] 已存在，请勿重复创建`)
+                    return
+                }
             }
         }
-    }
 
-    if (uid) {
-        const updated = await $application.myCreateUpdate({
-            uid,
-            code: params.code,
-            codePackagePath: params.codePackagePath,
-            description: params.description,
-            location: params.location,
-            name: params.name,
-            owner: params.owner,
-            ownerName: params.ownerName,
-            serviceCodes: params.serviceCodes,
-            avatar: params.avatar
-        })
-        if (!updated) {
+        if (uid) {
+            const updated = await $application.myCreateUpdate({
+                uid,
+                code: params.code,
+                codePackagePath: params.codePackagePath,
+                description: params.description,
+                location: params.location,
+                name: params.name,
+                owner: params.owner,
+                ownerName: params.ownerName,
+                serviceCodes: params.serviceCodes,
+                avatar: params.avatar
+            })
+            if (!updated) {
+                return
+            }
+            detailInfo.value = { ...detailInfo.value, ...updated }
+            if (andPublish) {
+                await submitPublishRequest(updated)
+                toList()
+                return
+            }
+            ElMessage.success('应用修改已保存')
             return
         }
-        detailInfo.value = { ...detailInfo.value, ...updated }
+
+        const identity = await generateIdentity(
+            String(params.code || ''),
+            params.serviceCodes || [],
+            String(params.location || ''),
+            '',
+            String(params.name || ''),
+            String(params.description || ''),
+            String(params.avatar || '')
+        )
+        params.did = identity.metadata?.did
+        params.version = identity.metadata?.version
+        const created = await $application.create(params)
+        if (!created) {
+            return
+        }
         if (andPublish) {
-            await submitPublishRequest(updated)
+            await submitPublishRequest(created)
             toList()
             return
         }
-        ElMessage.success('应用修改已保存')
-        return
-    }
-
-    const identity = await generateIdentity(
-        String(params.code || ''),
-        params.serviceCodes || [],
-        String(params.location || ''),
-        '',
-        String(params.name || ''),
-        String(params.description || ''),
-        String(params.avatar || '')
-    )
-    params.did = identity.metadata?.did
-    params.version = identity.metadata?.version
-    const created = await $application.create(params)
-    if (!created) {
-        return
-    }
-    if (andPublish) {
-        await submitPublishRequest(created)
+        ElMessage.success('应用已保存，可在“我创建的”中继续管理')
         toList()
-        return
+    } catch (error) {
+        console.error('❌应用保存失败', error)
+        notifyError(`❌${resolveSubmitError(error)}`)
     }
-    ElMessage.success('应用已保存，可在“我创建的”中继续管理')
-    toList()
 }
 
 async function changeFile(fileType: 'avatar' | 'code', uploadFile: Record<string, unknown>) {

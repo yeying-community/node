@@ -101,6 +101,9 @@ module.exports = {
     maxAttempts: 5,
     // OAuth-like client allow-list for mobile authorize flow.
     // redirectUris must match exactly.
+    // If clientId uses a published AppId (applications.uid), Node can auto-derive
+    // redirectUris from application.location (+ /central-ucan-callback.html, /chat-callback.html).
+    // Keep this list for explicit override or non-market clients.
     clients: [
       {
         clientId: 'chat-web',

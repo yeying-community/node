@@ -256,9 +256,9 @@ export function registerPublicAuthMobileRoutes(app: Express) {
     }
   });
 
-  app.post(`${BASE_PATH}/authorize/request`, (req: Request, res: Response) => {
+  app.post(`${BASE_PATH}/authorize/request`, async (req: Request, res: Response) => {
     try {
-      const result = createMobileAuthorizeRequest({
+      const result = await createMobileAuthorizeRequest({
         subject: String(req.body?.address || req.body?.subject || '').trim(),
         clientId: req.body?.clientId,
         redirectUri: req.body?.redirectUri,
@@ -319,7 +319,7 @@ export function registerPublicAuthMobileRoutes(app: Express) {
         expiresInMs: consumed.tokenTtlMs,
       });
 
-      const authCode = createMobileAuthorizeCode({
+      const authCode = await createMobileAuthorizeCode({
         requestId: consumed.requestId,
         subject: consumed.subject,
         clientId: consumed.clientId,
@@ -357,9 +357,9 @@ export function registerPublicAuthMobileRoutes(app: Express) {
     }
   });
 
-  app.post(`${BASE_PATH}/authorize/exchange`, (req: Request, res: Response) => {
+  app.post(`${BASE_PATH}/authorize/exchange`, async (req: Request, res: Response) => {
     try {
-      const result = exchangeMobileAuthorizeCode({
+      const result = await exchangeMobileAuthorizeCode({
         code: req.body?.code,
         clientId: req.body?.clientId,
         redirectUri: req.body?.redirectUri,

@@ -10,7 +10,10 @@ export class CommentManager {
     }
 
     async queryByAuditId(auditId: string) {
-        return await this.repository.findBy({ auditId: auditId})
+        return await this.repository
+            .createQueryBuilder('comment')
+            .where('comment.audit_id = :auditId', { auditId })
+            .getMany()
     }
 
     async save(comment: CommentDO) {
