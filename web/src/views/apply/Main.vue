@@ -25,7 +25,7 @@
 <script lang="ts" setup>
 import { ref, watch } from "vue";
 import { RouterView, useRouter, useRoute } from "vue-router";
-import { Menu, Operation, Document } from "@element-plus/icons-vue";
+import { Menu, Operation, Document, Setting } from "@element-plus/icons-vue";
 
 const router = useRouter();
 const route = useRoute();
@@ -45,6 +45,12 @@ const navigation = [
     to: "/market/approval/",
     name: "approval",
     icon: Document,
+  },
+  {
+    title: "我的配置",
+    to: "/market/my-config/",
+    name: "myConfig",
+    icon: Setting,
   }
 ];
 

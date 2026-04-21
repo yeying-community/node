@@ -29,6 +29,12 @@ export const routes = [
         component: () => import('../views/AboutView.vue')
     },
     {
+        path: '/mobile-auth',
+        name: 'mobileAuth',
+        meta: { public: true },
+        component: () => import('../views/MobileAuthView.vue')
+    },
+    {
         path: '/market',
         name: 'market',
         component: () => import('../views/apply/MarketView.vue'),
@@ -67,6 +73,11 @@ export const routes = [
                 path: 'approval',
                 name: 'approval',
                 component: () => import('../views/apply/ApprovalView.vue')
+            },
+            {
+                path: 'my-config',
+                name: 'myConfig',
+                component: () => import('../views/apply/MyConfigView.vue')
             }
         ]
     }

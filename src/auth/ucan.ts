@@ -167,6 +167,18 @@ function normalizeActionExpression(raw: string): string {
   return Array.from(new Set(items)).join(',');
 }
 
+function normalizeLoopbackAlias(raw: string): string {
+  return String(raw || '')
+    .trim()
+    .replace(/127\.0\.0\.1/g, 'localhost');
+}
+
+function isEquivalentAudience(left: string, right: string): boolean {
+  if (!left || !right) return false;
+  if (left === right) return true;
+  return normalizeLoopbackAlias(left) === normalizeLoopbackAlias(right);
+}
+
 function getCapabilityResource(cap: UcanCapability | null | undefined): string {
   if (!cap || typeof cap !== 'object') return '';
   if (typeof cap.with === 'string' && cap.with.trim()) {
@@ -201,11 +213,13 @@ function actionAllows(availableAction: string, requiredAction: string): boolean 
 }
 
 function matchPattern(pattern: string, value: string): boolean {
-  if (pattern === '*') return true;
-  if (pattern.endsWith('*')) {
-    return value.startsWith(pattern.slice(0, -1));
+  const normalizedPattern = normalizeLoopbackAlias(pattern);
+  const normalizedValue = normalizeLoopbackAlias(value);
+  if (normalizedPattern === '*') return true;
+  if (normalizedPattern.endsWith('*')) {
+    return normalizedValue.startsWith(normalizedPattern.slice(0, -1));
   }
-  return pattern === value;
+  return normalizedPattern === normalizedValue;
 }
 
 function resourceIntersects(availableResource: string, requiredResource: string): boolean {
@@ -284,7 +298,7 @@ function verifyRootProof(root: UcanRootProof): {
     throw new Error('Invalid root claims');
   }
 
-  if (root.aud && root.aud !== aud) {
+  if (root.aud && !isEquivalentAudience(root.aud, aud)) {
     throw new Error('Root audience mismatch');
   }
   if (root.exp && normalizeEpochMillis(root.exp) !== exp) {
@@ -354,7 +368,7 @@ function verifyProofChain(
     if (!payload.iss || !payload.aud) {
       throw new Error('Invalid UCAN proof');
     }
-    if (payload.aud !== currentDid) {
+    if (!isEquivalentAudience(payload.aud, currentDid)) {
       throw new Error('UCAN audience mismatch');
     }
     const proofExp = normalizeEpochMillis(payload.exp ?? undefined) ?? exp;
@@ -368,7 +382,7 @@ function verifyProofChain(
     return verifyProofChain(payload.iss, payload.cap || [], proofExp ?? requiredExp, nextProofs);
   }
   const root = verifyRootProof(first);
-  if (root.aud !== currentDid) {
+  if (!isEquivalentAudience(root.aud, currentDid)) {
     throw new Error('Root audience mismatch');
   }
   if (!capsAllow(root.cap || [], requiredCap)) {
@@ -473,7 +487,7 @@ function verifyUcanInvocationWithRequired(
   if (!payload.iss || !payload.aud) {
     throw new Error('Invalid UCAN token');
   }
-  if (payload.aud !== UCAN_AUD) {
+  if (!isEquivalentAudience(payload.aud, UCAN_AUD)) {
     throw new Error('UCAN audience mismatch');
   }
   if (!capsAllow(payload.cap || [], requiredCap)) {

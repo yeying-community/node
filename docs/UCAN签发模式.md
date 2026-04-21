@@ -58,10 +58,10 @@
 - `GET /status`
   - 返回 mobile auth 是否启用、是否就绪、TOTP 参数与错误状态
 - `GET /totp/provision`
-  - Header：`Authorization: Bearer <JWT access token>`
+  - Header：`Authorization: Bearer <JWT access token | UCAN token>`
   - 输出：`otpauthUri`、`secret`、`issuer`、`period`、`digits`
 - `POST /bind/request`
-  - Header：`Authorization: Bearer <JWT access token>`
+  - Header：`Authorization: Bearer <JWT access token | UCAN token>`
   - 输入：`audience`、`capabilities`、`requestTtlMs`、`appName`（可选）
   - 输出：`requestId`、`verifyUrl`（手机跳转地址）
 - `GET /bind/request/:requestId`
@@ -85,6 +85,11 @@
 - `POST /exchange`
   - 输入：`code`、`clientId`、`redirectUri`
   - 输出：`JWT access token` + `UCAN`
+
+前端承载页（Node Web）：
+- `GET /market/my-config`（钱包登录后管理页，支持加载 TOTP 配置与二维码、配置/调试 mobile authorize）
+- `GET /mobile-auth?requestId=...`
+- 页面行为：查询请求、输入 TOTP、调用 `authorize/approve` 后自动按 `redirectTo` 回跳。
 
 ## 5. 配置项
 
@@ -190,3 +195,4 @@
 | --- | --- | --- |
 | 2026-04-17 | 首版创建 | 建立 Node UCAN 签发模式长期维护文档 |
 | 2026-04-17 | 明确中心化接口 | 采用 `/api/v1/public/auth/central/*` 路由并保持业务验 token 无感 |
+| 2026-04-21 | 增加 `/mobile-auth` 承载页约定 | 明确手机地址授权流程中的 Node 公共审批页职责（查询/授权/回跳） |

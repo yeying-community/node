@@ -20,6 +20,7 @@ import {
   issueCentralUcanBySession,
   type UcanCapability,
 } from '../auth/ucanIssuer';
+import { verifyUcanInvocation } from '../auth/ucan';
 import { fail, ok } from '../auth/envelope';
 import { issueTokens, verifyAccessToken } from '../auth/siwe';
 import { provisionUserState } from '../common/permission';
@@ -98,25 +99,45 @@ function mapMobileError(error: unknown): { status: number; message: string } {
   return { status: 500, message: error instanceof Error ? error.message : 'Mobile auth failed' };
 }
 
+function resolveBearerSubject(
+  rawToken: string
+): { subject: string; authType: 'jwt' | 'ucan' } {
+  const token = String(rawToken || '').trim();
+  if (!token) {
+    throw new MobileAuthError(401, 'MOBILE_AUTH_TOKEN_MISSING', 'Missing access token');
+  }
+
+  const jwtPayload = verifyAccessToken(token);
+  if (jwtPayload) {
+    const subject = normalizeSubject(jwtPayload.address);
+    if (!subject) {
+      throw new MobileAuthError(401, 'MOBILE_AUTH_TOKEN_INVALID', 'Invalid access token subject');
+    }
+    return { subject, authType: 'jwt' };
+  }
+
+  try {
+    const ucan = verifyUcanInvocation(token);
+    const subject = normalizeSubject(ucan.address);
+    if (!subject) {
+      throw new MobileAuthError(401, 'MOBILE_AUTH_TOKEN_INVALID', 'Invalid access token subject');
+    }
+    return { subject, authType: 'ucan' };
+  } catch {
+    throw new MobileAuthError(401, 'MOBILE_AUTH_TOKEN_INVALID', 'Invalid or expired access token');
+  }
+}
+
 export function registerPublicAuthMobileRoutes(app: Express) {
   app.get(`${BASE_PATH}/status`, (_req: Request, res: Response) => {
     res.json(ok(getMobileAuthStatus()));
   });
 
   app.get(`${BASE_PATH}/totp/provision`, (req: Request, res: Response) => {
-    const accessToken = parseBearerToken(req);
-    if (!accessToken) {
-      res.status(401).json(fail(401, 'Missing access token'));
-      return;
-    }
-    const payload = verifyAccessToken(accessToken);
-    if (!payload) {
-      res.status(401).json(fail(401, 'Invalid or expired access token'));
-      return;
-    }
-
     try {
-      const subject = normalizeSubject(payload.address);
+      const accessToken = parseBearerToken(req);
+      const auth = resolveBearerSubject(accessToken);
+      const subject = auth.subject;
       const provision = getMobileTotpProvision(subject);
       res.json(ok(provision));
     } catch (error) {
@@ -126,19 +147,10 @@ export function registerPublicAuthMobileRoutes(app: Express) {
   });
 
   app.post(`${BASE_PATH}/bind/request`, (req: Request, res: Response) => {
-    const accessToken = parseBearerToken(req);
-    if (!accessToken) {
-      res.status(401).json(fail(401, 'Missing access token'));
-      return;
-    }
-    const payload = verifyAccessToken(accessToken);
-    if (!payload) {
-      res.status(401).json(fail(401, 'Invalid or expired access token'));
-      return;
-    }
-
     try {
-      const subject = normalizeSubject(payload.address);
+      const accessToken = parseBearerToken(req);
+      const auth = resolveBearerSubject(accessToken);
+      const subject = auth.subject;
       if (!subject) {
         res.status(400).json(fail(400, 'Missing subject'));
         return;

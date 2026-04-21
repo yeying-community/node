@@ -104,7 +104,15 @@ module.exports = {
     clients: [
       {
         clientId: 'chat-web',
-        redirectUris: ['http://127.0.0.1:8001/examples/frontend/chat-callback.html'],
+        redirectUris: [
+          'http://127.0.0.1:3000/central-ucan-callback.html',
+          'http://localhost:3000/central-ucan-callback.html',
+          'http://127.0.0.1:3020/central-ucan-callback.html',
+          'http://localhost:3020/central-ucan-callback.html',
+          'http://127.0.0.1:8991/central-ucan-callback.html',
+          'http://localhost:8991/central-ucan-callback.html',
+          'http://127.0.0.1:8001/examples/frontend/chat-callback.html'
+        ],
         defaultAudience: 'did:web:localhost:8100',
         defaultCapabilities: [
           { with: 'app:all:localhost-*', can: 'invoke' }
