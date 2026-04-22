@@ -6,12 +6,13 @@
     <title>Node 帮助文档</title>
     <style>
       :root {
-        --bg: #f7f9fc;
+        --bg: #f6f9ff;
         --card: #ffffff;
         --text: #1f2937;
         --muted: #5b6473;
         --line: #e6ebf3;
         --accent: #1677ff;
+        --accent-soft: #eef5ff;
       }
 
       * {
@@ -26,18 +27,21 @@
           'Source Han Sans SC',
           'Microsoft YaHei',
           sans-serif;
-        background: radial-gradient(circle at 0% 0%, #f2f7ff 0, var(--bg) 42%);
+        background:
+          radial-gradient(circle at 0% 0%, #ecf5ff 0, transparent 46%),
+          radial-gradient(circle at 100% 0%, #f4f8ff 0, transparent 52%),
+          var(--bg);
         color: var(--text);
       }
 
-      .wrap {
-        max-width: 980px;
+      .page {
+        max-width: 1120px;
         margin: 0 auto;
-        padding: 36px 20px 48px;
+        padding: 32px 18px 48px;
       }
 
       .hero {
-        margin-bottom: 18px;
+        margin-bottom: 12px;
       }
 
       h1 {
@@ -54,24 +58,166 @@
         line-height: 1.65;
       }
 
-      .grid {
+      .layout {
         display: grid;
-        grid-template-columns: 1fr 1fr;
+        grid-template-columns: 250px minmax(0, 1fr);
         gap: 14px;
+        align-items: start;
       }
 
       .card {
         background: var(--card);
         border: 1px solid var(--line);
         border-radius: 12px;
-        padding: 16px;
       }
 
-      .card h2 {
-        margin: 0 0 10px;
+      .sidebar {
+        position: sticky;
+        top: 18px;
+        padding: 12px;
+      }
+
+      .toc-title {
+        margin: 2px 0 10px;
+        font-size: 14px;
+        font-weight: 600;
+        color: #3a4558;
+      }
+
+      .toc-node {
+        border: 1px solid var(--line);
+        border-radius: 9px;
+        margin-bottom: 8px;
+        background: linear-gradient(180deg, #ffffff 0%, #f9fbff 100%);
+        overflow: hidden;
+      }
+
+      .toc-node-summary {
+        list-style: none;
+        cursor: pointer;
+        padding: 9px 10px;
+        font-size: 13px;
+        line-height: 1.4;
+        color: #2a3a55;
+        font-weight: 600;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+      }
+
+      .toc-node-summary::-webkit-details-marker {
+        display: none;
+      }
+
+      .toc-node-summary::after {
+        content: '▾';
+        color: #6a7485;
+        font-size: 12px;
+        line-height: 1;
+        transition: transform 0.15s ease;
+      }
+
+      .toc-node:not([open]) .toc-node-summary::after {
+        transform: rotate(-90deg);
+      }
+
+      .toc-children {
+        padding: 0 8px 8px;
+      }
+
+      .toc-children .toc-link {
+        margin-bottom: 6px;
+      }
+
+      .toc-link {
+        display: block;
+        margin-bottom: 0;
+        padding: 9px 10px;
+        border: 1px solid var(--line);
+        border-radius: 9px;
+        color: #2a3a55;
+        background: linear-gradient(180deg, #ffffff 0%, #f8fbff 100%);
+        font-size: 13px;
+        line-height: 1.5;
+        text-decoration: none;
+      }
+
+      .toc-link:hover {
+        border-color: #c8dafd;
+        background: #f4f8ff;
+        color: #0f4fa5;
+      }
+
+      .toc-link strong {
+        display: block;
+        font-size: 12px;
+        color: #6a7485;
+        font-weight: 500;
+      }
+
+      .toc-link span {
+        display: block;
+        margin-top: 2px;
+        font-size: 14px;
+        font-weight: 600;
+      }
+
+      .content {
+        min-width: 0;
+      }
+
+      .section {
+        margin-bottom: 12px;
+        scroll-margin-top: 16px;
+        overflow: hidden;
+      }
+
+      .section-summary {
+        list-style: none;
+        cursor: pointer;
+        padding: 14px 16px;
         font-size: 16px;
         line-height: 1.4;
         font-weight: 600;
+        color: #1f2f47;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+      }
+
+      .section-summary::-webkit-details-marker {
+        display: none;
+      }
+
+      .section-summary::after {
+        content: '▾';
+        color: #6a7485;
+        font-size: 14px;
+        line-height: 1;
+        transition: transform 0.15s ease;
+      }
+
+      .section:not([open]) .section-summary::after {
+        transform: rotate(-90deg);
+      }
+
+      .section-body {
+        padding: 0 18px 16px;
+      }
+
+      .flow {
+        margin-top: 2px;
+      }
+
+      .flow-step {
+        margin-bottom: 9px;
+        font-size: 14px;
+        line-height: 1.7;
+        color: #263347;
+      }
+
+      .flow-step b {
+        color: #0f4fa5;
       }
 
       .list {
@@ -86,21 +232,19 @@
         line-height: 1.65;
       }
 
-      .hint {
-        margin-top: 14px;
+      .tip {
         border: 1px dashed #cad6ea;
         background: #f7faff;
-      }
-
-      .hint strong {
-        color: #0f4fa5;
-      }
-
-      .meta {
-        margin-top: 18px;
-        color: var(--muted);
+        border-radius: 10px;
+        padding: 10px 12px;
+        margin-top: 10px;
         font-size: 13px;
-        line-height: 1.7;
+        line-height: 1.65;
+        color: #364255;
+      }
+
+      .tip strong {
+        color: #0d4eb2;
       }
 
       code {
@@ -109,97 +253,218 @@
         font-family: ui-monospace, Menlo, Consolas, monospace;
         font-size: 12px;
         color: #1356b6;
-        background: #eef5ff;
+        background: var(--accent-soft);
       }
 
-      a {
-        color: var(--accent);
-        text-decoration: none;
+      .meta {
+        margin-top: 10px;
+        color: var(--muted);
+        font-size: 13px;
+        line-height: 1.7;
       }
 
-      a:hover {
-        text-decoration: underline;
-      }
-
-      @media (max-width: 860px) {
-        .wrap {
-          padding-top: 26px;
+      @media (max-width: 980px) {
+        .layout {
+          grid-template-columns: 1fr;
         }
 
-        .grid {
-          grid-template-columns: 1fr;
+        .sidebar {
+          position: static;
         }
       }
     </style>
   </head>
   <body>
-    <main class="wrap">
+    <main class="page">
       <section class="hero">
         <h1>Node 使用帮助</h1>
         <div class="subtitle">
-          这里提供中心化 UCAN、应用发布与审批的最短操作路径。遇到鉴权错误时，优先核对
-          <code>address</code>、<code>clientId</code>、<code>redirectUri</code>。
+          帮助页支持折叠章节。可手动展开单个章节，也可在左侧目录一键展开/折叠全部内容。
         </div>
       </section>
 
-      <section class="grid">
-        <article class="card">
-          <h2>快速开始（5 分钟）</h2>
-          <ol class="list">
-            <li>使用钱包登录，进入应用中心。</li>
-            <li>打开“我的配置”，刷新 Mobile Auth 状态。</li>
-            <li>加载认证器配置，用 Authenticator 扫码绑定 TOTP。</li>
-            <li>填写客户端配置并创建授权请求。</li>
-            <li>批准授权并兑换 code，得到 JWT + UCAN。</li>
-            <li>在“结果验证”校验 Token 是否可用。</li>
-          </ol>
-        </article>
+      <div class="layout">
+        <aside class="card sidebar">
+          <div class="toc-title">目录</div>
+          <details class="toc-node" open>
+            <summary class="toc-node-summary">1. 核心流程</summary>
+            <div class="toc-children">
+              <a class="toc-link" href="#onboarding">
+                <strong>01</strong>
+                <span>应用入驻流程</span>
+              </a>
+              <a class="toc-link" href="#ucan">
+                <strong>02</strong>
+                <span>UCAN 授权流程</span>
+              </a>
+              <a class="toc-link" href="#quickstart">
+                <strong>06</strong>
+                <span>快速开始</span>
+              </a>
+            </div>
+          </details>
+          <details class="toc-node" open>
+            <summary class="toc-node-summary">2. 接入规范</summary>
+            <div class="toc-children">
+              <a class="toc-link" href="#params">
+                <strong>03</strong>
+                <span>参数与约束</span>
+              </a>
+              <a class="toc-link" href="#faq">
+                <strong>04</strong>
+                <span>常见报错处理</span>
+              </a>
+            </div>
+          </details>
+          <details class="toc-node" open>
+            <summary class="toc-node-summary">3. 文档与排查</summary>
+            <div class="toc-children">
+              <a class="toc-link" href="#references">
+                <strong>05</strong>
+                <span>深度文档入口</span>
+              </a>
+              <a class="toc-link" href="#troubleshoot">
+                <strong>07</strong>
+                <span>排查建议</span>
+              </a>
+            </div>
+          </details>
+        </aside>
 
-        <article class="card">
-          <h2>关键参数</h2>
-          <ul class="list">
-            <li><code>clientId</code>：建议使用应用市场 AppId（<code>applications.uid</code>）。</li>
-            <li><code>redirectUri</code>：必须在该 clientId 的允许列表中。</li>
-            <li><code>audience</code>：需与服务端 UCAN audience 一致。</li>
-            <li>
-              <code>capability.with/can</code>：需匹配服务端策略，否则会能力不足。
-            </li>
-          </ul>
-        </article>
+        <section class="content">
+          <details class="card section" id="onboarding" open>
+            <summary class="section-summary">01. 应用入驻流程</summary>
+            <div class="section-body">
+              <div class="flow">
+                <div class="flow-step"><b>Step 1:</b> 钱包登录 Node 应用，进入“应用中心”。</div>
+                <div class="flow-step"><b>Step 2:</b> 在“发布应用”填写信息并保存，系统会创建应用记录。</div>
+                <div class="flow-step">
+                  <b>Step 3:</b> 创建成功后会得到应用 <code>AppId</code>（即 <code>applications.uid</code>）。
+                </div>
+                <div class="flow-step"><b>Step 4:</b> 提交上架申请并完成审批。</div>
+                <div class="flow-step"><b>Step 5:</b> 上架成功后 <code>is_online=true</code>，应用进入可用状态。</div>
+                <div class="flow-step">
+                  <b>Step 6:</b> 第三方应用把 <code>AppId</code> 作为 <code>clientId</code> 接入中心化 UCAN。
+                </div>
+              </div>
+              <div class="tip">
+                <strong>关键点：</strong>
+                <code>clientId</code> 不在发布时新生成，使用的是创建应用时的
+                <code>AppId(uid)</code>。但要用于动态授权白名单，应用必须已上架。
+              </div>
+            </div>
+          </details>
 
-        <article class="card">
-          <h2>常见错误处理</h2>
-          <ul class="list">
-            <li><code>redirectUri is not allowed</code>：回调地址未进入白名单。</li>
-            <li><code>UCAN audience mismatch</code>：Token 的 aud 与服务端期望不一致。</li>
-            <li><code>UCAN capability denied</code>：签发能力不足，需调整并重签。</li>
-            <li><code>USER_ROLE_DENIED</code>：账号角色不满足发布/审批权限。</li>
-          </ul>
-        </article>
+          <details class="card section" id="ucan" open>
+            <summary class="section-summary">02. UCAN 授权流程（中心化 Issuer）</summary>
+            <div class="section-body">
+              <div class="flow">
+                <div class="flow-step">
+                  <b>1)</b> 业务端发起授权请求：提交 <code>address + clientId + redirectUri</code>。
+                </div>
+                <div class="flow-step">
+                  <b>2)</b> Node 校验 <code>clientId + redirectUri</code> 是否可用（静态白名单或 AppId 动态识别）。
+                </div>
+                <div class="flow-step">
+                  <b>3)</b> 用户在 Node 验证页输入 TOTP，授权通过后拿到一次性 <code>code</code>。
+                </div>
+                <div class="flow-step">
+                  <b>4)</b> 业务端用 <code>code + clientId + redirectUri</code> 兑换 <code>JWT + UCAN</code>。
+                </div>
+                <div class="flow-step">
+                  <b>5)</b> 业务端携带 Bearer Token 调用受保护接口，服务端按统一 UCAN 规则验证。
+                </div>
+              </div>
+              <div class="tip">
+                <strong>推荐实践：</strong>
+                移动端无钱包插件时，优先走此流程；PC 有插件时可继续钱包直连，两者服务端验证逻辑一致。
+              </div>
+            </div>
+          </details>
 
-        <article class="card">
-          <h2>发布与审批建议</h2>
-          <ul class="list">
-            <li>发布前先确保应用基础信息和 location 配置正确。</li>
-            <li>审批列表看不到任务时，先核对 approver 地址是否匹配当前登录地址。</li>
-            <li>优先查看后端 <code>logs/</code> 日志定位鉴权或角色问题。</li>
-          </ul>
-        </article>
-      </section>
+          <details class="card section" id="params" open>
+            <summary class="section-summary">03. 参数与约束</summary>
+            <div class="section-body">
+              <ul class="list">
+                <li><code>clientId</code>：建议使用应用市场 AppId（<code>applications.uid</code>）。</li>
+                <li><code>redirectUri</code>：必须命中该 clientId 的允许回调列表。</li>
+                <li><code>audience</code>：需与服务端 UCAN audience 配置一致。</li>
+                <li><code>capability.with/can</code>：必须与服务端能力策略一致。</li>
+              </ul>
+            </div>
+          </details>
 
-      <section class="card hint">
-        <h2>深度文档</h2>
-        <div class="subtitle">
-          需要完整流程和规范说明，请查看仓库文档：
-          <strong>docs/产品使用手册.md</strong>、<strong>docs/登录授权.md</strong>、
-          <strong>docs/UCAN签发模式.md</strong>。
-        </div>
-      </section>
+          <details class="card section" id="faq" open>
+            <summary class="section-summary">04. 常见报错处理</summary>
+            <div class="section-body">
+              <ul class="list">
+                <li><code>redirectUri is not allowed</code>：回调地址未进入允许列表。</li>
+                <li><code>Unauthorized clientId</code>：clientId 不存在、未上架或不在白名单。</li>
+                <li><code>UCAN audience mismatch</code>：Token 的 aud 与服务端期望不一致。</li>
+                <li><code>UCAN capability denied</code>：签发能力不足，需调整能力并重签。</li>
+                <li><code>USER_ROLE_DENIED</code>：账号角色不满足发布/审批权限。</li>
+              </ul>
+            </div>
+          </details>
+
+          <details class="card section" id="references" open>
+            <summary class="section-summary">05. 深度文档入口</summary>
+            <div class="section-body">
+              <ul class="list">
+                <li><strong>当前页面 /help.html</strong>：产品使用手册（唯一维护版本）。</li>
+                <li><strong>docs/登录授权.md</strong>：登录与 UCAN 授权规范。</li>
+                <li><strong>docs/UCAN签发模式.md</strong>：中心化签发模式设计与实践。</li>
+                <li><strong>docs/运行配置.md</strong>：配置项说明与最小配置建议。</li>
+              </ul>
+            </div>
+          </details>
+
+          <details class="card section" id="quickstart" open>
+            <summary class="section-summary">06. 快速开始（5 分钟）</summary>
+            <div class="section-body">
+              <ol class="list">
+                <li>钱包登录并进入“我的配置”。</li>
+                <li>刷新 Mobile Auth 状态，确认服务已就绪。</li>
+                <li>加载认证器配置并扫码绑定 TOTP。</li>
+                <li>填写 <code>address/clientId/redirectUri</code> 并创建授权请求。</li>
+                <li>批准授权并兑换 code，验证 JWT/UCAN 可用性。</li>
+              </ol>
+            </div>
+          </details>
+
+          <details class="card section" id="troubleshoot" open>
+            <summary class="section-summary">07. 排查建议</summary>
+            <div class="section-body">
+              <ul class="list">
+                <li>先查服务端 <code>logs/</code>，再看浏览器控制台与 Network 面板。</li>
+                <li>优先核对三元组：<code>address</code>、<code>clientId</code>、<code>redirectUri</code>。</li>
+                <li>涉及 UCAN 校验时，同时核对 <code>audience</code> 和 <code>capability</code>。</li>
+              </ul>
+            </div>
+          </details>
+        </section>
+      </div>
 
       <div class="meta">
-        页面地址：<code>/help.html</code>。可以由右上角帮助图标直接打开。<br />
+        页面地址：<code>/help.html</code>（由 Header 右上角帮助图标打开）。<br />
         最近更新：2026-04-22
       </div>
     </main>
+    <script>
+      (function () {
+        function openHashTarget() {
+          const hash = String(window.location.hash || '').replace(/^#/, '');
+          if (!hash) return;
+          const target = document.getElementById(hash);
+          if (!target) return;
+          if (target.tagName.toLowerCase() === 'details') {
+            target.open = true;
+          }
+        }
+
+        window.addEventListener('hashchange', openHashTarget);
+        openHashTarget();
+      })();
+    </script>
   </body>
 </html>
