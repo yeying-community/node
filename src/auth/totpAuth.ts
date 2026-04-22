@@ -2,9 +2,9 @@ import * as crypto from 'crypto';
 import type { UcanCapability } from './ucanIssuer';
 import { getConfig } from '../config/runtime';
 
-export type MobileBindRequestStatus = 'pending' | 'used' | 'expired' | 'revoked';
+export type TotpBindRequestStatus = 'pending' | 'used' | 'expired' | 'revoked';
 
-export type MobileAuthStatus = {
+export type TotpAuthStatus = {
   enabled: boolean;
   ready: boolean;
   issuerName: string;
@@ -18,7 +18,7 @@ export type MobileAuthStatus = {
   error?: string;
 };
 
-export type MobileTotpProvision = {
+export type TotpProvision = {
   subject: string;
   issuer: string;
   accountName: string;
@@ -29,9 +29,9 @@ export type MobileTotpProvision = {
   otpauthUri: string;
 };
 
-export type MobileBindRequestCreateResult = {
+export type TotpBindRequestCreateResult = {
   requestId: string;
-  status: MobileBindRequestStatus;
+  status: TotpBindRequestStatus;
   subject: string;
   subjectHint: string;
   audience: string;
@@ -43,9 +43,9 @@ export type MobileBindRequestCreateResult = {
   verifyUrl: string;
 };
 
-export type MobileBindRequestPublicResult = Omit<MobileBindRequestCreateResult, 'subject'>;
+export type TotpBindRequestPublicResult = Omit<TotpBindRequestCreateResult, 'subject'>;
 
-export type MobileBindConsumeResult = {
+export type TotpBindConsumeResult = {
   requestId: string;
   subject: string;
   audience: string;
@@ -57,7 +57,7 @@ export type MobileBindConsumeResult = {
   approvedAt: number;
 };
 
-export type CreateMobileBindRequestInput = {
+export type CreateTotpBindRequestInput = {
   subject: string;
   audience: string;
   capabilities: UcanCapability[];
@@ -68,7 +68,7 @@ export type CreateMobileBindRequestInput = {
   tokenTtlMs?: number;
 };
 
-export class MobileAuthError extends Error {
+export class TotpAuthError extends Error {
   readonly status: number;
   readonly code: string;
 
@@ -76,11 +76,11 @@ export class MobileAuthError extends Error {
     super(message);
     this.status = status;
     this.code = code;
-    this.name = 'MobileAuthError';
+    this.name = 'TotpAuthError';
   }
 }
 
-type MobileAuthRuntimeState = {
+type TotpAuthRuntimeState = {
   enabled: boolean;
   ready: boolean;
   issuerName: string;
@@ -95,9 +95,9 @@ type MobileAuthRuntimeState = {
   error?: string;
 };
 
-type MobileBindRequestRecord = {
+type TotpBindRequestRecord = {
   requestId: string;
-  status: MobileBindRequestStatus;
+  status: TotpBindRequestStatus;
   subject: string;
   audience: string;
   capabilities: UcanCapability[];
@@ -116,7 +116,7 @@ const DEFAULT_PORT = parsePositiveNumber(
   8100
 );
 const DEFAULT_ISSUER_NAME = 'YeYing Node';
-const DEFAULT_VERIFY_PATH = '/mobile-auth';
+const DEFAULT_VERIFY_PATH = '/totp-auth';
 const DEFAULT_PORTAL_BASE_URL = `http://127.0.0.1:${DEFAULT_PORT}`;
 const DEFAULT_REQUEST_TTL_MS = 5 * 60 * 1000;
 const MIN_REQUEST_TTL_MS = 60 * 1000;
@@ -129,8 +129,8 @@ const DEFAULT_MAX_ATTEMPTS = 5;
 const MAX_MAX_ATTEMPTS = 20;
 const GC_RETENTION_MS = 24 * 60 * 60 * 1000;
 
-const MOBILE_BIND_REQUESTS = new Map<string, MobileBindRequestRecord>();
-const MOBILE_AUTH_RUNTIME = loadMobileAuthRuntime();
+const TOTP_BIND_REQUESTS = new Map<string, TotpBindRequestRecord>();
+const TOTP_AUTH_RUNTIME = loadTotpAuthRuntime();
 
 function parseBoolean(value: unknown, fallback = false): boolean {
   if (value === undefined || value === null || value === '') return fallback;
@@ -156,7 +156,7 @@ function parseInteger(value: unknown, fallback: number): number {
 function decodeMasterKey(raw: string): Buffer {
   const normalized = String(raw || '').trim();
   if (!normalized) {
-    throw new Error('Missing mobile auth TOTP master key');
+    throw new Error('Missing totp auth TOTP master key');
   }
 
   const hex = normalized.replace(/^0x/i, '');
@@ -227,43 +227,43 @@ function clampMaxAttempts(value: unknown): number {
   return Math.min(Math.max(parsed, 1), MAX_MAX_ATTEMPTS);
 }
 
-function loadMobileAuthRuntime(): MobileAuthRuntimeState {
+function loadTotpAuthRuntime(): TotpAuthRuntimeState {
   const enabled = parseBoolean(
-    process.env.MOBILE_AUTH_ENABLED ?? getConfig<boolean>('mobileAuth.enabled'),
+    process.env.TOTP_AUTH_ENABLED ?? getConfig<boolean>('totpAuth.enabled'),
     false
   );
 
-  const runtime: MobileAuthRuntimeState = {
+  const runtime: TotpAuthRuntimeState = {
     enabled,
     ready: false,
     issuerName: String(
-      process.env.MOBILE_AUTH_ISSUER_NAME ??
-        getConfig<string>('mobileAuth.issuerName') ??
+      process.env.TOTP_AUTH_ISSUER_NAME ??
+        getConfig<string>('totpAuth.issuerName') ??
         DEFAULT_ISSUER_NAME
     ).trim() || DEFAULT_ISSUER_NAME,
     verifyPath: normalizeVerifyPath(
-      process.env.MOBILE_AUTH_VERIFY_PATH ?? getConfig<string>('mobileAuth.verifyPath')
+      process.env.TOTP_AUTH_VERIFY_PATH ?? getConfig<string>('totpAuth.verifyPath')
     ),
     portalBaseUrl:
       normalizeBaseUrl(
-        process.env.MOBILE_AUTH_PORTAL_BASE_URL ?? getConfig<string>('mobileAuth.portalBaseUrl')
+        process.env.TOTP_AUTH_PORTAL_BASE_URL ?? getConfig<string>('totpAuth.portalBaseUrl')
       ) || DEFAULT_PORTAL_BASE_URL,
     requestTtlMs: clampRequestTtlMs(
-      process.env.MOBILE_AUTH_REQUEST_TTL_MS ?? getConfig<number>('mobileAuth.requestTtlMs'),
+      process.env.TOTP_AUTH_REQUEST_TTL_MS ?? getConfig<number>('totpAuth.requestTtlMs'),
       DEFAULT_REQUEST_TTL_MS
     ),
     codeDigits: clampDigits(
-      process.env.MOBILE_AUTH_CODE_DIGITS ?? getConfig<number>('mobileAuth.codeDigits')
+      process.env.TOTP_AUTH_CODE_DIGITS ?? getConfig<number>('totpAuth.codeDigits')
     ),
     codePeriodSec: parsePositiveNumber(
-      process.env.MOBILE_AUTH_CODE_PERIOD_SEC ?? getConfig<number>('mobileAuth.codePeriodSec'),
+      process.env.TOTP_AUTH_CODE_PERIOD_SEC ?? getConfig<number>('totpAuth.codePeriodSec'),
       DEFAULT_CODE_PERIOD_SEC
     ),
     codeWindow: clampWindow(
-      process.env.MOBILE_AUTH_CODE_WINDOW ?? getConfig<number>('mobileAuth.codeWindow')
+      process.env.TOTP_AUTH_CODE_WINDOW ?? getConfig<number>('totpAuth.codeWindow')
     ),
     maxAttempts: clampMaxAttempts(
-      process.env.MOBILE_AUTH_MAX_ATTEMPTS ?? getConfig<number>('mobileAuth.maxAttempts')
+      process.env.TOTP_AUTH_MAX_ATTEMPTS ?? getConfig<number>('totpAuth.maxAttempts')
     ),
   };
 
@@ -272,10 +272,10 @@ function loadMobileAuthRuntime(): MobileAuthRuntimeState {
   }
 
   const masterKeyRaw = String(
-    process.env.MOBILE_AUTH_TOTP_MASTER_KEY ?? getConfig<string>('mobileAuth.totpMasterKey') ?? ''
+    process.env.TOTP_AUTH_TOTP_MASTER_KEY ?? getConfig<string>('totpAuth.totpMasterKey') ?? ''
   ).trim();
   if (!masterKeyRaw) {
-    runtime.error = 'MOBILE_AUTH_TOTP_MASTER_KEY is required when mobile auth is enabled';
+    runtime.error = 'TOTP_AUTH_TOTP_MASTER_KEY is required when totp auth is enabled';
     return runtime;
   }
 
@@ -284,23 +284,23 @@ function loadMobileAuthRuntime(): MobileAuthRuntimeState {
     runtime.ready = true;
   } catch (error) {
     runtime.error =
-      error instanceof Error ? error.message : 'Failed to initialize mobile auth runtime';
+      error instanceof Error ? error.message : 'Failed to initialize totp auth runtime';
   }
   return runtime;
 }
 
-function ensureMobileAuthReady(): MobileAuthRuntimeState {
-  if (!MOBILE_AUTH_RUNTIME.enabled) {
-    throw new MobileAuthError(403, 'MOBILE_AUTH_DISABLED', 'Mobile auth is disabled');
+function ensureTotpAuthReady(): TotpAuthRuntimeState {
+  if (!TOTP_AUTH_RUNTIME.enabled) {
+    throw new TotpAuthError(403, 'TOTP_AUTH_DISABLED', 'TOTP auth is disabled');
   }
-  if (!MOBILE_AUTH_RUNTIME.ready || !MOBILE_AUTH_RUNTIME.masterKey) {
-    throw new MobileAuthError(
+  if (!TOTP_AUTH_RUNTIME.ready || !TOTP_AUTH_RUNTIME.masterKey) {
+    throw new TotpAuthError(
       503,
-      'MOBILE_AUTH_NOT_READY',
-      MOBILE_AUTH_RUNTIME.error || 'Mobile auth is not ready'
+      'TOTP_AUTH_NOT_READY',
+      TOTP_AUTH_RUNTIME.error || 'TOTP auth is not ready'
     );
   }
-  return MOBILE_AUTH_RUNTIME;
+  return TOTP_AUTH_RUNTIME;
 }
 
 function createRequestId(): string {
@@ -312,15 +312,15 @@ function createRequestId(): string {
 }
 
 function cleanupBindRequests(nowMs = Date.now()): void {
-  for (const [requestId, record] of MOBILE_BIND_REQUESTS.entries()) {
+  for (const [requestId, record] of TOTP_BIND_REQUESTS.entries()) {
     if (record.status === 'pending' && nowMs > record.expiresAt) {
       record.status = 'expired';
       record.updatedAt = nowMs;
-      MOBILE_BIND_REQUESTS.set(requestId, record);
+      TOTP_BIND_REQUESTS.set(requestId, record);
       continue;
     }
     if (record.status !== 'pending' && nowMs - record.updatedAt > GC_RETENTION_MS) {
-      MOBILE_BIND_REQUESTS.delete(requestId);
+      TOTP_BIND_REQUESTS.delete(requestId);
     }
   }
 }
@@ -359,7 +359,7 @@ function sanitizeCapabilities(caps: UcanCapability[]): UcanCapability[] {
     .filter((entry): entry is UcanCapability => Boolean(entry));
 }
 
-function toPublicBindResult(record: MobileBindRequestRecord): MobileBindRequestPublicResult {
+function toPublicBindResult(record: TotpBindRequestRecord): TotpBindRequestPublicResult {
   return {
     requestId: record.requestId,
     status: record.status,
@@ -374,7 +374,7 @@ function toPublicBindResult(record: MobileBindRequestRecord): MobileBindRequestP
   };
 }
 
-function toCreateBindResult(record: MobileBindRequestRecord): MobileBindRequestCreateResult {
+function toCreateBindResult(record: TotpBindRequestRecord): TotpBindRequestCreateResult {
   return {
     ...toPublicBindResult(record),
     subject: record.subject,
@@ -382,8 +382,8 @@ function toCreateBindResult(record: MobileBindRequestRecord): MobileBindRequestC
 }
 
 function buildVerifyUrl(requestId: string): string {
-  const pathWithQuery = `${MOBILE_AUTH_RUNTIME.verifyPath}?requestId=${encodeURIComponent(requestId)}`;
-  const base = MOBILE_AUTH_RUNTIME.portalBaseUrl;
+  const pathWithQuery = `${TOTP_AUTH_RUNTIME.verifyPath}?requestId=${encodeURIComponent(requestId)}`;
+  const base = TOTP_AUTH_RUNTIME.portalBaseUrl;
   if (!base) return pathWithQuery;
   return `${base}${pathWithQuery}`;
 }
@@ -408,10 +408,10 @@ function base32Encode(input: Buffer): string {
 }
 
 function deriveSubjectSecret(subject: string): Buffer {
-  const runtime = ensureMobileAuthReady();
+  const runtime = ensureTotpAuthReady();
   return crypto
     .createHmac('sha256', runtime.masterKey as Buffer)
-    .update(`mobile-auth:${subject}`)
+    .update(`totp-auth:${subject}`)
     .digest()
     .subarray(0, 20);
 }
@@ -459,7 +459,7 @@ function codeEquals(expected: string, actual: string): boolean {
 }
 
 function verifyTotpCode(subject: string, code: string, nowMs = Date.now()): boolean {
-  const runtime = ensureMobileAuthReady();
+  const runtime = ensureTotpAuthReady();
   const normalizedCode = normalizeCode(code);
   if (normalizedCode.length !== runtime.codeDigits) {
     return false;
@@ -475,7 +475,7 @@ function verifyTotpCode(subject: string, code: string, nowMs = Date.now()): bool
   return false;
 }
 
-function requirePendingRequest(record: MobileBindRequestRecord, nowMs: number): MobileBindRequestRecord {
+function requirePendingRequest(record: TotpBindRequestRecord, nowMs: number): TotpBindRequestRecord {
   if (record.status === 'pending' && nowMs > record.expiresAt) {
     record.status = 'expired';
     record.updatedAt = nowMs;
@@ -484,52 +484,52 @@ function requirePendingRequest(record: MobileBindRequestRecord, nowMs: number): 
     return record;
   }
   if (record.status === 'expired') {
-    throw new MobileAuthError(410, 'MOBILE_AUTH_REQUEST_EXPIRED', 'Mobile bind request expired');
+    throw new TotpAuthError(410, 'TOTP_AUTH_REQUEST_EXPIRED', 'totp bind request expired');
   }
   if (record.status === 'used') {
-    throw new MobileAuthError(409, 'MOBILE_AUTH_REQUEST_USED', 'Mobile bind request already used');
+    throw new TotpAuthError(409, 'TOTP_AUTH_REQUEST_USED', 'totp bind request already used');
   }
-  throw new MobileAuthError(403, 'MOBILE_AUTH_REQUEST_REVOKED', 'Mobile bind request revoked');
+  throw new TotpAuthError(403, 'TOTP_AUTH_REQUEST_REVOKED', 'totp bind request revoked');
 }
 
-export function getMobileAuthStatus(): MobileAuthStatus {
+export function getTotpAuthStatus(): TotpAuthStatus {
   return {
-    enabled: MOBILE_AUTH_RUNTIME.enabled,
-    ready: MOBILE_AUTH_RUNTIME.ready,
-    issuerName: MOBILE_AUTH_RUNTIME.issuerName,
-    verifyPath: MOBILE_AUTH_RUNTIME.verifyPath,
-    portalBaseUrl: MOBILE_AUTH_RUNTIME.portalBaseUrl,
-    requestTtlMs: MOBILE_AUTH_RUNTIME.requestTtlMs,
-    codeDigits: MOBILE_AUTH_RUNTIME.codeDigits,
-    codePeriodSec: MOBILE_AUTH_RUNTIME.codePeriodSec,
-    codeWindow: MOBILE_AUTH_RUNTIME.codeWindow,
-    maxAttempts: MOBILE_AUTH_RUNTIME.maxAttempts,
-    error: MOBILE_AUTH_RUNTIME.error,
+    enabled: TOTP_AUTH_RUNTIME.enabled,
+    ready: TOTP_AUTH_RUNTIME.ready,
+    issuerName: TOTP_AUTH_RUNTIME.issuerName,
+    verifyPath: TOTP_AUTH_RUNTIME.verifyPath,
+    portalBaseUrl: TOTP_AUTH_RUNTIME.portalBaseUrl,
+    requestTtlMs: TOTP_AUTH_RUNTIME.requestTtlMs,
+    codeDigits: TOTP_AUTH_RUNTIME.codeDigits,
+    codePeriodSec: TOTP_AUTH_RUNTIME.codePeriodSec,
+    codeWindow: TOTP_AUTH_RUNTIME.codeWindow,
+    maxAttempts: TOTP_AUTH_RUNTIME.maxAttempts,
+    error: TOTP_AUTH_RUNTIME.error,
   };
 }
 
-export function assertMobileAuthReady(): MobileAuthStatus {
-  const status = getMobileAuthStatus();
+export function assertTotpAuthReady(): TotpAuthStatus {
+  const status = getTotpAuthStatus();
   if (!status.enabled) {
-    throw new MobileAuthError(403, 'MOBILE_AUTH_DISABLED', 'Mobile auth is disabled');
+    throw new TotpAuthError(403, 'TOTP_AUTH_DISABLED', 'TOTP auth is disabled');
   }
   if (!status.ready) {
-    throw new MobileAuthError(503, 'MOBILE_AUTH_NOT_READY', status.error || 'Mobile auth is not ready');
+    throw new TotpAuthError(503, 'TOTP_AUTH_NOT_READY', status.error || 'TOTP auth is not ready');
   }
   return status;
 }
 
-export function buildMobileVerifyUrl(requestIdInput: string): string {
-  assertMobileAuthReady();
+export function buildTotpVerifyUrl(requestIdInput: string): string {
+  assertTotpAuthReady();
   const requestId = normalizeRequestId(requestIdInput);
   if (!requestId) {
-    throw new MobileAuthError(400, 'MOBILE_AUTH_REQUEST_REQUIRED', 'Missing requestId');
+    throw new TotpAuthError(400, 'TOTP_AUTH_REQUEST_REQUIRED', 'Missing requestId');
   }
   return buildVerifyUrl(requestId);
 }
 
-export function verifyMobileTotp(subjectInput: string, codeInput: string): boolean {
-  assertMobileAuthReady();
+export function verifyTotpCodeForSubject(subjectInput: string, codeInput: string): boolean {
+  assertTotpAuthReady();
   const subject = normalizeSubject(subjectInput);
   if (!subject) {
     return false;
@@ -537,11 +537,11 @@ export function verifyMobileTotp(subjectInput: string, codeInput: string): boole
   return verifyTotpCode(subject, codeInput);
 }
 
-export function getMobileTotpProvision(subjectInput: string): MobileTotpProvision {
-  const runtime = ensureMobileAuthReady();
+export function getTotpProvision(subjectInput: string): TotpProvision {
+  const runtime = ensureTotpAuthReady();
   const subject = normalizeSubject(subjectInput);
   if (!subject) {
-    throw new MobileAuthError(400, 'MOBILE_AUTH_SUBJECT_REQUIRED', 'Missing subject');
+    throw new TotpAuthError(400, 'TOTP_AUTH_SUBJECT_REQUIRED', 'Missing subject');
   }
   const secretBuffer = deriveSubjectSecret(subject);
   const secret = base32Encode(secretBuffer);
@@ -564,34 +564,34 @@ export function getMobileTotpProvision(subjectInput: string): MobileTotpProvisio
   };
 }
 
-export function createMobileBindRequest(
-  input: CreateMobileBindRequestInput
-): MobileBindRequestCreateResult {
-  const runtime = ensureMobileAuthReady();
+export function createTotpBindRequest(
+  input: CreateTotpBindRequestInput
+): TotpBindRequestCreateResult {
+  const runtime = ensureTotpAuthReady();
   cleanupBindRequests();
 
   const subject = normalizeSubject(input.subject);
   if (!subject) {
-    throw new MobileAuthError(400, 'MOBILE_AUTH_SUBJECT_REQUIRED', 'Missing subject');
+    throw new TotpAuthError(400, 'TOTP_AUTH_SUBJECT_REQUIRED', 'Missing subject');
   }
 
   const audience = String(input.audience || '').trim();
   if (!audience) {
-    throw new MobileAuthError(400, 'MOBILE_AUTH_AUDIENCE_REQUIRED', 'Missing audience');
+    throw new TotpAuthError(400, 'TOTP_AUTH_AUDIENCE_REQUIRED', 'Missing audience');
   }
 
   const capabilities = sanitizeCapabilities(input.capabilities || []);
   if (capabilities.length === 0) {
-    throw new MobileAuthError(400, 'MOBILE_AUTH_CAPABILITIES_REQUIRED', 'Missing capabilities');
+    throw new TotpAuthError(400, 'TOTP_AUTH_CAPABILITIES_REQUIRED', 'Missing capabilities');
   }
 
   const nowMs = Date.now();
   const requestId = createRequestId();
   const expiresAt = nowMs + clampRequestTtlMs(input.requestTtlMs, runtime.requestTtlMs);
-  const appName = String(input.appName || '').trim() || 'mobile-client';
+  const appName = String(input.appName || '').trim() || 'totp-client';
   const redirectUri = String(input.redirectUri || '').trim() || undefined;
 
-  const record: MobileBindRequestRecord = {
+  const record: TotpBindRequestRecord = {
     requestId,
     status: 'pending',
     subject,
@@ -609,65 +609,65 @@ export function createMobileBindRequest(
       input.tokenTtlMs !== undefined ? parsePositiveNumber(input.tokenTtlMs, 0) || undefined : undefined,
   };
 
-  MOBILE_BIND_REQUESTS.set(requestId, record);
+  TOTP_BIND_REQUESTS.set(requestId, record);
   return toCreateBindResult(record);
 }
 
-export function getMobileBindRequest(requestIdInput: string): MobileBindRequestPublicResult | null {
-  ensureMobileAuthReady();
+export function getTotpBindRequest(requestIdInput: string): TotpBindRequestPublicResult | null {
+  ensureTotpAuthReady();
   cleanupBindRequests();
   const requestId = normalizeRequestId(requestIdInput);
   if (!requestId) return null;
-  const record = MOBILE_BIND_REQUESTS.get(requestId);
+  const record = TOTP_BIND_REQUESTS.get(requestId);
   if (!record) return null;
   return toPublicBindResult(record);
 }
 
-export function consumeMobileBindRequest(input: {
+export function consumeTotpBindRequest(input: {
   requestId: string;
   code: string;
   expectedSubject?: string;
-}): MobileBindConsumeResult {
-  const runtime = ensureMobileAuthReady();
+}): TotpBindConsumeResult {
+  const runtime = ensureTotpAuthReady();
   cleanupBindRequests();
 
   const requestId = normalizeRequestId(input.requestId);
   if (!requestId) {
-    throw new MobileAuthError(400, 'MOBILE_AUTH_REQUEST_REQUIRED', 'Missing requestId');
+    throw new TotpAuthError(400, 'TOTP_AUTH_REQUEST_REQUIRED', 'Missing requestId');
   }
-  const record = MOBILE_BIND_REQUESTS.get(requestId);
+  const record = TOTP_BIND_REQUESTS.get(requestId);
   if (!record) {
-    throw new MobileAuthError(404, 'MOBILE_AUTH_REQUEST_NOT_FOUND', 'Mobile bind request not found');
+    throw new TotpAuthError(404, 'TOTP_AUTH_REQUEST_NOT_FOUND', 'totp bind request not found');
   }
   const nowMs = Date.now();
   const pending = requirePendingRequest(record, nowMs);
 
   const expectedSubject = normalizeSubject(input.expectedSubject || '');
   if (expectedSubject && expectedSubject !== pending.subject) {
-    throw new MobileAuthError(403, 'MOBILE_AUTH_SUBJECT_MISMATCH', 'Subject mismatch');
+    throw new TotpAuthError(403, 'TOTP_AUTH_SUBJECT_MISMATCH', 'Subject mismatch');
   }
 
   const code = normalizeCode(input.code);
   if (!code) {
-    throw new MobileAuthError(400, 'MOBILE_AUTH_CODE_REQUIRED', 'Missing TOTP code');
+    throw new TotpAuthError(400, 'TOTP_AUTH_CODE_REQUIRED', 'Missing TOTP code');
   }
   if (!verifyTotpCode(pending.subject, code, nowMs)) {
     pending.attempts += 1;
     pending.updatedAt = nowMs;
     if (pending.attempts >= runtime.maxAttempts) {
       pending.status = 'revoked';
-      throw new MobileAuthError(
+      throw new TotpAuthError(
         429,
-        'MOBILE_AUTH_ATTEMPTS_EXCEEDED',
+        'TOTP_AUTH_ATTEMPTS_EXCEEDED',
         'Too many invalid TOTP attempts'
       );
     }
-    throw new MobileAuthError(401, 'MOBILE_AUTH_CODE_INVALID', 'Invalid TOTP code');
+    throw new TotpAuthError(401, 'TOTP_AUTH_CODE_INVALID', 'Invalid TOTP code');
   }
 
   pending.status = 'used';
   pending.updatedAt = nowMs;
-  MOBILE_BIND_REQUESTS.set(requestId, pending);
+  TOTP_BIND_REQUESTS.set(requestId, pending);
 
   return {
     requestId: pending.requestId,

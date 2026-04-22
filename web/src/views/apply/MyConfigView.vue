@@ -7,54 +7,43 @@
     <div class="page-head">
       <div>
         <div class="page-title">中心化 UCAN 配置</div>
-        <div class="page-subtitle">统一管理 Mobile Auth 状态、认证器绑定、授权流程与 Token 验证。</div>
       </div>
       <div class="head-actions">
-        <el-button @click="loadMobileStatus">刷新状态</el-button>
+        <el-button @click="loadTotpStatus">刷新状态</el-button>
         <el-button type="primary" @click="loadTotpProvision">加载认证器配置</el-button>
       </div>
     </div>
 
-    <div class="status-grid">
-      <div class="status-card">
-        <div class="status-title">Mobile Auth 状态</div>
-        <div class="status-list">
-          <div class="status-item">
-            <span class="status-label">服务开关</span>
-            <el-tag :type="mobileStatus?.enabled ? 'success' : 'info'" effect="light">
-              {{ mobileStatus ? (mobileStatus.enabled ? '已开启' : '未开启') : '-' }}
-            </el-tag>
-          </div>
-          <div class="status-item">
-            <span class="status-label">服务就绪</span>
-            <el-tag :type="mobileStatus?.ready ? 'success' : 'warning'" effect="light">
-              {{ mobileStatus ? (mobileStatus.ready ? '就绪' : '未就绪') : '-' }}
-            </el-tag>
-          </div>
-          <div class="status-item">
-            <span class="status-label">Issuer</span>
-            <span class="status-value">{{ mobileStatus?.issuerName || '-' }}</span>
-          </div>
-          <div class="status-item">
-            <span class="status-label">验证路径</span>
-            <span class="status-value path-text">{{ mobileStatus?.verifyPath || '-' }}</span>
-          </div>
+    <div class="status-card">
+      <div class="status-title">Totp Auth 状态</div>
+      <div class="status-list">
+        <div class="status-item">
+          <span class="status-label">服务开关</span>
+          <el-tag :type="totpStatus?.enabled ? 'success' : 'info'" effect="light">
+            {{ totpStatus ? (totpStatus.enabled ? '已开启' : '未开启') : '-' }}
+          </el-tag>
         </div>
-        <div v-if="mobileStatus?.error" class="status-error">错误：{{ mobileStatus.error }}</div>
+        <div class="status-item">
+          <span class="status-label">服务就绪</span>
+          <el-tag :type="totpStatus?.ready ? 'success' : 'warning'" effect="light">
+            {{ totpStatus ? (totpStatus.ready ? '就绪' : '未就绪') : '-' }}
+          </el-tag>
+        </div>
+        <div class="status-item">
+          <span class="status-label">Issuer</span>
+          <span class="status-value">{{ totpStatus?.issuerName || '-' }}</span>
+        </div>
+        <div class="status-item">
+          <span class="status-label">验证路径</span>
+          <span class="status-value path-text">{{ totpStatus?.verifyPath || '-' }}</span>
+        </div>
       </div>
-
-      <div class="status-card tip-card">
-        <div class="status-title">使用建议</div>
-        <div class="tip-text">1. 先确认“服务开关=已开启”且“服务就绪=就绪”。</div>
-        <div class="tip-text">2. 绑定认证器后，再进行授权请求与 TOTP 验证。</div>
-        <div class="tip-text">3. 授权成功后，使用结果页快速验证 JWT/UCAN 是否可用。</div>
-      </div>
+      <div v-if="totpStatus?.error" class="status-error">错误：{{ totpStatus.error }}</div>
     </div>
 
     <div v-if="totpProvision" class="totp-card">
       <div class="totp-head">
         <div class="totp-title">认证器配置（TOTP）</div>
-        <div class="totp-desc">可扫码绑定，也可复制 `secret / otpauthUri` 手动导入。</div>
       </div>
       <div class="totp-body">
         <div class="totp-meta">
@@ -93,9 +82,8 @@
     </div>
 
     <el-tabs v-model="activeTab" class="config-tabs">
-      <el-tab-pane label="授权配置" name="config">
+      <el-tab-pane label="配置" name="config">
         <div class="panel">
-          <div class="panel-title">客户端配置</div>
           <el-form label-position="top" class="config-form">
             <div class="grid-two">
               <el-form-item label="区块链地址">
@@ -108,10 +96,10 @@
                 <el-input v-model="form.redirectUri" placeholder="https://app.example.com/callback" />
               </el-form-item>
               <el-form-item label="state">
-                <el-input v-model="form.state" placeholder="可选，建议随机字符串" />
+                <el-input v-model="form.state" placeholder="可选" />
               </el-form-item>
               <el-form-item label="appName">
-                <el-input v-model="form.appName" placeholder="chat-mobile" />
+                <el-input v-model="form.appName" placeholder="chat-totp" />
               </el-form-item>
               <el-form-item label="audience">
                 <el-input v-model="form.audience" placeholder="did:web:localhost:8100" />
@@ -135,9 +123,8 @@
         </div>
       </el-tab-pane>
 
-      <el-tab-pane label="授权流程" name="flow">
+      <el-tab-pane label="流程" name="flow">
         <div class="panel">
-          <div class="panel-title">授权流程操作</div>
           <div class="flow-step">
             <div class="step-title"><span class="step-dot">1</span>查询授权请求</div>
             <div class="line">
@@ -183,9 +170,8 @@
         </div>
       </el-tab-pane>
 
-      <el-tab-pane label="结果验证" name="result">
+      <el-tab-pane label="验证" name="result">
         <div class="panel">
-          <div class="panel-title">Token 与验证</div>
           <div class="flow-step">
             <div class="line">
               <span class="label">JWT Token</span>
@@ -203,7 +189,6 @@
             </div>
           </div>
           <div class="result-json">
-            <div class="result-title">调试结果（request / approve / exchange / profile）</div>
             <pre>{{ prettyResult }}</pre>
           </div>
         </div>
@@ -226,7 +211,7 @@ type Envelope<T> = {
   timestamp: number;
 };
 
-type MobileStatus = {
+type TotpStatus = {
   enabled: boolean;
   ready: boolean;
   issuerName: string;
@@ -240,7 +225,7 @@ type MobileStatus = {
   error?: string;
 };
 
-type MobileTotpProvision = {
+type TotpProvision = {
   subject: string;
   issuer: string;
   accountName: string;
@@ -321,11 +306,11 @@ type ConfigForm = {
   requestTtlMs: number;
 };
 
-const STORAGE_KEY = 'node:web:my-config:mobile-authorize';
+const STORAGE_KEY = 'node:web:my-config:totp-authorize';
 
 const activeTab = ref('config');
-const mobileStatus = ref<MobileStatus | null>(null);
-const totpProvision = ref<MobileTotpProvision | null>(null);
+const totpStatus = ref<TotpStatus | null>(null);
+const totpProvision = ref<TotpProvision | null>(null);
 const totpQrDataUrl = ref('');
 const requestResult = ref<AuthorizeRequestResult | null>(null);
 const approveResult = ref<AuthorizeApproveResult | null>(null);
@@ -343,7 +328,7 @@ const form = reactive<ConfigForm>({
   audience: 'did:web:localhost:8100',
   capWith: 'app:all:localhost-*',
   capCan: 'invoke',
-  appName: 'chat-mobile',
+  appName: 'chat-totp',
   requestTtlMs: 300000,
 });
 
@@ -421,7 +406,7 @@ function restoreConfig() {
     form.audience = String(parsed.audience || 'did:web:localhost:8100');
     form.capWith = String(parsed.capWith || 'app:all:localhost-*');
     form.capCan = String(parsed.capCan || 'invoke');
-    form.appName = String(parsed.appName || 'chat-mobile');
+    form.appName = String(parsed.appName || 'chat-totp');
     form.requestTtlMs = Number(parsed.requestTtlMs || 300000);
   } catch {
     notifyError('读取本地配置失败，已使用默认值');
@@ -433,11 +418,11 @@ function saveConfig() {
   notifySuccess('配置已保存到本地');
 }
 
-async function loadMobileStatus() {
+async function loadTotpStatus() {
   try {
-    mobileStatus.value = await getJson<MobileStatus>(
-      '/api/v1/public/auth/mobile/status',
-      '查询 mobile auth 状态失败'
+    totpStatus.value = await getJson<TotpStatus>(
+      '/api/v1/public/auth/totp/status',
+      '查询 totp auth 状态失败'
     );
   } catch (error) {
     notifyError(String(error));
@@ -469,14 +454,14 @@ async function loadTotpProvision() {
       notifyError('缺少登录态，请先钱包登录');
       return;
     }
-    const response = await fetch(apiUrl('/api/v1/public/auth/mobile/totp/provision'), {
+    const response = await fetch(apiUrl('/api/v1/public/auth/totp/totp/provision'), {
       method: 'GET',
       headers: {
         Authorization: `Bearer ${token}`,
       },
       credentials: 'include',
     });
-    totpProvision.value = await parseEnvelope<MobileTotpProvision>(
+    totpProvision.value = await parseEnvelope<TotpProvision>(
       response,
       '获取认证器配置失败'
     );
@@ -508,7 +493,7 @@ async function createAuthorizeRequest() {
       requestTtlMs: form.requestTtlMs,
     };
     const result = await postJson<AuthorizeRequestResult>(
-      '/api/v1/public/auth/mobile/authorize/request',
+      '/api/v1/public/auth/totp/authorize/request',
       payload,
       '创建授权请求失败'
     );
@@ -532,7 +517,7 @@ async function queryAuthorizeRequest() {
       return;
     }
     const result = await getJson<AuthorizeRequestResult>(
-      `/api/v1/public/auth/mobile/authorize/request/${encodeURIComponent(requestId)}`,
+      `/api/v1/public/auth/totp/authorize/request/${encodeURIComponent(requestId)}`,
       '查询授权请求失败'
     );
     requestResult.value = result;
@@ -551,7 +536,7 @@ async function approveAuthorizeRequest() {
       return;
     }
     const result = await postJson<AuthorizeApproveResult>(
-      '/api/v1/public/auth/mobile/authorize/approve',
+      '/api/v1/public/auth/totp/authorize/approve',
       { requestId, code },
       'TOTP 授权失败'
     );
@@ -574,7 +559,7 @@ async function exchangeAuthorizeCode() {
       return;
     }
     const result = await postJson<AuthorizeExchangeResult>(
-      '/api/v1/public/auth/mobile/authorize/exchange',
+      '/api/v1/public/auth/totp/authorize/exchange',
       { code, clientId, redirectUri },
       '兑换授权码失败'
     );
@@ -670,7 +655,7 @@ const prettyResult = computed(() => {
 
 onMounted(async () => {
   restoreConfig();
-  await loadMobileStatus();
+  await loadTotpStatus();
 });
 </script>
 
@@ -697,27 +682,14 @@ onMounted(async () => {
     color: rgba(0, 0, 0, 0.88);
   }
 
-  .page-subtitle {
-    margin-top: 6px;
-    font-size: 13px;
-    line-height: 1.6;
-    color: rgba(0, 0, 0, 0.55);
-  }
-
   .head-actions {
     display: flex;
     gap: 10px;
     flex-wrap: wrap;
   }
 
-  .status-grid {
-    margin-top: 14px;
-    display: grid;
-    grid-template-columns: 1.4fr 1fr;
-    gap: 14px;
-  }
-
   .status-card {
+    margin-top: 14px;
     padding: 16px;
     background: #fff;
     border: 1px solid #e8edf4;
@@ -776,17 +748,6 @@ onMounted(async () => {
     line-height: 1.5;
   }
 
-  .tip-card {
-    background: linear-gradient(180deg, #fcfdff 0%, #f6f9ff 100%);
-  }
-
-  .tip-text {
-    font-size: 13px;
-    line-height: 1.65;
-    color: rgba(0, 0, 0, 0.62);
-    margin-bottom: 8px;
-  }
-
   .totp-card {
     margin-top: 14px;
     padding: 16px;
@@ -803,13 +764,6 @@ onMounted(async () => {
     font-size: 15px;
     font-weight: 500;
     color: rgba(0, 0, 0, 0.86);
-  }
-
-  .totp-desc {
-    margin-top: 6px;
-    font-size: 13px;
-    line-height: 1.55;
-    color: rgba(0, 0, 0, 0.56);
   }
 
   .totp-body {
@@ -872,14 +826,6 @@ onMounted(async () => {
 
   .panel {
     padding: 8px 2px 12px;
-  }
-
-  .panel-title {
-    margin-bottom: 12px;
-    font-size: 15px;
-    line-height: 1.4;
-    font-weight: 500;
-    color: rgba(0, 0, 0, 0.84);
   }
 
   .config-form .grid-two {
@@ -964,13 +910,6 @@ onMounted(async () => {
     padding: 10px;
   }
 
-  .result-title {
-    margin-bottom: 8px;
-    font-size: 13px;
-    line-height: 1.5;
-    color: rgba(0, 0, 0, 0.58);
-  }
-
   pre {
     margin: 0;
     font-size: 13px;
@@ -982,10 +921,6 @@ onMounted(async () => {
 
 @media (max-width: 1200px) {
   .my-config {
-    .status-grid {
-      grid-template-columns: 1fr;
-    }
-
     .totp-body {
       grid-template-columns: 1fr;
     }

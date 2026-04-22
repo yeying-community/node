@@ -1,19 +1,19 @@
 import { Express, Request, Response } from 'express';
 import {
-  createMobileBindRequest,
-  consumeMobileBindRequest,
-  getMobileAuthStatus,
-  getMobileBindRequest,
-  getMobileTotpProvision,
-  MobileAuthError,
-} from '../auth/mobileAuth';
+  createTotpBindRequest,
+  consumeTotpBindRequest,
+  getTotpAuthStatus,
+  getTotpBindRequest,
+  getTotpProvision,
+  TotpAuthError,
+} from '../auth/totpAuth';
 import {
-  createMobileAuthorizeCode,
-  createMobileAuthorizeRequest,
-  consumeMobileAuthorizeRequest,
-  exchangeMobileAuthorizeCode,
-  getMobileAuthorizeRequest,
-} from '../auth/mobileAuthorize';
+  createTotpAuthorizeCode,
+  createTotpAuthorizeRequest,
+  consumeTotpAuthorizeRequest,
+  exchangeTotpAuthorizeCode,
+  getTotpAuthorizeRequest,
+} from '../auth/totpAuthorize';
 import {
   createCentralIssueSession,
   getCentralIssuerStatus,
@@ -25,7 +25,7 @@ import { fail, ok } from '../auth/envelope';
 import { issueTokens, verifyAccessToken } from '../auth/siwe';
 import { provisionUserState } from '../common/permission';
 
-const BASE_PATH = '/api/v1/public/auth/mobile';
+const BASE_PATH = '/api/v1/public/auth/totp';
 
 function parseBearerToken(req: Request): string {
   const authHeader = String(req.headers.authorization || '').trim();
@@ -92,11 +92,11 @@ function mapIssuerError(error: unknown): { status: number; message: string } {
   return { status: 500, message };
 }
 
-function mapMobileError(error: unknown): { status: number; message: string } {
-  if (error instanceof MobileAuthError) {
+function mapTotpError(error: unknown): { status: number; message: string } {
+  if (error instanceof TotpAuthError) {
     return { status: error.status, message: error.message };
   }
-  return { status: 500, message: error instanceof Error ? error.message : 'Mobile auth failed' };
+  return { status: 500, message: error instanceof Error ? error.message : 'TOTP auth failed' };
 }
 
 function resolveBearerSubject(
@@ -104,14 +104,14 @@ function resolveBearerSubject(
 ): { subject: string; authType: 'jwt' | 'ucan' } {
   const token = String(rawToken || '').trim();
   if (!token) {
-    throw new MobileAuthError(401, 'MOBILE_AUTH_TOKEN_MISSING', 'Missing access token');
+    throw new TotpAuthError(401, 'TOTP_AUTH_TOKEN_MISSING', 'Missing access token');
   }
 
   const jwtPayload = verifyAccessToken(token);
   if (jwtPayload) {
     const subject = normalizeSubject(jwtPayload.address);
     if (!subject) {
-      throw new MobileAuthError(401, 'MOBILE_AUTH_TOKEN_INVALID', 'Invalid access token subject');
+      throw new TotpAuthError(401, 'TOTP_AUTH_TOKEN_INVALID', 'Invalid access token subject');
     }
     return { subject, authType: 'jwt' };
   }
@@ -120,17 +120,17 @@ function resolveBearerSubject(
     const ucan = verifyUcanInvocation(token);
     const subject = normalizeSubject(ucan.address);
     if (!subject) {
-      throw new MobileAuthError(401, 'MOBILE_AUTH_TOKEN_INVALID', 'Invalid access token subject');
+      throw new TotpAuthError(401, 'TOTP_AUTH_TOKEN_INVALID', 'Invalid access token subject');
     }
     return { subject, authType: 'ucan' };
   } catch {
-    throw new MobileAuthError(401, 'MOBILE_AUTH_TOKEN_INVALID', 'Invalid or expired access token');
+    throw new TotpAuthError(401, 'TOTP_AUTH_TOKEN_INVALID', 'Invalid or expired access token');
   }
 }
 
-export function registerPublicAuthMobileRoutes(app: Express) {
+export function registerPublicAuthTotpRoutes(app: Express) {
   app.get(`${BASE_PATH}/status`, (_req: Request, res: Response) => {
-    res.json(ok(getMobileAuthStatus()));
+    res.json(ok(getTotpAuthStatus()));
   });
 
   app.get(`${BASE_PATH}/totp/provision`, (req: Request, res: Response) => {
@@ -138,10 +138,10 @@ export function registerPublicAuthMobileRoutes(app: Express) {
       const accessToken = parseBearerToken(req);
       const auth = resolveBearerSubject(accessToken);
       const subject = auth.subject;
-      const provision = getMobileTotpProvision(subject);
+      const provision = getTotpProvision(subject);
       res.json(ok(provision));
     } catch (error) {
-      const mapped = mapMobileError(error);
+      const mapped = mapTotpError(error);
       res.status(mapped.status).json(fail(mapped.status, mapped.message));
     }
   });
@@ -161,7 +161,7 @@ export function registerPublicAuthMobileRoutes(app: Express) {
         issuerStatus.defaultAudience;
       const capabilities = parseCapabilities(req.body?.capabilities) || issuerStatus.defaultCapabilities;
 
-      const result = createMobileBindRequest({
+      const result = createTotpBindRequest({
         subject,
         audience,
         capabilities,
@@ -174,7 +174,7 @@ export function registerPublicAuthMobileRoutes(app: Express) {
 
       res.json(ok(result));
     } catch (error) {
-      const mapped = mapMobileError(error);
+      const mapped = mapTotpError(error);
       res.status(mapped.status).json(fail(mapped.status, mapped.message));
     }
   });
@@ -182,14 +182,14 @@ export function registerPublicAuthMobileRoutes(app: Express) {
   app.get(`${BASE_PATH}/bind/request/:requestId`, (req: Request, res: Response) => {
     try {
       const requestId = String(req.params.requestId || '').trim();
-      const result = getMobileBindRequest(requestId);
+      const result = getTotpBindRequest(requestId);
       if (!result) {
-        res.status(404).json(fail(404, 'Mobile bind request not found'));
+        res.status(404).json(fail(404, 'totp bind request not found'));
         return;
       }
       res.json(ok(result));
     } catch (error) {
-      const mapped = mapMobileError(error);
+      const mapped = mapTotpError(error);
       res.status(mapped.status).json(fail(mapped.status, mapped.message));
     }
   });
@@ -203,7 +203,7 @@ export function registerPublicAuthMobileRoutes(app: Express) {
         return;
       }
 
-      const consumed = consumeMobileBindRequest({
+      const consumed = consumeTotpBindRequest({
         requestId,
         code,
         expectedSubject:
@@ -246,7 +246,7 @@ export function registerPublicAuthMobileRoutes(app: Express) {
         })
       );
     } catch (error) {
-      if (error instanceof MobileAuthError) {
+      if (error instanceof TotpAuthError) {
         res.status(error.status).json(fail(error.status, error.message));
         return;
       }
@@ -258,7 +258,7 @@ export function registerPublicAuthMobileRoutes(app: Express) {
 
   app.post(`${BASE_PATH}/authorize/request`, async (req: Request, res: Response) => {
     try {
-      const result = await createMobileAuthorizeRequest({
+      const result = await createTotpAuthorizeRequest({
         subject: String(req.body?.address || req.body?.subject || '').trim(),
         clientId: req.body?.clientId,
         redirectUri: req.body?.redirectUri,
@@ -272,7 +272,7 @@ export function registerPublicAuthMobileRoutes(app: Express) {
       });
       res.json(ok(result));
     } catch (error) {
-      const mapped = mapMobileError(error);
+      const mapped = mapTotpError(error);
       res.status(mapped.status).json(fail(mapped.status, mapped.message));
     }
   });
@@ -280,14 +280,14 @@ export function registerPublicAuthMobileRoutes(app: Express) {
   app.get(`${BASE_PATH}/authorize/request/:requestId`, (req: Request, res: Response) => {
     try {
       const requestId = String(req.params.requestId || '').trim();
-      const result = getMobileAuthorizeRequest(requestId);
+      const result = getTotpAuthorizeRequest(requestId);
       if (!result) {
-        res.status(404).json(fail(404, 'Mobile authorize request not found'));
+        res.status(404).json(fail(404, 'totp authorize request not found'));
         return;
       }
       res.json(ok(result));
     } catch (error) {
-      const mapped = mapMobileError(error);
+      const mapped = mapTotpError(error);
       res.status(mapped.status).json(fail(mapped.status, mapped.message));
     }
   });
@@ -301,7 +301,7 @@ export function registerPublicAuthMobileRoutes(app: Express) {
         return;
       }
 
-      const consumed = consumeMobileAuthorizeRequest({
+      const consumed = consumeTotpAuthorizeRequest({
         requestId,
         code,
       });
@@ -319,7 +319,7 @@ export function registerPublicAuthMobileRoutes(app: Express) {
         expiresInMs: consumed.tokenTtlMs,
       });
 
-      const authCode = await createMobileAuthorizeCode({
+      const authCode = await createTotpAuthorizeCode({
         requestId: consumed.requestId,
         subject: consumed.subject,
         clientId: consumed.clientId,
@@ -347,7 +347,7 @@ export function registerPublicAuthMobileRoutes(app: Express) {
         })
       );
     } catch (error) {
-      if (error instanceof MobileAuthError) {
+      if (error instanceof TotpAuthError) {
         res.status(error.status).json(fail(error.status, error.message));
         return;
       }
@@ -359,14 +359,14 @@ export function registerPublicAuthMobileRoutes(app: Express) {
 
   app.post(`${BASE_PATH}/authorize/exchange`, async (req: Request, res: Response) => {
     try {
-      const result = await exchangeMobileAuthorizeCode({
+      const result = await exchangeTotpAuthorizeCode({
         code: req.body?.code,
         clientId: req.body?.clientId,
         redirectUri: req.body?.redirectUri,
       });
       res.json(ok(result));
     } catch (error) {
-      const mapped = mapMobileError(error);
+      const mapped = mapTotpError(error);
       res.status(mapped.status).json(fail(mapped.status, mapped.message));
     }
   });

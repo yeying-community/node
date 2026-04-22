@@ -29,10 +29,10 @@ export const routes = [
         component: () => import('../views/AboutView.vue')
     },
     {
-        path: '/mobile-auth',
-        name: 'mobileAuth',
+        path: '/totp-auth',
+        name: 'totpAuth',
         meta: { public: true },
-        component: () => import('../views/MobileAuthView.vue')
+        component: () => import('../views/TotpAuthView.vue')
     },
     {
         path: '/market',

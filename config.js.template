@@ -81,25 +81,25 @@ module.exports = {
       { with: 'app:all:localhost-*', can: 'invoke' }
     ]
   },
-  mobileAuth: {
-    // Enable mobile TOTP login bridge for centralized UCAN flow.
+  totpAuth: {
+    // Enable totp TOTP login bridge for centralized UCAN flow.
     enabled: false,
     // Authenticator issuer display name.
     issuerName: 'YeYing Node',
-    // Node-hosted mobile verify page path. Example: /mobile-auth
-    verifyPath: '/mobile-auth',
+    // Node-hosted totp verify page path. Example: /totp-auth
+    verifyPath: '/totp-auth',
     // Base URL used to build verifyUrl in bind request response.
     portalBaseUrl: 'http://127.0.0.1:8100',
     // One-time bind request TTL.
     requestTtlMs: 5 * 60 * 1000,
-    // Auth code TTL for /auth/mobile/authorize/exchange.
+    // Auth code TTL for /auth/totp/authorize/exchange.
     exchangeCodeTtlMs: 60 * 1000,
     // TOTP config (RFC 6238).
     codeDigits: 6,
     codePeriodSec: 30,
     codeWindow: 1,
     maxAttempts: 5,
-    // OAuth-like client allow-list for mobile authorize flow.
+    // OAuth-like client allow-list for totp authorize flow.
     // redirectUris must match exactly.
     // If clientId uses a published AppId (applications.uid), Node can auto-derive
     // redirectUris from application.location (+ /central-ucan-callback.html, /chat-callback.html).

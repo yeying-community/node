@@ -3,15 +3,15 @@ import { getConfig } from '../config/runtime';
 import { ApplicationService } from '../domain/service/application';
 import { getCentralIssuerStatus, type UcanCapability } from './ucanIssuer';
 import {
-  MobileAuthError,
-  assertMobileAuthReady,
-  buildMobileVerifyUrl,
-  verifyMobileTotp,
-} from './mobileAuth';
+  TotpAuthError,
+  assertTotpAuthReady,
+  buildTotpVerifyUrl,
+  verifyTotpCodeForSubject,
+} from './totpAuth';
 
-export type MobileAuthorizeRequestStatus = 'pending' | 'used' | 'expired' | 'revoked';
+export type TotpAuthorizeRequestStatus = 'pending' | 'used' | 'expired' | 'revoked';
 
-export type MobileAuthorizeClient = {
+export type TotpAuthorizeClient = {
   clientId: string;
   redirectUris: string[];
   appName?: string;
@@ -19,9 +19,9 @@ export type MobileAuthorizeClient = {
   defaultCapabilities?: UcanCapability[];
 };
 
-export type MobileAuthorizeRequestCreateResult = {
+export type TotpAuthorizeRequestCreateResult = {
   requestId: string;
-  status: MobileAuthorizeRequestStatus;
+  status: TotpAuthorizeRequestStatus;
   subject: string;
   subjectHint: string;
   clientId: string;
@@ -35,9 +35,9 @@ export type MobileAuthorizeRequestCreateResult = {
   verifyUrl: string;
 };
 
-export type MobileAuthorizeRequestPublicResult = Omit<MobileAuthorizeRequestCreateResult, 'subject'>;
+export type TotpAuthorizeRequestPublicResult = Omit<TotpAuthorizeRequestCreateResult, 'subject'>;
 
-export type MobileAuthorizeRequestConsumeResult = {
+export type TotpAuthorizeRequestConsumeResult = {
   requestId: string;
   subject: string;
   clientId: string;
@@ -51,13 +51,13 @@ export type MobileAuthorizeRequestConsumeResult = {
   approvedAt: number;
 };
 
-export type MobileAuthorizeCodeCreateResult = {
+export type TotpAuthorizeCodeCreateResult = {
   code: string;
   expiresAt: number;
   redirectTo: string;
 };
 
-export type MobileAuthorizeCodeExchangeResult = {
+export type TotpAuthorizeCodeExchangeResult = {
   requestId: string;
   subject: string;
   clientId: string;
@@ -75,14 +75,14 @@ export type MobileAuthorizeCodeExchangeResult = {
   issuedAt: number;
 };
 
-type MobileAuthorizeRuntimeState = {
-  clients: Map<string, MobileAuthorizeClient>;
+type TotpAuthorizeRuntimeState = {
+  clients: Map<string, TotpAuthorizeClient>;
   exchangeCodeTtlMs: number;
 };
 
-type MobileAuthorizeRequestRecord = {
+type TotpAuthorizeRequestRecord = {
   requestId: string;
-  status: MobileAuthorizeRequestStatus;
+  status: TotpAuthorizeRequestStatus;
   subject: string;
   clientId: string;
   redirectUri: string;
@@ -98,7 +98,7 @@ type MobileAuthorizeRequestRecord = {
   tokenTtlMs?: number;
 };
 
-type MobileAuthorizeCodeRecord = {
+type TotpAuthorizeCodeRecord = {
   code: string;
   requestId: string;
   subject: string;
@@ -131,14 +131,14 @@ const GC_RETENTION_MS = 24 * 60 * 60 * 1000;
 const DYNAMIC_CLIENT_CACHE_TTL_MS = 60 * 1000;
 const APP_ID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-const AUTHORIZE_REQUESTS = new Map<string, MobileAuthorizeRequestRecord>();
-const AUTHORIZE_CODES = new Map<string, MobileAuthorizeCodeRecord>();
+const AUTHORIZE_REQUESTS = new Map<string, TotpAuthorizeRequestRecord>();
+const AUTHORIZE_CODES = new Map<string, TotpAuthorizeCodeRecord>();
 const AUTHORIZE_RUNTIME = loadAuthorizeRuntime();
 const DYNAMIC_CLIENT_CACHE = new Map<
   string,
   {
     expiresAt: number;
-    client: MobileAuthorizeClient | null;
+    client: TotpAuthorizeClient | null;
   }
 >();
 
@@ -177,7 +177,7 @@ function normalizeSubject(input: unknown): string {
 function requireWalletAddress(input: unknown): string {
   const normalized = normalizeSubject(input);
   if (!/^0x[0-9a-f]{40}$/.test(normalized)) {
-    throw new MobileAuthError(400, 'MOBILE_AUTH_ADDRESS_INVALID', 'Invalid blockchain address');
+    throw new TotpAuthError(400, 'TOTP_AUTH_ADDRESS_INVALID', 'Invalid blockchain address');
   }
   return normalized;
 }
@@ -194,14 +194,14 @@ function normalizeState(input: unknown): string | undefined {
   const value = String(input || '').trim();
   if (!value) return undefined;
   if (value.length > MAX_STATE_LENGTH) {
-    throw new MobileAuthError(400, 'MOBILE_AUTH_STATE_TOO_LONG', 'State is too long');
+    throw new TotpAuthError(400, 'TOTP_AUTH_STATE_TOO_LONG', 'State is too long');
   }
   return value;
 }
 
 function normalizeAppName(input: unknown): string {
   const value = String(input || '').trim();
-  if (!value) return 'mobile-client';
+  if (!value) return 'totp-client';
   if (value.length > MAX_APP_NAME_LENGTH) {
     return value.slice(0, MAX_APP_NAME_LENGTH);
   }
@@ -211,17 +211,17 @@ function normalizeAppName(input: unknown): string {
 function normalizeRedirectUri(input: unknown): string {
   const raw = String(input || '').trim();
   if (!raw) {
-    throw new MobileAuthError(400, 'MOBILE_AUTH_REDIRECT_REQUIRED', 'Missing redirectUri');
+    throw new TotpAuthError(400, 'TOTP_AUTH_REDIRECT_REQUIRED', 'Missing redirectUri');
   }
   let parsed: URL;
   try {
     parsed = new URL(raw);
   } catch {
-    throw new MobileAuthError(400, 'MOBILE_AUTH_REDIRECT_INVALID', 'Invalid redirectUri');
+    throw new TotpAuthError(400, 'TOTP_AUTH_REDIRECT_INVALID', 'Invalid redirectUri');
   }
   const protocol = parsed.protocol.toLowerCase();
   if (protocol === 'javascript:' || protocol === 'data:') {
-    throw new MobileAuthError(400, 'MOBILE_AUTH_REDIRECT_INVALID', 'Invalid redirectUri scheme');
+    throw new TotpAuthError(400, 'TOTP_AUTH_REDIRECT_INVALID', 'Invalid redirectUri scheme');
   }
   parsed.hash = '';
   return parsed.toString();
@@ -263,7 +263,7 @@ function parseCapabilityList(raw: unknown): UcanCapability[] {
     .filter((item): item is UcanCapability => Boolean(item));
 }
 
-function parseClientConfig(raw: unknown): Map<string, MobileAuthorizeClient> {
+function parseClientConfig(raw: unknown): Map<string, TotpAuthorizeClient> {
   const parsed =
     typeof raw === 'string'
       ? (() => {
@@ -278,7 +278,7 @@ function parseClientConfig(raw: unknown): Map<string, MobileAuthorizeClient> {
     return new Map();
   }
 
-  const clients = new Map<string, MobileAuthorizeClient>();
+  const clients = new Map<string, TotpAuthorizeClient>();
   for (const item of parsed) {
     if (!item || typeof item !== 'object') continue;
     const source = item as Record<string, unknown>;
@@ -318,13 +318,13 @@ function parseClientConfig(raw: unknown): Map<string, MobileAuthorizeClient> {
   return clients;
 }
 
-function loadAuthorizeRuntime(): MobileAuthorizeRuntimeState {
+function loadAuthorizeRuntime(): TotpAuthorizeRuntimeState {
   const clients = parseClientConfig(
-    process.env.MOBILE_AUTH_CLIENTS ?? getConfig<unknown>('mobileAuth.clients')
+    process.env.TOTP_AUTH_CLIENTS ?? getConfig<unknown>('totpAuth.clients')
   );
   const exchangeCodeTtlMs = clampExchangeCodeTtlMs(
-    process.env.MOBILE_AUTH_EXCHANGE_CODE_TTL_MS ??
-      getConfig<number>('mobileAuth.exchangeCodeTtlMs')
+    process.env.TOTP_AUTH_EXCHANGE_CODE_TTL_MS ??
+      getConfig<number>('totpAuth.exchangeCodeTtlMs')
   );
   return { clients, exchangeCodeTtlMs };
 }
@@ -376,7 +376,7 @@ function deriveRedirectUrisByAppLocation(locationInput: unknown): string[] {
   return [...redirectUris];
 }
 
-async function resolveAppClientByAppId(clientId: string): Promise<MobileAuthorizeClient | null> {
+async function resolveAppClientByAppId(clientId: string): Promise<TotpAuthorizeClient | null> {
   if (!APP_ID_REGEX.test(clientId)) {
     return null;
   }
@@ -405,7 +405,7 @@ async function resolveAppClientByAppId(clientId: string): Promise<MobileAuthoriz
       ? issuerStatus.defaultCapabilities
       : undefined;
 
-  const client: MobileAuthorizeClient = {
+  const client: TotpAuthorizeClient = {
     clientId,
     appName: normalizeAppName(app.name || app.code || clientId),
     redirectUris,
@@ -416,10 +416,10 @@ async function resolveAppClientByAppId(clientId: string): Promise<MobileAuthoriz
   return client;
 }
 
-async function getAuthorizeClient(clientIdInput: unknown): Promise<MobileAuthorizeClient> {
+async function getAuthorizeClient(clientIdInput: unknown): Promise<TotpAuthorizeClient> {
   const clientId = normalizeClientId(clientIdInput);
   if (!clientId) {
-    throw new MobileAuthError(400, 'MOBILE_AUTH_CLIENT_REQUIRED', 'Missing clientId');
+    throw new TotpAuthError(400, 'TOTP_AUTH_CLIENT_REQUIRED', 'Missing clientId');
   }
   const staticClient = AUTHORIZE_RUNTIME.clients.get(clientId);
   if (staticClient) {
@@ -429,13 +429,13 @@ async function getAuthorizeClient(clientIdInput: unknown): Promise<MobileAuthori
   if (appClient) {
     return appClient;
   }
-  throw new MobileAuthError(403, 'MOBILE_AUTH_CLIENT_DENIED', 'Unauthorized clientId');
+  throw new TotpAuthError(403, 'TOTP_AUTH_CLIENT_DENIED', 'Unauthorized clientId');
 }
 
-function requireClientRedirect(client: MobileAuthorizeClient, redirectUriInput: unknown): string {
+function requireClientRedirect(client: TotpAuthorizeClient, redirectUriInput: unknown): string {
   const redirectUri = normalizeRedirectUri(redirectUriInput);
   if (!client.redirectUris.includes(redirectUri)) {
-    throw new MobileAuthError(403, 'MOBILE_AUTH_REDIRECT_DENIED', 'redirectUri is not allowed');
+    throw new TotpAuthError(403, 'TOTP_AUTH_REDIRECT_DENIED', 'redirectUri is not allowed');
   }
   return redirectUri;
 }
@@ -467,9 +467,9 @@ function maskSubject(subject: string): string {
 }
 
 function requirePendingRequest(
-  record: MobileAuthorizeRequestRecord,
+  record: TotpAuthorizeRequestRecord,
   nowMs: number
-): MobileAuthorizeRequestRecord {
+): TotpAuthorizeRequestRecord {
   if (record.status === 'pending' && nowMs > record.expiresAt) {
     record.status = 'expired';
     record.updatedAt = nowMs;
@@ -478,15 +478,15 @@ function requirePendingRequest(
     return record;
   }
   if (record.status === 'expired') {
-    throw new MobileAuthError(410, 'MOBILE_AUTH_REQUEST_EXPIRED', 'Mobile authorize request expired');
+    throw new TotpAuthError(410, 'TOTP_AUTH_REQUEST_EXPIRED', 'totp authorize request expired');
   }
   if (record.status === 'used') {
-    throw new MobileAuthError(409, 'MOBILE_AUTH_REQUEST_USED', 'Mobile authorize request already used');
+    throw new TotpAuthError(409, 'TOTP_AUTH_REQUEST_USED', 'totp authorize request already used');
   }
-  throw new MobileAuthError(403, 'MOBILE_AUTH_REQUEST_REVOKED', 'Mobile authorize request revoked');
+  throw new TotpAuthError(403, 'TOTP_AUTH_REQUEST_REVOKED', 'totp authorize request revoked');
 }
 
-function toPublicResult(record: MobileAuthorizeRequestRecord): MobileAuthorizeRequestPublicResult {
+function toPublicResult(record: TotpAuthorizeRequestRecord): TotpAuthorizeRequestPublicResult {
   return {
     requestId: record.requestId,
     status: record.status,
@@ -499,7 +499,7 @@ function toPublicResult(record: MobileAuthorizeRequestRecord): MobileAuthorizeRe
     appName: record.appName,
     createdAt: record.createdAt,
     expiresAt: record.expiresAt,
-    verifyUrl: buildMobileVerifyUrl(record.requestId),
+    verifyUrl: buildTotpVerifyUrl(record.requestId),
   };
 }
 
@@ -513,7 +513,7 @@ function appendQuery(baseUrl: string, query: Record<string, string>): string {
   return parsed.toString();
 }
 
-export async function createMobileAuthorizeRequest(input: {
+export async function createTotpAuthorizeRequest(input: {
   subject: string;
   clientId: string;
   redirectUri: string;
@@ -524,8 +524,8 @@ export async function createMobileAuthorizeRequest(input: {
   requestTtlMs?: number;
   sessionTtlMs?: number;
   tokenTtlMs?: number;
-}): Promise<MobileAuthorizeRequestCreateResult> {
-  const mobileStatus = assertMobileAuthReady();
+}): Promise<TotpAuthorizeRequestCreateResult> {
+  const totpStatus = assertTotpAuthReady();
   cleanupAuthorizeRecords();
 
   const subject = requireWalletAddress(input.subject);
@@ -539,27 +539,27 @@ export async function createMobileAuthorizeRequest(input: {
   const resolvedCapabilities =
     capabilities.length > 0 ? capabilities : client.defaultCapabilities || [];
   if (resolvedCapabilities.length === 0) {
-    throw new MobileAuthError(
+    throw new TotpAuthError(
       400,
-      'MOBILE_AUTH_CAPABILITIES_REQUIRED',
+      'TOTP_AUTH_CAPABILITIES_REQUIRED',
       'Missing capabilities for authorize request'
     );
   }
 
   const audience = String(input.audience || client.defaultAudience || '').trim();
   if (!audience) {
-    throw new MobileAuthError(
+    throw new TotpAuthError(
       400,
-      'MOBILE_AUTH_AUDIENCE_REQUIRED',
+      'TOTP_AUTH_AUDIENCE_REQUIRED',
       'Missing audience for authorize request'
     );
   }
 
   const nowMs = Date.now();
   const requestId = generateRequestId();
-  const expiresAt = nowMs + clampRequestTtlMs(input.requestTtlMs, mobileStatus.requestTtlMs);
+  const expiresAt = nowMs + clampRequestTtlMs(input.requestTtlMs, totpStatus.requestTtlMs);
 
-  const record: MobileAuthorizeRequestRecord = {
+  const record: TotpAuthorizeRequestRecord = {
     requestId,
     status: 'pending',
     subject,
@@ -584,10 +584,10 @@ export async function createMobileAuthorizeRequest(input: {
   };
 }
 
-export function getMobileAuthorizeRequest(
+export function getTotpAuthorizeRequest(
   requestIdInput: string
-): MobileAuthorizeRequestPublicResult | null {
-  assertMobileAuthReady();
+): TotpAuthorizeRequestPublicResult | null {
+  assertTotpAuthReady();
   cleanupAuthorizeRecords();
   const requestId = normalizeRequestId(requestIdInput);
   if (!requestId) return null;
@@ -596,36 +596,36 @@ export function getMobileAuthorizeRequest(
   return toPublicResult(record);
 }
 
-export function consumeMobileAuthorizeRequest(input: {
+export function consumeTotpAuthorizeRequest(input: {
   requestId: string;
   code: string;
-}): MobileAuthorizeRequestConsumeResult {
-  const mobileStatus = assertMobileAuthReady();
+}): TotpAuthorizeRequestConsumeResult {
+  const totpStatus = assertTotpAuthReady();
   cleanupAuthorizeRecords();
 
   const requestId = normalizeRequestId(input.requestId);
   if (!requestId) {
-    throw new MobileAuthError(400, 'MOBILE_AUTH_REQUEST_REQUIRED', 'Missing requestId');
+    throw new TotpAuthError(400, 'TOTP_AUTH_REQUEST_REQUIRED', 'Missing requestId');
   }
   const record = AUTHORIZE_REQUESTS.get(requestId);
   if (!record) {
-    throw new MobileAuthError(404, 'MOBILE_AUTH_REQUEST_NOT_FOUND', 'Mobile authorize request not found');
+    throw new TotpAuthError(404, 'TOTP_AUTH_REQUEST_NOT_FOUND', 'totp authorize request not found');
   }
   const nowMs = Date.now();
   const pending = requirePendingRequest(record, nowMs);
 
-  if (!verifyMobileTotp(pending.subject, input.code)) {
+  if (!verifyTotpCodeForSubject(pending.subject, input.code)) {
     pending.attempts += 1;
     pending.updatedAt = nowMs;
-    if (pending.attempts >= mobileStatus.maxAttempts) {
+    if (pending.attempts >= totpStatus.maxAttempts) {
       pending.status = 'revoked';
-      throw new MobileAuthError(
+      throw new TotpAuthError(
         429,
-        'MOBILE_AUTH_ATTEMPTS_EXCEEDED',
+        'TOTP_AUTH_ATTEMPTS_EXCEEDED',
         'Too many invalid TOTP attempts'
       );
     }
-    throw new MobileAuthError(401, 'MOBILE_AUTH_CODE_INVALID', 'Invalid TOTP code');
+    throw new TotpAuthError(401, 'TOTP_AUTH_CODE_INVALID', 'Invalid TOTP code');
   }
 
   pending.status = 'used';
@@ -647,7 +647,7 @@ export function consumeMobileAuthorizeRequest(input: {
   };
 }
 
-export async function createMobileAuthorizeCode(input: {
+export async function createTotpAuthorizeCode(input: {
   requestId: string;
   subject: string;
   clientId: string;
@@ -664,21 +664,21 @@ export async function createMobileAuthorizeCode(input: {
   ucanExpiresAt: number;
   issuedAt?: number;
   codeTtlMs?: number;
-}): Promise<MobileAuthorizeCodeCreateResult> {
-  assertMobileAuthReady();
+}): Promise<TotpAuthorizeCodeCreateResult> {
+  assertTotpAuthReady();
   cleanupAuthorizeRecords();
 
   const client = await getAuthorizeClient(input.clientId);
   const redirectUri = requireClientRedirect(client, input.redirectUri);
   const requestId = normalizeRequestId(input.requestId);
   if (!requestId) {
-    throw new MobileAuthError(400, 'MOBILE_AUTH_REQUEST_REQUIRED', 'Missing requestId');
+    throw new TotpAuthError(400, 'TOTP_AUTH_REQUEST_REQUIRED', 'Missing requestId');
   }
   const subject = requireWalletAddress(input.subject);
   const token = String(input.token || '').trim();
   const ucan = String(input.ucan || '').trim();
   if (!token || !ucan) {
-    throw new MobileAuthError(500, 'MOBILE_AUTH_CODE_PAYLOAD_INVALID', 'Missing token payload');
+    throw new TotpAuthError(500, 'TOTP_AUTH_CODE_PAYLOAD_INVALID', 'Missing token payload');
   }
 
   const state = normalizeState(input.state);
@@ -687,7 +687,7 @@ export async function createMobileAuthorizeCode(input: {
   const codeExpiresAt = nowMs + codeTtlMs;
   const code = generateAuthorizationCode();
 
-  const record: MobileAuthorizeCodeRecord = {
+  const record: TotpAuthorizeCodeRecord = {
     code,
     requestId,
     subject,
@@ -721,36 +721,36 @@ export async function createMobileAuthorizeCode(input: {
   };
 }
 
-export async function exchangeMobileAuthorizeCode(input: {
+export async function exchangeTotpAuthorizeCode(input: {
   code: string;
   clientId: string;
   redirectUri: string;
-}): Promise<MobileAuthorizeCodeExchangeResult> {
-  assertMobileAuthReady();
+}): Promise<TotpAuthorizeCodeExchangeResult> {
+  assertTotpAuthReady();
   cleanupAuthorizeRecords();
 
   const code = String(input.code || '').trim();
   if (!code) {
-    throw new MobileAuthError(400, 'MOBILE_AUTH_CODE_REQUIRED', 'Missing authorization code');
+    throw new TotpAuthError(400, 'TOTP_AUTH_CODE_REQUIRED', 'Missing authorization code');
   }
   const client = await getAuthorizeClient(input.clientId);
   const redirectUri = requireClientRedirect(client, input.redirectUri);
   const record = AUTHORIZE_CODES.get(code);
   if (!record) {
-    throw new MobileAuthError(404, 'MOBILE_AUTH_CODE_NOT_FOUND', 'Authorization code not found');
+    throw new TotpAuthError(404, 'TOTP_AUTH_CODE_NOT_FOUND', 'Authorization code not found');
   }
 
   const nowMs = Date.now();
   if (record.used) {
-    throw new MobileAuthError(409, 'MOBILE_AUTH_CODE_USED', 'Authorization code already used');
+    throw new TotpAuthError(409, 'TOTP_AUTH_CODE_USED', 'Authorization code already used');
   }
   if (nowMs > record.codeExpiresAt) {
-    throw new MobileAuthError(410, 'MOBILE_AUTH_CODE_EXPIRED', 'Authorization code expired');
+    throw new TotpAuthError(410, 'TOTP_AUTH_CODE_EXPIRED', 'Authorization code expired');
   }
   if (record.clientId !== client.clientId || record.redirectUri !== redirectUri) {
-    throw new MobileAuthError(
+    throw new TotpAuthError(
       403,
-      'MOBILE_AUTH_CODE_CLIENT_MISMATCH',
+      'TOTP_AUTH_CODE_CLIENT_MISMATCH',
       'Authorization code does not match client binding'
     );
   }

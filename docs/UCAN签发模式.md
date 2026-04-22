@@ -13,8 +13,8 @@
   - SIWE/JWT 登录接口：`/api/v1/public/auth/challenge|verify|refresh|logout`
   - UCAN 校验模式：`Authorization: Bearer <UCAN>`，服务端验证 `aud/cap/proof`
   - 中心化签发接口：`/api/v1/public/auth/central/issuer|session|issue|revoke`
-  - 手机桥接签发接口：`/api/v1/public/auth/mobile/status|totp/provision|bind/request|bind/approve`
-  - 手机地址授权接口：`/api/v1/public/auth/mobile/authorize/request|approve|exchange`
+  - 手机桥接签发接口：`/api/v1/public/auth/totp/status|totp/provision|bind/request|bind/approve`
+  - 手机地址授权接口：`/api/v1/public/auth/totp/authorize/request|approve|exchange`
   - 中心化 UCAN 校验分支：支持 `UCAN_ISSUER_DID` 信任 + `mode` 分支（`verify|issue|hybrid`）
 - 未实现（后续阶段）：
   - key rotation（active/next）
@@ -53,10 +53,10 @@
 
 ## 4.1 接口定义（手机桥接签发）
 
-接口前缀：`/api/v1/public/auth/mobile`
+接口前缀：`/api/v1/public/auth/totp`
 
 - `GET /status`
-  - 返回 mobile auth 是否启用、是否就绪、TOTP 参数与错误状态
+  - 返回 totp auth 是否启用、是否就绪、TOTP 参数与错误状态
 - `GET /totp/provision`
   - Header：`Authorization: Bearer <JWT access token | UCAN token>`
   - 输出：`otpauthUri`、`secret`、`issuer`、`period`、`digits`
@@ -72,7 +72,7 @@
 
 ### 4.2 接口定义（手机地址授权 + code 兑换）
 
-接口前缀：`/api/v1/public/auth/mobile/authorize`
+接口前缀：`/api/v1/public/auth/totp/authorize`
 
 - `POST /request`
   - 输入：`address`、`clientId`、`redirectUri`、`state`（可选）
@@ -88,8 +88,8 @@
   - 输出：`JWT access token` + `UCAN`
 
 前端承载页（Node Web）：
-- `GET /market/my-config`（钱包登录后管理页，支持加载 TOTP 配置与二维码、配置/调试 mobile authorize）
-- `GET /mobile-auth?requestId=...`
+- `GET /market/my-config`（钱包登录后管理页，支持加载 TOTP 配置与二维码、配置/调试 totp authorize）
+- `GET /totp-auth?requestId=...`
 - 页面行为：查询请求、输入 TOTP、调用 `authorize/approve` 后自动按 `redirectTo` 回跳。
 
 ## 5. 配置项
@@ -107,18 +107,18 @@
 - `ucanIssuer.tokenTtlMs` / `UCAN_ISSUER_TOKEN_TTL_MS`
 - `ucanIssuer.defaultAudience` / `UCAN_ISSUER_DEFAULT_AUDIENCE`
 - `ucanIssuer.defaultCapabilities` / `UCAN_ISSUER_DEFAULT_CAPABILITIES`
-- `mobileAuth.enabled` / `MOBILE_AUTH_ENABLED`
-- `mobileAuth.issuerName` / `MOBILE_AUTH_ISSUER_NAME`
-- `mobileAuth.verifyPath` / `MOBILE_AUTH_VERIFY_PATH`
-- `mobileAuth.portalBaseUrl` / `MOBILE_AUTH_PORTAL_BASE_URL`
-- `mobileAuth.requestTtlMs` / `MOBILE_AUTH_REQUEST_TTL_MS`
-- `mobileAuth.exchangeCodeTtlMs` / `MOBILE_AUTH_EXCHANGE_CODE_TTL_MS`
-- `mobileAuth.codeDigits` / `MOBILE_AUTH_CODE_DIGITS`
-- `mobileAuth.codePeriodSec` / `MOBILE_AUTH_CODE_PERIOD_SEC`
-- `mobileAuth.codeWindow` / `MOBILE_AUTH_CODE_WINDOW`
-- `mobileAuth.maxAttempts` / `MOBILE_AUTH_MAX_ATTEMPTS`
-- `mobileAuth.totpMasterKey` / `MOBILE_AUTH_TOTP_MASTER_KEY`
-- `mobileAuth.clients` / `MOBILE_AUTH_CLIENTS`
+- `totpAuth.enabled` / `TOTP_AUTH_ENABLED`
+- `totpAuth.issuerName` / `TOTP_AUTH_ISSUER_NAME`
+- `totpAuth.verifyPath` / `TOTP_AUTH_VERIFY_PATH`
+- `totpAuth.portalBaseUrl` / `TOTP_AUTH_PORTAL_BASE_URL`
+- `totpAuth.requestTtlMs` / `TOTP_AUTH_REQUEST_TTL_MS`
+- `totpAuth.exchangeCodeTtlMs` / `TOTP_AUTH_EXCHANGE_CODE_TTL_MS`
+- `totpAuth.codeDigits` / `TOTP_AUTH_CODE_DIGITS`
+- `totpAuth.codePeriodSec` / `TOTP_AUTH_CODE_PERIOD_SEC`
+- `totpAuth.codeWindow` / `TOTP_AUTH_CODE_WINDOW`
+- `totpAuth.maxAttempts` / `TOTP_AUTH_MAX_ATTEMPTS`
+- `totpAuth.totpMasterKey` / `TOTP_AUTH_TOTP_MASTER_KEY`
+- `totpAuth.clients` / `TOTP_AUTH_CLIENTS`
   - 可选覆盖：未命中 `AppId` 自动识别时，使用该白名单显式配置 `clientId + redirectUris`
 
 ## 6. 服务端验证逻辑（第三方无感）
@@ -197,5 +197,5 @@
 | --- | --- | --- |
 | 2026-04-17 | 首版创建 | 建立 Node UCAN 签发模式长期维护文档 |
 | 2026-04-17 | 明确中心化接口 | 采用 `/api/v1/public/auth/central/*` 路由并保持业务验 token 无感 |
-| 2026-04-21 | 增加 `/mobile-auth` 承载页约定 | 明确手机地址授权流程中的 Node 公共审批页职责（查询/授权/回跳） |
+| 2026-04-21 | 增加 `/totp-auth` 承载页约定 | 明确手机地址授权流程中的 Node 公共审批页职责（查询/授权/回跳） |
 | 2026-04-21 | 引入 `AppId` 客户端识别 | 支持 `clientId=applications.uid` 动态解析回跳白名单，降低 Chat 集成配置复杂度 |

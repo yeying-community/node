@@ -56,7 +56,7 @@ export interface UcanIssuerRuntimeConfig {
     defaultCapabilities?: UcanIssuerCapabilityConfig[]
 }
 
-export interface MobileAuthRuntimeConfig {
+export interface TotpAuthRuntimeConfig {
     enabled?: boolean
     issuerName?: string
     verifyPath?: string

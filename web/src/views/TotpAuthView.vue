@@ -1,6 +1,6 @@
 <template>
-  <div class="mobile-auth-page">
-    <div class="mobile-auth-card">
+  <div class="totp-auth-page">
+    <div class="totp-auth-card">
       <h1>UCAN 授权（服务）</h1>
       <p class="subtitle">请输入认证器验证码，完成本次中心化 UCAN 授权。</p>
 
@@ -221,7 +221,7 @@ async function loadRequestInfo() {
   errorMessage.value = '';
   try {
     const authorizeResponse = await fetch(
-      apiUrl(`/api/v1/public/auth/mobile/authorize/request/${encodeURIComponent(requestId.value)}`),
+      apiUrl(`/api/v1/public/auth/totp/authorize/request/${encodeURIComponent(requestId.value)}`),
       {
         method: 'GET',
         credentials: 'include',
@@ -237,7 +237,7 @@ async function loadRequestInfo() {
     }
 
     const bindResponse = await fetch(
-      apiUrl(`/api/v1/public/auth/mobile/bind/request/${encodeURIComponent(requestId.value)}`),
+      apiUrl(`/api/v1/public/auth/totp/bind/request/${encodeURIComponent(requestId.value)}`),
       {
         method: 'GET',
         credentials: 'include',
@@ -302,7 +302,7 @@ async function approveRequest() {
   errorMessage.value = '';
   try {
     if (requestMode.value === 'bind') {
-      const response = await fetch(apiUrl('/api/v1/public/auth/mobile/bind/approve'), {
+      const response = await fetch(apiUrl('/api/v1/public/auth/totp/bind/approve'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
@@ -323,7 +323,7 @@ async function approveRequest() {
         notifySuccess('授权成功，请返回应用继续');
       }
     } else {
-      const response = await fetch(apiUrl('/api/v1/public/auth/mobile/authorize/approve'), {
+      const response = await fetch(apiUrl('/api/v1/public/auth/totp/authorize/approve'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
@@ -413,13 +413,13 @@ onBeforeUnmount(() => {
 </script>
 
 <style scoped lang="less">
-.mobile-auth-page {
+.totp-auth-page {
   min-height: 100vh;
   background: #f3f5f8;
   padding: 20px;
 }
 
-.mobile-auth-card {
+.totp-auth-card {
   max-width: 860px;
   margin: 0 auto;
   background: #fff;
@@ -482,11 +482,11 @@ h1 {
 }
 
 @media (max-width: 768px) {
-  .mobile-auth-page {
+  .totp-auth-page {
     padding: 12px;
   }
 
-  .mobile-auth-card {
+  .totp-auth-card {
     padding: 14px;
   }
 
