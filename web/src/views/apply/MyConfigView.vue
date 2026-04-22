@@ -4,42 +4,83 @@
       <el-breadcrumb-item>我的配置</el-breadcrumb-item>
     </el-breadcrumb>
 
-    <div class="status-card">
-      <div class="status-title">Mobile Auth 状态</div>
-      <div class="status-row">
-        <span>enabled:</span>
-        <span>{{ mobileStatus ? String(mobileStatus.enabled) : '-' }}</span>
+    <div class="page-head">
+      <div>
+        <div class="page-title">中心化 UCAN 配置</div>
+        <div class="page-subtitle">统一管理 Mobile Auth 状态、认证器绑定、授权流程与 Token 验证。</div>
       </div>
-      <div class="status-row">
-        <span>ready:</span>
-        <span>{{ mobileStatus ? String(mobileStatus.ready) : '-' }}</span>
+      <div class="head-actions">
+        <el-button @click="loadMobileStatus">刷新状态</el-button>
+        <el-button type="primary" @click="loadTotpProvision">加载认证器配置</el-button>
       </div>
-      <div class="status-row">
-        <span>issuer:</span>
-        <span>{{ mobileStatus?.issuerName || '-' }}</span>
+    </div>
+
+    <div class="status-grid">
+      <div class="status-card">
+        <div class="status-title">Mobile Auth 状态</div>
+        <div class="status-list">
+          <div class="status-item">
+            <span class="status-label">服务开关</span>
+            <el-tag :type="mobileStatus?.enabled ? 'success' : 'info'" effect="light">
+              {{ mobileStatus ? (mobileStatus.enabled ? '已开启' : '未开启') : '-' }}
+            </el-tag>
+          </div>
+          <div class="status-item">
+            <span class="status-label">服务就绪</span>
+            <el-tag :type="mobileStatus?.ready ? 'success' : 'warning'" effect="light">
+              {{ mobileStatus ? (mobileStatus.ready ? '就绪' : '未就绪') : '-' }}
+            </el-tag>
+          </div>
+          <div class="status-item">
+            <span class="status-label">Issuer</span>
+            <span class="status-value">{{ mobileStatus?.issuerName || '-' }}</span>
+          </div>
+          <div class="status-item">
+            <span class="status-label">验证路径</span>
+            <span class="status-value path-text">{{ mobileStatus?.verifyPath || '-' }}</span>
+          </div>
+        </div>
+        <div v-if="mobileStatus?.error" class="status-error">错误：{{ mobileStatus.error }}</div>
       </div>
-      <div class="status-row">
-        <span>verifyPath:</span>
-        <span>{{ mobileStatus?.verifyPath || '-' }}</span>
+
+      <div class="status-card tip-card">
+        <div class="status-title">使用建议</div>
+        <div class="tip-text">1. 先确认“服务开关=已开启”且“服务就绪=就绪”。</div>
+        <div class="tip-text">2. 绑定认证器后，再进行授权请求与 TOTP 验证。</div>
+        <div class="tip-text">3. 授权成功后，使用结果页快速验证 JWT/UCAN 是否可用。</div>
       </div>
-      <div v-if="mobileStatus?.error" class="status-error">error: {{ mobileStatus.error }}</div>
-      <div class="status-actions">
-        <el-button size="small" @click="loadMobileStatus">刷新状态</el-button>
-        <el-button type="primary" size="small" @click="loadTotpProvision">加载认证器配置</el-button>
-      </div>
-      <div v-if="totpProvision" class="totp-card">
+    </div>
+
+    <div v-if="totpProvision" class="totp-card">
+      <div class="totp-head">
         <div class="totp-title">认证器配置（TOTP）</div>
-        <div class="status-row">
-          <span>issuer:</span>
-          <span>{{ totpProvision.issuer }}</span>
-        </div>
-        <div class="status-row">
-          <span>account:</span>
-          <span>{{ totpProvision.accountName }}</span>
-        </div>
-        <div class="status-row">
-          <span>period/digits:</span>
-          <span>{{ totpProvision.period }}s / {{ totpProvision.digits }}</span>
+        <div class="totp-desc">可扫码绑定，也可复制 `secret / otpauthUri` 手动导入。</div>
+      </div>
+      <div class="totp-body">
+        <div class="totp-meta">
+          <div class="meta-item">
+            <span class="status-label">issuer</span>
+            <span class="status-value">{{ totpProvision.issuer }}</span>
+          </div>
+          <div class="meta-item">
+            <span class="status-label">account</span>
+            <span class="status-value">{{ totpProvision.accountName }}</span>
+          </div>
+          <div class="meta-item">
+            <span class="status-label">period / digits</span>
+            <span class="status-value">{{ totpProvision.period }}s / {{ totpProvision.digits }}</span>
+          </div>
+          <div class="field-line">
+            <span class="label">secret</span>
+            <el-input :model-value="totpProvision.secret" readonly />
+            <el-button @click="copyText(totpProvision.secret, 'TOTP secret')">复制</el-button>
+          </div>
+          <div class="field-line">
+            <span class="label">otpauthUri</span>
+            <el-input :model-value="totpProvision.otpauthUri" readonly />
+            <el-button @click="copyText(totpProvision.otpauthUri, 'otpauthUri')">复制</el-button>
+            <el-button @click="openLink(totpProvision.otpauthUri)">打开</el-button>
+          </div>
         </div>
         <div class="qr-box">
           <div class="label">二维码</div>
@@ -48,51 +89,43 @@
             <div v-else class="qr-placeholder">二维码生成中或不可用</div>
           </div>
         </div>
-        <div class="line">
-          <span class="label">secret</span>
-          <el-input :model-value="totpProvision.secret" readonly />
-          <el-button @click="copyText(totpProvision.secret, 'TOTP secret')">复制</el-button>
-        </div>
-        <div class="line">
-          <span class="label">otpauthUri</span>
-          <el-input :model-value="totpProvision.otpauthUri" readonly />
-          <el-button @click="copyText(totpProvision.otpauthUri, 'otpauthUri')">复制</el-button>
-          <el-button @click="openLink(totpProvision.otpauthUri)">打开</el-button>
-        </div>
       </div>
     </div>
 
     <el-tabs v-model="activeTab" class="config-tabs">
       <el-tab-pane label="授权配置" name="config">
         <div class="panel">
-          <el-form label-width="140px">
-            <el-form-item label="区块链地址">
-              <el-input v-model="form.address" placeholder="0x..." />
-            </el-form-item>
-            <el-form-item label="clientId">
-              <el-input v-model="form.clientId" placeholder="chat-web" />
-            </el-form-item>
-            <el-form-item label="redirectUri">
-              <el-input v-model="form.redirectUri" placeholder="https://app.example.com/callback" />
-            </el-form-item>
-            <el-form-item label="state">
-              <el-input v-model="form.state" placeholder="可选，建议随机字符串" />
-            </el-form-item>
-            <el-form-item label="audience">
-              <el-input v-model="form.audience" placeholder="did:web:localhost:8100" />
-            </el-form-item>
-            <el-form-item label="capability.with">
-              <el-input v-model="form.capWith" placeholder="app:all:localhost-*" />
-            </el-form-item>
-            <el-form-item label="capability.can">
-              <el-input v-model="form.capCan" placeholder="invoke" />
-            </el-form-item>
-            <el-form-item label="appName">
-              <el-input v-model="form.appName" placeholder="chat-mobile" />
-            </el-form-item>
-            <el-form-item label="requestTtlMs">
-              <el-input-number v-model="form.requestTtlMs" :min="60000" :step="30000" />
-            </el-form-item>
+          <div class="panel-title">客户端配置</div>
+          <el-form label-position="top" class="config-form">
+            <div class="grid-two">
+              <el-form-item label="区块链地址">
+                <el-input v-model="form.address" placeholder="0x..." />
+              </el-form-item>
+              <el-form-item label="clientId">
+                <el-input v-model="form.clientId" placeholder="chat-web" />
+              </el-form-item>
+              <el-form-item class="full" label="redirectUri">
+                <el-input v-model="form.redirectUri" placeholder="https://app.example.com/callback" />
+              </el-form-item>
+              <el-form-item label="state">
+                <el-input v-model="form.state" placeholder="可选，建议随机字符串" />
+              </el-form-item>
+              <el-form-item label="appName">
+                <el-input v-model="form.appName" placeholder="chat-mobile" />
+              </el-form-item>
+              <el-form-item label="audience">
+                <el-input v-model="form.audience" placeholder="did:web:localhost:8100" />
+              </el-form-item>
+              <el-form-item label="requestTtlMs">
+                <el-input-number v-model="form.requestTtlMs" :min="60000" :step="30000" />
+              </el-form-item>
+              <el-form-item label="capability.with">
+                <el-input v-model="form.capWith" placeholder="app:all:localhost-*" />
+              </el-form-item>
+              <el-form-item label="capability.can">
+                <el-input v-model="form.capCan" placeholder="invoke" />
+              </el-form-item>
+            </div>
           </el-form>
           <div class="actions">
             <el-button type="primary" @click="saveConfig">保存配置</el-button>
@@ -104,55 +137,73 @@
 
       <el-tab-pane label="授权流程" name="flow">
         <div class="panel">
-          <div class="line">
-            <span class="label">requestId</span>
-            <el-input v-model="requestIdInput" placeholder="创建后自动填充，也可手动输入" />
-            <el-button @click="queryAuthorizeRequest">查询</el-button>
+          <div class="panel-title">授权流程操作</div>
+          <div class="flow-step">
+            <div class="step-title"><span class="step-dot">1</span>查询授权请求</div>
+            <div class="line">
+              <span class="label">requestId</span>
+              <el-input v-model="requestIdInput" placeholder="创建后自动填充，也可手动输入" />
+              <el-button @click="queryAuthorizeRequest">查询</el-button>
+            </div>
           </div>
 
-          <div class="line">
-            <span class="label">TOTP Code</span>
-            <el-input v-model="totpCode" placeholder="6位认证器验证码" />
-            <el-button type="success" @click="approveAuthorizeRequest">批准授权</el-button>
+          <div class="flow-step">
+            <div class="step-title"><span class="step-dot">2</span>TOTP 批准授权</div>
+            <div class="line">
+              <span class="label">TOTP Code</span>
+              <el-input v-model="totpCode" placeholder="6位认证器验证码" />
+              <el-button type="success" @click="approveAuthorizeRequest">批准授权</el-button>
+            </div>
           </div>
 
-          <div class="line">
-            <span class="label">Auth Code</span>
-            <el-input v-model="authCodeInput" placeholder="approve 后自动填充" />
-            <el-button type="warning" @click="exchangeAuthorizeCode">兑换 Token</el-button>
+          <div class="flow-step">
+            <div class="step-title"><span class="step-dot">3</span>兑换授权码</div>
+            <div class="line">
+              <span class="label">Auth Code</span>
+              <el-input v-model="authCodeInput" placeholder="approve 后自动填充" />
+              <el-button type="warning" @click="exchangeAuthorizeCode">兑换 Token</el-button>
+            </div>
           </div>
 
-          <div class="line">
-            <span class="label">verifyUrl</span>
-            <el-input :model-value="requestResult?.verifyUrl || ''" readonly />
-            <el-button @click="openVerifyUrl">打开</el-button>
-            <el-button @click="copyText(requestResult?.verifyUrl || '', 'verifyUrl')">复制</el-button>
-          </div>
-
-          <div class="line">
-            <span class="label">redirectTo</span>
-            <el-input :model-value="approveResult?.redirectTo || ''" readonly />
-            <el-button @click="openRedirectTo">打开</el-button>
-            <el-button @click="copyText(approveResult?.redirectTo || '', 'redirectTo')">复制</el-button>
+          <div class="flow-step">
+            <div class="step-title"><span class="step-dot">4</span>确认回调链接</div>
+            <div class="line">
+              <span class="label">verifyUrl</span>
+              <el-input :model-value="requestResult?.verifyUrl || ''" readonly />
+              <el-button @click="openVerifyUrl">打开</el-button>
+              <el-button @click="copyText(requestResult?.verifyUrl || '', 'verifyUrl')">复制</el-button>
+            </div>
+            <div class="line">
+              <span class="label">redirectTo</span>
+              <el-input :model-value="approveResult?.redirectTo || ''" readonly />
+              <el-button @click="openRedirectTo">打开</el-button>
+              <el-button @click="copyText(approveResult?.redirectTo || '', 'redirectTo')">复制</el-button>
+            </div>
           </div>
         </div>
       </el-tab-pane>
 
       <el-tab-pane label="结果验证" name="result">
         <div class="panel">
-          <div class="line">
-            <span class="label">JWT Token</span>
-            <el-input :model-value="exchangeResult?.token || ''" readonly />
-            <el-button @click="copyText(exchangeResult?.token || '', 'JWT')">复制</el-button>
-            <el-button @click="verifyProfileWithJwt">验证</el-button>
+          <div class="panel-title">Token 与验证</div>
+          <div class="flow-step">
+            <div class="line">
+              <span class="label">JWT Token</span>
+              <el-input :model-value="exchangeResult?.token || ''" readonly />
+              <el-button @click="copyText(exchangeResult?.token || '', 'JWT')">复制</el-button>
+              <el-button @click="verifyProfileWithJwt">验证</el-button>
+            </div>
           </div>
-          <div class="line">
-            <span class="label">UCAN Token</span>
-            <el-input :model-value="exchangeResult?.ucan || ''" readonly />
-            <el-button @click="copyText(exchangeResult?.ucan || '', 'UCAN')">复制</el-button>
-            <el-button @click="verifyProfileWithUcan">验证</el-button>
+          <div class="flow-step">
+            <div class="line">
+              <span class="label">UCAN Token</span>
+              <el-input :model-value="exchangeResult?.ucan || ''" readonly />
+              <el-button @click="copyText(exchangeResult?.ucan || '', 'UCAN')">复制</el-button>
+              <el-button @click="verifyProfileWithUcan">验证</el-button>
+            </div>
           </div>
           <div class="result-json">
+            <div class="result-title">调试结果（request / approve / exchange / profile）</div>
             <pre>{{ prettyResult }}</pre>
           </div>
         </div>
@@ -627,19 +678,87 @@ onMounted(async () => {
 .my-config {
   margin: 20px;
 
+  .page-head {
+    margin-top: 16px;
+    padding: 16px 18px;
+    border-radius: 10px;
+    background: #fff;
+    border: 1px solid #e8edf4;
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 14px;
+  }
+
+  .page-title {
+    font-size: 18px;
+    line-height: 1.3;
+    font-weight: 500;
+    color: rgba(0, 0, 0, 0.88);
+  }
+
+  .page-subtitle {
+    margin-top: 6px;
+    font-size: 13px;
+    line-height: 1.6;
+    color: rgba(0, 0, 0, 0.55);
+  }
+
+  .head-actions {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+
+  .status-grid {
+    margin-top: 14px;
+    display: grid;
+    grid-template-columns: 1.4fr 1fr;
+    gap: 14px;
+  }
+
   .status-card {
-    margin-top: 20px;
     padding: 16px;
     background: #fff;
-    border: 1px solid #e5e7eb;
-    border-radius: 8px;
-    max-width: 900px;
+    border: 1px solid #e8edf4;
+    border-radius: 10px;
   }
 
   .status-title {
-    font-size: 16px;
+    font-size: 15px;
     font-weight: 500;
     margin-bottom: 12px;
+    color: rgba(0, 0, 0, 0.86);
+  }
+
+  .status-list {
+    display: grid;
+    gap: 10px;
+  }
+
+  .status-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    font-size: 14px;
+    line-height: 1.5;
+    color: rgba(0, 0, 0, 0.75);
+  }
+
+  .status-label {
+    color: rgba(0, 0, 0, 0.58);
+    white-space: nowrap;
+  }
+
+  .status-value {
+    color: rgba(0, 0, 0, 0.82);
+    word-break: break-all;
+  }
+
+  .path-text {
+    font-family: var(--app-font-mono);
+    font-size: 13px;
   }
 
   .status-row {
@@ -654,35 +773,71 @@ onMounted(async () => {
     margin-top: 8px;
     color: #d93026;
     font-size: 14px;
+    line-height: 1.5;
   }
 
-  .status-actions {
-    margin-top: 10px;
-    display: flex;
-    gap: 8px;
-    flex-wrap: wrap;
+  .tip-card {
+    background: linear-gradient(180deg, #fcfdff 0%, #f6f9ff 100%);
+  }
+
+  .tip-text {
+    font-size: 13px;
+    line-height: 1.65;
+    color: rgba(0, 0, 0, 0.62);
+    margin-bottom: 8px;
   }
 
   .totp-card {
     margin-top: 14px;
-    padding: 12px;
-    border: 1px dashed #d1d5db;
-    border-radius: 8px;
-    background: #fafcff;
+    padding: 16px;
+    border: 1px solid #e8edf4;
+    border-radius: 10px;
+    background: #fff;
+  }
+
+  .totp-head {
+    margin-bottom: 12px;
   }
 
   .totp-title {
     font-size: 15px;
     font-weight: 500;
-    margin-bottom: 8px;
+    color: rgba(0, 0, 0, 0.86);
+  }
+
+  .totp-desc {
+    margin-top: 6px;
+    font-size: 13px;
+    line-height: 1.55;
+    color: rgba(0, 0, 0, 0.56);
+  }
+
+  .totp-body {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 260px;
+    gap: 16px;
+    align-items: start;
+  }
+
+  .totp-meta {
+    display: grid;
+    gap: 10px;
+  }
+
+  .meta-item {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    font-size: 14px;
+    line-height: 1.5;
   }
 
   .qr-box {
-    margin: 10px 0 14px;
+    justify-self: end;
   }
 
   .qr-panel {
-    margin-top: 6px;
+    margin-top: 8px;
     width: 232px;
     height: 232px;
     border: 1px solid #e5e7eb;
@@ -710,42 +865,110 @@ onMounted(async () => {
   .config-tabs {
     margin-top: 16px;
     background: #fff;
-    padding: 12px;
-    border-radius: 8px;
+    padding: 12px 14px;
+    border-radius: 10px;
+    border: 1px solid #e8edf4;
   }
 
   .panel {
-    padding: 8px 4px 12px;
+    padding: 8px 2px 12px;
+  }
+
+  .panel-title {
+    margin-bottom: 12px;
+    font-size: 15px;
+    line-height: 1.4;
+    font-weight: 500;
+    color: rgba(0, 0, 0, 0.84);
+  }
+
+  .config-form .grid-two {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0 12px;
+  }
+
+  .config-form .full {
+    grid-column: 1 / -1;
+  }
+
+  .config-form :deep(.el-form-item) {
+    margin-bottom: 14px;
+  }
+
+  .flow-step {
+    padding: 12px;
+    border: 1px solid #edf1f7;
+    border-radius: 8px;
+    background: #fafcff;
+    margin-bottom: 12px;
+  }
+
+  .step-title {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 10px;
+    font-size: 14px;
+    line-height: 1.45;
+    font-weight: 500;
+    color: rgba(0, 0, 0, 0.82);
+  }
+
+  .step-dot {
+    width: 20px;
+    height: 20px;
+    border-radius: 999px;
+    background: #1677ff;
+    color: #fff;
+    font-size: 12px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
   }
 
   .actions {
-    margin-top: 12px;
+    margin-top: 8px;
     display: flex;
-    gap: 12px;
+    gap: 10px;
     flex-wrap: wrap;
   }
 
   .line {
     display: grid;
-    grid-template-columns: 120px 1fr auto auto;
+    grid-template-columns: 110px minmax(0, 1fr) auto auto;
     gap: 8px;
     align-items: center;
-    margin-bottom: 12px;
+  }
+
+  .field-line {
+    display: grid;
+    grid-template-columns: 110px minmax(0, 1fr) auto auto;
+    gap: 8px;
+    align-items: center;
   }
 
   .label {
     font-size: 14px;
+    line-height: 1.45;
     color: rgba(0, 0, 0, 0.75);
   }
 
   .result-json {
-    margin-top: 8px;
+    margin-top: 12px;
     border: 1px solid #e5e7eb;
     border-radius: 6px;
     background: #fafafa;
     max-height: 360px;
     overflow: auto;
     padding: 10px;
+  }
+
+  .result-title {
+    margin-bottom: 8px;
+    font-size: 13px;
+    line-height: 1.5;
+    color: rgba(0, 0, 0, 0.58);
   }
 
   pre {
@@ -757,9 +980,48 @@ onMounted(async () => {
   }
 }
 
+@media (max-width: 1200px) {
+  .my-config {
+    .status-grid {
+      grid-template-columns: 1fr;
+    }
+
+    .totp-body {
+      grid-template-columns: 1fr;
+    }
+
+    .qr-box {
+      justify-self: start;
+    }
+  }
+}
+
 @media (max-width: 980px) {
-  .my-config .line {
-    grid-template-columns: 1fr;
+  .my-config {
+    .page-head {
+      flex-direction: column;
+      align-items: stretch;
+    }
+
+    .head-actions {
+      margin-top: 2px;
+    }
+
+    .config-form .grid-two {
+      grid-template-columns: 1fr;
+    }
+
+    .line,
+    .field-line {
+      grid-template-columns: 1fr;
+    }
+
+    .status-item,
+    .meta-item {
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 4px;
+    }
   }
 }
 </style>

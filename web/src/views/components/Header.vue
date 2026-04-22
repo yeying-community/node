@@ -6,6 +6,16 @@
         <div class="hidden lg:flex">
         </div>
         <div class="account">
+            <el-tooltip content="帮助文档" placement="bottom" :show-after="250">
+                <button
+                    type="button"
+                    class="help-link-btn"
+                    aria-label="打开帮助文档"
+                    @click="openHelpDoc"
+                >
+                    <el-icon><QuestionFilled /></el-icon>
+                </button>
+            </el-tooltip>
             <el-dropdown
                 v-if="shortAddress"
                 trigger="click"
@@ -42,7 +52,7 @@
 <script lang="ts" setup>
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
-import { CaretBottom, Check, DocumentCopy } from '@element-plus/icons-vue'
+import { CaretBottom, Check, DocumentCopy, QuestionFilled } from '@element-plus/icons-vue'
 import { getCurrentAccount, logoutWithUcan } from '@/plugins/auth'
 
 const router = useRouter();
@@ -52,6 +62,10 @@ let copiedTimer: number | null = null
 
 const go = async (url: string) => {
     router.push(url)
+}
+
+function openHelpDoc() {
+    window.open('/help.html', '_blank', 'noopener,noreferrer')
 }
 
 async function copyCurrentAddress() {
@@ -142,8 +156,32 @@ onBeforeUnmount(() => {
         gap: 10px;
     }
     .account{
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
         font-size: 14px;
         color: rgba(0,0,0,0.85);
+        .help-link-btn{
+            width: 24px;
+            height: 24px;
+            border: none;
+            border-radius: 999px;
+            background: transparent;
+            color: rgba(0,0,0,0.38);
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: color 0.2s ease, background-color 0.2s ease;
+            &:hover{
+                color: rgba(0,0,0,0.62);
+                background: rgba(0,0,0,0.05);
+            }
+        }
+        .help-link-btn:focus-visible{
+            outline: 2px solid rgba(0,0,0,0.14);
+            outline-offset: 1px;
+        }
         .account-trigger{
             display: inline-flex;
             align-items: center;
