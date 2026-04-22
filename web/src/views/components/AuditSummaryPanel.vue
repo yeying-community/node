@@ -192,9 +192,14 @@ function timelineType(status?: AuditCommentMetadata['status']) {
 
 .summary-card {
     border-radius: 10px;
-    padding: 16px;
+    padding: 14px;
     background: linear-gradient(180deg, #fafcff 0%, #f5f8ff 100%);
     border: 1px solid rgba(22, 119, 255, 0.08);
+}
+
+:deep(.summary-card .el-tag) {
+    font-size: 12px;
+    font-weight: 400;
 }
 
 .summary-label {
@@ -204,8 +209,9 @@ function timelineType(status?: AuditCommentMetadata['status']) {
 }
 
 .summary-value {
-    font-size: 20px;
-    font-weight: 600;
+    font-size: 16px;
+    line-height: 1.45;
+    font-weight: 400;
     color: rgba(0, 0, 0, 0.88);
     word-break: break-word;
 }
@@ -230,7 +236,9 @@ function timelineType(status?: AuditCommentMetadata['status']) {
 
 .info-value {
     margin-top: 6px;
-    font-size: 14px;
+    font-size: 13px;
+    line-height: 1.6;
+    font-weight: 400;
     color: rgba(0, 0, 0, 0.88);
     word-break: break-word;
 }
@@ -279,12 +287,15 @@ function timelineType(status?: AuditCommentMetadata['status']) {
 }
 
 .timeline-actor {
+    font-size: 13px;
+    font-weight: 400;
     color: rgba(0, 0, 0, 0.65);
     word-break: break-all;
 }
 
 .timeline-text {
     margin-top: 8px;
+    font-size: 13px;
     color: rgba(0, 0, 0, 0.85);
     line-height: 1.6;
     word-break: break-word;

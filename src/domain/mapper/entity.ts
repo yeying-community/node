@@ -276,7 +276,7 @@ export class ApplicationConfigDO {
 export class CommentDO {
     @PrimaryGeneratedColumn("uuid")
     uid!: string
-    @Column('text')
+    @Column({ type: 'text', name: 'audit_id' })
     auditId!: string
     @Column('text')
     text!: string

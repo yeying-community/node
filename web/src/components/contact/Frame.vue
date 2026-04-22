@@ -1,7 +1,7 @@
 <template>
   <div @click="openContact" class="blue-color cursor-pointer bg-white px-3 py-5 frame fixed right-1.5 sm:right-12 top-1/4">
     <span class="iconfont icon-phone"/>
-    <span class="mt-2 text-base font-puhuiRegular">{{$t("common.contactUs")}}</span>
+    <span class="mt-2 text-base font-body">{{$t("common.contactUs")}}</span>
   </div>
 </template>
 

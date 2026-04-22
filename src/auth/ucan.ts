@@ -25,9 +25,12 @@ export type UcanRootProof = {
 
 export type UcanProof = UcanRootProof | string;
 
+export type UcanInvocationSource = 'wallet' | 'central';
+
 type UcanTokenPayload = {
   iss?: string;
   aud?: string;
+  sub?: string;
   cap?: UcanCapability[];
   exp?: number;
   nbf?: number;
@@ -45,7 +48,7 @@ const UCAN_AUD =
 const UCAN_WITH =
   process.env.UCAN_WITH ||
   getConfig<string>('ucan.with') ||
-  'app:all:localhost-5173';
+  'app:all:localhost-*';
 const UCAN_CAN =
   process.env.UCAN_CAN ||
   getConfig<string>('ucan.can') ||
@@ -54,6 +57,16 @@ const REQUIRED_UCAN_CAP: UcanCapability = {
   with: UCAN_WITH,
   can: UCAN_CAN
 };
+const UCAN_ISSUER_ENABLED = parseBoolean(
+  process.env.UCAN_ISSUER_ENABLED ?? getConfig<boolean>('ucanIssuer.enabled'),
+  false
+);
+const UCAN_ISSUER_MODE = parseIssuerMode(
+  process.env.UCAN_ISSUER_MODE ?? getConfig<string>('ucanIssuer.mode')
+);
+const UCAN_ISSUER_DID = String(
+  process.env.UCAN_ISSUER_DID ?? getConfig<string>('ucanIssuer.did') ?? ''
+).trim();
 
 const BASE58_ALPHABET = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz';
 
@@ -102,6 +115,23 @@ function parseNumber(value: unknown, fallback: number): number {
   return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
 }
 
+function parseBoolean(value: unknown, fallback = false): boolean {
+  if (value === undefined || value === null || value === '') return fallback;
+  if (typeof value === 'boolean') return value;
+  const normalized = String(value).trim().toLowerCase();
+  if (normalized === 'true') return true;
+  if (normalized === 'false') return false;
+  return fallback;
+}
+
+function parseIssuerMode(value: unknown): 'verify' | 'issue' | 'hybrid' {
+  const normalized = String(value || '').trim().toLowerCase();
+  if (normalized === 'verify' || normalized === 'issue' || normalized === 'hybrid') {
+    return normalized;
+  }
+  return 'verify';
+}
+
 function didKeyToPublicKey(did: string): Buffer {
   if (!did || typeof did !== 'string' || !did.startsWith('did:key:z')) {
     throw new Error('Invalid did:key format');
@@ -135,6 +165,18 @@ function normalizeActionExpression(raw: string): string {
     .filter(Boolean);
   if (!items.length) return '';
   return Array.from(new Set(items)).join(',');
+}
+
+function normalizeLoopbackAlias(raw: string): string {
+  return String(raw || '')
+    .trim()
+    .replace(/127\.0\.0\.1/g, 'localhost');
+}
+
+function isEquivalentAudience(left: string, right: string): boolean {
+  if (!left || !right) return false;
+  if (left === right) return true;
+  return normalizeLoopbackAlias(left) === normalizeLoopbackAlias(right);
 }
 
 function getCapabilityResource(cap: UcanCapability | null | undefined): string {
@@ -171,11 +213,23 @@ function actionAllows(availableAction: string, requiredAction: string): boolean 
 }
 
 function matchPattern(pattern: string, value: string): boolean {
-  if (pattern === '*') return true;
-  if (pattern.endsWith('*')) {
-    return value.startsWith(pattern.slice(0, -1));
+  const normalizedPattern = normalizeLoopbackAlias(pattern);
+  const normalizedValue = normalizeLoopbackAlias(value);
+  if (normalizedPattern === '*') return true;
+  if (normalizedPattern.endsWith('*')) {
+    return normalizedValue.startsWith(normalizedPattern.slice(0, -1));
   }
-  return pattern === value;
+  return normalizedPattern === normalizedValue;
+}
+
+function resourceIntersects(availableResource: string, requiredResource: string): boolean {
+  // Allow intersection semantics:
+  // - token wildcard covers required concrete value
+  // - required wildcard accepts token concrete value
+  return (
+    matchPattern(availableResource, requiredResource) ||
+    matchPattern(requiredResource, availableResource)
+  );
 }
 
 function capsAllow(available: UcanCapability[] | undefined, required: UcanCapability[]): boolean {
@@ -188,7 +242,7 @@ function capsAllow(available: UcanCapability[] | undefined, required: UcanCapabi
       const capResource = getCapabilityResource(cap);
       const capAction = getCapabilityAction(cap);
       if (!capResource || !capAction) return false;
-      return matchPattern(capResource, reqResource) && actionAllows(capAction, reqAction);
+      return resourceIntersects(capResource, reqResource) && actionAllows(capAction, reqAction);
     });
   });
 }
@@ -244,7 +298,7 @@ function verifyRootProof(root: UcanRootProof): {
     throw new Error('Invalid root claims');
   }
 
-  if (root.aud && root.aud !== aud) {
+  if (root.aud && !isEquivalentAudience(root.aud, aud)) {
     throw new Error('Root audience mismatch');
   }
   if (root.exp && normalizeEpochMillis(root.exp) !== exp) {
@@ -314,7 +368,7 @@ function verifyProofChain(
     if (!payload.iss || !payload.aud) {
       throw new Error('Invalid UCAN proof');
     }
-    if (payload.aud !== currentDid) {
+    if (!isEquivalentAudience(payload.aud, currentDid)) {
       throw new Error('UCAN audience mismatch');
     }
     const proofExp = normalizeEpochMillis(payload.exp ?? undefined) ?? exp;
@@ -328,7 +382,7 @@ function verifyProofChain(
     return verifyProofChain(payload.iss, payload.cap || [], proofExp ?? requiredExp, nextProofs);
   }
   const root = verifyRootProof(first);
-  if (root.aud !== currentDid) {
+  if (!isEquivalentAudience(root.aud, currentDid)) {
     throw new Error('Root audience mismatch');
   }
   if (!capsAllow(root.cap || [], requiredCap)) {
@@ -338,6 +392,36 @@ function verifyProofChain(
     throw new Error('Root expired');
   }
   return root;
+}
+
+function isWalletVerificationEnabled(): boolean {
+  if (!UCAN_ISSUER_ENABLED) {
+    return true;
+  }
+  return UCAN_ISSUER_MODE === 'verify' || UCAN_ISSUER_MODE === 'hybrid';
+}
+
+function isCentralVerificationEnabled(): boolean {
+  if (!UCAN_ISSUER_ENABLED) {
+    return false;
+  }
+  return UCAN_ISSUER_MODE === 'issue' || UCAN_ISSUER_MODE === 'hybrid';
+}
+
+function isTrustedCentralIssuerDid(did: string): boolean {
+  if (!did || !UCAN_ISSUER_DID) {
+    return false;
+  }
+  return did === UCAN_ISSUER_DID;
+}
+
+function normalizeSubject(subject: string): string {
+  const normalized = String(subject || '').trim();
+  if (!normalized) return '';
+  if (/^0x[0-9a-fA-F]{40}$/.test(normalized)) {
+    return normalized.toLowerCase();
+  }
+  return normalized;
 }
 
 export function isUcanToken(token: string): boolean {
@@ -351,14 +435,44 @@ export function isUcanToken(token: string): boolean {
   }
 }
 
-export function verifyUcanInvocation(token: string): { address: string; issuer: string } {
+export function verifyUcanInvocation(token: string): {
+  address: string;
+  issuer: string;
+  source: UcanInvocationSource;
+} {
   return verifyUcanInvocationWithRequired(token, [REQUIRED_UCAN_CAP]);
+}
+
+export function getRequiredUcanCapability(): UcanCapability {
+  return { ...REQUIRED_UCAN_CAP };
+}
+
+export function getRequiredUcanAudience(): string {
+  return UCAN_AUD;
+}
+
+export function peekUcanTokenPayload(
+  token: string
+): {
+  iss?: string;
+  aud?: string;
+  sub?: string;
+  cap?: UcanCapability[];
+  exp?: number;
+  nbf?: number;
+} | null {
+  try {
+    const decoded = decodeUcanToken(token);
+    return decoded.payload;
+  } catch {
+    return null;
+  }
 }
 
 export function verifyUcanInvocationWithCap(
   token: string,
   requiredCap: UcanCapability[]
-): { address: string; issuer: string } {
+): { address: string; issuer: string; source: UcanInvocationSource } {
   if (!Array.isArray(requiredCap) || requiredCap.length === 0) {
     return verifyUcanInvocation(token);
   }
@@ -368,18 +482,31 @@ export function verifyUcanInvocationWithCap(
 function verifyUcanInvocationWithRequired(
   token: string,
   requiredCap: UcanCapability[]
-): { address: string; issuer: string } {
+): { address: string; issuer: string; source: UcanInvocationSource } {
   const { payload, exp } = verifyUcanJws(token);
   if (!payload.iss || !payload.aud) {
     throw new Error('Invalid UCAN token');
   }
-  if (payload.aud !== UCAN_AUD) {
+  if (!isEquivalentAudience(payload.aud, UCAN_AUD)) {
     throw new Error('UCAN audience mismatch');
   }
   if (!capsAllow(payload.cap || [], requiredCap)) {
     throw new Error('UCAN capability denied');
   }
+  if (isTrustedCentralIssuerDid(payload.iss)) {
+    if (!isCentralVerificationEnabled()) {
+      throw new Error('UCAN issuer mode denied');
+    }
+    const address = normalizeSubject(payload.sub || '');
+    if (!address) {
+      throw new Error('Invalid UCAN subject');
+    }
+    return { address, issuer: payload.iss, source: 'central' };
+  }
+  if (!isWalletVerificationEnabled()) {
+    throw new Error('UCAN wallet mode denied');
+  }
   const root = verifyProofChain(payload.iss, payload.cap || [], exp, payload.prf || []);
   const address = root.iss.replace(/^did:pkh:eth:/, '');
-  return { address, issuer: payload.iss };
+  return { address, issuer: payload.iss, source: 'wallet' };
 }

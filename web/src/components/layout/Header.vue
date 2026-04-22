@@ -11,13 +11,13 @@
         <button
           type="button"
           class="-m-2.5 inline-flex items-center justify-center rounded-md p-2.5 text-gray-700"
-          @click="mobileMenuOpen = true"
+          @click="menuDrawerOpen = true"
         >
           <span class="sr-only">Open main menu</span>
           <span class="iconfont icon-horizon scale-125" />
         </button>
       </div>
-      <div class="hidden lg:flex lg:gap-x-12 font-puhuiRegular text-base">
+      <div class="hidden lg:flex lg:gap-x-12 font-body text-base">
         <span
           class="cursor-pointer opacity-85"
           :class="item.name == selectName ? 'text-blue-600' : ''"
@@ -31,7 +31,7 @@
         <Language style="transform: translateY(10%)" />
       </div>
     </nav>
-    <Dialog class="lg:hidden" @close="mobileMenuOpen = false" :open="mobileMenuOpen">
+    <Dialog class="lg:hidden" @close="menuDrawerOpen = false" :open="menuDrawerOpen">
       <div class="fixed inset-0 z-50" />
       <DialogPanel
         class="fixed inset-y-0 right-0 z-50 w-full overflow-y-auto bg-white px-6 py-6 h-screen sm:max-w-sm sm:ring-1 sm:ring-gray-900/10"
@@ -44,7 +44,7 @@
           <button
             type="button"
             class="-m-2.5 rounded-md p-2.5 text-gray-700"
-            @click="mobileMenuOpen = false"
+            @click="menuDrawerOpen = false"
           >
             <span class="iconfont icon-close" />
           </button>
@@ -57,7 +57,7 @@
                 @click="() => changeRouter(item.to)"
                 v-for="item in navigation"
                 :key="item.name"
-                class="block px-3 py-2 text-base/7 font-puhuiRegular text-gray-900 hover:bg-gray-50"
+                class="block px-3 py-2 text-base/7 font-body text-gray-900 hover:bg-gray-50"
                 :style="{ color: item.name == selectName ? 'blue' : '' }"
                 >{{ item.title }}</span
               >
@@ -99,12 +99,12 @@ const navigation = [
   { title: $t("portal.blog"), to: "" },
   { title: $t("portal.aboutUs"), to: "" },
 ];
-const mobileMenuOpen = ref(false);
+const menuDrawerOpen = ref(false);
 
 const changeRouter = async (url) => {
   router.push(url);
-  if (url && mobileMenuOpen.value) {
-    mobileMenuOpen.value = false;
+  if (url && menuDrawerOpen.value) {
+    menuDrawerOpen.value = false;
   }
 };
 </script>

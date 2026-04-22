@@ -36,7 +36,7 @@
               @click="changeInfo(person)"
             >
               <span
-                :class="[selected ? 'font-semibold' : 'font-normal', 'block truncate']"
+                :class="[selected ? 'font-medium' : 'font-normal', 'block truncate']"
                 >{{ person.name }}</span
               >
 

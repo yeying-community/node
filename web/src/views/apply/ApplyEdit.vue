@@ -1,175 +1,235 @@
 <template>
-    <div class="edit">
+    <div class="publish-page">
         <el-breadcrumb separator="/">
             <el-breadcrumb-item :to="{ path: '/market/' }">应用中心</el-breadcrumb-item>
-            <el-breadcrumb-item>{{ isEdit ? '编辑' : '创建' }}应用</el-breadcrumb-item>
+            <el-breadcrumb-item>{{ isEdit ? '编辑应用' : '发布应用' }}</el-breadcrumb-item>
         </el-breadcrumb>
-        <BreadcrumbHeader :pageName="isEdit ? '编辑应用' : '创建应用'" />
-        <el-form label-position="top" label-width="auto" :model="detailInfo" :rules="rules" ref="ruleFormRef">
-            <el-row class="content">
-                <el-col :span="19" :xs="24">
-                    <div class="left" ref="containerRef">
-                        <div id="part1">
-                            <div class="title">应用基本信息</div>
-                            <el-divider />
-                            <div class="form">
-                                <el-form-item label="应用名称" prop="name">
-                                    <el-input v-model="detailInfo.name" class="input-style" placeholder="请输入" />
-                                </el-form-item>
-                                <el-form-item label="应用描述" prop="description">
-                                    <el-input
-                                        v-model="detailInfo.description"
-                                        class="input-style"
-                                        placeholder="请输入"
-                                        type="textarea"
-                                    />
-                                </el-form-item>
-                                <el-form-item label="应用图标" prop="avatar">
-                                    <el-radio-group v-model="avatarChk">
-                                        <el-radio value="1">默认提供</el-radio>
-                                        <el-radio value="2">上传图标</el-radio>
-                                    </el-radio-group>
-                                    <!-- <el-input v-model="detailInfo.name" class="input-style" placeholder="请输入"/> -->
-                                </el-form-item>
-                                <div v-if="avatarChk == '2'" class="wrap-cols">
-                                    <Uploader @change="changeFileAvatar" v-model="avatarList" accept=".png,jpg">
-                                        <el-button :icon="Upload">上传文件</el-button>
-                                    </Uploader>
-                                    <div class="upload-text">支持图片类型：png, jpg</div>
-                                </div>
-                                <div v-else>
-                                    <img
-                                        class="mr-1 w-7 h-7"
-                                        :src="imageUrl"
-                                        style="border-radius: 8px"
-                                    />
-                                </div>
-                            </div>
-                        </div>
-                        <div id="part2">
-                            <div class="title">应用信息</div>
-                            <el-divider />
-                            <div class="form">
-                                <el-form-item label="应用代号" prop="code">
-                                    <el-select v-model="detailInfo.code" placeholder="请选择" class="input-style">
-                                        <el-option
-                                            v-for="(key, value) in codeMap"
-                                            :key="key + value"
-                                            :label="key"
-                                            :value="value"
-                                        />
-                                    </el-select>
-                                </el-form-item>
-                                <el-form-item label="绑定服务代号" prop="serviceCodes">
-                                    <el-select
-                                        v-model="detailInfo.serviceCodes"
-                                        placeholder="选择应用code后默认展示"
-                                        class="input-style"
-                                        multiple
-                                        :disabled="!detailInfo.code"
-                                    >
-                                        <el-option
-                                            v-for="(key, value) in serviceCodeMap"
-                                            :key="key + value"
-                                            :label="key"
-                                            :value="value"
-                                        />
-                                    </el-select>
-                                </el-form-item>
-                                <el-form-item label="代码包" prop="codePackagePath" style="margin-bottom: 0">
-                                    <el-radio-group v-model="codeChk">
-                                        <el-radio value="1" size="large">下载链接</el-radio>
-                                        <el-radio value="2" size="large">上传文件</el-radio>
-                                    </el-radio-group>
-                                </el-form-item>
 
-                                <div v-if="codeChk == '2'" class="wrap-cols">
-                                    <Uploader @change="changeFileCode" v-model="codeList" accept=".zip,.rar,.tar.gz">
-                                        <el-button :icon="Upload">上传文件</el-button>
-                                    </Uploader>
-                                    <div class="upload-text">支持文件类型：‌‌.zip ‌.rar .tar.gz 限制文件数量：1</div>
-                                </div>
-                                <div v-else class="wrap-cols" style="margin-bottom: 18px">
-                                    <el-input
-                                        v-model="detailInfo.codePackagePath"
-                                        class="input-style"
-                                        placeholder="请输入下载链接"
-                                    />
-                                </div>
-                                <el-form-item label="访问地址(URL)" prop="location">
-                                    <el-input
-                                        v-model="detailInfo.location"
-                                        class="input-style"
-                                        placeholder="请输入应用访问地址"
-                                    />
-                                </el-form-item>
-                            </div>
-                        </div>
-                        <div class="footer">
-                            <el-button type="default" @click="cancelForm">取消</el-button>
-                            <el-button :type="isEdit ? 'default' : 'primary'" @click="submitForm(ruleFormRef)"
-                                >保存
-                            </el-button>
-                            <el-button v-if="isEdit" type="primary" @click="submitFormAndOnline(ruleFormRef)"
-                                >保存并上架
-                            </el-button>
-                        </div>
+        <BreadcrumbHeader :pageName="isEdit ? '编辑应用' : '发布应用'" />
+
+        <div class="publish-panel">
+            <div class="panel-head">
+                <div class="panel-title">发布 Web3 应用</div>
+                <div class="panel-subtitle">
+                    先支持快速发布，默认提供 Chat / Router / Warehouse 三个模板，源码路径按当前仓库父目录约定：
+                    <code>../chat</code>、<code>../router</code>、<code>../warehouse</code>。
+                </div>
+            </div>
+
+            <el-form ref="formRef" label-position="top" :model="detailInfo" :rules="rules">
+                <div class="section">
+                    <div class="section-title">1. 选择模板</div>
+                    <el-form-item label="应用模板">
+                        <el-radio-group v-model="selectedPreset" @change="handlePresetChange">
+                            <el-radio
+                                v-for="preset in presets"
+                                :key="preset.key"
+                                :value="preset.key"
+                            >
+                                {{ preset.label }}
+                            </el-radio>
+                        </el-radio-group>
+                    </el-form-item>
+                    <div v-if="currentPreset" class="preset-tip">
+                        {{ currentPreset.note }}
                     </div>
-                </el-col>
-                <el-col :span="4" class="right" :xs="0">
-                    <el-anchor
-                        :container="containerRef"
-                        direction="vertical"
-                        type="default"
-                        :offset="30"
-                        @click="handleClick"
-                    >
-                        <el-anchor-link href="#part1" title="基本信息" />
-                        <el-anchor-link href="#part2" title="应用信息" />
-                    </el-anchor>
-                </el-col>
-            </el-row>
-        </el-form>
-    </div>
+                </div>
 
-    <ResultChooseModal
-        v-model="innerVisible"
-        title=""
-        :closeIconHidden="true"
-        mainDesc="应用创建成功"
-        subDesc="可返回列表或继续上架当前应用"
-        leftBtnText="上架应用"
-        rightBtnText="返回列表"
-        :leftBtnClick="toOnlineApply"
-        :rightBtnClick="toList"
-    >
-        <template #icon>
-            <el-icon :size="70"><SuccessFilled color="#30A46C" /></el-icon>
-        </template>
-    </ResultChooseModal>
+                <div class="section">
+                    <div class="section-title">2. 发布信息</div>
+                    <el-row :gutter="20">
+                        <el-col :span="12" :xs="24">
+                            <el-form-item label="应用名称" prop="name">
+                                <el-input
+                                    v-model="detailInfo.name"
+                                    placeholder="例如：Chat / Router / Warehouse"
+                                />
+                            </el-form-item>
+                        </el-col>
+                        <el-col :span="12" :xs="24">
+                            <el-form-item label="应用分类" prop="code">
+                                <el-select v-model="detailInfo.code" placeholder="请选择应用分类">
+                                    <el-option
+                                        v-for="(label, code) in codeMap"
+                                        :key="String(code)"
+                                        :label="label"
+                                        :value="String(code)"
+                                    />
+                                </el-select>
+                            </el-form-item>
+                        </el-col>
+                    </el-row>
+
+                    <el-form-item label="应用描述" prop="description">
+                        <el-input
+                            v-model="detailInfo.description"
+                            type="textarea"
+                            :rows="3"
+                            maxlength="200"
+                            show-word-limit
+                            placeholder="面向谁、解决什么问题、主要能力是什么"
+                        />
+                    </el-form-item>
+
+                    <el-row :gutter="20">
+                        <el-col :span="12" :xs="24">
+                            <el-form-item label="访问地址（URL）" prop="location">
+                                <el-input
+                                    v-model="detailInfo.location"
+                                    placeholder="例如：http://localhost:3020"
+                                />
+                            </el-form-item>
+                        </el-col>
+                        <el-col :span="12" :xs="24">
+                            <el-form-item label="源码路径或仓库地址" prop="codePackagePath">
+                                <el-input
+                                    v-model="detailInfo.codePackagePath"
+                                    placeholder="例如：../chat 或 https://github.com/xxx/xxx"
+                                />
+                            </el-form-item>
+                        </el-col>
+                    </el-row>
+
+                    <el-form-item label="依赖服务（可选）">
+                        <el-select
+                            v-model="detailInfo.serviceCodes"
+                            placeholder="可选：按应用实际依赖选择"
+                            multiple
+                        >
+                            <el-option
+                                v-for="(label, code) in serviceCodeMap"
+                                :key="String(code)"
+                                :label="label"
+                                :value="String(code)"
+                            />
+                        </el-select>
+                    </el-form-item>
+
+                    <el-form-item label="上传代码包（可选，上传后会覆盖源码路径）">
+                        <div class="upload-row">
+                            <Uploader
+                                v-model="codeList"
+                                accept=".zip,.rar,.tar.gz"
+                                @change="changeFileCode"
+                            >
+                                <el-button :icon="Upload">上传压缩包</el-button>
+                            </Uploader>
+                            <span class="upload-text">支持 .zip / .rar / .tar.gz</span>
+                        </div>
+                    </el-form-item>
+
+                    <el-form-item label="应用图标（可选）">
+                        <div class="upload-row">
+                            <img class="avatar-preview" :src="imageUrl" alt="avatar" />
+                            <Uploader v-model="avatarList" accept=".png,.jpg,.jpeg,.svg" @change="changeFileAvatar">
+                                <el-button :icon="Upload">上传图标</el-button>
+                            </Uploader>
+                            <span class="upload-text">默认使用系统图标，建议上传 1:1 图标</span>
+                        </div>
+                    </el-form-item>
+                </div>
+
+                <div class="actions">
+                    <el-button @click="cancelForm">取消</el-button>
+                    <el-button @click="submitForm(false)">
+                        {{ isEdit ? '保存修改' : '仅保存' }}
+                    </el-button>
+                    <el-button type="primary" @click="submitForm(true)">
+                        {{ isEdit ? '保存并提交上架' : '保存并提交上架' }}
+                    </el-button>
+                </div>
+            </el-form>
+        </div>
+    </div>
 </template>
 
 <script lang="ts" setup>
-import { ref, reactive, onMounted } from 'vue'
-import $application, { ApplicationMetadata, codeMap, serviceCodeMap } from '@/plugins/application'
-import $audit from '@/plugins/audit'
-import Uploader from '@/components/common/Uploader.vue'
-import { Upload } from '@element-plus/icons-vue'
+import { computed, onMounted, reactive, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus'
+import { Upload } from '@element-plus/icons-vue'
 import BreadcrumbHeader from '@/views/components/BreadcrumbHeader.vue'
-import { ElMessage, ElMessageBox } from 'element-plus'
-import { h } from 'vue'
-import { SuccessFilled } from '@element-plus/icons-vue'
-import ResultChooseModal from '@/views/components/ResultChooseModal.vue'
+import Uploader from '@/components/common/Uploader.vue'
+import $application, { type ApplicationMetadata, codeMap, serviceCodeMap } from '@/plugins/application'
+import $audit from '@/plugins/audit'
 import { generateIdentity } from '@/plugins/account'
-import { notifyError } from '@/utils/message'
-import $storage from "@/plugins/storage";
 import { getCurrentAccount } from '@/plugins/auth'
 import { normalizeAddress } from '@/utils/actionSignature'
+import { notifyError } from '@/utils/message'
+import $storage from '@/plugins/storage'
 
-const defaultAvatar =
-    import.meta.env.VITE_WEBDAV_AVATAR ||
-    'default.jpg'
+type PresetKey = 'chat' | 'router' | 'warehouse' | 'custom'
+
+type ApplicationPreset = {
+    key: PresetKey
+    label: string
+    note: string
+    defaults: {
+        name: string
+        description: string
+        code: string
+        serviceCodes: string[]
+        location: string
+        codePackagePath: string
+    }
+}
+
+const presets: ApplicationPreset[] = [
+    {
+        key: 'chat',
+        label: 'Chat',
+        note: '模板默认指向父目录源码 ../chat，端口建议 http://localhost:3020',
+        defaults: {
+            name: 'Chat',
+            description: '多模态 AI 聊天应用',
+            code: 'APPLICATION_CODE_CHAT',
+            serviceCodes: ['SERVICE_CODE_AGENT', 'SERVICE_CODE_WAREHOUSE', 'SERVICE_CODE_MCP'],
+            location: 'http://localhost:3020',
+            codePackagePath: '../chat'
+        }
+    },
+    {
+        key: 'router',
+        label: 'Router',
+        note: '模板默认指向父目录源码 ../router，前端访问建议 http://localhost:5181',
+        defaults: {
+            name: 'Router',
+            description: '统一模型网关与管理后台，提供标准 API 路由与鉴权能力。',
+            code: 'APPLICATION_CODE_ROUTER',
+            serviceCodes: ['SERVICE_CODE_NODE', 'SERVICE_CODE_MCP'],
+            location: 'http://localhost:5181',
+            codePackagePath: '../router'
+        }
+    },
+    {
+        key: 'warehouse',
+        label: 'Warehouse',
+        note: '模板默认指向父目录源码 ../warehouse，服务地址建议 http://localhost:6065',
+        defaults: {
+            name: 'Warehouse',
+            description: 'Web3 数据与文件仓储服务，提供存储能力与身份认证能力。',
+            code: 'APPLICATION_CODE_WAREHOUSE',
+            serviceCodes: ['SERVICE_CODE_WAREHOUSE'],
+            location: 'http://localhost:6065',
+            codePackagePath: '../warehouse'
+        }
+    },
+    {
+        key: 'custom',
+        label: '自定义',
+        note: '完全自定义发布，按实际项目填写访问地址和源码路径。',
+        defaults: {
+            name: '',
+            description: '',
+            code: 'APPLICATION_CODE_UNKNOWN',
+            serviceCodes: [],
+            location: '',
+            codePackagePath: ''
+        }
+    }
+]
+
+const defaultAvatar = import.meta.env.VITE_WEBDAV_AVATAR || 'default.jpg'
 const webdavBase = (import.meta.env.VITE_WEBDAV_BASE_URL || '').replace(/\/+$/, '')
 const webdavPrefix = (import.meta.env.VITE_WEBDAV_PREFIX || '').replace(/\/+$/, '')
 const webdavFallback = webdavBase
@@ -180,325 +240,365 @@ const prefixURL = (
     webdavFallback ||
     (typeof window !== 'undefined' ? window.location.origin : '')
 ).replace(/\/+$/, '')
-const imageUrl = ref(`${prefixURL}/${defaultAvatar}`);
-
 
 const route = useRoute()
 const router = useRouter()
 
-const goBack = () => {
-    router.back()
-}
-
-const cancelForm = () => {
-    ElMessageBox.confirm('', {
-        message: h('p', null, [
-            h('div', { style: 'font-size:18px;color:rgba(0,0,0,0.85)' }, '确定要取消创建应用吗？'),
-            h('div', { style: 'font-size:14px;font-weight:400;color:rgba(0,0,0,0.85)' }, '取消后当前应用信息将不会保存')
-        ]),
-        type: 'warning',
-        confirmButtonText: '确定',
-        cancelButtonText: '取消',
-        showClose: false,
-        customClass: 'messageBox-wrap'
-    })
-        .then(() => {
-            goBack()
-        })
-        .catch(() => {})
-}
-
 const isEdit = ref(false)
-const containerRef = ref(null)
-const ruleFormRef = ref()
-const avatarChk = ref('2')
-const codeChk = ref('2')
-const avatarList = ref([])
+const selectedPreset = ref<PresetKey>('chat')
+const formRef = ref<FormInstance>()
 
-const codeList = ref([])
+const avatarList = ref<Array<Record<string, unknown>>>([])
+const codeList = ref<Array<Record<string, unknown>>>([])
+const imageUrl = ref(`${prefixURL}/${defaultAvatar}`)
+
 const detailInfo = ref<ApplicationMetadata>({
     name: '',
     description: '',
     location: '',
-    code: '',
+    code: 'APPLICATION_CODE_CHAT',
     serviceCodes: [],
     avatar: '',
     owner: '',
     ownerName: '',
-    codePackagePath: '',
+    codePackagePath: ''
 })
 
+const currentPreset = computed(() =>
+    presets.find((item) => item.key === selectedPreset.value) || null
+)
 
-const codeUrl = ref(detailInfo.value.codePackagePath)
-const innerVisible = ref(false)
-const savedApplication = ref<ApplicationMetadata | null>(null)
-const handleClick = (e) => {
-    e.preventDefault()
+const rules = reactive<FormRules>({
+    name: [{ required: true, message: '请输入应用名称', trigger: 'blur' }],
+    description: [{ required: true, message: '请输入应用描述', trigger: 'blur' }],
+    location: [{ required: true, message: '请输入访问地址', trigger: 'blur' }],
+    codePackagePath: [{ required: true, message: '请输入源码路径或仓库地址', trigger: 'blur' }],
+    code: [{ required: true, message: '请选择应用分类', trigger: 'change' }]
+})
+
+function toServiceCodeArray(value: unknown): string[] {
+    if (Array.isArray(value)) {
+        return value.map((item) => String(item)).filter((item) => item.trim().length > 0)
+    }
+    if (value === undefined || value === null) {
+        return []
+    }
+    return String(value)
+        .split(',')
+        .map((item) => item.trim())
+        .filter((item) => item.length > 0)
 }
-const rules = reactive({
-    name: [{ required: true, message: '请输入', trigger: 'blur' }],
-    location: [{ required: true, message: '请输入', trigger: 'blur' }],
-    avatar: [{ required: true, message: '请选择', trigger: 'blur' }],
-    code: [{ required: true, message: '请选择', trigger: 'blur' }],
-    serviceCodes: [{ required: true, message: '请选择', trigger: 'blur' }]
-})
 
-const getDetailInfo = async () => {
-    if (route.query.uid) {
-        isEdit.value = true
-        const res = await $application.myCreateDetailByUid(route.query.uid as string)
-        if (res) {
-            detailInfo.value = res
-            savedApplication.value = res
-            detailInfo.value.code = String(res.code || '')
-            detailInfo.value.serviceCodes = Array.isArray(res.serviceCodes)
-                ? res.serviceCodes.map((v) => String(v))
-                : []
-            avatarChk.value = res.avatar === '1' ? '1' : '2'
-            avatarList.value =
-                res.avatar !== '1'
-                    ? [
-                          {
-                              name: res.avatarName || res.name || 'avatar',
-                              url: res.avatar || ''
-                          }
-                      ]
-                    : []
-            codeChk.value = res.codeType || '2'
-            codeList.value =
-                res.codeType === '2'
-                    ? [
-                          {
-                              name: res.codePackageName || res.name || 'package',
-                              url: res.codePackagePath || ''
-                          }
-                      ]
-                    : []
-            imageUrl.value = res.avatar || imageUrl.value
-            codeUrl.value = res.codePackagePath || ''
-        }
+function detectPreset(app: ApplicationMetadata): PresetKey {
+    const source = String(app.codePackagePath || '').toLowerCase()
+    const name = String(app.name || '').toLowerCase()
+    if (source.includes('/chat') || source.includes('../chat') || name.includes('chat')) {
+        return 'chat'
+    }
+    if (source.includes('/router') || source.includes('../router') || name.includes('router')) {
+        return 'router'
+    }
+    if (source.includes('/warehouse') || source.includes('../warehouse') || name.includes('warehouse')) {
+        return 'warehouse'
+    }
+    return 'custom'
+}
+
+function applyPreset(key: PresetKey) {
+    const preset = presets.find((item) => item.key === key)
+    if (!preset) {
+        return
+    }
+    selectedPreset.value = key
+    detailInfo.value = {
+        ...detailInfo.value,
+        name: preset.defaults.name,
+        description: preset.defaults.description,
+        code: preset.defaults.code,
+        serviceCodes: [...preset.defaults.serviceCodes],
+        location: preset.defaults.location,
+        codePackagePath: preset.defaults.codePackagePath
     }
 }
 
-const buildSubmitParams = () => {
+function handlePresetChange(value: string | number | boolean) {
+    const key = String(value) as PresetKey
+    applyPreset(key)
+}
+
+function resolveSubmitError(error: unknown): string {
+    const message = error instanceof Error ? error.message : String(error || '未知错误')
+    if (message.includes('USER_ROLE_DENIED')) {
+        return '当前账号暂无发布权限（USER_ROLE_DENIED）。请重新登录后重试，或联系管理员确认角色为 NORMAL/OWNER。'
+    }
+    if (message.includes('USER_BLOCKED')) {
+        return '当前账号已被禁用或冻结，无法发布应用。'
+    }
+    return message
+}
+
+async function getDetailInfo() {
+    const uid = String(route.query.uid || '').trim()
+    if (!uid) {
+        applyPreset('chat')
+        return
+    }
+    isEdit.value = true
+    const res = await $application.myCreateDetailByUid(uid)
+    if (!res) {
+        return
+    }
+    detailInfo.value = {
+        ...detailInfo.value,
+        ...res,
+        code: String(res.code || 'APPLICATION_CODE_UNKNOWN'),
+        serviceCodes: toServiceCodeArray(res.serviceCodes),
+        codePackagePath: String(res.codePackagePath || '')
+    }
+    selectedPreset.value = detectPreset(res)
+    imageUrl.value = res.avatar || imageUrl.value
+    avatarList.value = res.avatar
+        ? [{ name: String(res.avatarName || res.name || 'avatar'), url: String(res.avatar) }]
+        : []
+    codeList.value = res.codePackagePath
+        ? [{ name: String(res.codePackageName || res.name || 'package'), url: String(res.codePackagePath) }]
+        : []
+}
+
+function buildSubmitParams(account: string): ApplicationMetadata & { codeType?: string } {
+    const normalizedOwner = normalizeAddress(account)
     return {
         ...detailInfo.value,
+        code: String(detailInfo.value.code || 'APPLICATION_CODE_UNKNOWN'),
+        serviceCodes: toServiceCodeArray(detailInfo.value.serviceCodes),
         avatar: imageUrl.value,
-        codePackagePath: codeUrl.value || detailInfo.value.codePackagePath || '',
-        codeType: codeChk.value,
-        owner: normalizeAddress(getCurrentAccount() || ''),
-        ownerName: normalizeAddress(getCurrentAccount() || '')
+        codePackagePath: String(detailInfo.value.codePackagePath || ''),
+        codeType: '1',
+        owner: normalizedOwner,
+        ownerName: normalizedOwner
     }
 }
 
-const submitPublishRequest = async (application: ApplicationMetadata) => {
+async function submitPublishRequest(application: ApplicationMetadata) {
     const created = await $audit.submitPublishRequest({
         auditType: 'application',
         resource: application as Record<string, unknown>
     })
-    if (!created?.meta?.uid) {
-        return
+    if (created?.meta?.uid) {
+        ElMessage.success('已提交上架申请')
     }
-    ElMessage.success('已提交上架申请')
 }
 
-const submitForm = async (formEl, andOnline = false) => {
+function toList() {
+    router.push({ path: '/market' })
+}
+
+function cancelForm() {
+    ElMessageBox.confirm('取消后当前页面未保存的信息会丢失，确定要返回吗？', '取消发布', {
+        type: 'warning',
+        confirmButtonText: '确定',
+        cancelButtonText: '继续编辑',
+        showClose: false
+    })
+        .then(() => {
+            toList()
+        })
+        .catch(() => {})
+}
+
+async function submitForm(andPublish: boolean) {
     const account = getCurrentAccount()
-    if (account === undefined || account === null) {
-        notifyError("❌未查询到当前账户，请登录")
+    if (!account) {
+        notifyError('❌未查询到当前账户，请登录')
         return
     }
-    if (!formEl) return
-    
-    await formEl.validate(async (valid: boolean, fields) => {
-        if (valid) {
-            const params = JSON.parse(JSON.stringify(buildSubmitParams())) as ApplicationMetadata & {
-                codeType?: string
-            }
+    if (!formRef.value) {
+        return
+    }
+    try {
+        await formRef.value.validate()
+    } catch {
+        return
+    }
+
+    try {
+        const params = buildSubmitParams(account)
+        const uid = String(route.query.uid || '').trim()
+
+        if (!uid) {
             const existsList = await $application.myCreateList(account)
             if (Array.isArray(existsList)) {
-                for (const item of existsList) {
-                    if (item.name === params.name && item.uid !== route.query.uid) {
-                        notifyError(`❌ 应用[${params.name}]已存在，请勿重复创建 `)
-                        return
-                    }
+                const duplicated = existsList.find((item) => item.name === params.name)
+                if (duplicated) {
+                    notifyError(`❌应用 [${params.name}] 已存在，请勿重复创建`)
+                    return
                 }
             }
-            if (route.query.uid) {
-                const updated = await $application.myCreateUpdate({
-                    uid: route.query.uid as string,
-                    code: params.code,
-                    codePackagePath: params.codePackagePath,
-                    description: params.description,
-                    location: params.location,
-                    name: params.name,
-                    owner: normalizeAddress(account),
-                    ownerName: normalizeAddress(account),
-                    serviceCodes: params.serviceCodes,
-                    avatar: params.avatar
-                })
-                if (!updated) {
-                    return
-                }
-                detailInfo.value = { ...detailInfo.value, ...updated }
-                savedApplication.value = updated
-                if (andOnline) {
-                    await submitPublishRequest(updated)
-                    toList()
-                    return
-                }
-                ElMessage.success('保存成功')
-            } else {
-                const identity = await generateIdentity(
-                    params.code,
-                    params.serviceCodes,
-                    params.location,
-                    '',
-                    params.name,
-                    params.description,
-                    params.avatar
-                )
-                params.did = identity.metadata?.did
-                params.version = identity?.metadata?.version
-                params.owner = normalizeAddress(account)
-                params.ownerName = normalizeAddress(account)
-                const created = await $application.create(params)
-                if (!created) {
-                    return
-                }
-                detailInfo.value = { ...detailInfo.value, ...created }
-                savedApplication.value = created
-                innerVisible.value = true
-            }
-        } else {
-            console.log('error submit!', fields)
         }
-    })
-}
 
-const toOnlineApply = async () => {
-    innerVisible.value = false
-    if (!savedApplication.value) {
-        notifyError('❌未找到刚创建的应用')
-        return
+        if (uid) {
+            const updated = await $application.myCreateUpdate({
+                uid,
+                code: params.code,
+                codePackagePath: params.codePackagePath,
+                description: params.description,
+                location: params.location,
+                name: params.name,
+                owner: params.owner,
+                ownerName: params.ownerName,
+                serviceCodes: params.serviceCodes,
+                avatar: params.avatar
+            })
+            if (!updated) {
+                return
+            }
+            detailInfo.value = { ...detailInfo.value, ...updated }
+            if (andPublish) {
+                await submitPublishRequest(updated)
+                toList()
+                return
+            }
+            ElMessage.success('应用修改已保存')
+            return
+        }
+
+        const identity = await generateIdentity(
+            String(params.code || ''),
+            params.serviceCodes || [],
+            String(params.location || ''),
+            '',
+            String(params.name || ''),
+            String(params.description || ''),
+            String(params.avatar || '')
+        )
+        params.did = identity.metadata?.did
+        params.version = identity.metadata?.version
+        const created = await $application.create(params)
+        if (!created) {
+            return
+        }
+        if (andPublish) {
+            await submitPublishRequest(created)
+            toList()
+            return
+        }
+        ElMessage.success('应用已保存，可在“我创建的”中继续管理')
+        toList()
+    } catch (error) {
+        console.error('❌应用保存失败', error)
+        notifyError(`❌${resolveSubmitError(error)}`)
     }
-    await submitPublishRequest(savedApplication.value)
-    toList()
-}
-const toList = () => {
-    router.push({
-        path: '/market'
-    })
-}
-const submitFormAndOnline = (formEl) => {
-    void submitForm(formEl, true)
-}
-const changeFileAvatar = (uploadFile) => {
-    changeFile(1, uploadFile)
-}
-const changeFileCode = (uploadFile) => {
-    changeFile(2, uploadFile)
 }
 
-const changeFile = async (fileType, uploadFile) => {
-    // ✅ 关键：获取原始文件对象 raw
-    const file = uploadFile.raw || uploadFile
-    if (!(file instanceof Blob)) {
+async function changeFile(fileType: 'avatar' | 'code', uploadFile: Record<string, unknown>) {
+    const blobCandidate = uploadFile.raw instanceof Blob ? uploadFile.raw : uploadFile
+    if (!(blobCandidate instanceof Blob)) {
         notifyError('上传文件格式无效')
         return
     }
-    const publicUrl = await $storage.uploadFile(file, uploadFile.name)
+    const nameCandidate = String(uploadFile.name || 'upload.bin')
+    const publicUrl = await $storage.uploadFile(blobCandidate, nameCandidate)
     if (!publicUrl) {
         notifyError('上传失败')
         return
     }
-    if (fileType === 1) {
+    if (fileType === 'avatar') {
         imageUrl.value = publicUrl
-    } else if (fileType === 2) {
-        codeUrl.value = publicUrl
+        return
     }
+    detailInfo.value.codePackagePath = publicUrl
 }
+
+function changeFileAvatar(uploadFile: Record<string, unknown>) {
+    void changeFile('avatar', uploadFile)
+}
+
+function changeFileCode(uploadFile: Record<string, unknown>) {
+    void changeFile('code', uploadFile)
+}
+
 onMounted(() => {
     void getDetailInfo()
 })
 </script>
+
 <style scoped lang="less">
-.edit {
+.publish-page {
     margin: 20px;
-    .el-divider--horizontal {
-        margin: 16px 0 24px !important;
-    }
-    .content {
-        margin-top: 24px;
-        .left {
-            height: 82vh;
-            overflow-y: auto;
-            padding-right: 20px;
-
-            .input-style {
-                width: 473px;
-            }
-            .upload-text {
-                font-size: 14px;
-                color: rgba(0, 0, 0, 0.85);
-                font-weight: 400;
-            }
-            @media (max-width: 768px) {
-                .input-style {
-                    width: 240px;
-                }
-            }
-            .title {
-                font-size: 16px;
-                font-weight: 500;
-                color: rgba(0, 0, 0, 0.85);
-                padding: 0 20px;
-            }
-            #part1,
-            #part2 {
-                background: #fff;
-                padding: 20px 0;
-                border-radius: 6px;
-                margin-bottom: 18px;
-                box-shadow:
-                    0px 0px 1px 0px #00000014,
-                    0px 1px 2px 0px #190f0f12,
-                    0px 2px 4px 0px #0000000d;
-                .form {
-                    padding: 0 20px;
-                }
-            }
-        }
-        .right {
-            margin-left: 20px;
-            font-size: 14px;
-
-            .el-anchor {
-                --el-anchor-bg-color: transparent !important;
-                .el-anchor__marker {
-                    width: 2px !important;
-                    height: 18px !important;
-                }
-            }
-
-            .el-anchor__link.is-active {
-                color: #1677ff !important;
-            }
-        }
-    }
-    .footer {
-        margin-top: 20px;
-        text-align: right;
-        padding: 0 0px 20px 0;
-    }
 }
-.status-desc {
-    color: rgba(0, 0, 0, 0.45);
-    font-size: 14px;
+
+.publish-panel {
+    margin-top: 16px;
+    padding: 20px;
+    background: #fff;
+    border-radius: 10px;
+    box-shadow:
+        0 1px 2px rgba(0, 0, 0, 0.08),
+        0 3px 10px rgba(0, 0, 0, 0.05);
 }
-.waring-text {
+
+.panel-head {
+    margin-bottom: 20px;
+}
+
+.panel-title {
     font-size: 18px;
     font-weight: 500;
+    color: rgba(0, 0, 0, 0.88);
+}
+
+.panel-subtitle {
+    margin-top: 8px;
+    font-size: 14px;
+    color: rgba(0, 0, 0, 0.55);
+    line-height: 1.6;
+}
+
+.section {
+    padding: 16px;
+    margin-bottom: 18px;
+    background: #fafcff;
+    border: 1px solid #e9edf5;
+    border-radius: 8px;
+}
+
+.section-title {
+    margin-bottom: 12px;
+    font-size: 15px;
+    font-weight: 500;
     color: rgba(0, 0, 0, 0.85);
+}
+
+.preset-tip {
+    font-size: 13px;
+    line-height: 1.5;
+    color: #4f6b95;
+}
+
+.upload-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+
+.upload-text {
+    font-size: 13px;
+    color: rgba(0, 0, 0, 0.5);
+}
+
+.avatar-preview {
+    width: 36px;
+    height: 36px;
+    border-radius: 8px;
+    object-fit: cover;
+    border: 1px solid #e5e7eb;
+}
+
+.actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 12px;
+    padding-top: 6px;
 }
 </style>

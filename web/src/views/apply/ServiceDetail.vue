@@ -49,12 +49,12 @@
             <el-row class="count-row">
                 <el-col :span="4" :xs="24"
                     >绑定服务数:
-                    <div style="font-weight: 500; font-size: 30px">{{ detailInfo.bindApplyCount || '-' }}</div></el-col
+                    <div class="count-value">{{ detailInfo.bindApplyCount || '-' }}</div></el-col
                 >
                 <el-col :span="1" :xs="24"> <el-divider direction="vertical" /></el-col>
                 <el-col :span="4" :xs="24"
                     >用户使用数:
-                    <div style="font-weight: 500; font-size: 30px">{{ detailInfo.userCount || '-' }}</div></el-col
+                    <div class="count-value">{{ detailInfo.userCount || '-' }}</div></el-col
                 >
             </el-row>
         </div>
@@ -89,13 +89,13 @@
         </div>
         <div class="part">
             <el-row class="part-row">
-                <el-col :span="24" :xs="24" style="font-size: 26px; font-weight: 500">【功能介绍】</el-col>
+                <el-col :span="24" :xs="24" class="section-label">【功能介绍】</el-col>
                 <el-col :span="24" :xs="24">
                     <el-input v-model="textarea" :rows="2" type="textarea" placeholder="请输入功能介绍" />
                 </el-col>
             </el-row>
             <el-row class="part-row">
-                <el-col :span="24" :xs="24" style="font-size: 26px; font-weight: 500">【使用方法】</el-col>
+                <el-col :span="24" :xs="24" class="section-label">【使用方法】</el-col>
                 <el-col :span="24" :xs="24">
                     <el-input v-model="textarea" :rows="2" type="textarea" placeholder="请输入使用方法" />
                 </el-col>
@@ -412,6 +412,17 @@ onMounted(() => {
             font-size: 14px;
             font-weight: 400;
             color: rgba(0, 0, 0, 0.85);
+        }
+        .count-value {
+            margin-top: 6px;
+            font-size: 24px;
+            line-height: 1.2;
+            font-weight: 500;
+        }
+        .section-label {
+            font-size: 18px;
+            line-height: 1.4;
+            font-weight: 500;
         }
     }
     .link-url {

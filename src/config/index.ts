@@ -38,6 +38,44 @@ export interface UcanRuntimeConfig {
     can?: string
 }
 
+export type UcanIssuerMode = 'verify' | 'issue' | 'hybrid'
+
+export interface UcanIssuerCapabilityConfig {
+    with: string
+    can: string
+}
+
+export interface UcanIssuerRuntimeConfig {
+    enabled?: boolean
+    mode?: UcanIssuerMode
+    did?: string
+    privateKey?: string
+    sessionTtlMs?: number
+    tokenTtlMs?: number
+    defaultAudience?: string
+    defaultCapabilities?: UcanIssuerCapabilityConfig[]
+}
+
+export interface TotpAuthRuntimeConfig {
+    enabled?: boolean
+    issuerName?: string
+    verifyPath?: string
+    portalBaseUrl?: string
+    requestTtlMs?: number
+    exchangeCodeTtlMs?: number
+    codeDigits?: number
+    codePeriodSec?: number
+    codeWindow?: number
+    maxAttempts?: number
+    totpMasterKey?: string
+    clients?: {
+        clientId: string
+        redirectUris: string[]
+        defaultAudience?: string
+        defaultCapabilities?: UcanIssuerCapabilityConfig[]
+    }[]
+}
+
 export interface AuditRuntimeConfig {
     approvers?: string[]
     requiredApprovals?: number

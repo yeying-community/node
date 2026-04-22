@@ -3,9 +3,9 @@
     <div v-for="(item,index) in solutionList" :key="'solute:'+item.code">
       <hr v-if="index!=0" class="my-6">
       <div class="flex justify-between">
-        <div class="text-2xl font-puhuiMedium opacity-85">{{ item.title }}</div>
+        <div class="text-2xl font-display font-medium opacity-85">{{ item.title }}</div>
       </div>
-      <div class="text-base font-puhuiRegular text-blak-600 mt-3 opacity-65	">{{ item.desc }}</div>
+      <div class="text-base font-body text-blak-600 mt-3 opacity-65	">{{ item.desc }}</div>
       <div
           class="flex items-center gap-6 isolate mx-auto mt-6 grid max-w-md grid-cols-1 md:max-w-2xl md:grid-cols-2 lg:max-w-4xl xl:mx-0 xl:max-w-none xl:grid-cols-4 "
           :class="[item.isShow?'hidden':'']"
@@ -16,12 +16,12 @@
             class="flex flex-col justify-between rounded-3xl bg-white p-5 ring-1 ring-gray-900/10 sm:p-6"
         >
           <div class="h-72">
-            <div class="text-xl font-puhuiMedium">{{ fitem.name }}</div>
-            <div class="text-3xl mt-3 font-puhuiBold">{{ fitem.price }}</div>
+            <div class="text-xl font-display font-medium">{{ fitem.name }}</div>
+            <div class="text-3xl mt-3 font-display font-semibold">{{ fitem.price }}</div>
             <hr class="mt-5 mb-1"/>
             <div class="flex text-base mt-4" v-for="(gitem,gindex) in fitem.items" :key="'solute:'+gitem.name+gindex">
-              <div class="text-gray-500 font-puhuiRegular opacity-65">{{ gitem.name }}</div>
-              <div class="ml-1 font-puhuiMedium">{{ gitem.value }}</div>
+              <div class="text-gray-500 font-body opacity-65">{{ gitem.name }}</div>
+              <div class="ml-1 font-display font-medium">{{ gitem.value }}</div>
             </div>
           </div>
         </div>

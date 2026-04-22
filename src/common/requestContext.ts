@@ -3,6 +3,7 @@ import { AsyncLocalStorage } from 'async_hooks';
 export type AuthUser = {
   address: string;
   issuer?: string;
+  ucanSource?: 'wallet' | 'central';
   authType: 'jwt' | 'ucan';
 };
 

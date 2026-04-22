@@ -116,7 +116,7 @@ copy_release_files() {
   cp "$WORKTREE_DIR/config.js.template" "$release_root/config.js.template"
   cp "$WORKTREE_DIR/README.md" "$release_root/README.md"
   cp "$WORKTREE_DIR/scripts/starter.sh" "$release_root/scripts/starter.sh"
-  cp "$WORKTREE_DIR/docs/runtime-config.md" "$release_root/docs/runtime-config.md"
+  cp "$WORKTREE_DIR/docs/运行配置.md" "$release_root/docs/运行配置.md"
   chmod +x "$release_root/scripts/starter.sh"
 }
 

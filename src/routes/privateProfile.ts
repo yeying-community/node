@@ -4,6 +4,7 @@ import { fail, ok } from '../auth/envelope';
 type AuthUser = {
   address: string;
   issuer?: string;
+  ucanSource?: 'wallet' | 'central';
   authType?: 'jwt' | 'ucan';
 };
 
@@ -18,6 +19,7 @@ export function registerPublicProfileRoute(app: Express) {
       ok({
         address: user.address,
         issuer: user.issuer,
+        ucanSource: user.ucanSource,
         authType: user.authType,
         issuedAt: Date.now(),
       })

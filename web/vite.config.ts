@@ -64,9 +64,7 @@ export default defineConfig({
           ) {
             return "static/img/[name]-[hash].[ext]";
           }
-          if (
-            ["ttf", "woff", "woff2"].some((ext) => assetInfo.name.endsWith(ext))
-          ) {
+          if (["ttf", "woff"].some((ext) => assetInfo.name.endsWith(ext))) {
             return "static/fonts/[name]-[hash].[ext]";
           }
           return "static/css/[name]-[hash].[ext]";

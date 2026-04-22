@@ -1,7 +1,7 @@
 import { Express, Request, Response } from 'express'
 import { executeSignedAction, getActionSignatureErrorStatus } from '../../auth/actionSignature'
 import { ok, fail } from '../../auth/envelope'
-import { verifyUcanInvocationWithCap } from '../../auth/ucan'
+import { isUcanToken, verifyUcanInvocationWithCap } from '../../auth/ucan'
 import { getRequestUser } from '../../common/requestContext'
 import { ensureUserActive, ensureUserCanWriteBusinessData } from '../../common/permission'
 import { getConfig } from '../../config/runtime'
@@ -44,10 +44,15 @@ function getBearerToken(req: Request): string | undefined {
 
 function requireMpcUcan(req: Request) {
   const user = getRequestUser()
-  if (!user || user.authType !== 'ucan') return
+  if (!user?.address) {
+    throw new Error('Missing access token')
+  }
   const token = getBearerToken(req)
   if (!token) {
     throw new Error('Missing access token')
+  }
+  if (!isUcanToken(token)) {
+    throw new Error('UCAN token required')
   }
   const config = (getConfig<MpcRuntimeConfig>('mpc') || {}) as MpcRuntimeConfig
   const resource = (config.ucanWith || '').trim()
@@ -102,8 +107,14 @@ function mapMpcError(error: unknown): { status: number; message: string } {
       return { status: 403, message: 'User role denied' }
     case 'UCAN capability denied':
       return { status: 403, message: 'UCAN capability denied' }
+    case 'UCAN token required':
+      return { status: 401, message: 'UCAN token required' }
+    case 'UCAN issuer mode denied':
+    case 'UCAN wallet mode denied':
+      return { status: 401, message: 'Invalid UCAN token' }
     case 'UCAN audience mismatch':
     case 'Invalid UCAN token':
+    case 'Invalid UCAN subject':
     case 'Invalid UCAN signature':
     case 'UCAN expired':
     case 'UCAN not active':

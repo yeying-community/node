@@ -1,16 +1,16 @@
 <template>
   <div class="mx-auto max-w-5xl pt-20 lg:pt-80">
-    <div class="text-center text-3xl font-puhuiBold tracking-tight text-black-900 sm:text-5xl">Our advantage</div>
+    <div class="text-center text-3xl font-display font-semibold tracking-tight text-black-900 sm:text-5xl">Our advantage</div>
     <dl class="grid px-5 mt-8 sm:mt-11 grid-cols-1 gap-x-6 gap-y-6 lg:max-w-none lg:grid-cols-2">
       <div v-for="feature in itemList" :key="feature.title"
            class="flex flex-col rounded-[calc(theme(borderRadius.xl)+theme(spacing.2))] shadow-sm ring-1 ring-black/5 p-6">
         <dt class="flex items-center h-14 leading-none	 gap-x-3 text-gray-900">
           <span :class="['text-indigo-600','iconfont','icon-'+feature.icon]" style="font-size:3rem"></span>
         </dt>
-        <dd class="font-puhuiMedium opacity-85 mt-5 flex flex-auto flex-col text-2xl">
+        <dd class="font-display font-medium opacity-85 mt-5 flex flex-auto flex-col text-2xl">
           {{ feature.title }}
         </dd>
-        <dd class="font-puhuiRegular opacity-80 mt-3.5 flex flex-auto flex-col text-base ">
+        <dd class="font-body opacity-80 mt-3.5 flex flex-auto flex-col text-base ">
           {{ feature.desc }}
         </dd>
       </div>
