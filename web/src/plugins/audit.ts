@@ -61,6 +61,9 @@ export interface AuditAuditDetail {
 
 export interface AuditDetailBox {
   uid?: string
+  targetUid?: string
+  targetDid?: string
+  targetVersion?: number
   name?: string
   desc?: string
   applicantor?: string
@@ -135,6 +138,9 @@ function cvData(auditMyApply: AuditAuditDetail) {
 
   const metadata: AuditDetailBox = {
     uid: auditMyApply.meta.uid,
+    targetUid: parsed.uid,
+    targetDid: parsed.did,
+    targetVersion: parsed.version,
     name: parsed.name || String(parsed.raw.name || ''),
     desc: String(parsed.raw.description || ''),
     serviceType: auditType === 'service' ? '服务' : auditType === 'application' ? '应用' : auditType,

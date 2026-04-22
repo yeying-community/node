@@ -9,6 +9,31 @@ import {
 import { AuditManager } from '../domain/manager/audit';
 import { isApproverMatch } from '../common/auditAccess';
 
+function resolveAuditId(req: Request) {
+  const fromParams = String(req.params?.uid || '').trim();
+  if (fromParams) {
+    return fromParams;
+  }
+  const fromBody = String(
+    req.body?.auditId ||
+      req.body?.payload?.auditId ||
+      req.body?.metadata?.auditId ||
+      ''
+  ).trim();
+  if (fromBody) {
+    return fromBody;
+  }
+  const match = String(req.path || '').match(/^\/audits\/([^/]+)/i);
+  if (!match?.[1]) {
+    return '';
+  }
+  try {
+    return decodeURIComponent(match[1]).trim();
+  } catch {
+    return match[1].trim();
+  }
+}
+
 export async function requireAdmin(req: Request, res: Response, next: NextFunction) {
   try {
     const user = getRequestUser();
@@ -20,7 +45,7 @@ export async function requireAdmin(req: Request, res: Response, next: NextFuncti
     const isAdmin = await isAdminUser(user.address);
     if (!isAdmin) {
       if (req.path.startsWith('/audits/')) {
-        const auditId = req.params?.uid || req.body?.auditId || req.body?.metadata?.auditId;
+        const auditId = resolveAuditId(req);
         if (auditId) {
           const audit = await new AuditManager().queryById(auditId);
           const approver = audit?.approver || '';

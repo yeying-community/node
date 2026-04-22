@@ -181,7 +181,7 @@ const presets: ApplicationPreset[] = [
         note: '模板默认指向父目录源码 ../chat，端口建议 http://localhost:3020',
         defaults: {
             name: 'Chat',
-            description: 'AI 聊天应用，支持钱包登录、UCAN 授权和 Router/WebDAV 集成。',
+            description: '多模态 AI 聊天应用',
             code: 'APPLICATION_CODE_CHAT',
             serviceCodes: ['SERVICE_CODE_AGENT', 'SERVICE_CODE_WAREHOUSE', 'SERVICE_CODE_MCP'],
             location: 'http://localhost:3020',

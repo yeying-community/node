@@ -1,6 +1,6 @@
 <template>
-    <el-table :data="items" style="width: 100%; display: flex">
-        <el-table-column prop="name" label="应用/服务名称" width="400">
+    <el-table :data="items" style="width: 100%">
+        <el-table-column prop="name" label="名称" min-width="300">
             <template #default="scope">
                 <div class="name">{{ scope.row.name }}</div>
                 <el-tooltip class="box-item" effect="dark" :content="scope.row.desc" placement="top-start">
@@ -43,7 +43,7 @@
             </template>
         </el-table-column>
 
-        <el-table-column fixed="right" label="操作" width="100px">
+        <el-table-column fixed="right" label="操作" width="110">
             <template #default="scope">
                 <el-button
                     v-if="pageTabFrom === 'waitApproval'"
@@ -53,7 +53,14 @@
                     @click="handleClick(scope.row)"
                     >去审批</el-button
                 >
-                <div v-else>-</div>
+                <el-button
+                    v-else
+                    link
+                    type="primary"
+                    size="small"
+                    @click="handleDetail(scope.row)"
+                    >详情</el-button
+                >
             </template>
         </el-table-column>
     </el-table>
@@ -71,9 +78,11 @@ import ApplRoveModal from './ApplRoveModal.vue'
 import dayjs from 'dayjs'
 import { Warning } from '@element-plus/icons-vue'
 import { ref } from 'vue'
+import { useRouter } from 'vue-router'
 import type { AuditDetailBox } from '@/plugins/audit'
 
 const emit = defineEmits(['refresh'])
+const router = useRouter()
 
 const applroveShow = ref(false)
 const record = ref<AuditDetailBox>({
@@ -113,6 +122,32 @@ const shortAddress = (value?: string) => {
 const handleClick = (row: any) => {
     record.value = row 
     applroveShow.value = true
+}
+
+const handleDetail = (row: AuditDetailBox) => {
+    const auditId = String(row.uid || '').trim()
+    if (!auditId) {
+        return
+    }
+    const targetTypeRaw = String(row.auditType || '').trim()
+    const targetType =
+        targetTypeRaw ||
+        (String(row.serviceType || '').trim() === '服务' ? 'service' : 'application')
+    const path = targetType === 'service' ? '/market/service-detail' : '/market/apply-detail'
+    const query: Record<string, string> = {
+        pageFrom: 'myApply',
+        auditId
+    }
+    if (row.targetUid) {
+        query.uid = String(row.targetUid)
+    }
+    if (row.targetDid) {
+        query.did = String(row.targetDid)
+    }
+    if (row.targetVersion !== undefined && row.targetVersion !== null) {
+        query.version = String(row.targetVersion)
+    }
+    router.push({ path, query })
 }
 
 const closeClick = () => {
