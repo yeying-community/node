@@ -8,12 +8,10 @@ import { DataSourceBuilder } from './infrastructure/db';
 import {
     ActionRequestDO,
     ApplicationDO,
-    ServiceDO,
     UserDO,
     UserStateDO,
     AuditDO,
     CommentDO,
-    ServiceConfigDO,
     ApplicationConfigDO,
     MpcSessionDO,
     MpcSessionParticipantDO,
@@ -31,18 +29,17 @@ import { registerPublicAuthCentralRoutes } from './routes/publicAuthCentral';
 import { registerPublicAuthTotpRoutes } from './routes/publicAuthTotp';
 import { registerPublicProfileRoute } from './routes/privateProfile';
 import { registerPublicApplicationRoutes } from './routes/public/applications';
-import { registerPublicServiceRoutes } from './routes/public/services';
 import { registerPublicAuditRoutes } from './routes/public/audits';
 import { registerPublicHealthRoute } from './routes/public/health';
 import { registerPublicMpcRoutes } from './routes/public/mpc';
 import { registerAdminAuditRoutes } from './routes/admin/audits';
 import { registerAdminUserRoutes } from './routes/admin/users';
 import { InitSchema20260126120000 } from './migrations/20260126120000-init-schema';
-import { AddServiceConfig20260128194500 } from './migrations/20260128194500-add-service-config';
 import { AddApplicationConfig20260128195500 } from './migrations/20260128195500-add-application-config';
 import { AddMpcCoordinator20260205120000 } from './migrations/20260205120000-add-mpc-coordinator';
 import { AddAuditPreviousStateColumns20260402110000 } from './migrations/20260402110000-add-audit-previous-state-columns';
 import { AddActionRequestDedup20260402170000 } from './migrations/20260402170000-add-action-request-dedup';
+import { DropServiceTables20260423103000 } from './migrations/20260423103000-drop-service-tables';
 import { getConfig } from './config/runtime';
 import { startActionRequestCleanupJobs } from './domain/service/actionRequestCleanup';
 import { startMpcCleanupJobs } from './domain/service/mpcCleanup';
@@ -147,11 +144,9 @@ builder.entities([
     ActionRequestDO,
     UserStateDO,
     UserDO,
-    ServiceDO,
     ApplicationDO,
     AuditDO,
     CommentDO,
-    ServiceConfigDO,
     ApplicationConfigDO,
     MpcSessionDO,
     MpcSessionParticipantDO,
@@ -161,11 +156,11 @@ builder.entities([
 ])
 builder.migrations([
     InitSchema20260126120000,
-    AddServiceConfig20260128194500,
     AddApplicationConfig20260128195500,
     AddMpcCoordinator20260205120000,
     AddAuditPreviousStateColumns20260402110000,
-    AddActionRequestDedup20260402170000
+    AddActionRequestDedup20260402170000,
+    DropServiceTables20260423103000
 ])
 
 builder.build().initialize().then(async (conn) => {
@@ -222,7 +217,6 @@ builder.build().initialize().then(async (conn) => {
     registerPublicHealthRoute(app);
     registerPublicProfileRoute(app);
     registerPublicApplicationRoutes(app);
-    registerPublicServiceRoutes(app);
     registerPublicAuditRoutes(app);
     registerPublicMpcRoutes(app);
     registerAdminAuditRoutes(app);

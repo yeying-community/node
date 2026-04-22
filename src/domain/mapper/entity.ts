@@ -88,98 +88,6 @@ export class ActionRequestDO {
     completedAt!: string
 }
 
-@Entity('services')
-export class ServiceDO {
-    @PrimaryGeneratedColumn("uuid")
-    uid!: string
-
-    @Column({ length: 128, nullable: false })
-    did!: string
-
-    @Column()
-    version!: number
-
-    @Column({ length: 128 })
-    owner!: string
-
-    @Column({ length: 128 ,name: 'owner_name'})
-    ownerName!: string
-
-    @Column({ length: 64 })
-    network!: string
-
-    @Column({ length: 128 })
-    address!: string
-
-    @Column({ length: 64 })
-    name!: string
-
-    @Column('text')
-    description!: string
-
-    @Column({ length: 64 })
-    code!: string
-
-    @Column({type: 'text', name: "api_codes", default: ""})
-    apiCodes!: string
-
-    @Column({ length: 256 })
-    proxy!: string
-
-    @Column({ length: 256 })
-    grpc!: string
-
-    @Column('text')
-    avatar!: string
-
-    @Column({ length: 64, name: 'created_at', default: new Date().toISOString() })
-    createdAt!: string
-
-    @Column({ length: 64, name: 'updated_at', default: new Date().toISOString() })
-    updatedAt!: string
-
-    @Column({ length: 192 })
-    signature!: string
-
-    @Column({ type: 'text', name: 'code_package_path', default: ''})
-    codePackagePath!: string
-
-    @Column({ length: 64, default: 'BUSINESS_STATUS_PENDING' })
-    status!: string
-
-    // 用于存储上架标记, 用于后端过滤，前端不感知
-    @Column({ type: "boolean", name: "is_online", default: false })
-    isOnline!: boolean
-}
-
-@Entity('service_configs')
-@Index('idx_service_config_owner', ['serviceUid', 'applicant'], { unique: true })
-export class ServiceConfigDO {
-    @PrimaryGeneratedColumn("uuid")
-    uid!: string
-
-    @Column({ length: 64, name: 'service_uid' })
-    serviceUid!: string
-
-    @Column({ length: 128, name: 'service_did' })
-    serviceDid!: string
-
-    @Column({ name: 'service_version' })
-    serviceVersion!: number
-
-    @Column({ length: 128 })
-    applicant!: string
-
-    @Column({ type: 'text', name: 'config_json', default: '' })
-    configJson!: string
-
-    @Column({ length: 64, name: 'created_at', default: '' })
-    createdAt!: string
-
-    @Column({ length: 64, name: 'updated_at', default: '' })
-    updatedAt!: string
-}
-
 @Entity('applications')
 export class ApplicationDO {
     @PrimaryGeneratedColumn("uuid")
@@ -310,7 +218,7 @@ export class AuditDO {
     appOrServiceMetadata!: string
 
     /**
-     * 审批类型，application/service
+     * 审批类型，当前为 application（预留 contract）
      */
     @Column({type: 'text', name:'audit_type', default:null})
     auditType!: string

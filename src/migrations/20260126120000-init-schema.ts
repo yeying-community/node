@@ -63,31 +63,6 @@ export class InitSchema20260126120000 implements MigrationInterface {
     `)
 
     await queryRunner.query(`
-      CREATE TABLE IF NOT EXISTS ${schemaRef}."services" (
-        uid uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-        did varchar(128) NOT NULL,
-        version int NOT NULL,
-        owner varchar(128) NOT NULL,
-        owner_name varchar(128) NOT NULL,
-        network varchar(64) NOT NULL,
-        address varchar(128) NOT NULL,
-        name varchar(64) NOT NULL,
-        description text NOT NULL,
-        code varchar(64) NOT NULL,
-        api_codes text NOT NULL DEFAULT '',
-        proxy varchar(256) NOT NULL,
-        grpc varchar(256) NOT NULL,
-        avatar text NOT NULL,
-        created_at varchar(64) NOT NULL DEFAULT '',
-        updated_at varchar(64) NOT NULL DEFAULT '',
-        signature varchar(192) NOT NULL DEFAULT '',
-        code_package_path text NOT NULL DEFAULT '',
-        status varchar(64) NOT NULL DEFAULT 'BUSINESS_STATUS_PENDING',
-        is_online boolean NOT NULL DEFAULT false
-      )
-    `)
-
-    await queryRunner.query(`
       CREATE TABLE IF NOT EXISTS ${schemaRef}."applications" (
         uid uuid PRIMARY KEY DEFAULT gen_random_uuid(),
         did varchar(128) NOT NULL,
@@ -109,24 +84,6 @@ export class InitSchema20260126120000 implements MigrationInterface {
         status varchar(64) NOT NULL DEFAULT 'BUSINESS_STATUS_PENDING',
         is_online boolean NOT NULL DEFAULT false
       )
-    `)
-
-    await queryRunner.query(`
-      CREATE TABLE IF NOT EXISTS ${schemaRef}."service_configs" (
-        uid uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-        service_uid varchar(64) NOT NULL,
-        service_did varchar(128) NOT NULL,
-        service_version int NOT NULL,
-        applicant varchar(128) NOT NULL,
-        config_json text NOT NULL DEFAULT '',
-        created_at varchar(64) NOT NULL DEFAULT '',
-        updated_at varchar(64) NOT NULL DEFAULT ''
-      )
-    `)
-
-    await queryRunner.query(`
-      CREATE UNIQUE INDEX IF NOT EXISTS "idx_service_config_owner"
-      ON ${schemaRef}."service_configs" (service_uid, applicant)
     `)
 
     await queryRunner.query(`
@@ -180,7 +137,6 @@ export class InitSchema20260126120000 implements MigrationInterface {
     await queryRunner.query(`DROP TABLE IF EXISTS ${schemaRef}."audits"`)
     await queryRunner.query(`DROP TABLE IF EXISTS ${schemaRef}."comments"`)
     await queryRunner.query(`DROP TABLE IF EXISTS ${schemaRef}."applications"`)
-    await queryRunner.query(`DROP TABLE IF EXISTS ${schemaRef}."services"`)
     await queryRunner.query(`DROP TABLE IF EXISTS ${schemaRef}."action_requests"`)
     await queryRunner.query(`DROP TABLE IF EXISTS ${schemaRef}."user_state"`)
     await queryRunner.query(`DROP TABLE IF EXISTS ${schemaRef}."users"`)

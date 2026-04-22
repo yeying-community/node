@@ -279,7 +279,7 @@
       <section class="hero">
         <h1>Node 使用帮助</h1>
         <div class="subtitle">
-          帮助页支持折叠章节。可手动展开单个章节，也可在左侧目录一键展开/折叠全部内容。
+          帮助页支持折叠章节。可通过左侧目录定位章节，并按需展开阅读。
         </div>
       </section>
 
@@ -377,7 +377,7 @@
               </div>
               <div class="tip">
                 <strong>推荐实践：</strong>
-                移动端无钱包插件时，优先走此流程；PC 有插件时可继续钱包直连，两者服务端验证逻辑一致。
+                无钱包插件时优先走此流程；有钱包插件时可继续钱包直连，两者服务端验证逻辑一致。
               </div>
             </div>
           </details>
@@ -424,7 +424,7 @@
             <div class="section-body">
               <ol class="list">
                 <li>钱包登录并进入“我的配置”。</li>
-                <li>刷新 Totp Auth 状态，确认服务已就绪。</li>
+                <li>刷新 TOTP 状态，确认服务已就绪。</li>
                 <li>加载认证器配置并扫码绑定 TOTP。</li>
                 <li>填写 <code>address/clientId/redirectUri</code> 并创建授权请求。</li>
                 <li>批准授权并兑换 code，验证 JWT/UCAN 可用性。</li>

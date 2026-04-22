@@ -119,7 +119,7 @@
                     </template>
                 </el-popconfirm>
 
-                <div v-if="applyStatus === 'success'" @click="toConfigService" class="cursor">配置服务</div>
+                <div v-if="applyStatus === 'success'" @click="toConfigCapability" class="cursor">配置能力</div>
 
                 <el-divider v-if="applyStatus === 'success' || applyStatus === 'reject'" direction="vertical" />
                 <div v-if="applyStatus === 'reject'" class="bottom-more">
@@ -141,9 +141,8 @@
         :detail="detail"
         :afterSubmit="afterSubmit"
         :closeClick="afterSubmit"
-        :operateType="operateType"
     />
-    <ConfigServiceModal :modalVisible="modalVisible" :cancelModal="cancelModal" :detail="detail" operateType="application" />
+    <ConfigCapabilityModal :modalVisible="modalVisible" :cancelModal="cancelModal" :detail="detail" />
     <ResultChooseModal
         v-model="innerVisible"
         title="应用上架申请"
@@ -170,7 +169,7 @@ import { exportIdentityInfo } from '@/plugins/account'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { h } from 'vue'
 import ApplyUseModal from './ApplyUseModal.vue'
-import ConfigServiceModal from './ConfigServiceModal.vue'
+import ConfigCapabilityModal from './ConfigCapabilityModal.vue'
 import ResultChooseModal from './ResultChooseModal.vue'
 import $application, {
     ApplicationMetadata,
@@ -203,8 +202,6 @@ const isOwner = () => {
 const innerVisible = ref(false)
 const dialogVisible = ref(false)
 const modalVisible = ref(false)
-const operateType = ref('application')
-
 const businessStatus = computed(() => resolveBusinessStatus(props.detail))
 const businessInfo = computed(() => businessStatusMap[businessStatus.value] || businessStatusMap.BUSINESS_STATUS_UNKNOWN)
 const isOnline = computed(() => businessStatus.value === 'BUSINESS_STATUS_ONLINE')
@@ -359,7 +356,7 @@ const toList = () => {
     innerVisible.value = false
 }
 
-const toConfigService = () => {
+const toConfigCapability = () => {
     modalVisible.value = true
 }
 

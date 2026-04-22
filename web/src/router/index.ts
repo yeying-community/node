@@ -55,21 +55,6 @@ export const routes = [
                 component: () => import('../views/apply/ApplyDetail.vue')
             },
             {
-                path: 'service',
-                name: 'service',
-                component: () => import('../views/apply/ServiceView.vue')
-            },
-            {
-                path: 'service-edit',
-                name: 'serviceEdit',
-                component: () => import('../views/apply/ServiceEdit.vue')
-            },
-            {
-                path: 'service-detail',
-                name: 'serviceDetail',
-                component: () => import('../views/apply/ServiceDetail.vue')
-            },
-            {
                 path: 'approval',
                 name: 'approval',
                 component: () => import('../views/apply/ApprovalView.vue')

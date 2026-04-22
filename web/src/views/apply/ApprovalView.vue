@@ -14,16 +14,16 @@
                 <el-form :inline="true" :model="formInline" ref="formRef" class="demo-form-inline">
                     <div v-if="tabIndex === 0">
                         <el-form-item label="名称：" prop="appName">
-                            <el-input
-                                v-model="formInline.appName"
-                                placeholder="请输入应用名称/服务名称搜索"
-                                clearable
-                            />
+                            <el-input v-model="formInline.appName" placeholder="请输入应用名称搜索" clearable />
                         </el-form-item>
-                        <el-form-item label="申请类型：" prop="region">
-                            <el-select v-model="formInline.region" placeholder="请选择" clearable>
-                                <el-option label="服务" value="service" />
-                                <el-option label="应用" value="application" />
+                        <el-form-item label="类型：" prop="auditType">
+                            <el-select v-model="formInline.auditType" placeholder="请选择" class="input-style" clearable>
+                                <el-option
+                                    v-for="item in auditTypeOptions"
+                                    :key="item.value"
+                                    :label="item.label"
+                                    :value="item.value"
+                                />
                             </el-select>
                         </el-form-item>
                         <el-form-item label="申请人：" prop="people">
@@ -43,16 +43,16 @@
                     </div>
                     <div v-else>
                         <el-form-item label="名称：" prop="appName">
-                            <el-input
-                                v-model="formInline.appName"
-                                placeholder="请输入应用名称/服务名称搜索"
-                                clearable
-                            />
+                            <el-input v-model="formInline.appName" placeholder="请输入应用名称搜索" clearable />
                         </el-form-item>
-                        <el-form-item label="审批类型：" prop="region">
-                            <el-select v-model="formInline.region" placeholder="请选择" clearable>
-                                <el-option label="服务" value="service" />
-                                <el-option label="应用" value="application" />
+                        <el-form-item label="类型：" prop="auditType">
+                            <el-select v-model="formInline.auditType" placeholder="请选择" class="input-style" clearable>
+                                <el-option
+                                    v-for="item in auditTypeOptions"
+                                    :key="item.value"
+                                    :label="item.label"
+                                    :value="item.value"
+                                />
                             </el-select>
                         </el-form-item>
                         <el-form-item label="申请人：" prop="people">
@@ -122,11 +122,15 @@ const formRef = ref(null)
 const tabIndex = ref(0)
 const formInline = reactive({
     appName: '',
-    region: '',
+    auditType: 'application',
     people: '',
     status: '',
     time: [] as string[]
 })
+const auditTypeOptions = [
+    { label: '应用', value: 'application' },
+    { label: '合约（预留）', value: 'contract' }
+]
 const approvalStatusOptions = [
     { label: '审批通过', value: '审批通过' },
     { label: '审批驳回', value: '审批驳回' }
@@ -184,7 +188,7 @@ const search = async () => {
                 approver,
                 name: formInline.appName,
                 applicant: formInline.people || undefined,
-                auditType: formInline.region || undefined,
+                auditType: formInline.auditType || undefined,
                 states,
                 startTime: startTime ? dayjs(startTime).startOf('day').toISOString() : undefined,
                 endTime: endTime ? dayjs(endTime).endOf('day').toISOString() : undefined

@@ -171,12 +171,6 @@ async function initializeProviders() {
             autoIncrement: false, 
             // 索引：keyPath 表示列名； name 表示索引名； unique 表示字段值是否唯一
             indexes: [{ keyPath: 'owner', name: 'owner', unique: false }]
-        },
-        {
-            name: 'services',
-            key: 'uid',
-            autoIncrement: false,
-            indexes: [{ keyPath: 'owner', name: 'owner', unique: false }]
         }
     ])
 }
@@ -224,7 +218,7 @@ export async function generateIdentity(code: string, serviceCodes: unknown, loca
     const safeLocation = `${location || ''}`
     const safeHash = `${hash || ''}`
     const safeDescription = `${description || ''}`
-    const kind = safeLocation.trim() ? 'application' : 'service'
+    const kind = 'application'
     const signaturePayload = [
         'YeYing Identity v1',
         `Owner: ${account}`,

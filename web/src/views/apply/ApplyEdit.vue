@@ -90,7 +90,7 @@
                         </el-col>
                     </el-row>
 
-                    <el-form-item label="依赖服务（可选）">
+                    <el-form-item label="依赖能力（可选）">
                         <el-select
                             v-model="detailInfo.serviceCodes"
                             placeholder="可选：按应用实际依赖选择"

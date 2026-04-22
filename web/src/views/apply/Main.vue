@@ -41,7 +41,7 @@
 <script lang="ts" setup>
 import { onMounted, ref, watch } from "vue";
 import { useRouter, useRoute } from "vue-router";
-import { Menu, Operation, Document, Setting, Expand, Fold } from "@element-plus/icons-vue";
+import { Menu, Document, Setting, Expand, Fold } from "@element-plus/icons-vue";
 
 const SIDEBAR_COLLAPSED_KEY = "market:sidebar:collapsed";
 
@@ -52,12 +52,6 @@ const isCollapsed = ref(false);
 
 const navigation = [
   { title: "应用中心", to: "/market/", name: "apply", icon: Menu },
-  {
-    title: "服务中心",
-    to: "/market/service/",
-    name: "service",
-    icon: Operation,
-  },
   {
     title: "我的审批",
     to: "/market/approval/",

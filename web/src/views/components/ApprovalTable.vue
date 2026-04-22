@@ -8,7 +8,7 @@
                 </el-tooltip>
             </template>
         </el-table-column>
-        <el-table-column prop="serviceType" label="申请类型" width="100" />
+        <el-table-column prop="typeLabel" label="类型" width="90" />
         <el-table-column prop="applicantor" label="申请人" width="200">
             <template #default="scope">
                 <el-tooltip class="box-item" effect="dark" :content="extractApplicant(scope.row.applicantor)" placement="top-start">
@@ -92,7 +92,7 @@ const record = ref<AuditDetailBox>({
     applicantor: '',
     state: '',
     date: '',
-    serviceType: '',
+    typeLabel: '',
     progress: '',
 })
 
@@ -129,11 +129,6 @@ const handleDetail = (row: AuditDetailBox) => {
     if (!auditId) {
         return
     }
-    const targetTypeRaw = String(row.auditType || '').trim()
-    const targetType =
-        targetTypeRaw ||
-        (String(row.serviceType || '').trim() === '服务' ? 'service' : 'application')
-    const path = targetType === 'service' ? '/market/service-detail' : '/market/apply-detail'
     const query: Record<string, string> = {
         pageFrom: 'myApply',
         auditId
@@ -147,7 +142,7 @@ const handleDetail = (row: AuditDetailBox) => {
     if (row.targetVersion !== undefined && row.targetVersion !== null) {
         query.version = String(row.targetVersion)
     }
-    router.push({ path, query })
+    router.push({ path: '/market/apply-detail', query })
 }
 
 const closeClick = () => {

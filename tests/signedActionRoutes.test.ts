@@ -9,19 +9,12 @@ import {
   USER_STATUS_DISABLE
 } from '../src/domain/model/user'
 
-const serviceStore = new Map<string, any>()
 const auditStore = new Map<string, any>()
 const userStateStore = new Map<string, any>()
 const mpcSessionStore = new Map<string, any>()
 const mpcParticipantStore = new Map<string, any>()
 const mpcMessageStore = new Map<string, any>()
-const serviceConfigStore = new Map<string, any>()
-const approvedServiceAuditStore = new Map<string, any[]>()
-const auditCommentStore = new Map<string, any[]>()
 
-const saveServiceMock = vi.fn()
-const deleteServiceMock = vi.fn()
-const updateServicePublishStateMock = vi.fn()
 const createAuditMock = vi.fn()
 const approveAuditMock = vi.fn()
 const cancelAuditMock = vi.fn()
@@ -30,7 +23,7 @@ const saveUserStateMock = vi.fn()
 const createMpcSessionMock = vi.fn()
 const joinMpcSessionMock = vi.fn()
 const sendMpcMessageMock = vi.fn()
-const upsertServiceConfigMock = vi.fn()
+
 let auditSearchResult: { data: any[]; page: { total: number; page: number; pageSize: number } } = {
   data: [],
   page: {
@@ -55,6 +48,11 @@ vi.doMock('../src/common/permission', () => ({
   ensureUserActive: vi.fn().mockResolvedValue({}),
   ensureUserCanWriteBusinessData: vi.fn().mockResolvedValue({}),
   isAdminUser: vi.fn().mockResolvedValue(false),
+}))
+
+vi.doMock('../src/auth/ucan', () => ({
+  isUcanToken: vi.fn().mockReturnValue(true),
+  verifyUcanInvocationWithCap: vi.fn(),
 }))
 
 vi.doMock('../src/domain/service/actionRequest', () => ({
@@ -97,74 +95,6 @@ vi.doMock('../src/domain/service/actionRequest', () => ({
         responseBody: input.responseBody,
       })
     },
-  })),
-}))
-
-vi.doMock('../src/domain/service/service', () => ({
-  ServiceService: mockClass(() => ({
-    getByUid: async (uid: string) => serviceStore.get(`uid:${uid}`) || null,
-    get: async (did: string, version: number) => serviceStore.get(`did:${did}:${version}`) || null,
-    save: async (service: any) => {
-      saveServiceMock(service)
-      serviceStore.set(`uid:${service.uid}`, service)
-      serviceStore.set(`did:${service.did}:${service.version}`, service)
-      return service
-    },
-    delete: async (did: string, version: number) => {
-      deleteServiceMock(did, version)
-      const existing = serviceStore.get(`did:${did}:${version}`) || null
-      if (existing) {
-        serviceStore.delete(`uid:${existing.uid}`)
-        serviceStore.delete(`did:${did}:${version}`)
-      }
-      return { deleted: true }
-    },
-  })),
-}))
-
-vi.doMock('../src/domain/service/serviceConfig', () => ({
-  ServiceConfigService: mockClass(() => ({
-    getByServiceAndApplicant: async (serviceUid: string, applicant: string) =>
-      serviceConfigStore.get(`${serviceUid}:${applicant}`) || null,
-    upsert: async (config: any) => {
-      upsertServiceConfigMock(config)
-      const saved = { ...config }
-      serviceConfigStore.set(`${saved.serviceUid}:${saved.applicant}`, saved)
-      return saved
-    },
-  })),
-}))
-
-vi.doMock('../src/domain/manager/service', () => ({
-  ServiceManager: mockClass(() => ({
-    updatePublishState: async (did: string, version: number, status: string, isOnline: boolean) => {
-      updateServicePublishStateMock(did, version, status, isOnline)
-      const existing = serviceStore.get(`did:${did}:${version}`) || null
-      if (!existing) {
-        return false
-      }
-      const next = {
-        ...existing,
-        status,
-        isOnline,
-      }
-      serviceStore.set(`uid:${next.uid}`, next)
-      serviceStore.set(`did:${did}:${version}`, next)
-      return true
-    },
-  })),
-}))
-
-vi.doMock('../src/domain/manager/audit', () => ({
-  AuditManager: mockClass(() => ({
-    queryByTarget: async (_type: string, did: string, version: number) =>
-      approvedServiceAuditStore.get(`${did}:${version}`) || [],
-  })),
-}))
-
-vi.doMock('../src/domain/manager/comments', () => ({
-  CommentManager: mockClass(() => ({
-    queryByAuditId: async (uid: string) => auditCommentStore.get(uid) || [],
   })),
 }))
 
@@ -310,7 +240,6 @@ vi.doMock('../src/domain/service/mpc', () => ({
 }))
 
 const { buildActionSignatureMessage } = await import('../src/auth/actionSignature')
-const { registerPublicServiceRoutes } = await import('../src/routes/public/services')
 const { registerPublicAuditRoutes } = await import('../src/routes/public/audits')
 const { registerAdminAuditRoutes } = await import('../src/routes/admin/audits')
 const { registerAdminUserRoutes } = await import('../src/routes/admin/users')
@@ -328,7 +257,6 @@ function createTestApp(address: string) {
       next
     )
   })
-  registerPublicServiceRoutes(app)
   registerPublicAuditRoutes(app)
   registerAdminAuditRoutes(app)
   registerAdminUserRoutes(app)
@@ -377,19 +305,12 @@ async function signBody(input: {
 
 describe('signed action routes', () => {
   beforeEach(() => {
-    serviceStore.clear()
     auditStore.clear()
     userStateStore.clear()
     mpcSessionStore.clear()
     mpcParticipantStore.clear()
     mpcMessageStore.clear()
-    serviceConfigStore.clear()
-    approvedServiceAuditStore.clear()
-    auditCommentStore.clear()
     requestReplayStore.clear()
-    saveServiceMock.mockClear()
-    deleteServiceMock.mockClear()
-    updateServicePublishStateMock.mockClear()
     createAuditMock.mockClear()
     approveAuditMock.mockClear()
     cancelAuditMock.mockClear()
@@ -398,7 +319,6 @@ describe('signed action routes', () => {
     createMpcSessionMock.mockClear()
     joinMpcSessionMock.mockClear()
     sendMpcMessageMock.mockClear()
-    upsertServiceConfigMock.mockClear()
     auditSearchResult = {
       data: [],
       page: {
@@ -407,162 +327,6 @@ describe('signed action routes', () => {
         pageSize: 10,
       },
     }
-  })
-
-  it('replays the first service create response and only saves once', async () => {
-    const wallet = Wallet.createRandom()
-    const actor = wallet.address.toLowerCase()
-    const app = createTestApp(actor)
-    const rawBody = {
-      owner: actor,
-      did: 'did:service:test-1',
-      version: 1,
-      name: 'Test Service',
-      description: 'desc',
-      code: 'SERVICE_CODE_TEST',
-      apiCodes: ['api-a'],
-      proxy: 'https://proxy.example.com',
-      grpc: 'grpc://service.example.com',
-      avatar: 'avatar',
-      codePackagePath: '/pkg/service',
-    }
-    const signablePayload = {
-      requestedUid: '',
-      owner: actor,
-      ownerName: actor,
-      network: '',
-      address: '',
-      did: 'did:service:test-1',
-      version: 1,
-      name: 'Test Service',
-      description: 'desc',
-      code: 'SERVICE_CODE_TEST',
-      apiCodes: 'api-a',
-      proxy: 'https://proxy.example.com',
-      grpc: 'grpc://service.example.com',
-      avatar: 'avatar',
-      codePackagePath: '/pkg/service',
-    }
-    const signedBody = await signBody({
-      wallet,
-      action: 'service_create',
-      requestId: 'req-service-create-replay',
-      rawBody,
-      signablePayload,
-    })
-
-    await withServer(app, async (baseUrl) => {
-      const first = await fetch(`${baseUrl}/api/v1/public/services`, {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify(signedBody),
-      })
-      const firstJson = await first.json()
-
-      const second = await fetch(`${baseUrl}/api/v1/public/services`, {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify(signedBody),
-      })
-      const secondJson = await second.json()
-
-      expect(first.status).toBe(200)
-      expect(second.status).toBe(200)
-      expect(firstJson).toEqual(secondJson)
-      expect(saveServiceMock).toHaveBeenCalledTimes(1)
-      expect(firstJson.data.did).toBe(rawBody.did)
-      expect(firstJson.data.status).toBe('BUSINESS_STATUS_PENDING')
-      expect(firstJson.data.isOnline).toBe(false)
-    })
-  })
-
-  it('replays the first service publish response even after the service is later removed', async () => {
-    const wallet = Wallet.createRandom()
-    const actor = wallet.address.toLowerCase()
-    const app = createTestApp(actor)
-    const existing = {
-      uid: 'service-publish-1',
-      owner: actor,
-      ownerName: actor,
-      network: '',
-      address: '',
-      did: 'did:service:publish-1',
-      version: 1,
-      name: 'Publish Service',
-      description: 'desc',
-      code: 'SERVICE_CODE_TEST',
-      apiCodes: 'api-a',
-      proxy: '',
-      grpc: '',
-      avatar: 'avatar',
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-      signature: '',
-      codePackagePath: '/pkg/service',
-      status: 'BUSINESS_STATUS_PENDING',
-      isOnline: false,
-    }
-    serviceStore.set(`uid:${existing.uid}`, existing)
-    serviceStore.set(`did:${existing.did}:${existing.version}`, existing)
-    approvedServiceAuditStore.set(`${existing.did}:${existing.version}`, [
-      {
-        uid: 'audit-service-publish-1',
-        auditType: 'service',
-        approver: '',
-        appOrServiceMetadata: JSON.stringify({
-          operateType: 'service',
-          did: existing.did,
-          version: existing.version,
-        }),
-      },
-    ])
-    auditCommentStore.set('audit-service-publish-1', [
-      {
-        uid: 'comment-service-publish-1',
-        signature: actor,
-        status: 'COMMENT_STATUS_AGREE',
-      },
-    ])
-    const signedBody = await signBody({
-      wallet,
-      action: 'service_publish',
-      requestId: 'req-service-publish-replay',
-      rawBody: {},
-      signablePayload: {
-        serviceUid: existing.uid,
-      },
-    })
-
-    await withServer(app, async (baseUrl) => {
-      const first = await fetch(`${baseUrl}/api/v1/public/services/${existing.uid}/publish`, {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify(signedBody),
-      })
-      const firstJson = await first.json()
-
-      serviceStore.delete(`uid:${existing.uid}`)
-      serviceStore.delete(`did:${existing.did}:${existing.version}`)
-
-      const second = await fetch(`${baseUrl}/api/v1/public/services/${existing.uid}/publish`, {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify(signedBody),
-      })
-      const secondJson = await second.json()
-
-      expect(first.status).toBe(200)
-      expect(second.status).toBe(200)
-      expect(firstJson).toEqual(secondJson)
-      expect(updateServicePublishStateMock).toHaveBeenCalledTimes(1)
-      expect(firstJson).toEqual(
-        expect.objectContaining({
-          code: 0,
-          message: 'ok',
-          data: { published: true },
-        })
-      )
-    })
   })
 
   it('forwards audit search filters and pagination to the audit service', async () => {
@@ -638,246 +402,28 @@ describe('signed action routes', () => {
     })
   })
 
-  it('replays the first service update response after the service is later removed', async () => {
-    const wallet = Wallet.createRandom()
-    const actor = wallet.address.toLowerCase()
-    const app = createTestApp(actor)
-    const existing = {
-      uid: 'service-update-1',
-      owner: actor,
-      ownerName: actor,
-      network: '',
-      address: '',
-      did: 'did:service:update-1',
-      version: 1,
-      name: 'Before Service Update',
-      description: 'desc',
-      code: 'SERVICE_CODE_TEST',
-      apiCodes: 'api-a',
-      proxy: '',
-      grpc: '',
-      avatar: 'avatar',
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-      signature: '',
-      codePackagePath: '/pkg/service',
-      status: 'BUSINESS_STATUS_PENDING',
-      isOnline: false,
-    }
-    serviceStore.set(`uid:${existing.uid}`, existing)
-    serviceStore.set(`did:${existing.did}:${existing.version}`, existing)
-    const signedBody = await signBody({
-      wallet,
-      action: 'service_update',
-      requestId: 'req-service-update-replay',
-      rawBody: {
-        name: 'After Service Update',
-        proxy: 'https://updated.example.com',
-      },
-      signablePayload: {
-        serviceUid: existing.uid,
-        name: 'After Service Update',
-        proxy: 'https://updated.example.com',
-      },
-    })
-
-    await withServer(app, async (baseUrl) => {
-      const first = await fetch(`${baseUrl}/api/v1/public/services/${existing.uid}`, {
-        method: 'PATCH',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify(signedBody),
-      })
-      const firstJson = await first.json()
-
-      serviceStore.delete(`uid:${existing.uid}`)
-      serviceStore.delete(`did:${existing.did}:${existing.version}`)
-
-      const second = await fetch(`${baseUrl}/api/v1/public/services/${existing.uid}`, {
-        method: 'PATCH',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify(signedBody),
-      })
-      const secondJson = await second.json()
-
-      expect(first.status).toBe(200)
-      expect(second.status).toBe(200)
-      expect(firstJson).toEqual(secondJson)
-      expect(saveServiceMock).toHaveBeenCalledTimes(1)
-      expect(firstJson.data.name).toBe('After Service Update')
-      expect(firstJson.data.proxy).toBe('https://updated.example.com')
-    })
-  })
-
-  it('replays the first service config upsert response after the service is later removed', async () => {
-    const wallet = Wallet.createRandom()
-    const actor = wallet.address.toLowerCase()
-    const app = createTestApp(actor)
-    const existing = {
-      uid: 'service-config-1',
-      owner: actor,
-      ownerName: actor,
-      network: '',
-      address: '',
-      did: 'did:service:config-1',
-      version: 1,
-      name: 'Config Service',
-      description: 'desc',
-      code: 'SERVICE_CODE_TEST',
-      apiCodes: 'api-a',
-      proxy: '',
-      grpc: '',
-      avatar: 'avatar',
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-      signature: '',
-      codePackagePath: '/pkg/service',
-      status: 'BUSINESS_STATUS_PENDING',
-      isOnline: false,
-    }
-    serviceStore.set(`uid:${existing.uid}`, existing)
-    serviceStore.set(`did:${existing.did}:${existing.version}`, existing)
-    const rawBody = {
-      config: [
-        { code: 'service-domain-a', instance: 'instance-1' },
-      ],
-    }
-    const signedBody = await signBody({
-      wallet,
-      action: 'service_config_upsert',
-      requestId: 'req-service-config-replay',
-      rawBody,
-      signablePayload: {
-        serviceUid: existing.uid,
-        applicant: actor,
-        config: [
-          { code: 'service-domain-a', instance: 'instance-1' },
-        ],
-      },
-    })
-
-    await withServer(app, async (baseUrl) => {
-      const first = await fetch(`${baseUrl}/api/v1/public/services/${existing.uid}/config`, {
-        method: 'PUT',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify(signedBody),
-      })
-      const firstJson = await first.json()
-
-      serviceStore.delete(`uid:${existing.uid}`)
-      serviceStore.delete(`did:${existing.did}:${existing.version}`)
-
-      const second = await fetch(`${baseUrl}/api/v1/public/services/${existing.uid}/config`, {
-        method: 'PUT',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify(signedBody),
-      })
-      const secondJson = await second.json()
-
-      expect(first.status).toBe(200)
-      expect(second.status).toBe(200)
-      expect(firstJson).toEqual(secondJson)
-      expect(upsertServiceConfigMock).toHaveBeenCalledTimes(1)
-      expect(firstJson.data.serviceUid).toBe(existing.uid)
-      expect(firstJson.data.applicant).toBe(actor)
-      expect(firstJson.data.config).toEqual([{ code: 'service-domain-a', instance: 'instance-1' }])
-    })
-  })
-
-  it('replays the first service unpublish response and only updates once', async () => {
-    const wallet = Wallet.createRandom()
-    const actor = wallet.address.toLowerCase()
-    const app = createTestApp(actor)
-    const existing = {
-      uid: 'service-unpublish-1',
-      owner: actor,
-      ownerName: actor,
-      network: '',
-      address: '',
-      did: 'did:service:unpublish-1',
-      version: 1,
-      name: 'Unpublish Service',
-      description: 'desc',
-      code: 'SERVICE_CODE_TEST',
-      apiCodes: 'api-a',
-      proxy: '',
-      grpc: '',
-      avatar: 'avatar',
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-      signature: '',
-      codePackagePath: '/pkg/service',
-      status: 'BUSINESS_STATUS_ONLINE',
-      isOnline: true,
-    }
-    serviceStore.set(`uid:${existing.uid}`, existing)
-    serviceStore.set(`did:${existing.did}:${existing.version}`, existing)
-    const signedBody = await signBody({
-      wallet,
-      action: 'service_unpublish',
-      requestId: 'req-service-unpublish-replay',
-      rawBody: {},
-      signablePayload: {
-        serviceUid: existing.uid,
-      },
-    })
-
-    await withServer(app, async (baseUrl) => {
-      const first = await fetch(`${baseUrl}/api/v1/public/services/${existing.uid}/unpublish`, {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify(signedBody),
-      })
-      const firstJson = await first.json()
-
-      const second = await fetch(`${baseUrl}/api/v1/public/services/${existing.uid}/unpublish`, {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify(signedBody),
-      })
-      const secondJson = await second.json()
-
-      expect(first.status).toBe(200)
-      expect(second.status).toBe(200)
-      expect(firstJson).toEqual(secondJson)
-      expect(updateServicePublishStateMock).toHaveBeenCalledTimes(1)
-      expect(serviceStore.get(`uid:${existing.uid}`)).toEqual(
-        expect.objectContaining({
-          status: 'BUSINESS_STATUS_OFFLINE',
-          isOnline: false,
-        })
-      )
-      expect(firstJson).toEqual(
-        expect.objectContaining({
-          code: 0,
-          message: 'ok',
-          data: { unpublished: true },
-        })
-      )
-    })
-  })
-
   it('returns 409 when audit submit reuses requestId with a different payload', async () => {
     const wallet = Wallet.createRandom()
     const actor = wallet.address.toLowerCase()
     const app = createTestApp(actor)
     const metadata = JSON.stringify({
-      operateType: 'service',
-      did: 'did:service:audit-1',
+      operateType: 'application',
+      did: 'did:app:audit-1',
       version: 1,
       owner: actor,
-      name: 'Audit Service',
+      name: 'Audit App',
     })
     const baseRawBody = {
       appOrServiceMetadata: metadata,
-      auditType: 'service',
+      auditType: 'application',
       applicant: `${actor}::alice`,
       approver: '["0x1111111111111111111111111111111111111111"]',
       reason: '申请上架',
     }
     const baseSignablePayload = {
-      auditType: 'service',
-      targetType: 'service',
-      targetDid: 'did:service:audit-1',
+      auditType: 'application',
+      targetType: 'application',
+      targetDid: 'did:app:audit-1',
       targetVersion: 1,
       applicant: `${actor}::alice`,
       approver: '["0x1111111111111111111111111111111111111111"]',
@@ -975,87 +521,18 @@ describe('signed action routes', () => {
     })
   })
 
-  it('replays the first service delete response after the service has already been removed', async () => {
-    const wallet = Wallet.createRandom()
-    const actor = wallet.address.toLowerCase()
-    const app = createTestApp(actor)
-    const existing = {
-      uid: 'service-delete-1',
-      owner: actor,
-      ownerName: actor,
-      network: '',
-      address: '',
-      did: 'did:service:delete-1',
-      version: 1,
-      name: 'Delete Service',
-      description: 'desc',
-      code: 'SERVICE_CODE_TEST',
-      apiCodes: 'api-a',
-      proxy: '',
-      grpc: '',
-      avatar: 'avatar',
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-      signature: '',
-      codePackagePath: '/pkg/service',
-      status: 'BUSINESS_STATUS_PENDING',
-      isOnline: false,
-    }
-    serviceStore.set(`uid:${existing.uid}`, existing)
-    serviceStore.set(`did:${existing.did}:${existing.version}`, existing)
-    const signedBody = await signBody({
-      wallet,
-      action: 'service_delete',
-      requestId: 'req-service-delete-replay',
-      rawBody: {},
-      signablePayload: {
-        serviceUid: existing.uid,
-      },
-    })
-
-    await withServer(app, async (baseUrl) => {
-      const first = await fetch(`${baseUrl}/api/v1/public/services/${existing.uid}`, {
-        method: 'DELETE',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify(signedBody),
-      })
-      const firstJson = await first.json()
-
-      expect(serviceStore.get(`uid:${existing.uid}`)).toBeUndefined()
-
-      const second = await fetch(`${baseUrl}/api/v1/public/services/${existing.uid}`, {
-        method: 'DELETE',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify(signedBody),
-      })
-      const secondJson = await second.json()
-
-      expect(first.status).toBe(200)
-      expect(second.status).toBe(200)
-      expect(firstJson).toEqual(secondJson)
-      expect(deleteServiceMock).toHaveBeenCalledTimes(1)
-      expect(firstJson).toEqual(
-        expect.objectContaining({
-          code: 0,
-          message: 'ok',
-          data: { deleted: true },
-        })
-      )
-    })
-  })
-
   it('replays the first audit cancel response after the audit has already been removed', async () => {
     const wallet = Wallet.createRandom()
     const actor = wallet.address.toLowerCase()
     const app = createTestApp(actor)
     const existing = {
       uid: 'audit-cancel-1',
-      auditType: 'service',
+      auditType: 'application',
       applicant: `${actor}::alice`,
       approver: '',
       appOrServiceMetadata: JSON.stringify({
-        operateType: 'service',
-        did: 'did:service:audit-cancel-1',
+        operateType: 'application',
+        did: 'did:app:audit-cancel-1',
         version: 1,
       }),
     }
@@ -1230,14 +707,14 @@ describe('signed action routes', () => {
     await withServer(app, async (baseUrl) => {
       const first = await fetch(`${baseUrl}/api/v1/public/mpc/sessions`, {
         method: 'POST',
-        headers: { 'content-type': 'application/json' },
+        headers: { 'content-type': 'application/json', authorization: 'Bearer ucan-token' },
         body: JSON.stringify(signedBody),
       })
       const firstJson = await first.json()
 
       const second = await fetch(`${baseUrl}/api/v1/public/mpc/sessions`, {
         method: 'POST',
-        headers: { 'content-type': 'application/json' },
+        headers: { 'content-type': 'application/json', authorization: 'Bearer ucan-token' },
         body: JSON.stringify(signedBody),
       })
       const secondJson = await second.json()
@@ -1294,14 +771,14 @@ describe('signed action routes', () => {
     await withServer(app, async (baseUrl) => {
       const first = await fetch(`${baseUrl}/api/v1/public/mpc/sessions/session-join-1/join`, {
         method: 'POST',
-        headers: { 'content-type': 'application/json' },
+        headers: { 'content-type': 'application/json', authorization: 'Bearer ucan-token' },
         body: JSON.stringify(signedBody),
       })
       const firstJson = await first.json()
 
       const second = await fetch(`${baseUrl}/api/v1/public/mpc/sessions/session-join-1/join`, {
         method: 'POST',
-        headers: { 'content-type': 'application/json' },
+        headers: { 'content-type': 'application/json', authorization: 'Bearer ucan-token' },
         body: JSON.stringify(signedBody),
       })
       const secondJson = await second.json()
@@ -1361,14 +838,14 @@ describe('signed action routes', () => {
     await withServer(app, async (baseUrl) => {
       const first = await fetch(`${baseUrl}/api/v1/public/mpc/sessions/session-message-1/messages`, {
         method: 'POST',
-        headers: { 'content-type': 'application/json' },
+        headers: { 'content-type': 'application/json', authorization: 'Bearer ucan-token' },
         body: JSON.stringify(signedBody),
       })
       const firstJson = await first.json()
 
       const second = await fetch(`${baseUrl}/api/v1/public/mpc/sessions/session-message-1/messages`, {
         method: 'POST',
-        headers: { 'content-type': 'application/json' },
+        headers: { 'content-type': 'application/json', authorization: 'Bearer ucan-token' },
         body: JSON.stringify(signedBody),
       })
       const secondJson = await second.json()
@@ -1383,8 +860,7 @@ describe('signed action routes', () => {
   })
 
   it('returns 400 when mpc message id is missing', async () => {
-    const wallet = Wallet.createRandom()
-    const actor = wallet.address.toLowerCase()
+    const actor = Wallet.createRandom().address.toLowerCase()
     const app = createTestApp(actor)
     mpcSessionStore.set('session-message-2', {
       id: 'session-message-2',
@@ -1404,7 +880,7 @@ describe('signed action routes', () => {
     await withServer(app, async (baseUrl) => {
       const response = await fetch(`${baseUrl}/api/v1/public/mpc/sessions/session-message-2/messages`, {
         method: 'POST',
-        headers: { 'content-type': 'application/json' },
+        headers: { 'content-type': 'application/json', authorization: 'Bearer ucan-token' },
         body: JSON.stringify({
           from: 'p1',
           type: 'round1',

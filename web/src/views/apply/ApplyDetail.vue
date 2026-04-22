@@ -53,7 +53,7 @@
             <!-- 应用中心-我的申请的详情 -->
             <div v-if="pageFrom === 'myApply'">
                 <div v-if="applyStatus === 'success'">
-                    <el-button plain @click="toConfigService">配置服务</el-button>
+                    <el-button plain @click="toConfigCapability">配置能力</el-button>
                 </div>
                 <div v-if="applyStatus === 'applying'">
                     <el-button plain @click="cancelApply">取消申请</el-button>
@@ -79,7 +79,7 @@
             <el-row class="part-row">
                 <el-col :span="8" :xs="24">应用分类: {{ applicationCodeText }}</el-col>
                 <el-col :span="8" :xs="24"
-                    >依赖服务:
+                    >依赖能力:
                     {{ serviceCodeText }}
                 </el-col>
                 <el-col :span="8" :xs="24">访问地址(URL): {{ detailInfo.location }} </el-col>
@@ -122,7 +122,7 @@
         </template>
     </ResultChooseModal>
 
-    <ConfigServiceModal :modalVisible="modalVisible" :cancelModal="cancelModal" :detail="detailInfo" operateType="application" />
+    <ConfigCapabilityModal :modalVisible="modalVisible" :cancelModal="cancelModal" :detail="detailInfo" />
 
     <ApplyUseModal
         title="重新申请"
@@ -130,7 +130,6 @@
         :detail="detailInfo"
         :afterSubmit="afterSubmit"
         :closeClick="afterSubmit"
-        operateType="application"
     />
 </template>
 
@@ -151,7 +150,7 @@ import $application, {
     serviceCodeMap
 } from '@/plugins/application'
 import { Link } from '@element-plus/icons-vue'
-import ConfigServiceModal from '@/views/components/ConfigServiceModal.vue'
+import ConfigCapabilityModal from '@/views/components/ConfigCapabilityModal.vue'
 import ApplyUseModal from '@/views/components/ApplyUseModal.vue'
 import AuditSummaryPanel from '@/views/components/AuditSummaryPanel.vue'
 import { exportIdentityInfo } from '@/plugins/account'
@@ -396,7 +395,7 @@ const toEdit = () => {
     })
 }
 
-const toConfigService = () => {
+const toConfigCapability = () => {
     modalVisible.value = true
 }
 
