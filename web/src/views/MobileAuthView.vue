@@ -430,7 +430,7 @@ onBeforeUnmount(() => {
 
 h1 {
   margin: 0;
-  font-size: 22px;
+  font-size: 20px;
   font-weight: 500;
 }
 

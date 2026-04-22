@@ -448,7 +448,7 @@ if (props.pageFrom === 'myApply') {
 .tab {
     background-color: #fff;
     border-radius: 6px;
-    padding: 24px;
+    padding: 20px;
     .cursor {
         cursor: pointer;
     }
@@ -463,9 +463,10 @@ if (props.pageFrom === 'myApply') {
             flex-direction: column;
             gap: 8px;
             .name {
-                font-size: 20px;
+                font-size: 18px;
                 font-weight: 500;
                 color: rgba(0, 0, 0, 0.85);
+                line-height: 1.35;
             }
             .title {
                 display: flex;
@@ -490,8 +491,9 @@ if (props.pageFrom === 'myApply') {
             }
             .desc {
                 color: rgba(0, 0, 0, 0.45);
-                font-size: 16px;
+                font-size: 14px;
                 font-weight: 400;
+                line-height: 1.6;
                 height: 44px;
                 display: -webkit-box;
                 -webkit-box-orient: vertical;
@@ -510,7 +512,7 @@ if (props.pageFrom === 'myApply') {
             }
 
             .badge-text {
-                font-size: 14px;
+                font-size: 13px;
                 margin: -15px 0 0 8px;
             }
         }
@@ -549,28 +551,12 @@ if (props.pageFrom === 'myApply') {
 
 .status-desc {
     color: rgba(0, 0, 0, 0.45);
-    font-size: 14px;
+    font-size: 13px;
 }
 .waring-text {
-    font-size: 18px;
+    font-size: 16px;
     font-weight: 500;
     color: rgba(0, 0, 0, 0.85);
-}
-
-.font-medium {
-    font-weight: 500;
-}
-
-.text-sm {
-    font-size: 12px;
-}
-
-.ml-3 {
-    margin-left: 12px;
-}
-
-.mt-1 {
-    margin-top: 4px;
 }
 .high-z-index {
     z-index: 3000 !important; /* 需大于 ElDropdown 的 z-index（通常是 2000+） */

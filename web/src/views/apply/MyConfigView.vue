@@ -646,14 +646,14 @@ onMounted(async () => {
     display: flex;
     gap: 8px;
     line-height: 24px;
-    font-size: 13px;
+    font-size: 14px;
     color: rgba(0, 0, 0, 0.75);
   }
 
   .status-error {
     margin-top: 8px;
     color: #d93026;
-    font-size: 13px;
+    font-size: 14px;
   }
 
   .status-actions {
@@ -672,7 +672,7 @@ onMounted(async () => {
   }
 
   .totp-title {
-    font-size: 14px;
+    font-size: 15px;
     font-weight: 500;
     margin-bottom: 8px;
   }
@@ -701,7 +701,7 @@ onMounted(async () => {
   }
 
   .qr-placeholder {
-    font-size: 12px;
+    font-size: 13px;
     color: rgba(0, 0, 0, 0.45);
     text-align: center;
     padding: 0 12px;
@@ -734,7 +734,7 @@ onMounted(async () => {
   }
 
   .label {
-    font-size: 13px;
+    font-size: 14px;
     color: rgba(0, 0, 0, 0.75);
   }
 
@@ -750,7 +750,7 @@ onMounted(async () => {
 
   pre {
     margin: 0;
-    font-size: 12px;
+    font-size: 13px;
     line-height: 1.6;
     white-space: pre-wrap;
     word-break: break-all;

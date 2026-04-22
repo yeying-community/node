@@ -22,13 +22,13 @@ const props = defineProps({
   display: flex;
   align-items: center;
   justify-content: flex-start;
-  gap: 8px;
+  gap: 10px;
   font-family: var(--app-font-display);
   font-weight: 500;
-  font-size: 20px;
-  line-height: 1.2;
+  font-size: 18px;
+  line-height: 1.3;
   letter-spacing: 0.01em;
-  margin: 10px 0 24px;
+  margin: 8px 0 20px;
   color: rgba(0, 0, 0, 0.85);
 
   .back-icon {

@@ -3,7 +3,16 @@
 </script>
 
 <template>
-  <h1 class="text-3xl font-medium underline">
+  <div class="welcome">
     Hello world!
-  </h1>
+  </div>
 </template>
+
+<style scoped lang="less">
+.welcome {
+  font-size: 16px;
+  line-height: 1.6;
+  font-weight: 400;
+  color: rgba(0, 0, 0, 0.82);
+}
+</style>

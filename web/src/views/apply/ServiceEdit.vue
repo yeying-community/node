@@ -460,9 +460,10 @@ onMounted(() => {
                 width: 473px;
             }
             .upload-text {
-                font-size: 14px;
-                color: rgba(0, 0, 0, 0.85);
+                font-size: 13px;
+                color: rgba(0, 0, 0, 0.55);
                 font-weight: 400;
+                line-height: 1.5;
             }
             @media (max-width: 768px) {
                 .input-style {
@@ -470,13 +471,13 @@ onMounted(() => {
                 }
             }
             .title {
-                font-size: 16px;
+                font-size: 17px;
                 font-weight: 500;
                 color: rgba(0, 0, 0, 0.85);
                 padding: 0 20px;
             }
-            #part1,
-            #part2 {
+            #servicePart1,
+            #servicePart2 {
                 background: #fff;
                 padding: 20px 0;
                 border-radius: 6px;
@@ -515,10 +516,10 @@ onMounted(() => {
 }
 .status-desc {
     color: rgba(0, 0, 0, 0.45);
-    font-size: 14px;
+    font-size: 13px;
 }
 .waring-text {
-    font-size: 18px;
+    font-size: 16px;
     font-weight: 500;
     color: rgba(0, 0, 0, 0.85);
 }

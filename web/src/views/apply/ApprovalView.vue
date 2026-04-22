@@ -228,7 +228,7 @@ onMounted(() => {
         background: #fff;
         border-radius: 6px;
         .header {
-            font-size: 16px;
+            font-size: 15px;
             font-weight: 400;
             color: rgba(0, 0, 0, 0.45);
             display: flex;

@@ -549,7 +549,7 @@ onMounted(() => {
 
 .panel-subtitle {
     margin-top: 8px;
-    font-size: 13px;
+    font-size: 14px;
     color: rgba(0, 0, 0, 0.55);
     line-height: 1.6;
 }
@@ -570,7 +570,8 @@ onMounted(() => {
 }
 
 .preset-tip {
-    font-size: 12px;
+    font-size: 13px;
+    line-height: 1.5;
     color: #4f6b95;
 }
 
@@ -582,7 +583,7 @@ onMounted(() => {
 }
 
 .upload-text {
-    font-size: 12px;
+    font-size: 13px;
     color: rgba(0, 0, 0, 0.5);
 }
 
