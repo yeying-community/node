@@ -24,15 +24,17 @@
                         {{ dayjs(detail.createdAt).format('YYYY-MM-DD') }}</span
                     >
                 </div>
-                <div class="meta">
-                    <span v-if="ownerAddress" class="owner-meta">
+                <div v-if="ownerAddress" class="meta owner-meta-line">
+                    <span class="owner-meta">
                         所有者：{{ ownerShortAddress }}
-                        <el-tooltip content="复制所有者地址" placement="top">
-                            <el-icon class="copy-owner-icon" @click.stop="copyOwnerAddress">
-                                <CopyDocument />
-                            </el-icon>
-                        </el-tooltip>
                     </span>
+                    <el-tooltip content="复制" placement="top">
+                        <el-icon class="copy-owner-icon" @click.stop="copyOwnerAddress">
+                            <CopyDocument />
+                        </el-icon>
+                    </el-tooltip>
+                </div>
+                <div class="meta">
                     <span>分类：{{ applicationCodeText }}</span>
                     <span v-if="serviceCodeText !== '-'">依赖：{{ serviceCodeText }}</span>
                 </div>
@@ -270,9 +272,9 @@ const copyOwnerAddress = async () => {
     }
     try {
         await writeClipboardText(value)
-        notifySuccess('所有者地址已复制')
+        notifySuccess('已复制')
     } catch {
-        notifyError('复制所有者地址失败')
+        notifyError('复制失败')
     }
 }
 
@@ -566,6 +568,9 @@ if (props.pageFrom === 'myApply') {
                     color: rgba(22, 119, 255, 1);
                     cursor: pointer;
                 }
+            }
+            .owner-meta-line {
+                align-items: center;
             }
             .desc {
                 color: rgba(0, 0, 0, 0.45);
