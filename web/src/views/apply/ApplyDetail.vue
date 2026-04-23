@@ -71,6 +71,21 @@
                 <el-col :span="8" :xs="24">应用状态: {{ businessStatusText }}</el-col>
             </el-row>
             <el-row class="part-row">
+                <el-col :span="24" :xs="24" class="app-id-cell">
+                    AppId:
+                    <span class="app-id-text">{{ appIdText }}</span>
+                    <el-button
+                        v-if="appIdText !== '-'"
+                        class="app-id-copy-btn"
+                        link
+                        type="primary"
+                        @click="copyAppId"
+                    >
+                        复制
+                    </el-button>
+                </el-col>
+            </el-row>
+            <el-row class="part-row">
                 <el-col :span="24">应用描述: {{ detailInfo.description }}</el-col>
             </el-row>
         </div>
@@ -155,7 +170,7 @@ import ApplyUseModal from '@/views/components/ApplyUseModal.vue'
 import AuditSummaryPanel from '@/views/components/AuditSummaryPanel.vue'
 import { exportIdentityInfo } from '@/plugins/account'
 import { getCurrentAccount } from '@/plugins/auth'
-import { notifyError } from '@/utils/message'
+import { notifyError, notifySuccess } from '@/utils/message'
 import $audit, {
     AuditAuditDetail,
     isAuditForResource,
@@ -199,6 +214,11 @@ const applyUid = String(route.query.uid || '').trim()
 const businessStatusText = computed(() => {
     const status = resolveBusinessStatus(detailInfo.value)
     return businessStatusMap[status]?.text || '-'
+})
+
+const appIdText = computed(() => {
+    const uid = String(detailInfo.value?.uid || applyUid || '').trim()
+    return uid || '-'
 })
 
 const applicationCodeText = computed(() => {
@@ -272,6 +292,36 @@ const fillDetailFromAudit = async (audit: AuditAuditDetail) => {
     auditDetail.value = audit
     applyStatus.value = resolveUsageAuditStatus(audit)
     updateOnlineState()
+}
+
+const writeClipboardText = async (value: string) => {
+    if (navigator?.clipboard?.writeText) {
+        await navigator.clipboard.writeText(value)
+        return
+    }
+    const textarea = document.createElement('textarea')
+    textarea.value = value
+    textarea.setAttribute('readonly', 'readonly')
+    textarea.style.position = 'fixed'
+    textarea.style.left = '-9999px'
+    document.body.appendChild(textarea)
+    textarea.select()
+    document.execCommand('copy')
+    document.body.removeChild(textarea)
+}
+
+const copyAppId = async () => {
+    const appId = String(detailInfo.value?.uid || applyUid || '').trim()
+    if (!appId) {
+        notifyError('当前应用缺少 AppId')
+        return
+    }
+    try {
+        await writeClipboardText(appId)
+        notifySuccess('AppId 已复制')
+    } catch {
+        notifyError('复制 AppId 失败')
+    }
 }
 
 const resolveCurrentAuditId = async () => {
@@ -534,6 +584,19 @@ onMounted(() => {
     }
     .link-icon {
         color: rgba(22, 119, 255, 1);
+    }
+    .app-id-cell {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        flex-wrap: wrap;
+    }
+    .app-id-text {
+        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New',
+            monospace;
+    }
+    .app-id-copy-btn {
+        padding: 0;
     }
 }
 </style>

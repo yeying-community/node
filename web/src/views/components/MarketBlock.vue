@@ -7,8 +7,13 @@
             <div class="top-right">
                 <div class="name">{{ detail.name }}</div>
                 <div v-if="businessStatus !== 'BUSINESS_STATUS_UNKNOWN'" class="badge-info">
-                    <el-badge is-dot :type="businessInfo.type" />
-                    <span class="badge-text">{{ businessInfo.text }}</span>
+                    <template v-if="pageFrom === 'market'">
+                        <span class="badge-text">上架于 {{ marketPublishedDateText }}</span>
+                    </template>
+                    <template v-else>
+                        <el-badge is-dot :type="businessInfo.type" />
+                        <span class="badge-text">{{ businessInfo.text }}</span>
+                    </template>
                 </div>
                 <div class="title">
                      <div class="ownerWrap" v-if="detail.owner && pageFrom !== 'myCreate'">
@@ -18,7 +23,7 @@
                     <span v-else>
                         <el-tag type="primary" size="small">官方</el-tag>
                     </span>
-                    <span>
+                    <span v-if="pageFrom !== 'market'">
                         {{ pageFrom === 'myCreate' || !isOnline ? '创建于' : '上架于' }}
                         {{ dayjs(detail.createdAt).format('YYYY-MM-DD') }}</span
                     >
@@ -205,6 +210,14 @@ const modalVisible = ref(false)
 const businessStatus = computed(() => resolveBusinessStatus(props.detail))
 const businessInfo = computed(() => businessStatusMap[businessStatus.value] || businessStatusMap.BUSINESS_STATUS_UNKNOWN)
 const isOnline = computed(() => businessStatus.value === 'BUSINESS_STATUS_ONLINE')
+const marketPublishedDateText = computed(() => {
+    const raw = String(props.detail?.createdAt || '').trim()
+    if (!raw) {
+        return '-'
+    }
+    const parsed = dayjs(raw)
+    return parsed.isValid() ? parsed.format('YYYY-MM-DD') : '-'
+})
 const applicationCodeText = computed(() => {
     const code = String(props.detail?.code || '').trim()
     if (!code) {
