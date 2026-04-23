@@ -94,8 +94,8 @@
             <el-row class="part-row">
                 <el-col :span="8" :xs="24">应用分类: {{ applicationCodeText }}</el-col>
                 <el-col :span="8" :xs="24"
-                    >依赖能力:
-                    {{ serviceCodeText }}
+                    >依赖应用:
+                    {{ dependencyText }}
                 </el-col>
                 <el-col :span="8" :xs="24">访问地址(URL): {{ detailInfo.location }} </el-col>
             </el-row>
@@ -229,17 +229,26 @@ const applicationCodeText = computed(() => {
     return codeMap[code] || code
 })
 
-const serviceCodeText = computed(() => {
+const dependencyText = computed(() => {
     const raw = detailInfo.value.serviceCodes
     const codes = Array.isArray(raw)
         ? raw.map((item) => String(item).trim()).filter(Boolean)
         : typeof raw === 'string'
           ? raw.split(',').map((item) => item.trim()).filter(Boolean)
           : []
-    if (codes.length === 0) {
+    const names = codes
+        .map((code) => {
+            if (code.startsWith('SERVICE_CODE_')) {
+                return serviceCodeMap[code] || code
+            }
+            return code
+        })
+        .filter(Boolean)
+    if (names.length === 0) {
         return '-'
     }
-    return codes.map((code) => serviceCodeMap[code] || code).join('、')
+    const preview = names.slice(0, 2).join('、')
+    return names.length > 2 ? `${preview}...` : preview
 })
 
 const isCodePackageUrl = computed(() => {

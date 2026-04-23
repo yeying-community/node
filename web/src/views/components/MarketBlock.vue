@@ -1,6 +1,6 @@
 <template>
     <div class="tab">
-        <div class="top">
+        <div class="top" :class="{ clickable: pageFrom === 'market' }" @click="handleCardClick">
             <div class="top-left">
                 <el-avatar shape="square" size="50" :src="detail.avatar" />
             </div>
@@ -26,7 +26,7 @@
                 </div>
                 <div v-if="ownerAddress" class="meta owner-meta-line">
                     <span class="owner-meta">
-                        所有者：{{ ownerShortAddress }}
+                        作者：{{ ownerShortAddress }}
                     </span>
                     <el-tooltip content="复制" placement="top">
                         <el-icon class="copy-owner-icon" @click.stop="copyOwnerAddress">
@@ -36,7 +36,7 @@
                 </div>
                 <div class="meta">
                     <span>分类：{{ applicationCodeText }}</span>
-                    <span v-if="serviceCodeText !== '-'">依赖：{{ serviceCodeText }}</span>
+                    <span v-if="dependencyText !== '-'">依赖：{{ dependencyText }}</span>
                 </div>
                 <div class="desc">
                     {{ detail.description }}
@@ -46,26 +46,10 @@
 
         <!-- 应用市场 -->
         <div v-if="pageFrom === 'market'">
-            <div class="bottom owner" v-if="!isOwner">
-                <div @click="toDetail" class="cursor">详情</div>
-                <el-divider direction="vertical" />
-                <div v-if="!isOwner" @click="applyUse()" class="cursor">申请使用</div>
-            </div>
-            <div class="bottom owner" v-else>
-                <div @click="toDetail" class="cursor">详情</div>
-                <el-divider direction="vertical" />
-                <div @click="handleOfflineConfirm" class="cursor">下架应用</div>
-                <el-divider direction="vertical" />
-                <div class="bottom-more">
-                    <el-dropdown placement="top-start">
-                        <div>更多</div>
-                        <template #dropdown>
-                            <el-dropdown-menu>
-                                <el-dropdown-item @click="exportIdentity">导出身份</el-dropdown-item>
-                            </el-dropdown-menu>
-                        </template>
-                    </el-dropdown>
-                </div>
+            <div class="bottom owner">
+                <div @click.stop="goUse" class="cursor">立即使用</div>
+                <el-divider v-if="!isOwner" direction="vertical" />
+                <div v-if="!isOwner" @click.stop="applyUse()" class="cursor">申请使用</div>
             </div>
         </div>
         <!-- 我的创建 -->
@@ -236,17 +220,26 @@ const applicationCodeText = computed(() => {
     }
     return codeMap[code] || code
 })
-const serviceCodeText = computed(() => {
+const dependencyText = computed(() => {
     const raw = props.detail?.serviceCodes
     const codes = Array.isArray(raw)
         ? raw.map((item) => String(item).trim()).filter(Boolean)
         : typeof raw === 'string'
           ? raw.split(',').map((item) => item.trim()).filter(Boolean)
           : []
-    if (codes.length === 0) {
+    const names = codes
+        .map((code) => {
+            if (code.startsWith('SERVICE_CODE_')) {
+                return serviceCodeMap[code] || code
+            }
+            return code
+        })
+        .filter(Boolean)
+    if (names.length === 0) {
         return '-'
     }
-    return codes.map((code) => serviceCodeMap[code] || code).join('、')
+    const preview = names.slice(0, 2).join('、')
+    return names.length > 2 ? `${preview}...` : preview
 })
 
 const writeClipboardText = async (value: string) => {
@@ -405,6 +398,38 @@ const toDetail = () => {
         }
     })
 }
+
+const normalizeLocationUrl = (value: unknown) => {
+    const raw = String(value || '').trim()
+    if (!raw) {
+        return ''
+    }
+    try {
+        return new URL(raw).toString()
+    } catch {
+        try {
+            return new URL(`http://${raw}`).toString()
+        } catch {
+            return ''
+        }
+    }
+}
+
+const goUse = () => {
+    const target = normalizeLocationUrl(props.detail?.location)
+    if (!target) {
+        notifyError('❌应用未配置可访问地址')
+        return
+    }
+    window.location.href = target
+}
+
+const handleCardClick = () => {
+    if (props.pageFrom !== 'market') {
+        return
+    }
+    toDetail()
+}
 const toList = () => {
     innerVisible.value = false
 }
@@ -529,6 +554,9 @@ if (props.pageFrom === 'myApply') {
     .top {
         display: flex;
         gap: 16px;
+        &.clickable {
+            cursor: pointer;
+        }
         .top-left {
         }
         .top-right {

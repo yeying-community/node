@@ -90,17 +90,17 @@
                         </el-col>
                     </el-row>
 
-                    <el-form-item label="依赖能力（可选）">
+                    <el-form-item label="依赖应用（可选）">
                         <el-select
                             v-model="detailInfo.serviceCodes"
-                            placeholder="可选：按应用实际依赖选择"
+                            placeholder="可选：按实际依赖选择应用"
                             multiple
                         >
                             <el-option
-                                v-for="(label, code) in serviceCodeMap"
-                                :key="String(code)"
-                                :label="label"
-                                :value="String(code)"
+                                v-for="option in dependencyOptions"
+                                :key="option.value"
+                                :label="option.label"
+                                :value="option.value"
                             />
                         </el-select>
                     </el-form-item>
@@ -150,7 +150,7 @@ import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'elem
 import { Upload } from '@element-plus/icons-vue'
 import BreadcrumbHeader from '@/views/components/BreadcrumbHeader.vue'
 import Uploader from '@/components/common/Uploader.vue'
-import $application, { type ApplicationMetadata, codeMap, serviceCodeMap } from '@/plugins/application'
+import $application, { type ApplicationMetadata, codeMap } from '@/plugins/application'
 import $audit from '@/plugins/audit'
 import { generateIdentity } from '@/plugins/account'
 import { getCurrentAccount } from '@/plugins/auth'
@@ -174,6 +174,11 @@ type ApplicationPreset = {
     }
 }
 
+type DependencyOption = {
+    label: string
+    value: string
+}
+
 const presets: ApplicationPreset[] = [
     {
         key: 'chat',
@@ -183,7 +188,7 @@ const presets: ApplicationPreset[] = [
             name: 'Chat',
             description: '多模态 AI 聊天应用',
             code: 'APPLICATION_CODE_CHAT',
-            serviceCodes: ['SERVICE_CODE_AGENT', 'SERVICE_CODE_WAREHOUSE', 'SERVICE_CODE_MCP'],
+            serviceCodes: [],
             location: 'http://localhost:3020',
             codePackagePath: '../chat'
         }
@@ -196,7 +201,7 @@ const presets: ApplicationPreset[] = [
             name: 'Router',
             description: '统一模型网关与管理后台，提供标准 API 路由与鉴权能力。',
             code: 'APPLICATION_CODE_ROUTER',
-            serviceCodes: ['SERVICE_CODE_NODE', 'SERVICE_CODE_MCP'],
+            serviceCodes: [],
             location: 'http://localhost:5181',
             codePackagePath: '../router'
         }
@@ -209,7 +214,7 @@ const presets: ApplicationPreset[] = [
             name: 'Warehouse',
             description: 'Web3 数据与文件仓储服务，提供存储能力与身份认证能力。',
             code: 'APPLICATION_CODE_WAREHOUSE',
-            serviceCodes: ['SERVICE_CODE_WAREHOUSE'],
+            serviceCodes: [],
             location: 'http://localhost:6065',
             codePackagePath: '../warehouse'
         }
@@ -251,6 +256,7 @@ const formRef = ref<FormInstance>()
 const avatarList = ref<Array<Record<string, unknown>>>([])
 const codeList = ref<Array<Record<string, unknown>>>([])
 const imageUrl = ref(`${prefixURL}/${defaultAvatar}`)
+const dependencyOptions = ref<DependencyOption[]>([])
 
 const detailInfo = ref<ApplicationMetadata>({
     name: '',
@@ -363,6 +369,42 @@ async function getDetailInfo() {
     codeList.value = res.codePackagePath
         ? [{ name: String(res.codePackageName || res.name || 'package'), url: String(res.codePackagePath) }]
         : []
+}
+
+async function loadDependencyOptions() {
+    const currentUid = String(route.query.uid || '').trim()
+    const options = new Set<string>()
+    try {
+        const onlineApps = await $application.search(
+            {
+                status: 'BUSINESS_STATUS_ONLINE'
+            },
+            1,
+            500
+        )
+        if (Array.isArray(onlineApps)) {
+            for (const app of onlineApps) {
+                const uid = String(app?.uid || '').trim()
+                const name = String(app?.name || '').trim()
+                if (!name) {
+                    continue
+                }
+                if (currentUid && uid && uid === currentUid) {
+                    continue
+                }
+                options.add(name)
+            }
+        }
+    } catch {
+        // ignore and keep fallback options from current values
+    }
+    for (const value of toServiceCodeArray(detailInfo.value.serviceCodes)) {
+        options.add(value)
+    }
+    dependencyOptions.value = Array.from(options).map((value) => ({
+        label: value,
+        value
+    }))
 }
 
 function buildSubmitParams(account: string): ApplicationMetadata & { codeType?: string } {
@@ -518,7 +560,10 @@ function changeFileCode(uploadFile: Record<string, unknown>) {
 }
 
 onMounted(() => {
-    void getDetailInfo()
+    void (async () => {
+        await getDetailInfo()
+        await loadDependencyOptions()
+    })()
 })
 </script>
 
