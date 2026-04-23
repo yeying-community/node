@@ -482,8 +482,17 @@ const toDelete = async () => {
 }
 
 const toList = () => {
+    if (pageFrom === 'myCreate' || pageFrom === 'myApply') {
+        router.push({
+            path: '/market/my-apps',
+            query: {
+                tab: pageFrom
+            }
+        })
+        return
+    }
     router.push({
-        path: '/market'
+        path: '/market/'
     })
 }
 const closeInnerModal = () => {

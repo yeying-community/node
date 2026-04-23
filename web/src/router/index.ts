@@ -41,6 +41,11 @@ export const routes = [
         children: [
             {
                 path: '',
+                name: 'appCenter',
+                component: () => import('../views/apply/AppCenterView.vue')
+            },
+            {
+                path: 'my-apps',
                 name: 'apply',
                 component: () => import('../views/apply/ApplyView.vue')
             },

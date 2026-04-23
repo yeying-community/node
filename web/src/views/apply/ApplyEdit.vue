@@ -616,7 +616,7 @@ async function submitPublishRequest(application: ApplicationMetadata) {
 }
 
 function toList() {
-    router.push({ path: '/market' })
+    router.push({ path: '/market/my-apps', query: { tab: 'myCreate' } })
 }
 
 function cancelForm() {
