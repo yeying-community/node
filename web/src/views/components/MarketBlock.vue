@@ -36,7 +36,10 @@
                 </div>
                 <div class="meta">
                     <span>分类：{{ applicationCodeText }}</span>
-                    <span v-if="dependencyText !== '-'">依赖：{{ dependencyText }}</span>
+                    <span v-if="pageFrom !== 'market'">依赖：{{ dependencyText }}</span>
+                </div>
+                <div v-if="pageFrom === 'market'" class="meta">
+                    <span>依赖：{{ dependencyText }}</span>
                 </div>
                 <div class="desc">
                     {{ detail.description }}
@@ -164,6 +167,7 @@ import $application, {
     ApplicationMetadata,
     businessStatusMap,
     codeMap,
+    filterLegacyDependencies,
     resolveBusinessStatus,
     serviceCodeMap
 } from '@/plugins/application'
@@ -222,11 +226,13 @@ const applicationCodeText = computed(() => {
 })
 const dependencyText = computed(() => {
     const raw = props.detail?.serviceCodes
-    const codes = Array.isArray(raw)
-        ? raw.map((item) => String(item).trim()).filter(Boolean)
-        : typeof raw === 'string'
-          ? raw.split(',').map((item) => item.trim()).filter(Boolean)
-          : []
+    const codes = filterLegacyDependencies(
+        Array.isArray(raw)
+            ? raw.map((item) => String(item).trim()).filter(Boolean)
+            : typeof raw === 'string'
+              ? raw.split(',').map((item) => item.trim()).filter(Boolean)
+              : []
+    )
     const names = codes
         .map((code) => {
             if (code.startsWith('SERVICE_CODE_')) {

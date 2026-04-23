@@ -43,10 +43,8 @@ export const codeMapTrans = {
 
 export const serviceCodeMapTrans = {
   0: 'SERVICE_CODE_UNKNOWN',
-  1: 'SERVICE_CODE_NODE',
   2: 'SERVICE_CODE_WAREHOUSE',
-  3: 'SERVICE_CODE_AGENT',
-  4: 'SERVICE_CODE_MCP'
+  3: 'SERVICE_CODE_AGENT'
 }
 
 export const codeMap = {
@@ -64,10 +62,26 @@ export const codeMap = {
 
 export const serviceCodeMap = {
   SERVICE_CODE_UNKNOWN: '未知',
-  SERVICE_CODE_NODE: '网络节点供应商',
   SERVICE_CODE_WAREHOUSE: '仓储服务供应商',
-  SERVICE_CODE_AGENT: '智能体供应商',
-  SERVICE_CODE_MCP: '模型上下文供应商'
+  SERVICE_CODE_AGENT: '智能体供应商'
+}
+
+const legacyServiceCodeSet = new Set(['SERVICE_CODE_NODE', 'SERVICE_CODE_MCP'])
+const legacyServiceLabelSet = new Set(['网络节点供应商', '模型上下文供应商'])
+
+export function isLegacyDependencyValue(value: unknown): boolean {
+  const text = String(value || '').trim()
+  if (!text) {
+    return false
+  }
+  if (legacyServiceCodeSet.has(text.toUpperCase())) {
+    return true
+  }
+  return legacyServiceLabelSet.has(text)
+}
+
+export function filterLegacyDependencies(values: string[]): string[] {
+  return values.filter((item) => !isLegacyDependencyValue(item))
 }
 
 export interface ApplicationMetadata {
@@ -116,8 +130,9 @@ export type ApplicationConfigItem = {
 }
 
 function toServiceCodes(value: unknown): string[] {
+  const normalize = (item: unknown) => String(item).trim()
   if (Array.isArray(value)) {
-    return value.map((item) => String(item)).filter((item) => item.length > 0)
+    return filterLegacyDependencies(value.map(normalize).filter((item) => item.length > 0))
   }
   if (value === undefined || value === null) {
     return []
@@ -126,10 +141,12 @@ function toServiceCodes(value: unknown): string[] {
   if (!text) {
     return []
   }
-  return text
-    .split(',')
-    .map((item) => item.trim())
-    .filter((item) => item.length > 0)
+  return filterLegacyDependencies(
+    text
+      .split(',')
+      .map((item) => item.trim())
+      .filter((item) => item.length > 0)
+  )
 }
 
 function toServiceCodesString(value: unknown): string {

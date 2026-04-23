@@ -161,6 +161,7 @@ import $application, {
     ApplicationMetadata,
     businessStatusMap,
     codeMap,
+    filterLegacyDependencies,
     resolveBusinessStatus,
     serviceCodeMap
 } from '@/plugins/application'
@@ -231,11 +232,13 @@ const applicationCodeText = computed(() => {
 
 const dependencyText = computed(() => {
     const raw = detailInfo.value.serviceCodes
-    const codes = Array.isArray(raw)
-        ? raw.map((item) => String(item).trim()).filter(Boolean)
-        : typeof raw === 'string'
-          ? raw.split(',').map((item) => item.trim()).filter(Boolean)
-          : []
+    const codes = filterLegacyDependencies(
+        Array.isArray(raw)
+            ? raw.map((item) => String(item).trim()).filter(Boolean)
+            : typeof raw === 'string'
+              ? raw.split(',').map((item) => item.trim()).filter(Boolean)
+              : []
+    )
     const names = codes
         .map((code) => {
             if (code.startsWith('SERVICE_CODE_')) {

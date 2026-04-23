@@ -150,7 +150,7 @@ import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'elem
 import { Upload } from '@element-plus/icons-vue'
 import BreadcrumbHeader from '@/views/components/BreadcrumbHeader.vue'
 import Uploader from '@/components/common/Uploader.vue'
-import $application, { type ApplicationMetadata, codeMap } from '@/plugins/application'
+import $application, { type ApplicationMetadata, codeMap, filterLegacyDependencies } from '@/plugins/application'
 import $audit from '@/plugins/audit'
 import { generateIdentity } from '@/plugins/account'
 import { getCurrentAccount } from '@/plugins/auth'
@@ -168,7 +168,6 @@ type ApplicationPreset = {
         name: string
         description: string
         code: string
-        serviceCodes: string[]
         location: string
         codePackagePath: string
     }
@@ -188,7 +187,6 @@ const presets: ApplicationPreset[] = [
             name: 'Chat',
             description: '多模态 AI 聊天应用',
             code: 'APPLICATION_CODE_CHAT',
-            serviceCodes: [],
             location: 'http://localhost:3020',
             codePackagePath: '../chat'
         }
@@ -201,7 +199,6 @@ const presets: ApplicationPreset[] = [
             name: 'Router',
             description: '统一模型网关与管理后台，提供标准 API 路由与鉴权能力。',
             code: 'APPLICATION_CODE_ROUTER',
-            serviceCodes: [],
             location: 'http://localhost:5181',
             codePackagePath: '../router'
         }
@@ -214,7 +211,6 @@ const presets: ApplicationPreset[] = [
             name: 'Warehouse',
             description: 'Web3 数据与文件仓储服务，提供存储能力与身份认证能力。',
             code: 'APPLICATION_CODE_WAREHOUSE',
-            serviceCodes: [],
             location: 'http://localhost:6065',
             codePackagePath: '../warehouse'
         }
@@ -227,7 +223,6 @@ const presets: ApplicationPreset[] = [
             name: '',
             description: '',
             code: 'APPLICATION_CODE_UNKNOWN',
-            serviceCodes: [],
             location: '',
             codePackagePath: ''
         }
@@ -284,15 +279,19 @@ const rules = reactive<FormRules>({
 
 function toServiceCodeArray(value: unknown): string[] {
     if (Array.isArray(value)) {
-        return value.map((item) => String(item)).filter((item) => item.trim().length > 0)
+        return filterLegacyDependencies(
+            value.map((item) => String(item).trim()).filter((item) => item.length > 0)
+        )
     }
     if (value === undefined || value === null) {
         return []
     }
-    return String(value)
-        .split(',')
-        .map((item) => item.trim())
-        .filter((item) => item.length > 0)
+    return filterLegacyDependencies(
+        String(value)
+            .split(',')
+            .map((item) => item.trim())
+            .filter((item) => item.length > 0)
+    )
 }
 
 function detectPreset(app: ApplicationMetadata): PresetKey {
@@ -321,7 +320,6 @@ function applyPreset(key: PresetKey) {
         name: preset.defaults.name,
         description: preset.defaults.description,
         code: preset.defaults.code,
-        serviceCodes: [...preset.defaults.serviceCodes],
         location: preset.defaults.location,
         codePackagePath: preset.defaults.codePackagePath
     }
