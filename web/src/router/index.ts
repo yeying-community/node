@@ -45,29 +45,39 @@ export const routes = [
                 component: () => import('../views/apply/AppCenterView.vue')
             },
             {
-                path: 'my-apps',
-                name: 'apply',
-                component: () => import('../views/apply/ApplyView.vue')
-            },
-            {
-                path: 'apply-edit',
-                name: 'applyEdit',
-                component: () => import('../views/apply/ApplyEdit.vue')
-            },
-            {
-                path: 'apply-detail',
-                name: 'applyDetail',
-                component: () => import('../views/apply/ApplyDetail.vue')
-            },
-            {
-                path: 'approval',
-                name: 'approval',
-                component: () => import('../views/apply/ApprovalView.vue')
-            },
-            {
-                path: 'my-config',
-                name: 'myConfig',
-                component: () => import('../views/apply/MyConfigView.vue')
+                path: 'dev',
+                component: () => import('../views/apply/Main.vue'),
+                children: [
+                    {
+                        path: '',
+                        redirect: '/market/dev/my-apps'
+                    },
+                    {
+                        path: 'my-apps',
+                        name: 'apply',
+                        component: () => import('../views/apply/ApplyView.vue')
+                    },
+                    {
+                        path: 'apply-edit',
+                        name: 'applyEdit',
+                        component: () => import('../views/apply/ApplyEdit.vue')
+                    },
+                    {
+                        path: 'apply-detail',
+                        name: 'applyDetail',
+                        component: () => import('../views/apply/ApplyDetail.vue')
+                    },
+                    {
+                        path: 'approval',
+                        name: 'approval',
+                        component: () => import('../views/apply/ApprovalView.vue')
+                    },
+                    {
+                        path: 'my-config',
+                        name: 'myConfig',
+                        component: () => import('../views/apply/MyConfigView.vue')
+                    }
+                ]
             }
         ]
     }

@@ -227,9 +227,9 @@ const appIdText = computed(() => {
 const applicationCodeText = computed(() => {
     const code = String(detailInfo.value.code || '').trim()
     if (!code) {
-        return '-'
+        return '未分类'
     }
-    return codeMap[code] || code
+    return codeMap[code] || '未分类'
 })
 
 const dependencyText = computed(() => {
@@ -484,7 +484,7 @@ const toDelete = async () => {
 const toList = () => {
     if (pageFrom === 'myCreate' || pageFrom === 'myApply') {
         router.push({
-            path: '/market/my-apps',
+            path: '/market/dev/my-apps',
             query: {
                 tab: pageFrom
             }
@@ -503,7 +503,7 @@ const closeInnerModal = () => {
  */
 const toEdit = () => {
     router.push({
-        path: '/market/apply-edit',
+        path: '/market/dev/apply-edit',
         query: {
             uid: applyUid
         }

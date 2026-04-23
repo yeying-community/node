@@ -22,7 +22,7 @@
 
             <el-table-column prop="code" label="分类" width="150">
                 <template #default="scope">
-                    {{ codeMap[String(scope.row.code || '').trim()] || scope.row.code || '-' }}
+                    {{ codeMap[String(scope.row.code || '').trim()] || '未分类' }}
                 </template>
             </el-table-column>
 
@@ -226,7 +226,7 @@ const refreshList = () => {
 
 const toDetail = (row: ApplicationMetadata) => {
     router.push({
-        path: '/market/apply-detail',
+        path: '/market/dev/apply-detail',
         query: {
             uid: row.uid,
             pageFrom: props.pageFrom,
@@ -237,7 +237,7 @@ const toDetail = (row: ApplicationMetadata) => {
 
 const toEdit = (row: ApplicationMetadata) => {
     router.push({
-        path: '/market/apply-edit',
+        path: '/market/dev/apply-edit',
         query: {
             uid: row.uid
         }

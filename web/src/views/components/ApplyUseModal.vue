@@ -159,7 +159,7 @@ const submitForm = () => {
 
 const toDetail = () => {
   router.push({
-    path: '/market/apply-detail',
+    path: '/market/dev/apply-detail',
     query: {
       uid: submittedResourceUid.value || props.detail?.uid,
       pageFrom: 'myApply',

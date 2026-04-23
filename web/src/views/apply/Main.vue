@@ -41,7 +41,7 @@
 <script lang="ts" setup>
 import { onMounted, ref, watch } from "vue";
 import { useRouter, useRoute } from "vue-router";
-import { Menu, Tickets, Document, Setting, Expand, Fold } from "@element-plus/icons-vue";
+import { Tickets, Document, Setting, Expand, Fold } from "@element-plus/icons-vue";
 
 const SIDEBAR_COLLAPSED_KEY = "market:sidebar:collapsed";
 
@@ -51,17 +51,16 @@ const selectName = ref("");
 const isCollapsed = ref(false);
 
 const navigation = [
-  { title: "应用中心", to: "/market/", name: "appCenter", icon: Menu },
-  { title: "我的应用", to: "/market/my-apps/", name: "apply", icon: Tickets },
+  { title: "我的应用", to: "/market/dev/my-apps/", name: "apply", icon: Tickets },
   {
     title: "我的审批",
-    to: "/market/approval/",
+    to: "/market/dev/approval/",
     name: "approval",
     icon: Document,
   },
   {
     title: "我的配置",
-    to: "/market/my-config/",
+    to: "/market/dev/my-config/",
     name: "myConfig",
     icon: Setting,
   }
@@ -69,20 +68,8 @@ const navigation = [
 
 const resolveActiveName = (currentRoute: typeof route) => {
   const name = String(currentRoute?.name || "");
-  if (name === "applyDetail") {
-    const pageFrom = String(currentRoute?.query?.pageFrom || "").trim();
-    if (pageFrom === "market") {
-      return "appCenter";
-    }
-    if (pageFrom === "myCreate" || pageFrom === "myApply") {
-      return "apply";
-    }
-  }
-  if (name === "applyEdit" || name === "apply") {
+  if (name === "applyDetail" || name === "applyEdit" || name === "apply") {
     return "apply";
-  }
-  if (name === "appCenter") {
-    return "appCenter";
   }
   if (name === "approval") {
     return "approval";

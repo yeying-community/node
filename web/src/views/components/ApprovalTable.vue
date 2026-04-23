@@ -142,7 +142,7 @@ const handleDetail = (row: AuditDetailBox) => {
     if (row.targetVersion !== undefined && row.targetVersion !== null) {
         query.version = String(row.targetVersion)
     }
-    router.push({ path: '/market/apply-detail', query })
+    router.push({ path: '/market/dev/apply-detail', query })
 }
 
 const closeClick = () => {

@@ -8,7 +8,7 @@
                 <div class="name">{{ detail.name }}</div>
                 <div v-if="businessStatus !== 'BUSINESS_STATUS_UNKNOWN'" class="badge-info">
                     <template v-if="pageFrom === 'market'">
-                        <span class="badge-text">上架于 {{ marketPublishedDateText }}</span>
+                        <span class="badge-text badge-text-market">{{ marketPublishedDateText }}</span>
                     </template>
                     <template v-else>
                         <el-badge is-dot :type="businessInfo.type" />
@@ -36,10 +36,7 @@
                 </div>
                 <div class="meta">
                     <span>分类：{{ applicationCodeText }}</span>
-                    <span v-if="pageFrom !== 'market'">依赖：{{ dependencyText }}</span>
-                </div>
-                <div v-if="pageFrom === 'market'" class="meta">
-                    <span>依赖：{{ dependencyText }}</span>
+                    <span>版本：{{ versionText }}</span>
                 </div>
                 <div class="desc">
                     {{ detail.description }}
@@ -167,9 +164,7 @@ import $application, {
     ApplicationMetadata,
     businessStatusMap,
     codeMap,
-    filterLegacyDependencies,
-    resolveBusinessStatus,
-    serviceCodeMap
+    resolveBusinessStatus
 } from '@/plugins/application'
 import { notifyError, notifySuccess } from '@/utils/message'
 import { getCurrentAccount } from '@/plugins/auth'
@@ -222,32 +217,19 @@ const applicationCodeText = computed(() => {
     if (!code) {
         return '未分类'
     }
-    return codeMap[code] || code
+    return codeMap[code] || '未分类'
 })
-const dependencyText = computed(() => {
-    const raw = props.detail?.serviceCodes
-    const codes = filterLegacyDependencies(
-        Array.isArray(raw)
-            ? raw.map((item) => String(item).trim()).filter(Boolean)
-            : typeof raw === 'string'
-              ? raw.split(',').map((item) => item.trim()).filter(Boolean)
-              : []
-    )
-    const names = codes
-        .map((code) => {
-            if (code.startsWith('SERVICE_CODE_')) {
-                return serviceCodeMap[code] || code
-            }
-            return code
-        })
-        .filter(Boolean)
-    if (names.length === 0) {
+const versionText = computed(() => {
+    const raw = props.detail?.version
+    if (raw === undefined || raw === null || raw === '') {
         return '-'
     }
-    const preview = names.slice(0, 2).join('、')
-    return names.length > 2 ? `${preview}...` : preview
+    const parsed = Number(raw)
+    if (Number.isFinite(parsed) && parsed > 0) {
+        return `v${parsed}`
+    }
+    return String(raw)
 })
-
 const writeClipboardText = async (value: string) => {
     if (navigator?.clipboard?.writeText) {
         await navigator.clipboard.writeText(value)
@@ -375,7 +357,7 @@ const toDelete = async () => {
 
 const toEdit = async () => {
     router.push({
-        path: '/market/apply-edit',
+        path: '/market/dev/apply-edit',
         query: {
             uid: props.detail?.uid
         }
@@ -396,7 +378,7 @@ const exportIdentity = async () => {
 
 const toDetail = () => {
     router.push({
-        path: '/market/apply-detail',
+        path: '/market/dev/apply-detail',
         query: {
             uid: props.detail?.uid,
             pageFrom: props.pageFrom,
@@ -621,16 +603,26 @@ if (props.pageFrom === 'myApply') {
 
             .badge-info {
                 position: absolute;
-                right: 0px;
-                top: 0px;
+                right: 0;
+                top: 0;
+                width: 100%;
+                display: inline-flex;
+                align-items: center;
+                justify-content: flex-end;
                 .el-badge {
-                    margin-top: 5px;
+                    margin-top: 0;
                 }
             }
 
             .badge-text {
                 font-size: 13px;
-                margin: -15px 0 0 8px;
+                margin-left: 8px;
+                line-height: 1.2;
+            }
+
+            .badge-text-market {
+                margin-left: 0;
+                text-align: right;
             }
         }
     }

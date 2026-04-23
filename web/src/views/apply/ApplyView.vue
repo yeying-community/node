@@ -18,7 +18,7 @@
                         </el-icon>
                     </template>
                 </el-input>
-                <el-button v-if="activeService === 'myCreate'" type="primary" size="large" @click="changeRouter('/market/apply-edit')">
+                <el-button v-if="activeService === 'myCreate'" type="primary" size="large" @click="changeRouter('/market/dev/apply-edit')">
                     创建应用
                 </el-button>
             </div>

@@ -1,27 +1,5 @@
 <template>
     <div class="app-center">
-        <el-breadcrumb separator="/">
-            <el-breadcrumb-item>应用中心</el-breadcrumb-item>
-        </el-breadcrumb>
-
-        <div class="toolbar">
-            <el-input
-                v-model="keyword"
-                size="large"
-                placeholder="搜索应用名称/作者地址"
-                @keyup.enter="search"
-            >
-                <template #suffix>
-                    <el-icon class="el-input__icon search-icon" @click="search">
-                        <Search />
-                    </el-icon>
-                </template>
-            </el-input>
-            <el-button type="primary" size="large" @click="changeRouter('/market/apply-edit')">
-                创建应用
-            </el-button>
-        </div>
-
         <div class="item-group">
             <template v-for="(app, index) in applicationList" :key="index + app.name">
                 <MarketBlock :detail="app" :refreshCardList="search" pageFrom="market" />
@@ -31,17 +9,16 @@
 </template>
 
 <script lang="ts" setup>
-import { onMounted, ref } from 'vue'
-import { Search } from '@element-plus/icons-vue'
-import { useRouter, RouteLocationAsPathGeneric, RouteLocationAsRelativeGeneric } from 'vue-router'
+import { computed, ref, watch } from 'vue'
+import { useRoute } from 'vue-router'
 import $application, { type ApplicationMetadata } from '@/plugins/application'
 import MarketBlock from '@/views/components/MarketBlock.vue'
 import { notifyError } from '@/utils/message'
 import { getCurrentAccount } from '@/plugins/auth'
 
-const router = useRouter()
-const keyword = ref('')
+const route = useRoute()
 const applicationList = ref<ApplicationMetadata[]>([])
+const keyword = computed(() => String(route.query.keyword || '').trim())
 
 const search = async () => {
     try {
@@ -64,13 +41,13 @@ const search = async () => {
     }
 }
 
-const changeRouter = (url: string | RouteLocationAsRelativeGeneric | RouteLocationAsPathGeneric) => {
-    router.push(url)
-}
-
-onMounted(() => {
-    void search()
-})
+watch(
+    () => route.query.keyword,
+    () => {
+        void search()
+    },
+    { immediate: true }
+)
 </script>
 
 <style scoped lang="less">
@@ -78,24 +55,10 @@ onMounted(() => {
     margin: 20px;
 }
 
-.toolbar {
-    margin-top: 20px;
-    padding: 12px;
-    background: white;
-    display: flex;
-    gap: 16px;
-}
-
 .item-group {
-    margin-top: 16px;
+    margin-top: 20px;
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
     gap: 20px;
-}
-
-@media (max-width: 768px) {
-    .toolbar {
-        flex-direction: column;
-    }
 }
 </style>
