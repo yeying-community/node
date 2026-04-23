@@ -37,11 +37,17 @@
             <el-tabs v-model="activeService" class="demo-tabs" @tab-click="handleTabClick">
                 <template v-for="item in tabs" :key="item.name">
                     <el-tab-pane :label="item.title" :name="item.name">
-                        <div class="item-group">
+                        <div v-if="item.name === 'market'" class="item-group">
                             <template v-for="(app, index) in applicationList" :key="index + app.name">
                                 <MarketBlock :detail="app" :refreshCardList="search" :pageFrom="activeService" />
                             </template>
                         </div>
+                        <ApplicationListTable
+                            v-else
+                            :items="applicationList"
+                            :page-from="item.name"
+                            :refresh-list="search"
+                        />
                     </el-tab-pane>
                 </template>
             </el-tabs>
@@ -64,6 +70,7 @@ import { onMounted, ref, watch } from 'vue'
 import { Search } from '@element-plus/icons-vue'
 import $application, { ApplicationMetadata, businessStatusOptions } from '@/plugins/application'
 import MarketBlock from '@/views/components/MarketBlock.vue'
+import ApplicationListTable from '@/views/components/ApplicationListTable.vue'
 import { useRouter, RouteLocationAsPathGeneric, RouteLocationAsRelativeGeneric } from 'vue-router'
 import { notifyError } from '@/utils/message'
 import { getCurrentAccount } from '@/plugins/auth'

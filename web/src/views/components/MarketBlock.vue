@@ -17,7 +17,7 @@
                 </div>
                 <div class="title" v-if="pageFrom !== 'market' || pageFrom === 'myCreate' || !ownerAddress">
                     <span v-if="pageFrom === 'myCreate' || !ownerAddress">
-                        <el-tag type="primary" size="small">官方</el-tag>
+                        <el-tag type="primary" size="small">社区</el-tag>
                     </span>
                     <span v-if="pageFrom !== 'market'">
                         {{ pageFrom === 'myCreate' || !isOnline ? '创建于' : '上架于' }}
