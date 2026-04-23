@@ -25,6 +25,7 @@ export interface ApplicationDetail {
   location: string
   code: string
   serviceCodes: string[]
+  redirectUris: string[]
   avatar: string
   owner: string
   ownerName: string
@@ -96,6 +97,7 @@ export interface ApplicationMetadata {
   description?: string
   location?: string
   serviceCodes?: string[]
+  redirectUris?: string[]
   avatar?: string
   createdAt?: string
   updatedAt?: string
@@ -153,16 +155,54 @@ function toServiceCodesString(value: unknown): string {
   return toServiceCodes(value).join(',')
 }
 
+function toRedirectUris(value: unknown): string[] {
+  const normalize = (item: unknown) => String(item || '').trim()
+  if (Array.isArray(value)) {
+    return Array.from(new Set(value.map((item) => normalize(item)).filter((item) => item.length > 0)))
+  }
+  if (value === undefined || value === null) {
+    return []
+  }
+  const raw = String(value).trim()
+  if (!raw) {
+    return []
+  }
+  if (raw.startsWith('[')) {
+    try {
+      const parsed = JSON.parse(raw)
+      if (Array.isArray(parsed)) {
+        return Array.from(
+          new Set(parsed.map((item) => normalize(item)).filter((item) => item.length > 0))
+        )
+      }
+    } catch {
+      // fallback to split mode
+    }
+  }
+  return Array.from(
+    new Set(
+      raw
+        .split(/[\n,]/)
+        .map((item) => item.trim())
+        .filter((item) => item.length > 0)
+    )
+  )
+}
+
 function normalizeApplication<T extends Record<string, unknown>>(
   app: T | null | undefined
 ): T | null | undefined {
   if (!app) {
     return app
   }
+  const normalized: Record<string, unknown> = { ...app }
   if ('serviceCodes' in app) {
-    return { ...app, serviceCodes: toServiceCodes(app.serviceCodes) }
+    normalized.serviceCodes = toServiceCodes(app.serviceCodes)
   }
-  return app
+  if ('redirectUris' in app) {
+    normalized.redirectUris = toRedirectUris(app.redirectUris)
+  }
+  return normalized as T
 }
 
 function ensureWalletConnected() {
@@ -230,6 +270,7 @@ function buildApplicationCreateBody(params: ApplicationMetadata, actor: string) 
     code: String(params.code || 'APPLICATION_CODE_UNKNOWN'),
     location: String(params.location || ''),
     serviceCodes: toServiceCodesString(params.serviceCodes),
+    redirectUris: toRedirectUris(params.redirectUris),
     avatar: String(params.avatar || ''),
     codePackagePath: String(params.codePackagePath || '')
   }
@@ -249,6 +290,7 @@ function buildApplicationCreatePayload(body: ReturnType<typeof buildApplicationC
     code: body.code,
     location: body.location,
     serviceCodes: body.serviceCodes,
+    redirectUris: body.redirectUris,
     avatar: body.avatar,
     codePackagePath: body.codePackagePath
   }
@@ -263,6 +305,7 @@ function buildApplicationUpdateBody(patch: Partial<ApplicationMetadata>) {
     ...(patch.serviceCodes !== undefined
       ? { serviceCodes: toServiceCodesString(patch.serviceCodes) }
       : {}),
+    ...(patch.redirectUris !== undefined ? { redirectUris: toRedirectUris(patch.redirectUris) } : {}),
     ...(patch.avatar !== undefined ? { avatar: String(patch.avatar || '') } : {}),
     ...(patch.codePackagePath !== undefined
       ? { codePackagePath: String(patch.codePackagePath || '') }

@@ -26,6 +26,57 @@ function toServiceCodes(value: unknown): string {
   return String(value);
 }
 
+function toRedirectUriArray(value: unknown): string[] {
+  const normalize = (input: unknown) => String(input ?? '').trim();
+  const deduped = new Set<string>();
+  const collect = (input: unknown) => {
+    const normalized = normalize(input);
+    if (!normalized) return;
+    deduped.add(normalized);
+  };
+
+  if (Array.isArray(value)) {
+    value.forEach((item) => collect(item));
+    return [...deduped];
+  }
+
+  if (value === undefined || value === null) {
+    return [];
+  }
+
+  const raw = normalize(value);
+  if (!raw) {
+    return [];
+  }
+
+  if (raw.startsWith('[')) {
+    try {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) {
+        parsed.forEach((item) => collect(item));
+        return [...deduped];
+      }
+    } catch {
+      // fallback to split mode
+    }
+  }
+
+  raw
+    .split(/[\n,]/)
+    .map((item) => item.trim())
+    .filter(Boolean)
+    .forEach((item) => collect(item));
+  return [...deduped];
+}
+
+function toRedirectUrisStorage(value: unknown): string {
+  const uris = toRedirectUriArray(value);
+  if (uris.length === 0) {
+    return '';
+  }
+  return JSON.stringify(uris);
+}
+
 function normalizeApplicationConfig(input: unknown): Array<{ code: string; instance: string }> {
   const items = Array.isArray(input) ? input : [];
   const normalized: Array<{ code: string; instance: string }> = [];
@@ -185,6 +236,7 @@ export function registerPublicApplicationRoutes(app: Express) {
         code: String(body.code || 'APPLICATION_CODE_UNKNOWN'),
         location: String(body.location || ''),
         serviceCodes: toServiceCodes(body.serviceCodes),
+        redirectUris: toRedirectUriArray(body.redirectUris),
         avatar: String(body.avatar || ''),
         codePackagePath: String(body.codePackagePath || ''),
       };
@@ -218,6 +270,7 @@ export function registerPublicApplicationRoutes(app: Express) {
             code: body.code || 'APPLICATION_CODE_UNKNOWN',
             location: body.location || '',
             serviceCodes: toServiceCodes(body.serviceCodes),
+            redirectUris: toRedirectUrisStorage(body.redirectUris),
             avatar: body.avatar || '',
             createdAt: body.createdAt || now,
             updatedAt: now,
@@ -267,6 +320,10 @@ export function registerPublicApplicationRoutes(app: Express) {
             body.serviceCodes !== undefined && body.serviceCodes !== null
               ? toServiceCodes(body.serviceCodes)
               : undefined,
+          redirectUris:
+            body.redirectUris !== undefined && body.redirectUris !== null
+              ? toRedirectUriArray(body.redirectUris)
+              : undefined,
           avatar: body.avatar !== undefined && body.avatar !== null ? String(body.avatar) : undefined,
           codePackagePath:
             body.codePackagePath !== undefined && body.codePackagePath !== null
@@ -290,6 +347,10 @@ export function registerPublicApplicationRoutes(app: Express) {
             location: body.location ?? existing.location,
             code: body.code ?? existing.code,
             serviceCodes: body.serviceCodes !== undefined ? toServiceCodes(body.serviceCodes) : existing.serviceCodes,
+            redirectUris:
+              body.redirectUris !== undefined
+                ? toRedirectUrisStorage(body.redirectUris)
+                : existing.redirectUris || '',
             avatar: body.avatar ?? existing.avatar,
             codePackagePath: body.codePackagePath ?? existing.codePackagePath,
             updatedAt: now,

@@ -28,6 +28,7 @@ export interface Application {
     code: string
     location: string
     serviceCodes: string
+    redirectUris: string
     avatar: string
     createdAt: string
     updatedAt: string
@@ -63,6 +64,7 @@ export function convertApplicationTo(application: Application): ApplicationDO {
     applicationDO.code = application.code
     applicationDO.location = application.location
     applicationDO.serviceCodes = application.serviceCodes
+    applicationDO.redirectUris = application.redirectUris || ''
     applicationDO.avatar = application.avatar
     applicationDO.createdAt = application.createdAt
     applicationDO.updatedAt = application.updatedAt
@@ -89,6 +91,7 @@ export function convertApplicationFrom(applicationDO?: ApplicationDO | null | un
             code: '',
             location: '',
             serviceCodes: '',
+            redirectUris: '',
             avatar: '',
             createdAt: '',
             updatedAt: '',
@@ -116,6 +119,7 @@ export function convertApplicationFrom(applicationDO?: ApplicationDO | null | un
         code: applicationDO.code,
         location: applicationDO.location,
         serviceCodes: applicationDO.serviceCodes,
+        redirectUris: applicationDO.redirectUris || '',
         avatar: applicationDO.avatar,
         createdAt: applicationDO.createdAt,
         updatedAt: applicationDO.updatedAt,

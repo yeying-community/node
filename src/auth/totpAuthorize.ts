@@ -76,7 +76,6 @@ export type TotpAuthorizeCodeExchangeResult = {
 };
 
 type TotpAuthorizeRuntimeState = {
-  clients: Map<string, TotpAuthorizeClient>;
   exchangeCodeTtlMs: number;
 };
 
@@ -244,89 +243,12 @@ function sanitizeCapability(entry: unknown): UcanCapability | null {
   return { with: withValue, can: canValue };
 }
 
-function parseCapabilityList(raw: unknown): UcanCapability[] {
-  const parsed =
-    typeof raw === 'string'
-      ? (() => {
-          try {
-            return JSON.parse(raw);
-          } catch {
-            return null;
-          }
-        })()
-      : raw;
-  if (!Array.isArray(parsed)) {
-    return [];
-  }
-  return parsed
-    .map(item => sanitizeCapability(item))
-    .filter((item): item is UcanCapability => Boolean(item));
-}
-
-function parseClientConfig(raw: unknown): Map<string, TotpAuthorizeClient> {
-  const parsed =
-    typeof raw === 'string'
-      ? (() => {
-          try {
-            return JSON.parse(raw);
-          } catch {
-            return null;
-          }
-        })()
-      : raw;
-  if (!Array.isArray(parsed)) {
-    return new Map();
-  }
-
-  const clients = new Map<string, TotpAuthorizeClient>();
-  for (const item of parsed) {
-    if (!item || typeof item !== 'object') continue;
-    const source = item as Record<string, unknown>;
-    const clientId = normalizeClientId(source.clientId);
-    if (!clientId) continue;
-
-    const redirectUris = Array.isArray(source.redirectUris)
-      ? source.redirectUris
-          .map(uri => {
-            try {
-              return normalizeRedirectUri(uri);
-            } catch {
-              return '';
-            }
-          })
-          .filter(Boolean)
-      : [];
-    if (redirectUris.length === 0) continue;
-
-    const defaultAudience =
-      typeof source.defaultAudience === 'string' && source.defaultAudience.trim()
-        ? source.defaultAudience.trim()
-        : undefined;
-    const defaultCapabilities = parseCapabilityList(source.defaultCapabilities);
-    const appName =
-      typeof source.appName === 'string' && source.appName.trim()
-        ? normalizeAppName(source.appName)
-        : undefined;
-    clients.set(clientId, {
-      clientId,
-      redirectUris,
-      appName,
-      defaultAudience,
-      defaultCapabilities: defaultCapabilities.length > 0 ? defaultCapabilities : undefined,
-    });
-  }
-  return clients;
-}
-
 function loadAuthorizeRuntime(): TotpAuthorizeRuntimeState {
-  const clients = parseClientConfig(
-    process.env.TOTP_AUTH_CLIENTS ?? getConfig<unknown>('totpAuth.clients')
-  );
   const exchangeCodeTtlMs = clampExchangeCodeTtlMs(
     process.env.TOTP_AUTH_EXCHANGE_CODE_TTL_MS ??
       getConfig<number>('totpAuth.exchangeCodeTtlMs')
   );
-  return { clients, exchangeCodeTtlMs };
+  return { exchangeCodeTtlMs };
 }
 
 function cleanupAuthorizeRecords(nowMs = Date.now()): void {
@@ -358,22 +280,48 @@ function cleanupAuthorizeRecords(nowMs = Date.now()): void {
   }
 }
 
-function deriveRedirectUrisByAppLocation(locationInput: unknown): string[] {
-  const location = String(locationInput || '').trim();
-  if (!location) return [];
-  let parsed: URL;
-  try {
-    parsed = new URL(location);
-  } catch {
-    return [];
+function parseRedirectUrisFromApplication(raw: unknown): string[] {
+  const values: string[] = [];
+  const pushValue = (input: unknown) => {
+    const value = String(input || '').trim();
+    if (!value) return;
+    values.push(value);
+  };
+
+  if (Array.isArray(raw)) {
+    raw.forEach((item) => pushValue(item));
+  } else {
+    const text = String(raw || '').trim();
+    if (text) {
+      if (text.startsWith('[')) {
+        try {
+          const parsed = JSON.parse(text);
+          if (Array.isArray(parsed)) {
+            parsed.forEach((item) => pushValue(item));
+          }
+        } catch {
+          // fallback to split mode
+        }
+      }
+      if (values.length === 0) {
+        text
+          .split(/[\n,]/)
+          .map((item) => item.trim())
+          .filter(Boolean)
+          .forEach((item) => pushValue(item));
+      }
+    }
   }
-  if (!/^https?:$/i.test(parsed.protocol)) {
-    return [];
-  }
-  const redirectUris = new Set<string>();
-  redirectUris.add(new URL('/central-ucan-callback.html', parsed.origin).toString());
-  redirectUris.add(new URL('/chat-callback.html', parsed.origin).toString());
-  return [...redirectUris];
+
+  const normalized = new Set<string>();
+  values.forEach((uri) => {
+    try {
+      normalized.add(normalizeRedirectUri(uri));
+    } catch {
+      // ignore invalid redirect uri values
+    }
+  });
+  return [...normalized];
 }
 
 async function resolveAppClientByAppId(clientId: string): Promise<TotpAuthorizeClient | null> {
@@ -393,10 +341,13 @@ async function resolveAppClientByAppId(clientId: string): Promise<TotpAuthorizeC
     return null;
   }
 
-  const redirectUris = deriveRedirectUrisByAppLocation(app.location);
+  const redirectUris = parseRedirectUrisFromApplication(app.redirectUris);
   if (redirectUris.length === 0) {
-    DYNAMIC_CLIENT_CACHE.set(clientId, { client: null, expiresAt: nowMs + DYNAMIC_CLIENT_CACHE_TTL_MS });
-    return null;
+    throw new TotpAuthError(
+      403,
+      'TOTP_AUTH_REDIRECT_NOT_CONFIGURED',
+      'redirectUris are not configured for this app'
+    );
   }
 
   const issuerStatus = getCentralIssuerStatus();
@@ -421,15 +372,11 @@ async function getAuthorizeClient(clientIdInput: unknown): Promise<TotpAuthorize
   if (!clientId) {
     throw new TotpAuthError(400, 'TOTP_AUTH_CLIENT_REQUIRED', 'Missing clientId');
   }
-  const staticClient = AUTHORIZE_RUNTIME.clients.get(clientId);
-  if (staticClient) {
-    return staticClient;
-  }
   const appClient = await resolveAppClientByAppId(clientId);
   if (appClient) {
     return appClient;
   }
-  throw new TotpAuthError(403, 'TOTP_AUTH_CLIENT_DENIED', 'Unauthorized clientId');
+  throw new TotpAuthError(403, 'TOTP_AUTH_CLIENT_DENIED', 'Unauthorized clientId (must be published AppId)');
 }
 
 function requireClientRedirect(client: TotpAuthorizeClient, redirectUriInput: unknown): string {

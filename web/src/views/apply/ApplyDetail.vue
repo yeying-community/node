@@ -117,6 +117,7 @@
                         {{ detailInfo.codePackagePath || '-' }}
                     </template>
                 </el-col>
+                <el-col :span="16" :xs="24">授权回调地址: {{ redirectUriText }}</el-col>
             </el-row>
         </div>
 
@@ -186,6 +187,7 @@ const detailInfo = ref<ApplicationMetadata>({
     location: '',
     code: '',
     serviceCodes: [],
+    redirectUris: [],
     avatar: '',
     owner: '',
     ownerName: '',
@@ -252,6 +254,48 @@ const dependencyText = computed(() => {
     }
     const preview = names.slice(0, 2).join('、')
     return names.length > 2 ? `${preview}...` : preview
+})
+
+function toRedirectUriArray(value: unknown): string[] {
+    const normalize = (item: unknown) => String(item || '').trim()
+    if (Array.isArray(value)) {
+        return Array.from(
+            new Set(value.map((item) => normalize(item)).filter((item) => item.length > 0))
+        )
+    }
+    const raw = String(value || '').trim()
+    if (!raw) {
+        return []
+    }
+    if (raw.startsWith('[')) {
+        try {
+            const parsed = JSON.parse(raw)
+            if (Array.isArray(parsed)) {
+                return Array.from(
+                    new Set(parsed.map((item) => normalize(item)).filter((item) => item.length > 0))
+                )
+            }
+        } catch {
+            // fallback to split mode
+        }
+    }
+    return Array.from(
+        new Set(
+            raw
+                .split(/[\n,]/)
+                .map((item) => item.trim())
+                .filter((item) => item.length > 0)
+        )
+    )
+}
+
+const redirectUriText = computed(() => {
+    const values = toRedirectUriArray(detailInfo.value.redirectUris)
+    if (values.length === 0) {
+        return '-'
+    }
+    const preview = values.slice(0, 2).join('、')
+    return values.length > 2 ? `${preview}...` : preview
 })
 
 const isCodePackageUrl = computed(() => {

@@ -89,11 +89,14 @@
               <el-form-item label="区块链地址">
                 <el-input v-model="form.address" placeholder="0x..." />
               </el-form-item>
-              <el-form-item label="clientId">
-                <el-input v-model="form.clientId" placeholder="chat-web" />
+              <el-form-item label="AppId（clientId）">
+                <el-input v-model="form.clientId" placeholder="应用发布后生成的 AppId（UUID）" />
               </el-form-item>
               <el-form-item class="full" label="redirectUri">
-                <el-input v-model="form.redirectUri" placeholder="https://app.example.com/callback" />
+                <el-input
+                  v-model="form.redirectUri"
+                  placeholder="必须命中应用发布中的授权回调地址，例如：https://app.example.com/callback"
+                />
               </el-form-item>
               <el-form-item label="state">
                 <el-input v-model="form.state" placeholder="可选" />
@@ -322,13 +325,13 @@ const authCodeInput = ref('');
 
 const form = reactive<ConfigForm>({
   address: '',
-  clientId: 'chat-web',
-  redirectUri: 'http://127.0.0.1:8001/examples/frontend/chat-callback.html',
+  clientId: '',
+  redirectUri: '',
   state: '',
   audience: 'did:web:localhost:8100',
   capWith: 'app:all:localhost-*',
   capCan: 'invoke',
-  appName: 'chat-totp',
+  appName: '',
   requestTtlMs: 300000,
 });
 
@@ -381,7 +384,7 @@ function ensureClientConfig() {
   const clientId = String(form.clientId || '').trim();
   const redirectUri = String(form.redirectUri || '').trim();
   if (!clientId || !redirectUri) {
-    throw new Error('请填写 clientId 和 redirectUri');
+    throw new Error('请填写 AppId（clientId）和 redirectUri');
   }
   return { clientId, redirectUri };
 }
@@ -398,15 +401,13 @@ function restoreConfig() {
   try {
     const parsed = JSON.parse(raw) as Partial<ConfigForm>;
     form.address = String(parsed.address || getCurrentAccount() || '');
-    form.clientId = String(parsed.clientId || 'chat-web');
-    form.redirectUri = String(
-      parsed.redirectUri || 'http://127.0.0.1:8001/examples/frontend/chat-callback.html'
-    );
+    form.clientId = String(parsed.clientId || '');
+    form.redirectUri = String(parsed.redirectUri || '');
     form.state = String(parsed.state || '');
     form.audience = String(parsed.audience || 'did:web:localhost:8100');
     form.capWith = String(parsed.capWith || 'app:all:localhost-*');
     form.capCan = String(parsed.capCan || 'invoke');
-    form.appName = String(parsed.appName || 'chat-totp');
+    form.appName = String(parsed.appName || '');
     form.requestTtlMs = Number(parsed.requestTtlMs || 300000);
   } catch {
     notifyError('读取本地配置失败，已使用默认值');

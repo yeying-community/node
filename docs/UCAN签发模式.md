@@ -118,8 +118,8 @@
 - `totpAuth.codeWindow` / `TOTP_AUTH_CODE_WINDOW`
 - `totpAuth.maxAttempts` / `TOTP_AUTH_MAX_ATTEMPTS`
 - `totpAuth.totpMasterKey` / `TOTP_AUTH_TOTP_MASTER_KEY`
-- `totpAuth.clients` / `TOTP_AUTH_CLIENTS`
-  - 可选覆盖：未命中 `AppId` 自动识别时，使用该白名单显式配置 `clientId + redirectUris`
+- 应用发布字段：`redirectUris`
+  - `clientId` 必须为应用市场 `AppId`（`applications.uid`），`redirectUri` 必须命中该字段
 
 ## 6. 服务端验证逻辑（第三方无感）
 

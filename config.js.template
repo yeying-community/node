@@ -99,29 +99,8 @@ module.exports = {
     codePeriodSec: 30,
     codeWindow: 1,
     maxAttempts: 5,
-    // OAuth-like client allow-list for totp authorize flow.
-    // redirectUris must match exactly.
-    // If clientId uses a published AppId (applications.uid), Node can auto-derive
-    // redirectUris from application.location (+ /central-ucan-callback.html, /chat-callback.html).
-    // Keep this list for explicit override or non-market clients.
-    clients: [
-      {
-        clientId: 'chat-web',
-        redirectUris: [
-          'http://127.0.0.1:3000/central-ucan-callback.html',
-          'http://localhost:3000/central-ucan-callback.html',
-          'http://127.0.0.1:3020/central-ucan-callback.html',
-          'http://localhost:3020/central-ucan-callback.html',
-          'http://127.0.0.1:8991/central-ucan-callback.html',
-          'http://localhost:8991/central-ucan-callback.html',
-          'http://127.0.0.1:8001/examples/frontend/chat-callback.html'
-        ],
-        defaultAudience: 'did:web:localhost:8100',
-        defaultCapabilities: [
-          { with: 'app:all:localhost-*', can: 'invoke' }
-        ]
-      }
-    ],
+    // totp authorize 仅支持已发布应用（clientId = applications.uid）。
+    // 回调地址从应用发布字段 redirectUris 读取并做严格匹配。
     // Required when enabled. Supports plain text / base64 / hex.
     // IMPORTANT: replace with env injection in production.
     totpMasterKey: ''

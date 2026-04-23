@@ -126,6 +126,9 @@ export class ApplicationDO {
     @Column({ type: 'text', name: 'service_codes' })
     serviceCodes!: string
 
+    @Column({ type: 'text', name: 'redirect_uris', default: '' })
+    redirectUris!: string
+
     @Column('text')
     avatar!: string
 

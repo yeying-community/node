@@ -350,7 +350,8 @@
               <div class="tip">
                 <strong>关键点：</strong>
                 <code>clientId</code> 不在发布时新生成，使用的是创建应用时的
-                <code>AppId(uid)</code>。但要用于动态授权白名单，应用必须已上架。
+                <code>AppId(uid)</code>。应用必须已上架，且需在发布页配置
+                <code>redirectUris</code> 回调白名单。
               </div>
             </div>
           </details>
@@ -363,7 +364,8 @@
                   <b>1)</b> 业务端发起授权请求：提交 <code>address + clientId + redirectUri</code>。
                 </div>
                 <div class="flow-step">
-                  <b>2)</b> Node 校验 <code>clientId + redirectUri</code> 是否可用（静态白名单或 AppId 动态识别）。
+                  <b>2)</b> Node 校验 <code>clientId + redirectUri</code>：仅接受已上架应用 AppId，且
+                  <code>redirectUri</code> 必须命中应用发布字段 <code>redirectUris</code>。
                 </div>
                 <div class="flow-step">
                   <b>3)</b> 用户在 Node 验证页输入 TOTP，授权通过后拿到一次性 <code>code</code>。
@@ -386,8 +388,8 @@
             <summary class="section-summary">03. 参数与约束</summary>
             <div class="section-body">
               <ul class="list">
-                <li><code>clientId</code>：建议使用应用市场 AppId（<code>applications.uid</code>）。</li>
-                <li><code>redirectUri</code>：必须命中该 clientId 的允许回调列表。</li>
+                <li><code>clientId</code>：必须使用应用市场 AppId（<code>applications.uid</code>）。</li>
+                <li><code>redirectUri</code>：必须命中该应用发布字段 <code>redirectUris</code>。</li>
                 <li><code>audience</code>：需与服务端 UCAN audience 配置一致。</li>
                 <li><code>capability.with/can</code>：必须与服务端能力策略一致。</li>
               </ul>
@@ -399,7 +401,7 @@
             <div class="section-body">
               <ul class="list">
                 <li><code>redirectUri is not allowed</code>：回调地址未进入允许列表。</li>
-                <li><code>Unauthorized clientId</code>：clientId 不存在、未上架或不在白名单。</li>
+                <li><code>Unauthorized clientId</code>：clientId 不存在或应用未上架。</li>
                 <li><code>UCAN audience mismatch</code>：Token 的 aud 与服务端期望不一致。</li>
                 <li><code>UCAN capability denied</code>：签发能力不足，需调整能力并重签。</li>
                 <li><code>USER_ROLE_DENIED</code>：账号角色不满足发布/审批权限。</li>
@@ -447,7 +449,7 @@
 
       <div class="meta">
         页面地址：<code>/help.html</code>（由 Header 右上角帮助图标打开）。<br />
-        最近更新：2026-04-22
+        最近更新：2026-04-23
       </div>
     </main>
     <script>

@@ -105,6 +105,29 @@
                         </el-select>
                     </el-form-item>
 
+                    <el-form-item label="授权回调地址（redirectUri，可选）">
+                        <el-select
+                            v-model="detailInfo.redirectUris"
+                            multiple
+                            filterable
+                            allow-create
+                            default-first-option
+                            clearable
+                            placeholder="按回车添加回调地址，用于中心化 UCAN 授权回跳校验"
+                        >
+                            <el-option
+                                v-for="uri in detailInfo.redirectUris || []"
+                                :key="uri"
+                                :label="uri"
+                                :value="uri"
+                            />
+                        </el-select>
+                        <div class="field-hint">
+                            使用中心化 UCAN 时，第三方应用需传入 <code>clientId=AppId</code>，且
+                            <code>redirectUri</code> 必须命中这里的地址。
+                        </div>
+                    </el-form-item>
+
                     <el-form-item label="上传代码包（可选，上传后会覆盖源码路径）">
                         <div class="upload-row">
                             <Uploader
@@ -259,6 +282,7 @@ const detailInfo = ref<ApplicationMetadata>({
     location: '',
     code: 'APPLICATION_CODE_CHAT',
     serviceCodes: [],
+    redirectUris: [],
     avatar: '',
     owner: '',
     ownerName: '',
@@ -291,6 +315,42 @@ function toServiceCodeArray(value: unknown): string[] {
             .split(',')
             .map((item) => item.trim())
             .filter((item) => item.length > 0)
+    )
+}
+
+function toRedirectUriArray(value: unknown): string[] {
+    const normalize = (item: unknown) => String(item || '').trim()
+    if (Array.isArray(value)) {
+        return Array.from(
+            new Set(value.map((item) => normalize(item)).filter((item) => item.length > 0))
+        )
+    }
+    if (value === undefined || value === null) {
+        return []
+    }
+    const raw = String(value).trim()
+    if (!raw) {
+        return []
+    }
+    if (raw.startsWith('[')) {
+        try {
+            const parsed = JSON.parse(raw)
+            if (Array.isArray(parsed)) {
+                return Array.from(
+                    new Set(parsed.map((item) => normalize(item)).filter((item) => item.length > 0))
+                )
+            }
+        } catch {
+            // fallback to split mode
+        }
+    }
+    return Array.from(
+        new Set(
+            raw
+                .split(/[\n,]/)
+                .map((item) => item.trim())
+                .filter((item) => item.length > 0)
+        )
     )
 }
 
@@ -357,6 +417,7 @@ async function getDetailInfo() {
         ...res,
         code: String(res.code || 'APPLICATION_CODE_UNKNOWN'),
         serviceCodes: toServiceCodeArray(res.serviceCodes),
+        redirectUris: toRedirectUriArray(res.redirectUris),
         codePackagePath: String(res.codePackagePath || '')
     }
     selectedPreset.value = detectPreset(res)
@@ -411,6 +472,7 @@ function buildSubmitParams(account: string): ApplicationMetadata & { codeType?: 
         ...detailInfo.value,
         code: String(detailInfo.value.code || 'APPLICATION_CODE_UNKNOWN'),
         serviceCodes: toServiceCodeArray(detailInfo.value.serviceCodes),
+        redirectUris: toRedirectUriArray(detailInfo.value.redirectUris),
         avatar: imageUrl.value,
         codePackagePath: String(detailInfo.value.codePackagePath || ''),
         codeType: '1',
@@ -487,6 +549,7 @@ async function submitForm(andPublish: boolean) {
                 owner: params.owner,
                 ownerName: params.ownerName,
                 serviceCodes: params.serviceCodes,
+                redirectUris: params.redirectUris,
                 avatar: params.avatar
             })
             if (!updated) {
@@ -616,6 +679,12 @@ onMounted(() => {
     font-size: 13px;
     line-height: 1.5;
     color: #4f6b95;
+}
+
+.field-hint {
+    margin-top: 8px;
+    font-size: 12px;
+    color: rgba(0, 0, 0, 0.55);
 }
 
 .upload-row {
