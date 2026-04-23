@@ -38,9 +38,11 @@
                     <span>分类：{{ applicationCodeText }}</span>
                     <span>版本：{{ versionText }}</span>
                 </div>
-                <div class="desc">
-                    {{ detail.description }}
-                </div>
+                <el-tooltip :content="detail.description || '-'" placement="top" :disabled="!isDescOverflow">
+                    <div ref="descRef" class="desc">
+                        {{ detail.description || '-' }}
+                    </div>
+                </el-tooltip>
             </div>
         </div>
 
@@ -149,7 +151,7 @@
     </ResultChooseModal>
 </template>
 <script lang="ts" setup>
-import { ref, computed } from 'vue'
+import { ref, computed, nextTick, onBeforeUnmount, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import $audit, { isAuditForResource, resolveUsageAuditStatus } from '@/plugins/audit'
 import { CopyDocument, SuccessFilled, WarningFilled } from '@element-plus/icons-vue'
@@ -190,6 +192,9 @@ const isOwner = () => {
 const innerVisible = ref(false)
 const dialogVisible = ref(false)
 const modalVisible = ref(false)
+const descRef = ref<HTMLElement | null>(null)
+const isDescOverflow = ref(false)
+let descriptionResizeObserver: ResizeObserver | null = null
 const businessStatus = computed(() => resolveBusinessStatus(props.detail))
 const businessInfo = computed(() => businessStatusMap[businessStatus.value] || businessStatusMap.BUSINESS_STATUS_UNKNOWN)
 const isOnline = computed(() => businessStatus.value === 'BUSINESS_STATUS_ONLINE')
@@ -257,6 +262,16 @@ const copyOwnerAddress = async () => {
     } catch {
         notifyError('复制失败')
     }
+}
+
+const updateDescriptionOverflow = async () => {
+    await nextTick()
+    const el = descRef.value
+    if (!el) {
+        isDescOverflow.value = false
+        return
+    }
+    isDescOverflow.value = el.scrollHeight > el.clientHeight + 1
 }
 
 /**
@@ -529,6 +544,30 @@ if (props.pageFrom === 'myApply') {
     getApplyStatus()
 }
 
+onMounted(() => {
+    updateDescriptionOverflow()
+    if (typeof ResizeObserver !== 'undefined' && descRef.value) {
+        descriptionResizeObserver = new ResizeObserver(() => {
+            updateDescriptionOverflow()
+        })
+        descriptionResizeObserver.observe(descRef.value)
+    }
+})
+
+watch(
+    () => props.detail?.description,
+    () => {
+        updateDescriptionOverflow()
+    }
+)
+
+onBeforeUnmount(() => {
+    if (descriptionResizeObserver) {
+        descriptionResizeObserver.disconnect()
+        descriptionResizeObserver = null
+    }
+})
+
 // const emit = defineEmits(['change']);
 </script>
 <style scoped lang="less">
@@ -592,13 +631,13 @@ if (props.pageFrom === 'myApply') {
                 color: rgba(0, 0, 0, 0.45);
                 font-size: 14px;
                 font-weight: 400;
-                line-height: 1.6;
+                line-height: 22px;
                 height: 44px;
                 display: -webkit-box;
                 -webkit-box-orient: vertical;
-                -webkit-line-clamp: 2; /* 限制显示的行数 */
+                -webkit-line-clamp: 2;
                 overflow: hidden;
-                text-overflow: ellipsis; /* 文本溢出时显示省略号 */
+                text-overflow: ellipsis;
             }
 
             .badge-info {
