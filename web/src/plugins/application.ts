@@ -32,6 +32,11 @@ export interface ApplicationDetail {
   codePackagePath: string
 }
 
+export interface ApplicationUcanCapability {
+  with: string
+  can: string
+}
+
 export const codeMapTrans = {
   0: 'APPLICATION_CODE_UNKNOWN',
   1: 'APPLICATION_CODE_MARKET',
@@ -98,6 +103,8 @@ export interface ApplicationMetadata {
   location?: string
   serviceCodes?: string[]
   redirectUris?: string[]
+  ucanAudience?: string
+  ucanCapabilities?: ApplicationUcanCapability[]
   avatar?: string
   createdAt?: string
   updatedAt?: string
@@ -202,7 +209,55 @@ function normalizeApplication<T extends Record<string, unknown>>(
   if ('redirectUris' in app) {
     normalized.redirectUris = toRedirectUris(app.redirectUris)
   }
+  if ('ucanAudience' in app) {
+    normalized.ucanAudience = String(app.ucanAudience || '').trim()
+  }
+  if ('ucanCapabilities' in app) {
+    normalized.ucanCapabilities = toUcanCapabilities(app.ucanCapabilities)
+  }
   return normalized as T
+}
+
+function toUcanCapabilities(value: unknown): ApplicationUcanCapability[] {
+  const values: ApplicationUcanCapability[] = []
+  const pushValue = (entry: unknown) => {
+    if (!entry || typeof entry !== 'object') {
+      return
+    }
+    const source = entry as Record<string, unknown>
+    const withValue =
+      (typeof source.with === 'string' && source.with.trim()) ||
+      (typeof source.resource === 'string' && source.resource.trim()) ||
+      ''
+    const canValue =
+      (typeof source.can === 'string' && source.can.trim()) ||
+      (typeof source.action === 'string' && source.action.trim()) ||
+      ''
+    if (!withValue || !canValue) {
+      return
+    }
+    values.push({ with: withValue, can: canValue })
+  }
+  if (Array.isArray(value)) {
+    value.forEach((item) => pushValue(item))
+    return values
+  }
+  if (value === undefined || value === null) {
+    return []
+  }
+  const raw = String(value).trim()
+  if (!raw || !raw.startsWith('[')) {
+    return []
+  }
+  try {
+    const parsed = JSON.parse(raw)
+    if (Array.isArray(parsed)) {
+      parsed.forEach((item) => pushValue(item))
+    }
+  } catch {
+    return []
+  }
+  return values
 }
 
 function ensureWalletConnected() {
@@ -271,6 +326,8 @@ function buildApplicationCreateBody(params: ApplicationMetadata, actor: string) 
     location: String(params.location || ''),
     serviceCodes: toServiceCodesString(params.serviceCodes),
     redirectUris: toRedirectUris(params.redirectUris),
+    ucanAudience: String(params.ucanAudience || '').trim(),
+    ucanCapabilities: toUcanCapabilities(params.ucanCapabilities),
     avatar: String(params.avatar || ''),
     codePackagePath: String(params.codePackagePath || '')
   }
@@ -291,6 +348,8 @@ function buildApplicationCreatePayload(body: ReturnType<typeof buildApplicationC
     location: body.location,
     serviceCodes: body.serviceCodes,
     redirectUris: body.redirectUris,
+    ucanAudience: body.ucanAudience,
+    ucanCapabilities: body.ucanCapabilities,
     avatar: body.avatar,
     codePackagePath: body.codePackagePath
   }
@@ -306,6 +365,12 @@ function buildApplicationUpdateBody(patch: Partial<ApplicationMetadata>) {
       ? { serviceCodes: toServiceCodesString(patch.serviceCodes) }
       : {}),
     ...(patch.redirectUris !== undefined ? { redirectUris: toRedirectUris(patch.redirectUris) } : {}),
+    ...(patch.ucanAudience !== undefined
+      ? { ucanAudience: String(patch.ucanAudience || '').trim() }
+      : {}),
+    ...(patch.ucanCapabilities !== undefined
+      ? { ucanCapabilities: toUcanCapabilities(patch.ucanCapabilities) }
+      : {}),
     ...(patch.avatar !== undefined ? { avatar: String(patch.avatar || '') } : {}),
     ...(patch.codePackagePath !== undefined
       ? { codePackagePath: String(patch.codePackagePath || '') }

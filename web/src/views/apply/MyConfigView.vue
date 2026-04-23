@@ -101,20 +101,8 @@
               <el-form-item label="state">
                 <el-input v-model="form.state" placeholder="可选" />
               </el-form-item>
-              <el-form-item label="appName">
-                <el-input v-model="form.appName" placeholder="chat-totp" />
-              </el-form-item>
-              <el-form-item label="audience">
-                <el-input v-model="form.audience" placeholder="did:web:localhost:8100" />
-              </el-form-item>
               <el-form-item label="requestTtlMs">
                 <el-input-number v-model="form.requestTtlMs" :min="60000" :step="30000" />
-              </el-form-item>
-              <el-form-item label="capability.with">
-                <el-input v-model="form.capWith" placeholder="app:all:localhost-*" />
-              </el-form-item>
-              <el-form-item label="capability.can">
-                <el-input v-model="form.capCan" placeholder="invoke" />
               </el-form-item>
             </div>
           </el-form>
@@ -302,10 +290,6 @@ type ConfigForm = {
   appId: string;
   redirectUri: string;
   state: string;
-  audience: string;
-  capWith: string;
-  capCan: string;
-  appName: string;
   requestTtlMs: number;
 };
 
@@ -328,10 +312,6 @@ const form = reactive<ConfigForm>({
   appId: '',
   redirectUri: '',
   state: '',
-  audience: 'did:web:localhost:8100',
-  capWith: 'app:all:localhost-*',
-  capCan: 'invoke',
-  appName: '',
   requestTtlMs: 300000,
 });
 
@@ -404,10 +384,6 @@ function restoreConfig() {
     form.appId = String(parsed.appId || '');
     form.redirectUri = String(parsed.redirectUri || '');
     form.state = String(parsed.state || '');
-    form.audience = String(parsed.audience || 'did:web:localhost:8100');
-    form.capWith = String(parsed.capWith || 'app:all:localhost-*');
-    form.capCan = String(parsed.capCan || 'invoke');
-    form.appName = String(parsed.appName || '');
     form.requestTtlMs = Number(parsed.requestTtlMs || 300000);
   } catch {
     notifyError('读取本地配置失败，已使用默认值');
@@ -483,14 +459,6 @@ async function createAuthorizeRequest() {
       appId,
       redirectUri,
       state: form.state || undefined,
-      audience: String(form.audience || '').trim() || undefined,
-      capabilities: [
-        {
-          with: String(form.capWith || '').trim(),
-          can: String(form.capCan || '').trim(),
-        },
-      ],
-      appName: String(form.appName || '').trim() || undefined,
       requestTtlMs: form.requestTtlMs,
     };
     const result = await postJson<AuthorizeRequestResult>(

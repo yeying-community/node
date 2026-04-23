@@ -13,6 +13,7 @@ import {
     AuditDO,
     CommentDO,
     ApplicationConfigDO,
+    TotpSubjectSecretDO,
     MpcSessionDO,
     MpcSessionParticipantDO,
     MpcMessageDO,
@@ -41,6 +42,8 @@ import { AddAuditPreviousStateColumns20260402110000 } from './migrations/2026040
 import { AddActionRequestDedup20260402170000 } from './migrations/20260402170000-add-action-request-dedup';
 import { DropServiceTables20260423103000 } from './migrations/20260423103000-drop-service-tables';
 import { AddApplicationRedirectUris20260423121000 } from './migrations/20260423121000-add-application-redirect-uris';
+import { AddTotpSubjectSecrets20260423182000 } from './migrations/20260423182000-add-totp-subject-secrets';
+import { AddApplicationUcanPolicy20260423193000 } from './migrations/20260423193000-add-application-ucan-policy';
 import { getConfig } from './config/runtime';
 import { startActionRequestCleanupJobs } from './domain/service/actionRequestCleanup';
 import { startMpcCleanupJobs } from './domain/service/mpcCleanup';
@@ -149,6 +152,7 @@ builder.entities([
     AuditDO,
     CommentDO,
     ApplicationConfigDO,
+    TotpSubjectSecretDO,
     MpcSessionDO,
     MpcSessionParticipantDO,
     MpcMessageDO,
@@ -162,7 +166,9 @@ builder.migrations([
     AddAuditPreviousStateColumns20260402110000,
     AddActionRequestDedup20260402170000,
     DropServiceTables20260423103000,
-    AddApplicationRedirectUris20260423121000
+    AddApplicationRedirectUris20260423121000,
+    AddTotpSubjectSecrets20260423182000,
+    AddApplicationUcanPolicy20260423193000
 ])
 
 builder.build().initialize().then(async (conn) => {

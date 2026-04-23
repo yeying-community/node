@@ -48,6 +48,27 @@ export class UserStateDO {
     signature!: string
 }
 
+@Entity('totp_subject_secrets')
+export class TotpSubjectSecretDO {
+    @PrimaryColumn({ length: 128, nullable: false, unique: true })
+    subject!: string
+
+    @Column({ type: 'text', name: 'secret_ciphertext' })
+    secretCiphertext!: string
+
+    @Column({ type: 'boolean', name: 'is_bound', default: false })
+    isBound!: boolean
+
+    @Column({ length: 64, name: 'created_at' })
+    createdAt!: string
+
+    @Column({ length: 64, name: 'updated_at' })
+    updatedAt!: string
+
+    @Column({ length: 64, name: 'bound_at', default: '' })
+    boundAt!: string
+}
+
 @Entity('action_requests')
 @Index('idx_action_request_dedup', ['actor', 'requestId'], { unique: true })
 export class ActionRequestDO {
@@ -128,6 +149,12 @@ export class ApplicationDO {
 
     @Column({ type: 'text', name: 'redirect_uris', default: '' })
     redirectUris!: string
+
+    @Column({ type: 'text', name: 'ucan_audience', default: '' })
+    ucanAudience!: string
+
+    @Column({ type: 'text', name: 'ucan_capabilities', default: '' })
+    ucanCapabilities!: string
 
     @Column('text')
     avatar!: string

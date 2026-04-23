@@ -32,10 +32,29 @@ type RefreshSession = {
   expiresAt: number;
 };
 
-const JWT_SECRET =
-  process.env.JWT_SECRET ||
-  getConfig<string>('auth.jwtSecret') ||
-  'replace-this-in-production';
+const INSECURE_JWT_SECRET = 'replace-this-in-production';
+const MIN_JWT_SECRET_LENGTH = 32;
+
+function resolveJwtSecret(): string {
+  const raw = String(
+    process.env.JWT_SECRET ??
+      getConfig<string>('auth.jwtSecret') ??
+      INSECURE_JWT_SECRET
+  ).trim();
+  if (!raw || raw === INSECURE_JWT_SECRET) {
+    throw new Error(
+      'JWT secret is not configured. Set auth.jwtSecret (or JWT_SECRET env) to a random value.'
+    );
+  }
+  if (raw.length < MIN_JWT_SECRET_LENGTH) {
+    throw new Error(
+      `JWT secret is too short. Use at least ${MIN_JWT_SECRET_LENGTH} characters.`
+    );
+  }
+  return raw;
+}
+
+const JWT_SECRET = resolveJwtSecret();
 const ACCESS_TTL_MS = parseNumber(
   process.env.ACCESS_TTL_MS ?? getConfig<number>('auth.accessTtlMs'),
   15 * 60 * 1000

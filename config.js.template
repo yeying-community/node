@@ -33,6 +33,11 @@ module.exports = {
   },
   auth: {
     // JWT secret used by SIWE login.
+    // Generate your own secret on this machine:
+    //   openssl rand -hex 32
+    // or:
+    //   node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+    // Do not commit the real value.
     jwtSecret: 'replace-this-in-production',
     accessTtlMs: 15 * 60 * 1000,
     refreshTtlMs: 7 * 24 * 60 * 60 * 1000,
@@ -101,13 +106,18 @@ module.exports = {
     maxAttempts: 5,
     // totp authorize 仅支持已发布应用（appId = applications.uid）。
     // 回调地址从应用发布字段 redirectUris 读取并做严格匹配。
+    // TOTP 随机密钥会加密后存库，totpMasterKey 用作加密主密钥。
+    // Generate your own key on this machine:
+    //   openssl rand -hex 32
+    // or:
+    //   node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
     // Required when enabled. Supports plain text / base64 / hex.
     // IMPORTANT: replace with env injection in production.
     totpMasterKey: ''
   },
   audit: {
     // List of approver wallet addresses.
-    approvers: ['0x0000000000000000000000000000000000000000'],
+    approvers: [''],
     // How many approvals are required.
     requiredApprovals: 1
   },

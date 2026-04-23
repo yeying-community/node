@@ -29,6 +29,8 @@ export interface Application {
     location: string
     serviceCodes: string
     redirectUris: string
+    ucanAudience: string
+    ucanCapabilities: string
     avatar: string
     createdAt: string
     updatedAt: string
@@ -65,6 +67,8 @@ export function convertApplicationTo(application: Application): ApplicationDO {
     applicationDO.location = application.location
     applicationDO.serviceCodes = application.serviceCodes
     applicationDO.redirectUris = application.redirectUris || ''
+    applicationDO.ucanAudience = application.ucanAudience || ''
+    applicationDO.ucanCapabilities = application.ucanCapabilities || ''
     applicationDO.avatar = application.avatar
     applicationDO.createdAt = application.createdAt
     applicationDO.updatedAt = application.updatedAt
@@ -92,6 +96,8 @@ export function convertApplicationFrom(applicationDO?: ApplicationDO | null | un
             location: '',
             serviceCodes: '',
             redirectUris: '',
+            ucanAudience: '',
+            ucanCapabilities: '',
             avatar: '',
             createdAt: '',
             updatedAt: '',
@@ -120,6 +126,8 @@ export function convertApplicationFrom(applicationDO?: ApplicationDO | null | un
         location: applicationDO.location,
         serviceCodes: applicationDO.serviceCodes,
         redirectUris: applicationDO.redirectUris || '',
+        ucanAudience: applicationDO.ucanAudience || '',
+        ucanCapabilities: applicationDO.ucanCapabilities || '',
         avatar: applicationDO.avatar,
         createdAt: applicationDO.createdAt,
         updatedAt: applicationDO.updatedAt,

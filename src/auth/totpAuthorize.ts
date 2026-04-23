@@ -1,11 +1,13 @@
 import * as crypto from 'crypto';
 import { getConfig } from '../config/runtime';
 import { ApplicationService } from '../domain/service/application';
-import { getCentralIssuerStatus, type UcanCapability } from './ucanIssuer';
+import { type UcanCapability } from './ucanIssuer';
 import {
   TotpAuthError,
   assertTotpAuthReady,
   buildTotpVerifyUrl,
+  hasTotpEnrollmentForSubject,
+  markTotpEnrollmentBoundForSubject,
   verifyTotpCodeForSubject,
 } from './totpAuth';
 
@@ -13,7 +15,7 @@ export type TotpAuthorizeRequestStatus = 'pending' | 'used' | 'expired' | 'revok
 
 export type TotpAuthorizeClient = {
   appId: string;
-  redirectUris: string[];
+  redirectUri: string;
   appName?: string;
   defaultAudience?: string;
   defaultCapabilities?: UcanCapability[];
@@ -226,23 +228,6 @@ function normalizeRedirectUri(input: unknown): string {
   return parsed.toString();
 }
 
-function sanitizeCapability(entry: unknown): UcanCapability | null {
-  if (!entry || typeof entry !== 'object') return null;
-  const value = entry as Record<string, unknown>;
-  const withValue =
-    (typeof value.with === 'string' && value.with.trim()) ||
-    (typeof value.resource === 'string' && value.resource.trim()) ||
-    '';
-  const canValue =
-    (typeof value.can === 'string' && value.can.trim()) ||
-    (typeof value.action === 'string' && value.action.trim()) ||
-    '';
-  if (!withValue || !canValue) {
-    return null;
-  }
-  return { with: withValue, can: canValue };
-}
-
 function loadAuthorizeRuntime(): TotpAuthorizeRuntimeState {
   const exchangeCodeTtlMs = clampExchangeCodeTtlMs(
     process.env.TOTP_AUTH_EXCHANGE_CODE_TTL_MS ??
@@ -280,7 +265,7 @@ function cleanupAuthorizeRecords(nowMs = Date.now()): void {
   }
 }
 
-function parseRedirectUrisFromApplication(raw: unknown): string[] {
+function parseRedirectUriFromApplication(raw: unknown): string {
   const values: string[] = [];
   const pushValue = (input: unknown) => {
     const value = String(input || '').trim();
@@ -321,7 +306,53 @@ function parseRedirectUrisFromApplication(raw: unknown): string[] {
       // ignore invalid redirect uri values
     }
   });
-  return [...normalized];
+  const resolved = [...normalized];
+  if (resolved.length === 0) {
+    return '';
+  }
+  if (resolved.length > 1) {
+    throw new TotpAuthError(
+      403,
+      'TOTP_AUTH_REDIRECT_MULTIPLE_NOT_ALLOWED',
+      'Only one redirectUri is allowed for this app'
+    );
+  }
+  return resolved[0];
+}
+
+function parseCapabilitiesFromApplication(raw: unknown): UcanCapability[] {
+  const values: UcanCapability[] = [];
+  const pushValue = (entry: unknown) => {
+    if (!entry || typeof entry !== 'object') return;
+    const source = entry as Record<string, unknown>;
+    const resource =
+      (typeof source.with === 'string' && source.with.trim()) ||
+      (typeof source.resource === 'string' && source.resource.trim()) ||
+      '';
+    const action =
+      (typeof source.can === 'string' && source.can.trim()) ||
+      (typeof source.action === 'string' && source.action.trim()) ||
+      '';
+    if (!resource || !action) return;
+    values.push({ with: resource, can: action });
+  };
+
+  if (Array.isArray(raw)) {
+    raw.forEach((item) => pushValue(item));
+    return values;
+  }
+
+  const text = String(raw || '').trim();
+  if (!text) return [];
+  if (!text.startsWith('[')) return [];
+  try {
+    const parsed = JSON.parse(text);
+    if (!Array.isArray(parsed)) return [];
+    parsed.forEach((item) => pushValue(item));
+    return values;
+  } catch {
+    return [];
+  }
 }
 
 async function resolveAuthorizeAppByAppId(appId: string): Promise<TotpAuthorizeClient | null> {
@@ -341,26 +372,29 @@ async function resolveAuthorizeAppByAppId(appId: string): Promise<TotpAuthorizeC
     return null;
   }
 
-  const redirectUris = parseRedirectUrisFromApplication(app.redirectUris);
-  if (redirectUris.length === 0) {
+  const redirectUri = parseRedirectUriFromApplication(app.redirectUris);
+  if (!redirectUri) {
     throw new TotpAuthError(
       403,
       'TOTP_AUTH_REDIRECT_NOT_CONFIGURED',
-      'redirectUris are not configured for this app'
+      'redirectUri is not configured for this app'
     );
   }
-
-  const issuerStatus = getCentralIssuerStatus();
-  const defaultCapabilities =
-    Array.isArray(issuerStatus.defaultCapabilities) && issuerStatus.defaultCapabilities.length > 0
-      ? issuerStatus.defaultCapabilities
-      : undefined;
+  const defaultAudience = String(app.ucanAudience || '').trim();
+  const defaultCapabilities = parseCapabilitiesFromApplication(app.ucanCapabilities);
+  if (!defaultAudience || defaultCapabilities.length === 0) {
+    throw new TotpAuthError(
+      403,
+      'TOTP_AUTH_APP_POLICY_NOT_CONFIGURED',
+      'UCAN authorization policy is not configured for this app'
+    );
+  }
 
   const client: TotpAuthorizeClient = {
     appId,
     appName: normalizeAppName(app.name || app.code || appId),
-    redirectUris,
-    defaultAudience: issuerStatus.defaultAudience || undefined,
+    redirectUri,
+    defaultAudience,
     defaultCapabilities,
   };
   DYNAMIC_CLIENT_CACHE.set(appId, { client, expiresAt: nowMs + DYNAMIC_CLIENT_CACHE_TTL_MS });
@@ -381,7 +415,7 @@ async function getAuthorizeApp(appIdInput: unknown): Promise<TotpAuthorizeClient
 
 function requireAppRedirect(app: TotpAuthorizeClient, redirectUriInput: unknown): string {
   const redirectUri = normalizeRedirectUri(redirectUriInput);
-  if (!app.redirectUris.includes(redirectUri)) {
+  if (app.redirectUri !== redirectUri) {
     throw new TotpAuthError(403, 'TOTP_AUTH_REDIRECT_DENIED', 'redirectUri is not allowed');
   }
   return redirectUri;
@@ -465,9 +499,6 @@ export async function createTotpAuthorizeRequest(input: {
   appId: string;
   redirectUri: string;
   state?: string;
-  audience?: string;
-  capabilities?: UcanCapability[];
-  appName?: string;
   requestTtlMs?: number;
   sessionTtlMs?: number;
   tokenTtlMs?: number;
@@ -476,29 +507,33 @@ export async function createTotpAuthorizeRequest(input: {
   cleanupAuthorizeRecords();
 
   const subject = requireWalletAddress(input.subject);
+  if (!(await hasTotpEnrollmentForSubject(subject))) {
+    throw new TotpAuthError(
+      403,
+      'TOTP_AUTH_NOT_ENROLLED',
+      'TOTP authenticator is not configured for this address'
+    );
+  }
   const app = await getAuthorizeApp(input.appId);
   const redirectUri = requireAppRedirect(app, input.redirectUri);
   const state = normalizeState(input.state);
-  const capabilitiesInput = Array.isArray(input.capabilities) ? input.capabilities : [];
-  const capabilities = capabilitiesInput
-    .map(entry => sanitizeCapability(entry))
-    .filter((entry): entry is UcanCapability => Boolean(entry));
-  const resolvedCapabilities =
-    capabilities.length > 0 ? capabilities : app.defaultCapabilities || [];
+  const resolvedCapabilities = Array.isArray(app.defaultCapabilities)
+    ? [...app.defaultCapabilities]
+    : [];
   if (resolvedCapabilities.length === 0) {
     throw new TotpAuthError(
       400,
       'TOTP_AUTH_CAPABILITIES_REQUIRED',
-      'Missing capabilities for authorize request'
+      'Missing capabilities in app authorization policy'
     );
   }
 
-  const audience = String(input.audience || app.defaultAudience || '').trim();
+  const audience = String(app.defaultAudience || '').trim();
   if (!audience) {
     throw new TotpAuthError(
       400,
       'TOTP_AUTH_AUDIENCE_REQUIRED',
-      'Missing audience for authorize request'
+      'Missing audience in app authorization policy'
     );
   }
 
@@ -515,7 +550,7 @@ export async function createTotpAuthorizeRequest(input: {
     state,
     audience,
     capabilities: resolvedCapabilities,
-    appName: normalizeAppName(input.appName || app.appName || app.appId),
+    appName: normalizeAppName(app.appName || app.appId),
     createdAt: nowMs,
     updatedAt: nowMs,
     expiresAt,
@@ -543,10 +578,10 @@ export function getTotpAuthorizeRequest(
   return toPublicResult(record);
 }
 
-export function consumeTotpAuthorizeRequest(input: {
+export async function consumeTotpAuthorizeRequest(input: {
   requestId: string;
   code: string;
-}): TotpAuthorizeRequestConsumeResult {
+}): Promise<TotpAuthorizeRequestConsumeResult> {
   const totpStatus = assertTotpAuthReady();
   cleanupAuthorizeRecords();
 
@@ -561,7 +596,7 @@ export function consumeTotpAuthorizeRequest(input: {
   const nowMs = Date.now();
   const pending = requirePendingRequest(record, nowMs);
 
-  if (!verifyTotpCodeForSubject(pending.subject, input.code)) {
+  if (!(await verifyTotpCodeForSubject(pending.subject, input.code))) {
     pending.attempts += 1;
     pending.updatedAt = nowMs;
     if (pending.attempts >= totpStatus.maxAttempts) {
@@ -578,6 +613,7 @@ export function consumeTotpAuthorizeRequest(input: {
   pending.status = 'used';
   pending.updatedAt = nowMs;
   AUTHORIZE_REQUESTS.set(requestId, pending);
+  await markTotpEnrollmentBoundForSubject(pending.subject);
 
   return {
     requestId: pending.requestId,

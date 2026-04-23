@@ -10,16 +10,12 @@
         <div class="publish-panel">
             <div class="panel-head">
                 <div class="panel-title">发布 Web3 应用</div>
-                <div class="panel-subtitle">
-                    先支持快速发布，默认提供 Chat / Router / Warehouse 三个模板，源码路径按当前仓库父目录约定：
-                    <code>../chat</code>、<code>../router</code>、<code>../warehouse</code>。
-                </div>
             </div>
 
             <el-form ref="formRef" label-position="top" :model="detailInfo" :rules="rules">
                 <div class="section">
-                    <div class="section-title">1. 选择模板</div>
-                    <el-form-item label="应用模板">
+                    <div class="section-title">1. 选择应用模版</div>
+                    <el-form-item>
                         <el-radio-group v-model="selectedPreset" @change="handlePresetChange">
                             <el-radio
                                 v-for="preset in presets"
@@ -106,38 +102,58 @@
                     </el-form-item>
 
                     <el-form-item label="授权回调地址（redirectUri，可选）">
-                        <el-select
-                            v-model="detailInfo.redirectUris"
-                            multiple
-                            filterable
-                            allow-create
-                            default-first-option
-                            clearable
-                            placeholder="按回车添加回调地址，用于中心化 UCAN 授权回跳校验"
-                        >
-                            <el-option
-                                v-for="uri in detailInfo.redirectUris || []"
-                                :key="uri"
-                                :label="uri"
-                                :value="uri"
-                            />
-                        </el-select>
+                        <el-input
+                            v-model="redirectUriInput"
+                            placeholder="例如：http://localhost:3020/central-ucan-callback.html"
+                        />
                         <div class="field-hint">
                             使用中心化 UCAN 时，第三方应用需传入 <code>appId</code>，且
-                            <code>redirectUri</code> 必须命中这里的地址。
+                            <code>redirectUri</code> 必须与这里配置完全一致。
                         </div>
                     </el-form-item>
 
-                    <el-form-item label="上传代码包（可选，上传后会覆盖源码路径）">
-                        <div class="upload-row">
-                            <Uploader
-                                v-model="codeList"
-                                accept=".zip,.rar,.tar.gz"
-                                @change="changeFileCode"
+                    <el-row :gutter="20">
+                        <el-col :span="12" :xs="24">
+                            <el-form-item label="UCAN Audience（可选）">
+                                <el-input
+                                    v-model="detailInfo.ucanAudience"
+                                    placeholder="例如：did:web:127.0.0.1:3011"
+                                />
+                            </el-form-item>
+                        </el-col>
+                    </el-row>
+
+                    <el-form-item label="UCAN Capabilities（可选）">
+                        <div class="capability-list">
+                            <div
+                                v-for="(capability, index) in detailInfo.ucanCapabilities || []"
+                                :key="`capability-${index}`"
+                                class="capability-row"
                             >
-                                <el-button :icon="Upload">上传压缩包</el-button>
-                            </Uploader>
-                            <span class="upload-text">支持 .zip / .rar / .tar.gz</span>
+                                <el-input
+                                    v-model="capability.with"
+                                    placeholder="with，例如：app:all:chat-*"
+                                />
+                                <el-input
+                                    v-model="capability.can"
+                                    placeholder="can，例如：invoke"
+                                />
+                                <el-button
+                                    text
+                                    type="danger"
+                                    :disabled="(detailInfo.ucanCapabilities?.length || 0) <= 1"
+                                    @click="removeUcanCapability(index)"
+                                >
+                                    删除
+                                </el-button>
+                            </div>
+                            <el-button text type="primary" @click="addUcanCapability">
+                                添加 capability
+                            </el-button>
+                        </div>
+                        <div class="field-hint">
+                            中心化 UCAN 授权将严格按应用配置签发。需同时配置
+                            <code>audience</code> 与至少一条 <code>{ with, can }</code>。
                         </div>
                     </el-form-item>
 
@@ -201,41 +217,46 @@ type DependencyOption = {
     value: string
 }
 
+type UcanCapabilityForm = {
+    with: string
+    can: string
+}
+
 const presets: ApplicationPreset[] = [
     {
         key: 'chat',
         label: 'Chat',
-        note: '模板默认指向父目录源码 ../chat，端口建议 http://localhost:3020',
+        note: '应用默认地址 http://localhost:3020',
         defaults: {
             name: 'Chat',
             description: '多模态 AI 聊天应用',
             code: 'APPLICATION_CODE_CHAT',
             location: 'http://localhost:3020',
-            codePackagePath: '../chat'
+            codePackagePath: 'git@github.com:yeying-community/chat.git'
         }
     },
     {
         key: 'router',
         label: 'Router',
-        note: '模板默认指向父目录源码 ../router，前端访问建议 http://localhost:5181',
+        note: '应用默认地址 http://localhost:3011',
         defaults: {
             name: 'Router',
             description: '统一模型网关与管理后台，提供标准 API 路由与鉴权能力。',
             code: 'APPLICATION_CODE_ROUTER',
             location: 'http://localhost:5181',
-            codePackagePath: '../router'
+            codePackagePath: 'git@github.com:yeying-community/router.git'
         }
     },
     {
         key: 'warehouse',
         label: 'Warehouse',
-        note: '模板默认指向父目录源码 ../warehouse，服务地址建议 http://localhost:6065',
+        note: '应用默认地址 http://localhost:6065',
         defaults: {
             name: 'Warehouse',
             description: 'Web3 数据与文件仓储服务，提供存储能力与身份认证能力。',
             code: 'APPLICATION_CODE_WAREHOUSE',
             location: 'http://localhost:6065',
-            codePackagePath: '../warehouse'
+            codePackagePath: 'git@github.com:yeying-community/warehouse.git'
         }
     },
     {
@@ -272,9 +293,9 @@ const selectedPreset = ref<PresetKey>('chat')
 const formRef = ref<FormInstance>()
 
 const avatarList = ref<Array<Record<string, unknown>>>([])
-const codeList = ref<Array<Record<string, unknown>>>([])
 const imageUrl = ref(`${prefixURL}/${defaultAvatar}`)
 const dependencyOptions = ref<DependencyOption[]>([])
+const redirectUriInput = ref('')
 
 const detailInfo = ref<ApplicationMetadata>({
     name: '',
@@ -283,6 +304,8 @@ const detailInfo = ref<ApplicationMetadata>({
     code: 'APPLICATION_CODE_CHAT',
     serviceCodes: [],
     redirectUris: [],
+    ucanAudience: '',
+    ucanCapabilities: [{ with: '', can: '' }],
     avatar: '',
     owner: '',
     ownerName: '',
@@ -354,6 +377,85 @@ function toRedirectUriArray(value: unknown): string[] {
     )
 }
 
+function toSingleRedirectUri(value: unknown): string {
+    const values = toRedirectUriArray(value)
+    if (values.length === 0) {
+        return ''
+    }
+    if (values.length > 1) {
+        throw new Error('仅支持配置一个 redirectUri')
+    }
+    return values[0]
+}
+
+function toUcanCapabilityArray(value: unknown): UcanCapabilityForm[] {
+    const values: UcanCapabilityForm[] = []
+    const pushValue = (entry: unknown) => {
+        if (!entry || typeof entry !== 'object') {
+            return
+        }
+        const source = entry as Record<string, unknown>
+        const withValue =
+            (typeof source.with === 'string' && source.with.trim()) ||
+            (typeof source.resource === 'string' && source.resource.trim()) ||
+            ''
+        const canValue =
+            (typeof source.can === 'string' && source.can.trim()) ||
+            (typeof source.action === 'string' && source.action.trim()) ||
+            ''
+        if (!withValue || !canValue) {
+            return
+        }
+        values.push({ with: withValue, can: canValue })
+    }
+    if (Array.isArray(value)) {
+        value.forEach((item) => pushValue(item))
+        return values
+    }
+    if (value === undefined || value === null) {
+        return []
+    }
+    const raw = String(value).trim()
+    if (!raw || !raw.startsWith('[')) {
+        return []
+    }
+    try {
+        const parsed = JSON.parse(raw)
+        if (Array.isArray(parsed)) {
+            parsed.forEach((item) => pushValue(item))
+        }
+    } catch {
+        return []
+    }
+    return values
+}
+
+function hasPartialUcanCapability(value: unknown): boolean {
+    if (!Array.isArray(value)) {
+        return false
+    }
+    for (const item of value) {
+        if (!item || typeof item !== 'object') {
+            continue
+        }
+        const source = item as Record<string, unknown>
+        const withValue = String(source.with || '').trim()
+        const canValue = String(source.can || '').trim()
+        if ((withValue || canValue) && (!withValue || !canValue)) {
+            return true
+        }
+    }
+    return false
+}
+
+function toCapabilityRows(value: unknown): UcanCapabilityForm[] {
+    const parsed = toUcanCapabilityArray(value)
+    if (parsed.length > 0) {
+        return parsed
+    }
+    return [{ with: '', can: '' }]
+}
+
 function detectPreset(app: ApplicationMetadata): PresetKey {
     const source = String(app.codePackagePath || '').toLowerCase()
     const name = String(app.name || '').toLowerCase()
@@ -418,15 +520,15 @@ async function getDetailInfo() {
         code: String(res.code || 'APPLICATION_CODE_UNKNOWN'),
         serviceCodes: toServiceCodeArray(res.serviceCodes),
         redirectUris: toRedirectUriArray(res.redirectUris),
+        ucanAudience: String(res.ucanAudience || '').trim(),
+        ucanCapabilities: toCapabilityRows(res.ucanCapabilities),
         codePackagePath: String(res.codePackagePath || '')
     }
+    redirectUriInput.value = toSingleRedirectUri(res.redirectUris)
     selectedPreset.value = detectPreset(res)
     imageUrl.value = res.avatar || imageUrl.value
     avatarList.value = res.avatar
         ? [{ name: String(res.avatarName || res.name || 'avatar'), url: String(res.avatar) }]
-        : []
-    codeList.value = res.codePackagePath
-        ? [{ name: String(res.codePackageName || res.name || 'package'), url: String(res.codePackagePath) }]
         : []
 }
 
@@ -467,18 +569,40 @@ async function loadDependencyOptions() {
 }
 
 function buildSubmitParams(account: string): ApplicationMetadata & { codeType?: string } {
+    if (hasPartialUcanCapability(detailInfo.value.ucanCapabilities)) {
+        throw new Error('UCAN capability 配置不完整，请同时填写 with 和 can')
+    }
+    const ucanAudience = String(detailInfo.value.ucanAudience || '').trim()
+    const ucanCapabilities = toUcanCapabilityArray(detailInfo.value.ucanCapabilities)
+    if ((ucanAudience && ucanCapabilities.length === 0) || (!ucanAudience && ucanCapabilities.length > 0)) {
+        throw new Error('UCAN audience 与 capability 需要同时配置')
+    }
     const normalizedOwner = normalizeAddress(account)
+    const redirectUri = toSingleRedirectUri(redirectUriInput.value)
     return {
         ...detailInfo.value,
         code: String(detailInfo.value.code || 'APPLICATION_CODE_UNKNOWN'),
         serviceCodes: toServiceCodeArray(detailInfo.value.serviceCodes),
-        redirectUris: toRedirectUriArray(detailInfo.value.redirectUris),
+        redirectUris: redirectUri ? [redirectUri] : [],
+        ucanAudience,
+        ucanCapabilities,
         avatar: imageUrl.value,
         codePackagePath: String(detailInfo.value.codePackagePath || ''),
         codeType: '1',
         owner: normalizedOwner,
         ownerName: normalizedOwner
     }
+}
+
+function addUcanCapability() {
+    const next = toCapabilityRows(detailInfo.value.ucanCapabilities)
+    next.push({ with: '', can: '' })
+    detailInfo.value.ucanCapabilities = next
+}
+
+function removeUcanCapability(index: number) {
+    const next = toCapabilityRows(detailInfo.value.ucanCapabilities).filter((_, current) => current !== index)
+    detailInfo.value.ucanCapabilities = next.length > 0 ? next : [{ with: '', can: '' }]
 }
 
 async function submitPublishRequest(application: ApplicationMetadata) {
@@ -550,6 +674,8 @@ async function submitForm(andPublish: boolean) {
                 ownerName: params.ownerName,
                 serviceCodes: params.serviceCodes,
                 redirectUris: params.redirectUris,
+                ucanAudience: params.ucanAudience,
+                ucanCapabilities: params.ucanCapabilities,
                 avatar: params.avatar
             })
             if (!updated) {
@@ -593,7 +719,7 @@ async function submitForm(andPublish: boolean) {
     }
 }
 
-async function changeFile(fileType: 'avatar' | 'code', uploadFile: Record<string, unknown>) {
+async function changeFileAvatar(uploadFile: Record<string, unknown>) {
     const blobCandidate = uploadFile.raw instanceof Blob ? uploadFile.raw : uploadFile
     if (!(blobCandidate instanceof Blob)) {
         notifyError('上传文件格式无效')
@@ -605,19 +731,7 @@ async function changeFile(fileType: 'avatar' | 'code', uploadFile: Record<string
         notifyError('上传失败')
         return
     }
-    if (fileType === 'avatar') {
-        imageUrl.value = publicUrl
-        return
-    }
-    detailInfo.value.codePackagePath = publicUrl
-}
-
-function changeFileAvatar(uploadFile: Record<string, unknown>) {
-    void changeFile('avatar', uploadFile)
-}
-
-function changeFileCode(uploadFile: Record<string, unknown>) {
-    void changeFile('code', uploadFile)
+    imageUrl.value = publicUrl
 }
 
 onMounted(() => {
@@ -653,13 +767,6 @@ onMounted(() => {
     color: rgba(0, 0, 0, 0.88);
 }
 
-.panel-subtitle {
-    margin-top: 8px;
-    font-size: 14px;
-    color: rgba(0, 0, 0, 0.55);
-    line-height: 1.6;
-}
-
 .section {
     padding: 16px;
     margin-bottom: 18px;
@@ -687,6 +794,19 @@ onMounted(() => {
     color: rgba(0, 0, 0, 0.55);
 }
 
+.capability-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.capability-row {
+    display: grid;
+    grid-template-columns: 1fr 220px auto;
+    align-items: center;
+    gap: 10px;
+}
+
 .upload-row {
     display: flex;
     align-items: center;
@@ -712,5 +832,11 @@ onMounted(() => {
     justify-content: flex-end;
     gap: 12px;
     padding-top: 6px;
+}
+
+@media (max-width: 960px) {
+    .capability-row {
+        grid-template-columns: 1fr;
+    }
 }
 </style>

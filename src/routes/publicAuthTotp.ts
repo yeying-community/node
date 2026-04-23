@@ -26,6 +26,9 @@ import { issueTokens, verifyAccessToken } from '../auth/siwe';
 import { provisionUserState } from '../common/permission';
 
 const BASE_PATH = '/api/v1/public/auth/totp';
+const RATE_LIMIT_STORE = new Map<string, { count: number; resetAt: number }>();
+const RATE_LIMIT_GC_INTERVAL_MS = 5 * 60 * 1000;
+let nextRateLimitGcAt = 0;
 
 function parseBearerToken(req: Request): string {
   const authHeader = String(req.headers.authorization || '').trim();
@@ -128,17 +131,100 @@ function resolveBearerSubject(
   }
 }
 
+function resolveClientIp(req: Request): string {
+  const forwarded = req.headers['x-forwarded-for'];
+  if (Array.isArray(forwarded) && forwarded.length > 0) {
+    return String(forwarded[0] || '').trim();
+  }
+  if (typeof forwarded === 'string' && forwarded.trim()) {
+    return forwarded.split(',')[0].trim();
+  }
+  return req.socket.remoteAddress || '';
+}
+
+function cleanupRateLimitStore(nowMs = Date.now()): void {
+  if (RATE_LIMIT_STORE.size === 0) {
+    nextRateLimitGcAt = nowMs + RATE_LIMIT_GC_INTERVAL_MS;
+    return;
+  }
+  for (const [key, record] of RATE_LIMIT_STORE.entries()) {
+    if (record.resetAt <= nowMs) {
+      RATE_LIMIT_STORE.delete(key);
+    }
+  }
+  nextRateLimitGcAt = nowMs + RATE_LIMIT_GC_INTERVAL_MS;
+}
+
+function consumeRateLimit(key: string, windowMs: number, max: number): boolean {
+  const nowMs = Date.now();
+  if (nextRateLimitGcAt === 0 || nowMs >= nextRateLimitGcAt) {
+    cleanupRateLimitStore(nowMs);
+  }
+  const current = RATE_LIMIT_STORE.get(key);
+  if (!current || current.resetAt <= nowMs) {
+    RATE_LIMIT_STORE.set(key, { count: 1, resetAt: nowMs + windowMs });
+    return true;
+  }
+  if (current.count >= max) {
+    return false;
+  }
+  current.count += 1;
+  RATE_LIMIT_STORE.set(key, current);
+  return true;
+}
+
+function requireRateLimit(
+  req: Request,
+  res: Response,
+  input: {
+    bucket: string;
+    key: string;
+    windowMs: number;
+    max: number;
+    message: string;
+    globalMax?: number;
+  }
+): boolean {
+  const ip = resolveClientIp(req);
+  const globalKey = `${input.bucket}:${ip}:*`;
+  const globalMax = Number.isFinite(input.globalMax) && (input.globalMax as number) > 0
+    ? Math.trunc(input.globalMax as number)
+    : input.max;
+  if (!consumeRateLimit(globalKey, input.windowMs, globalMax)) {
+    res.status(429).json(fail(429, input.message));
+    return false;
+  }
+  const normalizedKey = String(input.key || '').trim() || '-';
+  const mergedKey = `${input.bucket}:${ip}:${normalizedKey}`;
+  if (consumeRateLimit(mergedKey, input.windowMs, input.max)) {
+    return true;
+  }
+  res.status(429).json(fail(429, input.message));
+  return false;
+}
+
 export function registerPublicAuthTotpRoutes(app: Express) {
   app.get(`${BASE_PATH}/status`, (_req: Request, res: Response) => {
     res.json(ok(getTotpAuthStatus()));
   });
 
-  app.get(`${BASE_PATH}/totp/provision`, (req: Request, res: Response) => {
+  app.get(`${BASE_PATH}/totp/provision`, async (req: Request, res: Response) => {
     try {
       const accessToken = parseBearerToken(req);
       const auth = resolveBearerSubject(accessToken);
       const subject = auth.subject;
-      const provision = getTotpProvision(subject);
+      if (
+        !requireRateLimit(req, res, {
+          bucket: 'totp-provision',
+          key: subject,
+          windowMs: 60 * 1000,
+          max: 20,
+          message: 'Too many provision requests, please try again later',
+        })
+      ) {
+        return;
+      }
+      const provision = await getTotpProvision(subject);
       res.json(ok(provision));
     } catch (error) {
       const mapped = mapTotpError(error);
@@ -153,6 +239,17 @@ export function registerPublicAuthTotpRoutes(app: Express) {
       const subject = auth.subject;
       if (!subject) {
         res.status(400).json(fail(400, 'Missing subject'));
+        return;
+      }
+      if (
+        !requireRateLimit(req, res, {
+          bucket: 'totp-bind-request',
+          key: subject,
+          windowMs: 60 * 1000,
+          max: 20,
+          message: 'Too many bind requests, please try again later',
+        })
+      ) {
         return;
       }
       const issuerStatus = getCentralIssuerStatus();
@@ -202,8 +299,19 @@ export function registerPublicAuthTotpRoutes(app: Express) {
         res.status(400).json(fail(400, 'Missing requestId or code'));
         return;
       }
+      if (
+        !requireRateLimit(req, res, {
+          bucket: 'totp-bind-approve',
+          key: requestId,
+          windowMs: 60 * 1000,
+          max: 20,
+          message: 'Too many bind approvals, please try again later',
+        })
+      ) {
+        return;
+      }
 
-      const consumed = consumeTotpBindRequest({
+      const consumed = await consumeTotpBindRequest({
         requestId,
         code,
         expectedSubject:
@@ -258,14 +366,24 @@ export function registerPublicAuthTotpRoutes(app: Express) {
 
   app.post(`${BASE_PATH}/authorize/request`, async (req: Request, res: Response) => {
     try {
+      const subject = String(req.body?.address || req.body?.subject || '').trim().toLowerCase();
+      const appId = String(req.body?.appId || '').trim();
+      if (
+        !requireRateLimit(req, res, {
+          bucket: 'totp-authorize-request',
+          key: `${subject}:${appId}`,
+          windowMs: 60 * 1000,
+          max: 20,
+          message: 'Too many authorization requests, please try again later',
+        })
+      ) {
+        return;
+      }
       const result = await createTotpAuthorizeRequest({
-        subject: String(req.body?.address || req.body?.subject || '').trim(),
+        subject,
         appId: req.body?.appId,
         redirectUri: req.body?.redirectUri,
         state: req.body?.state,
-        audience: req.body?.audience,
-        capabilities: parseCapabilities(req.body?.capabilities),
-        appName: req.body?.appName,
         requestTtlMs: parseOptionalPositiveNumber(req.body?.requestTtlMs),
         sessionTtlMs: parseOptionalPositiveNumber(req.body?.sessionTtlMs),
         tokenTtlMs: parseOptionalPositiveNumber(req.body?.tokenTtlMs ?? req.body?.expiresInMs),
@@ -300,8 +418,19 @@ export function registerPublicAuthTotpRoutes(app: Express) {
         res.status(400).json(fail(400, 'Missing requestId or code'));
         return;
       }
+      if (
+        !requireRateLimit(req, res, {
+          bucket: 'totp-authorize-approve',
+          key: requestId,
+          windowMs: 60 * 1000,
+          max: 20,
+          message: 'Too many authorization approvals, please try again later',
+        })
+      ) {
+        return;
+      }
 
-      const consumed = consumeTotpAuthorizeRequest({
+      const consumed = await consumeTotpAuthorizeRequest({
         requestId,
         code,
       });
@@ -359,6 +488,18 @@ export function registerPublicAuthTotpRoutes(app: Express) {
 
   app.post(`${BASE_PATH}/authorize/exchange`, async (req: Request, res: Response) => {
     try {
+      const appId = String(req.body?.appId || '').trim();
+      if (
+        !requireRateLimit(req, res, {
+          bucket: 'totp-authorize-exchange',
+          key: appId,
+          windowMs: 60 * 1000,
+          max: 30,
+          message: 'Too many token exchanges, please try again later',
+        })
+      ) {
+        return;
+      }
       const result = await exchangeTotpAuthorizeCode({
         code: req.body?.code,
         appId: req.body?.appId,
