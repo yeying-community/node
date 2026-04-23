@@ -402,6 +402,9 @@
               <ul class="list">
                 <li><code>redirectUri is not allowed</code>：回调地址未进入允许列表。</li>
                 <li><code>Unauthorized clientId</code>：clientId 不存在或应用未上架。</li>
+                <li>
+                  <code>column ApplicationDO.redirect_uris does not exist</code>：数据库未执行最新迁移，需重启服务触发迁移或手动补列。
+                </li>
                 <li><code>UCAN audience mismatch</code>：Token 的 aud 与服务端期望不一致。</li>
                 <li><code>UCAN capability denied</code>：签发能力不足，需调整能力并重签。</li>
                 <li><code>USER_ROLE_DENIED</code>：账号角色不满足发布/审批权限。</li>
