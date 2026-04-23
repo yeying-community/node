@@ -75,8 +75,8 @@
 接口前缀：`/api/v1/public/auth/totp/authorize`
 
 - `POST /request`
-  - 输入：`address`、`clientId`、`redirectUri`、`state`（可选）
-  - 建议：`clientId` 直接使用应用市场 `AppId`（`applications.uid`）
+  - 输入：`address`、`appId`、`redirectUri`、`state`（可选）
+  - 建议：`appId` 直接使用应用市场 `AppId`（`applications.uid`）
   - 输出：`requestId`、`verifyUrl`
 - `GET /request/:requestId`
   - 输出：授权请求状态与摘要
@@ -84,7 +84,7 @@
   - 输入：`requestId`、`code`
   - 输出：`authorizationCode` + `redirectTo`
 - `POST /exchange`
-  - 输入：`code`、`clientId`、`redirectUri`
+  - 输入：`code`、`appId`、`redirectUri`
   - 输出：`JWT access token` + `UCAN`
 
 前端承载页（Node Web）：
@@ -119,7 +119,7 @@
 - `totpAuth.maxAttempts` / `TOTP_AUTH_MAX_ATTEMPTS`
 - `totpAuth.totpMasterKey` / `TOTP_AUTH_TOTP_MASTER_KEY`
 - 应用发布字段：`redirectUris`
-  - `clientId` 必须为应用市场 `AppId`（`applications.uid`），`redirectUri` 必须命中该字段
+  - `appId` 必须为应用市场 `AppId`（`applications.uid`），`redirectUri` 必须命中该字段
 
 ## 6. 服务端验证逻辑（第三方无感）
 
@@ -198,4 +198,4 @@
 | 2026-04-17 | 首版创建 | 建立 Node UCAN 签发模式长期维护文档 |
 | 2026-04-17 | 明确中心化接口 | 采用 `/api/v1/public/auth/central/*` 路由并保持业务验 token 无感 |
 | 2026-04-21 | 增加 `/totp-auth` 承载页约定 | 明确手机地址授权流程中的 Node 公共审批页职责（查询/授权/回跳） |
-| 2026-04-21 | 引入 `AppId` 客户端识别 | 支持 `clientId=applications.uid` 动态解析回跳白名单，降低 Chat 集成配置复杂度 |
+| 2026-04-21 | 引入 `AppId` 客户端识别 | 支持 `appId=applications.uid` 动态解析回跳白名单，降低 Chat 集成配置复杂度 |

@@ -123,7 +123,7 @@
                             />
                         </el-select>
                         <div class="field-hint">
-                            使用中心化 UCAN 时，第三方应用需传入 <code>clientId=AppId</code>，且
+                            使用中心化 UCAN 时，第三方应用需传入 <code>appId</code>，且
                             <code>redirectUri</code> 必须命中这里的地址。
                         </div>
                     </el-form-item>

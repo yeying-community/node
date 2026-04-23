@@ -26,8 +26,8 @@
       </div>
 
       <div class="line">
-        <span class="label">clientId</span>
-        <el-input :model-value="requestClientId" readonly />
+        <span class="label">appId</span>
+        <el-input :model-value="requestAppId" readonly />
       </div>
 
       <div class="line">
@@ -122,7 +122,7 @@ type AuthorizeRequestInfo = {
   requestId: string;
   status: string;
   subjectHint: string;
-  clientId: string;
+  appId: string;
   redirectUri: string;
   state?: string;
   audience: string;
@@ -365,9 +365,9 @@ const requestModeLabel = computed(() => {
   return '-';
 });
 
-const requestClientId = computed(() => {
+const requestAppId = computed(() => {
   if (requestMode.value !== 'authorize' || !requestInfo.value) return '-';
-  return (requestInfo.value as AuthorizeRequestInfo).clientId || '-';
+  return (requestInfo.value as AuthorizeRequestInfo).appId || '-';
 });
 
 const approveSuccessText = computed(() => {

@@ -89,8 +89,8 @@
               <el-form-item label="区块链地址">
                 <el-input v-model="form.address" placeholder="0x..." />
               </el-form-item>
-              <el-form-item label="AppId（clientId）">
-                <el-input v-model="form.clientId" placeholder="应用发布后生成的 AppId（UUID）" />
+              <el-form-item label="AppId">
+                <el-input v-model="form.appId" placeholder="应用发布后生成的 AppId（UUID）" />
               </el-form-item>
               <el-form-item class="full" label="redirectUri">
                 <el-input
@@ -251,7 +251,7 @@ type AuthorizeRequestResult = {
   status: string;
   subject: string;
   subjectHint: string;
-  clientId: string;
+  appId: string;
   redirectUri: string;
   state?: string;
   audience: string;
@@ -274,7 +274,7 @@ type AuthorizeApproveResult = {
 type AuthorizeExchangeResult = {
   requestId: string;
   subject: string;
-  clientId: string;
+  appId: string;
   redirectUri: string;
   state?: string;
   token: string;
@@ -299,7 +299,7 @@ type ProfileResult = {
 
 type ConfigForm = {
   address: string;
-  clientId: string;
+  appId: string;
   redirectUri: string;
   state: string;
   audience: string;
@@ -325,7 +325,7 @@ const authCodeInput = ref('');
 
 const form = reactive<ConfigForm>({
   address: '',
-  clientId: '',
+  appId: '',
   redirectUri: '',
   state: '',
   audience: 'did:web:localhost:8100',
@@ -380,13 +380,13 @@ function ensureAddress() {
   return address;
 }
 
-function ensureClientConfig() {
-  const clientId = String(form.clientId || '').trim();
+function ensureAppConfig() {
+  const appId = String(form.appId || '').trim();
   const redirectUri = String(form.redirectUri || '').trim();
-  if (!clientId || !redirectUri) {
-    throw new Error('请填写 AppId（clientId）和 redirectUri');
+  if (!appId || !redirectUri) {
+    throw new Error('请填写 AppId 和 redirectUri');
   }
-  return { clientId, redirectUri };
+  return { appId, redirectUri };
 }
 
 function restoreConfig() {
@@ -401,7 +401,7 @@ function restoreConfig() {
   try {
     const parsed = JSON.parse(raw) as Partial<ConfigForm>;
     form.address = String(parsed.address || getCurrentAccount() || '');
-    form.clientId = String(parsed.clientId || '');
+    form.appId = String(parsed.appId || '');
     form.redirectUri = String(parsed.redirectUri || '');
     form.state = String(parsed.state || '');
     form.audience = String(parsed.audience || 'did:web:localhost:8100');
@@ -477,10 +477,10 @@ async function loadTotpProvision() {
 async function createAuthorizeRequest() {
   try {
     const address = ensureAddress();
-    const { clientId, redirectUri } = ensureClientConfig();
+    const { appId, redirectUri } = ensureAppConfig();
     const payload = {
       address,
-      clientId,
+      appId,
       redirectUri,
       state: form.state || undefined,
       audience: String(form.audience || '').trim() || undefined,
@@ -554,14 +554,14 @@ async function approveAuthorizeRequest() {
 async function exchangeAuthorizeCode() {
   try {
     const code = String(authCodeInput.value || '').trim();
-    const { clientId, redirectUri } = ensureClientConfig();
+    const { appId, redirectUri } = ensureAppConfig();
     if (!code) {
       notifyError('请填写 authorization code');
       return;
     }
     const result = await postJson<AuthorizeExchangeResult>(
       '/api/v1/public/auth/totp/authorize/exchange',
-      { code, clientId, redirectUri },
+      { code, appId, redirectUri },
       '兑换授权码失败'
     );
     exchangeResult.value = result;

@@ -344,12 +344,12 @@
                 <div class="flow-step"><b>Step 4:</b> 提交上架申请并完成审批。</div>
                 <div class="flow-step"><b>Step 5:</b> 上架成功后 <code>is_online=true</code>，应用进入可用状态。</div>
                 <div class="flow-step">
-                  <b>Step 6:</b> 第三方应用把 <code>AppId</code> 作为 <code>clientId</code> 接入中心化 UCAN。
+                  <b>Step 6:</b> 第三方应用把 <code>AppId</code> 作为 <code>appId</code> 接入中心化 UCAN。
                 </div>
               </div>
               <div class="tip">
                 <strong>关键点：</strong>
-                <code>clientId</code> 不在发布时新生成，使用的是创建应用时的
+                <code>appId</code> 不在发布时新生成，使用的是创建应用时的
                 <code>AppId(uid)</code>。应用必须已上架，且需在发布页配置
                 <code>redirectUris</code> 回调白名单。
               </div>
@@ -361,17 +361,17 @@
             <div class="section-body">
               <div class="flow">
                 <div class="flow-step">
-                  <b>1)</b> 业务端发起授权请求：提交 <code>address + clientId + redirectUri</code>。
+                  <b>1)</b> 业务端发起授权请求：提交 <code>address + appId + redirectUri</code>。
                 </div>
                 <div class="flow-step">
-                  <b>2)</b> Node 校验 <code>clientId + redirectUri</code>：仅接受已上架应用 AppId，且
+                  <b>2)</b> Node 校验 <code>appId + redirectUri</code>：仅接受已上架应用 AppId，且
                   <code>redirectUri</code> 必须命中应用发布字段 <code>redirectUris</code>。
                 </div>
                 <div class="flow-step">
                   <b>3)</b> 用户在 Node 验证页输入 TOTP，授权通过后拿到一次性 <code>code</code>。
                 </div>
                 <div class="flow-step">
-                  <b>4)</b> 业务端用 <code>code + clientId + redirectUri</code> 兑换 <code>JWT + UCAN</code>。
+                  <b>4)</b> 业务端用 <code>code + appId + redirectUri</code> 兑换 <code>JWT + UCAN</code>。
                 </div>
                 <div class="flow-step">
                   <b>5)</b> 业务端携带 Bearer Token 调用受保护接口，服务端按统一 UCAN 规则验证。
@@ -388,7 +388,7 @@
             <summary class="section-summary">03. 参数与约束</summary>
             <div class="section-body">
               <ul class="list">
-                <li><code>clientId</code>：必须使用应用市场 AppId（<code>applications.uid</code>）。</li>
+                <li><code>appId</code>：必须使用应用市场 AppId（<code>applications.uid</code>）。</li>
                 <li><code>redirectUri</code>：必须命中该应用发布字段 <code>redirectUris</code>。</li>
                 <li><code>audience</code>：需与服务端 UCAN audience 配置一致。</li>
                 <li><code>capability.with/can</code>：必须与服务端能力策略一致。</li>
@@ -401,7 +401,7 @@
             <div class="section-body">
               <ul class="list">
                 <li><code>redirectUri is not allowed</code>：回调地址未进入允许列表。</li>
-                <li><code>Unauthorized clientId</code>：clientId 不存在或应用未上架。</li>
+                <li><code>Unauthorized appId</code>：appId 不存在或应用未上架。</li>
                 <li>
                   <code>column ApplicationDO.redirect_uris does not exist</code>：数据库未执行最新迁移，需重启服务触发迁移或手动补列。
                 </li>
@@ -431,7 +431,7 @@
                 <li>钱包登录并进入“我的配置”。</li>
                 <li>刷新 TOTP 状态，确认服务已就绪。</li>
                 <li>加载认证器配置并扫码绑定 TOTP。</li>
-                <li>填写 <code>address/clientId/redirectUri</code> 并创建授权请求。</li>
+                <li>填写 <code>address/appId/redirectUri</code> 并创建授权请求。</li>
                 <li>批准授权并兑换 code，验证 JWT/UCAN 可用性。</li>
               </ol>
             </div>
@@ -442,7 +442,7 @@
             <div class="section-body">
               <ul class="list">
                 <li>先查服务端 <code>logs/</code>，再看浏览器控制台与 Network 面板。</li>
-                <li>优先核对三元组：<code>address</code>、<code>clientId</code>、<code>redirectUri</code>。</li>
+                <li>优先核对三元组：<code>address</code>、<code>appId</code>、<code>redirectUri</code>。</li>
                 <li>涉及 UCAN 校验时，同时核对 <code>audience</code> 和 <code>capability</code>。</li>
               </ul>
             </div>

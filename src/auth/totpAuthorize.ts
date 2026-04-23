@@ -12,7 +12,7 @@ import {
 export type TotpAuthorizeRequestStatus = 'pending' | 'used' | 'expired' | 'revoked';
 
 export type TotpAuthorizeClient = {
-  clientId: string;
+  appId: string;
   redirectUris: string[];
   appName?: string;
   defaultAudience?: string;
@@ -24,7 +24,7 @@ export type TotpAuthorizeRequestCreateResult = {
   status: TotpAuthorizeRequestStatus;
   subject: string;
   subjectHint: string;
-  clientId: string;
+  appId: string;
   redirectUri: string;
   state?: string;
   audience: string;
@@ -40,7 +40,7 @@ export type TotpAuthorizeRequestPublicResult = Omit<TotpAuthorizeRequestCreateRe
 export type TotpAuthorizeRequestConsumeResult = {
   requestId: string;
   subject: string;
-  clientId: string;
+  appId: string;
   redirectUri: string;
   state?: string;
   audience: string;
@@ -60,7 +60,7 @@ export type TotpAuthorizeCodeCreateResult = {
 export type TotpAuthorizeCodeExchangeResult = {
   requestId: string;
   subject: string;
-  clientId: string;
+  appId: string;
   redirectUri: string;
   state?: string;
   token: string;
@@ -83,7 +83,7 @@ type TotpAuthorizeRequestRecord = {
   requestId: string;
   status: TotpAuthorizeRequestStatus;
   subject: string;
-  clientId: string;
+  appId: string;
   redirectUri: string;
   state?: string;
   audience: string;
@@ -101,7 +101,7 @@ type TotpAuthorizeCodeRecord = {
   code: string;
   requestId: string;
   subject: string;
-  clientId: string;
+  appId: string;
   redirectUri: string;
   state?: string;
   token: string;
@@ -185,7 +185,7 @@ function normalizeRequestId(input: unknown): string {
   return String(input || '').trim();
 }
 
-function normalizeClientId(input: unknown): string {
+function normalizeAppId(input: unknown): string {
   return String(input || '').trim();
 }
 
@@ -252,9 +252,9 @@ function loadAuthorizeRuntime(): TotpAuthorizeRuntimeState {
 }
 
 function cleanupAuthorizeRecords(nowMs = Date.now()): void {
-  for (const [clientId, cacheItem] of DYNAMIC_CLIENT_CACHE.entries()) {
+  for (const [appId, cacheItem] of DYNAMIC_CLIENT_CACHE.entries()) {
     if (cacheItem.expiresAt <= nowMs) {
-      DYNAMIC_CLIENT_CACHE.delete(clientId);
+      DYNAMIC_CLIENT_CACHE.delete(appId);
     }
   }
 
@@ -324,20 +324,20 @@ function parseRedirectUrisFromApplication(raw: unknown): string[] {
   return [...normalized];
 }
 
-async function resolveAppClientByAppId(clientId: string): Promise<TotpAuthorizeClient | null> {
-  if (!APP_ID_REGEX.test(clientId)) {
+async function resolveAuthorizeAppByAppId(appId: string): Promise<TotpAuthorizeClient | null> {
+  if (!APP_ID_REGEX.test(appId)) {
     return null;
   }
   const nowMs = Date.now();
-  const cached = DYNAMIC_CLIENT_CACHE.get(clientId);
+  const cached = DYNAMIC_CLIENT_CACHE.get(appId);
   if (cached && cached.expiresAt > nowMs) {
     return cached.client;
   }
 
   const service = new ApplicationService();
-  const app = await service.queryByUid(clientId);
+  const app = await service.queryByUid(appId);
   if (!app || !app.uid || !app.isOnline) {
-    DYNAMIC_CLIENT_CACHE.set(clientId, { client: null, expiresAt: nowMs + DYNAMIC_CLIENT_CACHE_TTL_MS });
+    DYNAMIC_CLIENT_CACHE.set(appId, { client: null, expiresAt: nowMs + DYNAMIC_CLIENT_CACHE_TTL_MS });
     return null;
   }
 
@@ -357,31 +357,31 @@ async function resolveAppClientByAppId(clientId: string): Promise<TotpAuthorizeC
       : undefined;
 
   const client: TotpAuthorizeClient = {
-    clientId,
-    appName: normalizeAppName(app.name || app.code || clientId),
+    appId,
+    appName: normalizeAppName(app.name || app.code || appId),
     redirectUris,
     defaultAudience: issuerStatus.defaultAudience || undefined,
     defaultCapabilities,
   };
-  DYNAMIC_CLIENT_CACHE.set(clientId, { client, expiresAt: nowMs + DYNAMIC_CLIENT_CACHE_TTL_MS });
+  DYNAMIC_CLIENT_CACHE.set(appId, { client, expiresAt: nowMs + DYNAMIC_CLIENT_CACHE_TTL_MS });
   return client;
 }
 
-async function getAuthorizeClient(clientIdInput: unknown): Promise<TotpAuthorizeClient> {
-  const clientId = normalizeClientId(clientIdInput);
-  if (!clientId) {
-    throw new TotpAuthError(400, 'TOTP_AUTH_CLIENT_REQUIRED', 'Missing clientId');
+async function getAuthorizeApp(appIdInput: unknown): Promise<TotpAuthorizeClient> {
+  const appId = normalizeAppId(appIdInput);
+  if (!appId) {
+    throw new TotpAuthError(400, 'TOTP_AUTH_APP_REQUIRED', 'Missing appId');
   }
-  const appClient = await resolveAppClientByAppId(clientId);
+  const appClient = await resolveAuthorizeAppByAppId(appId);
   if (appClient) {
     return appClient;
   }
-  throw new TotpAuthError(403, 'TOTP_AUTH_CLIENT_DENIED', 'Unauthorized clientId (must be published AppId)');
+  throw new TotpAuthError(403, 'TOTP_AUTH_APP_DENIED', 'Unauthorized appId (must be published AppId)');
 }
 
-function requireClientRedirect(client: TotpAuthorizeClient, redirectUriInput: unknown): string {
+function requireAppRedirect(app: TotpAuthorizeClient, redirectUriInput: unknown): string {
   const redirectUri = normalizeRedirectUri(redirectUriInput);
-  if (!client.redirectUris.includes(redirectUri)) {
+  if (!app.redirectUris.includes(redirectUri)) {
     throw new TotpAuthError(403, 'TOTP_AUTH_REDIRECT_DENIED', 'redirectUri is not allowed');
   }
   return redirectUri;
@@ -438,7 +438,7 @@ function toPublicResult(record: TotpAuthorizeRequestRecord): TotpAuthorizeReques
     requestId: record.requestId,
     status: record.status,
     subjectHint: maskSubject(record.subject),
-    clientId: record.clientId,
+    appId: record.appId,
     redirectUri: record.redirectUri,
     state: record.state,
     audience: record.audience,
@@ -462,7 +462,7 @@ function appendQuery(baseUrl: string, query: Record<string, string>): string {
 
 export async function createTotpAuthorizeRequest(input: {
   subject: string;
-  clientId: string;
+  appId: string;
   redirectUri: string;
   state?: string;
   audience?: string;
@@ -476,15 +476,15 @@ export async function createTotpAuthorizeRequest(input: {
   cleanupAuthorizeRecords();
 
   const subject = requireWalletAddress(input.subject);
-  const client = await getAuthorizeClient(input.clientId);
-  const redirectUri = requireClientRedirect(client, input.redirectUri);
+  const app = await getAuthorizeApp(input.appId);
+  const redirectUri = requireAppRedirect(app, input.redirectUri);
   const state = normalizeState(input.state);
   const capabilitiesInput = Array.isArray(input.capabilities) ? input.capabilities : [];
   const capabilities = capabilitiesInput
     .map(entry => sanitizeCapability(entry))
     .filter((entry): entry is UcanCapability => Boolean(entry));
   const resolvedCapabilities =
-    capabilities.length > 0 ? capabilities : client.defaultCapabilities || [];
+    capabilities.length > 0 ? capabilities : app.defaultCapabilities || [];
   if (resolvedCapabilities.length === 0) {
     throw new TotpAuthError(
       400,
@@ -493,7 +493,7 @@ export async function createTotpAuthorizeRequest(input: {
     );
   }
 
-  const audience = String(input.audience || client.defaultAudience || '').trim();
+  const audience = String(input.audience || app.defaultAudience || '').trim();
   if (!audience) {
     throw new TotpAuthError(
       400,
@@ -510,12 +510,12 @@ export async function createTotpAuthorizeRequest(input: {
     requestId,
     status: 'pending',
     subject,
-    clientId: client.clientId,
+    appId: app.appId,
     redirectUri,
     state,
     audience,
     capabilities: resolvedCapabilities,
-    appName: normalizeAppName(input.appName || client.appName || client.clientId),
+    appName: normalizeAppName(input.appName || app.appName || app.appId),
     createdAt: nowMs,
     updatedAt: nowMs,
     expiresAt,
@@ -582,7 +582,7 @@ export function consumeTotpAuthorizeRequest(input: {
   return {
     requestId: pending.requestId,
     subject: pending.subject,
-    clientId: pending.clientId,
+    appId: pending.appId,
     redirectUri: pending.redirectUri,
     state: pending.state,
     audience: pending.audience,
@@ -597,7 +597,7 @@ export function consumeTotpAuthorizeRequest(input: {
 export async function createTotpAuthorizeCode(input: {
   requestId: string;
   subject: string;
-  clientId: string;
+  appId: string;
   redirectUri: string;
   state?: string;
   token: string;
@@ -615,8 +615,8 @@ export async function createTotpAuthorizeCode(input: {
   assertTotpAuthReady();
   cleanupAuthorizeRecords();
 
-  const client = await getAuthorizeClient(input.clientId);
-  const redirectUri = requireClientRedirect(client, input.redirectUri);
+  const app = await getAuthorizeApp(input.appId);
+  const redirectUri = requireAppRedirect(app, input.redirectUri);
   const requestId = normalizeRequestId(input.requestId);
   if (!requestId) {
     throw new TotpAuthError(400, 'TOTP_AUTH_REQUEST_REQUIRED', 'Missing requestId');
@@ -638,7 +638,7 @@ export async function createTotpAuthorizeCode(input: {
     code,
     requestId,
     subject,
-    clientId: client.clientId,
+    appId: app.appId,
     redirectUri,
     state,
     token,
@@ -670,7 +670,7 @@ export async function createTotpAuthorizeCode(input: {
 
 export async function exchangeTotpAuthorizeCode(input: {
   code: string;
-  clientId: string;
+  appId: string;
   redirectUri: string;
 }): Promise<TotpAuthorizeCodeExchangeResult> {
   assertTotpAuthReady();
@@ -680,8 +680,8 @@ export async function exchangeTotpAuthorizeCode(input: {
   if (!code) {
     throw new TotpAuthError(400, 'TOTP_AUTH_CODE_REQUIRED', 'Missing authorization code');
   }
-  const client = await getAuthorizeClient(input.clientId);
-  const redirectUri = requireClientRedirect(client, input.redirectUri);
+  const app = await getAuthorizeApp(input.appId);
+  const redirectUri = requireAppRedirect(app, input.redirectUri);
   const record = AUTHORIZE_CODES.get(code);
   if (!record) {
     throw new TotpAuthError(404, 'TOTP_AUTH_CODE_NOT_FOUND', 'Authorization code not found');
@@ -694,11 +694,11 @@ export async function exchangeTotpAuthorizeCode(input: {
   if (nowMs > record.codeExpiresAt) {
     throw new TotpAuthError(410, 'TOTP_AUTH_CODE_EXPIRED', 'Authorization code expired');
   }
-  if (record.clientId !== client.clientId || record.redirectUri !== redirectUri) {
+  if (record.appId !== app.appId || record.redirectUri !== redirectUri) {
     throw new TotpAuthError(
       403,
-      'TOTP_AUTH_CODE_CLIENT_MISMATCH',
-      'Authorization code does not match client binding'
+      'TOTP_AUTH_CODE_APP_MISMATCH',
+      'Authorization code does not match app binding'
     );
   }
 
@@ -708,7 +708,7 @@ export async function exchangeTotpAuthorizeCode(input: {
   return {
     requestId: record.requestId,
     subject: record.subject,
-    clientId: record.clientId,
+    appId: record.appId,
     redirectUri: record.redirectUri,
     state: record.state,
     token: record.token,

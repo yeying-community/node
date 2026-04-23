@@ -99,7 +99,7 @@ module.exports = {
     codePeriodSec: 30,
     codeWindow: 1,
     maxAttempts: 5,
-    // totp authorize 仅支持已发布应用（clientId = applications.uid）。
+    // totp authorize 仅支持已发布应用（appId = applications.uid）。
     // 回调地址从应用发布字段 redirectUris 读取并做严格匹配。
     // Required when enabled. Supports plain text / base64 / hex.
     // IMPORTANT: replace with env injection in production.

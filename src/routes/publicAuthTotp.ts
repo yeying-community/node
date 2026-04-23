@@ -260,7 +260,7 @@ export function registerPublicAuthTotpRoutes(app: Express) {
     try {
       const result = await createTotpAuthorizeRequest({
         subject: String(req.body?.address || req.body?.subject || '').trim(),
-        clientId: req.body?.clientId,
+        appId: req.body?.appId,
         redirectUri: req.body?.redirectUri,
         state: req.body?.state,
         audience: req.body?.audience,
@@ -322,7 +322,7 @@ export function registerPublicAuthTotpRoutes(app: Express) {
       const authCode = await createTotpAuthorizeCode({
         requestId: consumed.requestId,
         subject: consumed.subject,
-        clientId: consumed.clientId,
+        appId: consumed.appId,
         redirectUri: consumed.redirectUri,
         state: consumed.state,
         token: tokens.accessToken,
@@ -361,7 +361,7 @@ export function registerPublicAuthTotpRoutes(app: Express) {
     try {
       const result = await exchangeTotpAuthorizeCode({
         code: req.body?.code,
-        clientId: req.body?.clientId,
+        appId: req.body?.appId,
         redirectUri: req.body?.redirectUri,
       });
       res.json(ok(result));
