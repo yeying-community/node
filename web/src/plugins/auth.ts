@@ -495,14 +495,11 @@ export async function waitForWallet() {
 
 // 连接钱包
 export async function connectWallet(router: any, route: any) {
-  if (localStorage.getItem('hasConnectedWallet') === 'false') {
-    notifyError('❌未检测到钱包，请先安装并连接钱包');
-    return;
-  }
   try {
     const provider = await resolveProvider();
     if (!provider) {
-      notifyError('❌未检测到钱包，请先安装并连接钱包');
+      getWalletDataStore().setWalletReady(false);
+      notifyError('未检测到钱包，请先安装并连接钱包');
       return;
     }
     getWalletDataStore().setWalletReady(true);
@@ -695,14 +692,10 @@ export async function setupWalletListeners() {
 
 // 获取链 ID
 export async function getChainId() {
-  if (localStorage.getItem('hasConnectedWallet') === 'false') {
-    notifyError('❌未检测到钱包，请先安装并连接钱包');
-    return;
-  }
   try {
     const provider = await resolveProvider();
     if (!provider) {
-      notifyError('❌未检测到钱包，请先安装并连接钱包');
+      notifyError('未检测到钱包，请先安装并连接钱包');
       return;
     }
     const chainId = await web3GetChainId(provider);
@@ -728,10 +721,6 @@ export async function getChainId() {
 
 // 获取余额
 export async function getBalance() {
-  if (localStorage.getItem('hasConnectedWallet') === 'false') {
-    notifyError('❌未检测到钱包，请先安装并连接钱包');
-    return;
-  }
   const currentAccount = getCurrentAccount();
   if (!currentAccount) {
     notifyError('❌请先连接钱包');
@@ -740,7 +729,7 @@ export async function getBalance() {
   try {
     const provider = await resolveProvider();
     if (!provider) {
-      notifyError('❌未检测到钱包，请先安装并连接钱包');
+      notifyError('未检测到钱包，请先安装并连接钱包');
       return;
     }
     const balance = await web3GetBalance(provider, currentAccount, 'latest');
@@ -760,15 +749,11 @@ export async function loginWithUcan(
   if (loginInFlight) {
     return await loginInFlight;
   }
-  if (localStorage.getItem('hasConnectedWallet') === 'false') {
-    notifyError('❌未检测到钱包，请先安装并连接钱包');
-    return false;
-  }
   loginInFlight = (async () => {
     try {
       const provider = providerOverride || (await resolveProvider());
       if (!provider) {
-        notifyError('❌未检测到钱包，请先安装并连接钱包');
+        notifyError('未检测到钱包，请先安装并连接钱包');
         return false;
       }
       const accounts = accountOverride

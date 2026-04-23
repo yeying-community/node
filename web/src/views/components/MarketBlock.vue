@@ -15,12 +15,8 @@
                         <span class="badge-text">{{ businessInfo.text }}</span>
                     </template>
                 </div>
-                <div class="title">
-                     <div class="ownerWrap" v-if="detail.owner && pageFrom !== 'myCreate'">
-                        <div>所有者:</div>
-                        <div class="ownerContent">{{ detail.owner }}</div>
-                    </div>
-                    <span v-else>
+                <div class="title" v-if="pageFrom !== 'market' || pageFrom === 'myCreate' || !ownerAddress">
+                    <span v-if="pageFrom === 'myCreate' || !ownerAddress">
                         <el-tag type="primary" size="small">官方</el-tag>
                     </span>
                     <span v-if="pageFrom !== 'market'">
@@ -29,14 +25,16 @@
                     >
                 </div>
                 <div class="meta">
+                    <span v-if="ownerAddress" class="owner-meta">
+                        所有者：{{ ownerShortAddress }}
+                        <el-tooltip content="复制所有者地址" placement="top">
+                            <el-icon class="copy-owner-icon" @click.stop="copyOwnerAddress">
+                                <CopyDocument />
+                            </el-icon>
+                        </el-tooltip>
+                    </span>
                     <span>分类：{{ applicationCodeText }}</span>
                     <span v-if="serviceCodeText !== '-'">依赖：{{ serviceCodeText }}</span>
-                </div>
-                <div class="desc">
-                    <div class="ownerWrap" v-if="detail.ownerName && pageFrom !== 'myCreate'">
-                        <div>所有者名称：</div>
-                        <div class="ownerContent">{{ detail.ownerName }}</div>
-                    </div>
                 </div>
                 <div class="desc">
                     {{ detail.description }}
@@ -168,7 +166,7 @@
 import { ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import $audit, { isAuditForResource, resolveUsageAuditStatus } from '@/plugins/audit'
-import { SuccessFilled, WarningFilled } from '@element-plus/icons-vue'
+import { CopyDocument, SuccessFilled, WarningFilled } from '@element-plus/icons-vue'
 import dayjs from 'dayjs'
 import { exportIdentityInfo } from '@/plugins/account'
 import { ElMessage, ElMessageBox } from 'element-plus'
@@ -183,7 +181,7 @@ import $application, {
     resolveBusinessStatus,
     serviceCodeMap
 } from '@/plugins/application'
-import { notifyError } from '@/utils/message'
+import { notifyError, notifySuccess } from '@/utils/message'
 import { getCurrentAccount } from '@/plugins/auth'
 import { normalizeAddress } from '@/utils/actionSignature'
 
@@ -210,6 +208,17 @@ const modalVisible = ref(false)
 const businessStatus = computed(() => resolveBusinessStatus(props.detail))
 const businessInfo = computed(() => businessStatusMap[businessStatus.value] || businessStatusMap.BUSINESS_STATUS_UNKNOWN)
 const isOnline = computed(() => businessStatus.value === 'BUSINESS_STATUS_ONLINE')
+const ownerAddress = computed(() => String(props.detail?.owner || '').trim())
+const ownerShortAddress = computed(() => {
+    const value = ownerAddress.value
+    if (!value) {
+        return ''
+    }
+    if (value.length <= 12) {
+        return value
+    }
+    return `${value.slice(0, 6)}...${value.slice(-4)}`
+})
 const marketPublishedDateText = computed(() => {
     const raw = String(props.detail?.createdAt || '').trim()
     if (!raw) {
@@ -237,6 +246,35 @@ const serviceCodeText = computed(() => {
     }
     return codes.map((code) => serviceCodeMap[code] || code).join('、')
 })
+
+const writeClipboardText = async (value: string) => {
+    if (navigator?.clipboard?.writeText) {
+        await navigator.clipboard.writeText(value)
+        return
+    }
+    const textarea = document.createElement('textarea')
+    textarea.value = value
+    textarea.setAttribute('readonly', 'readonly')
+    textarea.style.position = 'fixed'
+    textarea.style.left = '-9999px'
+    document.body.appendChild(textarea)
+    textarea.select()
+    document.execCommand('copy')
+    document.body.removeChild(textarea)
+}
+
+const copyOwnerAddress = async () => {
+    const value = ownerAddress.value
+    if (!value) {
+        return
+    }
+    try {
+        await writeClipboardText(value)
+        notifySuccess('所有者地址已复制')
+    } catch {
+        notifyError('复制所有者地址失败')
+    }
+}
 
 /**
  * 申请应用的状态
@@ -518,17 +556,16 @@ if (props.pageFrom === 'myApply') {
                 gap: 8px 16px;
                 color: rgba(0, 0, 0, 0.6);
                 font-size: 13px;
-            }
-            .ownerWrap {
-                display: flex;
-            }
-            .ownerTitle {
-                white-space: nowrap;
-            }
-            .ownerContent {
-                max-width: 120px;
-                overflow: hidden;
-                text-overflow: ellipsis;
+                .owner-meta {
+                    display: inline-flex;
+                    align-items: center;
+                    gap: 6px;
+                }
+                .copy-owner-icon {
+                    font-size: 14px;
+                    color: rgba(22, 119, 255, 1);
+                    cursor: pointer;
+                }
             }
             .desc {
                 color: rgba(0, 0, 0, 0.45);
