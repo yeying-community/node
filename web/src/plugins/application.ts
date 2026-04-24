@@ -54,7 +54,7 @@ export const serviceCodeMapTrans = {
 }
 
 export const codeMap = {
-  APPLICATION_CODE_CHAT: 'Chat 应用',
+  APPLICATION_CODE_CHAT: 'Chat 聊天',
   APPLICATION_CODE_ROUTER: 'Router 网关',
   APPLICATION_CODE_WAREHOUSE: 'Warehouse 仓储',
   APPLICATION_CODE_UNKNOWN: '未知',
@@ -64,6 +64,19 @@ export const codeMap = {
   APPLICATION_CODE_KEEPER: '智能管家应用',
   APPLICATION_CODE_SOCIAL: '社交应用',
   APPLICATION_CODE_WORKBENCH: '工作台应用'
+}
+
+export function resolveApplicationCategoryLabel(code: unknown): string {
+  const normalizedCode = String(code || '').trim()
+  if (!normalizedCode) {
+    return '未分类'
+  }
+  const fullLabel = codeMap[normalizedCode as keyof typeof codeMap]
+  if (!fullLabel) {
+    return '未分类'
+  }
+  const parts = fullLabel.trim().split(/\s+/).filter((item) => item.length > 0)
+  return parts.length > 1 ? parts[parts.length - 1] : parts[0] || '未分类'
 }
 
 export const serviceCodeMap = {

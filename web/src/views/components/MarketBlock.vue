@@ -2,7 +2,7 @@
     <div class="tab" :class="{ 'tab-market-clickable': pageFrom === 'market' }" @click="handleCardClick">
         <div class="top">
             <div class="top-left">
-                <el-avatar shape="square" size="56" :src="detail.avatar" />
+                <el-avatar shape="square" size="72" :src="detail.avatar" />
             </div>
             <div class="top-right" :class="{ 'has-menu': pageFrom === 'market' }">
                 <div v-if="pageFrom === 'market'" class="card-menu" @click.stop>
@@ -176,7 +176,7 @@ import ResultChooseModal from './ResultChooseModal.vue'
 import $application, {
     ApplicationMetadata,
     businessStatusMap,
-    codeMap,
+    resolveApplicationCategoryLabel,
     resolveBusinessStatus
 } from '@/plugins/application'
 import { notifyError, notifySuccess } from '@/utils/message'
@@ -229,11 +229,7 @@ const marketPublishedDateText = computed(() => {
     return parsed.isValid() ? parsed.format('YYYY-MM-DD') : '-'
 })
 const applicationCodeText = computed(() => {
-    const code = String(props.detail?.code || '').trim()
-    if (!code) {
-        return '未分类'
-    }
-    return codeMap[code] || '未分类'
+    return resolveApplicationCategoryLabel(props.detail?.code)
 })
 const versionText = computed(() => {
     const raw = props.detail?.version
@@ -624,7 +620,7 @@ onBeforeUnmount(() => {
 .tab {
     background-color: #fff;
     border-radius: 6px;
-    padding: 20px;
+    padding: 18px 14px;
     &.tab-market-clickable {
         cursor: pointer;
     }
@@ -633,11 +629,16 @@ onBeforeUnmount(() => {
     }
     .top {
         display: flex;
-        gap: 16px;
+        align-items: flex-start;
+        gap: 12px;
         .top-left {
-            width: 56px;
-            height: 56px;
-            flex: 0 0 56px;
+            width: 72px;
+            height: 72px;
+            flex: 0 0 72px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-top: 1px;
         }
         .top-right {
             position: relative;

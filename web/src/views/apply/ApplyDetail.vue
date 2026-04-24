@@ -161,8 +161,8 @@ import { useRoute, useRouter } from 'vue-router'
 import $application, {
     ApplicationMetadata,
     businessStatusMap,
-    codeMap,
     filterLegacyDependencies,
+    resolveApplicationCategoryLabel,
     resolveBusinessStatus,
     serviceCodeMap
 } from '@/plugins/application'
@@ -226,11 +226,7 @@ const appIdText = computed(() => {
 })
 
 const applicationCodeText = computed(() => {
-    const code = String(detailInfo.value.code || '').trim()
-    if (!code) {
-        return '未分类'
-    }
-    return codeMap[code] || '未分类'
+    return resolveApplicationCategoryLabel(detailInfo.value.code)
 })
 
 const dependencyText = computed(() => {

@@ -22,7 +22,7 @@
 
             <el-table-column prop="code" label="分类" width="150">
                 <template #default="scope">
-                    {{ codeMap[String(scope.row.code || '').trim()] || '未分类' }}
+                    {{ resolveApplicationCategoryLabel(scope.row.code) }}
                 </template>
             </el-table-column>
 
@@ -163,7 +163,7 @@ import ConfigCapabilityModal from './ConfigCapabilityModal.vue'
 import $application, {
     type ApplicationMetadata,
     businessStatusMap,
-    codeMap,
+    resolveApplicationCategoryLabel,
     resolveBusinessStatus
 } from '@/plugins/application'
 import $audit, { isAuditForResource } from '@/plugins/audit'
