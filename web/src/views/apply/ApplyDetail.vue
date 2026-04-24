@@ -1,6 +1,6 @@
 <template>
     <div class="detail">
-        <el-breadcrumb separator="/">
+        <el-breadcrumb v-if="showRouteBreadcrumb" separator="/">
             <el-breadcrumb-item :to="{ path: '/market/' }">应用中心</el-breadcrumb-item>
             <el-breadcrumb-item>应用详情</el-breadcrumb-item>
         </el-breadcrumb>
@@ -194,6 +194,7 @@ const detailInfo = ref<ApplicationMetadata>({
     codePackagePath: ''
 })
 const pageFrom = String(route.query.pageFrom || '')
+const showRouteBreadcrumb = computed(() => pageFrom === 'myCreate' || pageFrom === 'myApply')
 const innerVisible = ref(false)
 const modalVisible = ref(false)
 const dialogVisible = ref(false)

@@ -2,7 +2,7 @@
     <div class="tab" :class="{ 'tab-market-clickable': pageFrom === 'market' }" @click="handleCardClick">
         <div class="top">
             <div class="top-left">
-                <el-avatar shape="square" size="50" :src="detail.avatar" />
+                <el-avatar shape="square" size="56" :src="detail.avatar" />
             </div>
             <div class="top-right" :class="{ 'has-menu': pageFrom === 'market' }">
                 <div v-if="pageFrom === 'market'" class="card-menu" @click.stop>
@@ -24,6 +24,7 @@
                 </div>
                 <div class="title" v-if="pageFrom === 'market'">
                     <el-tag type="primary" size="small">社区</el-tag>
+                    <span class="market-title-time">{{ marketPublishedDateText }}</span>
                 </div>
                 <div class="title" v-else-if="pageFrom === 'myCreate' || !ownerAddress">
                     <span v-if="pageFrom === 'myCreate' || !ownerAddress">
@@ -34,7 +35,6 @@
                         {{ dayjs(detail.createdAt).format('YYYY-MM-DD') }}
                     </span>
                 </div>
-                <div v-if="pageFrom === 'market'" class="publish-time">{{ marketPublishedDateText }}</div>
                 <div v-if="ownerAddress" class="meta owner-meta-line">
                     <span class="owner-meta">
                         作者：{{ ownerShortAddress }}
@@ -635,6 +635,9 @@ onBeforeUnmount(() => {
         display: flex;
         gap: 16px;
         .top-left {
+            width: 56px;
+            height: 56px;
+            flex: 0 0 56px;
         }
         .top-right {
             position: relative;
@@ -672,19 +675,19 @@ onBeforeUnmount(() => {
             }
             .title {
                 display: flex;
+                align-items: center;
                 color: rgba(0, 0, 0, 0.45);
                 font-size: 14px;
                 font-weight: 400;
-                gap: 4px;
+                gap: 8px;
                 .el-tag {
-                    margin-top: -4px;
+                    margin-top: 0;
                 }
             }
-            .publish-time {
+            .market-title-time {
                 color: rgba(0, 0, 0, 0.45);
                 font-size: 13px;
-                line-height: 1.4;
-                margin-top: -4px;
+                line-height: 1.2;
             }
             .meta {
                 display: flex;
