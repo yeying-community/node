@@ -200,7 +200,7 @@ const presets: ApplicationPreset[] = [
             name: 'Router',
             description: '统一模型网关与管理后台，提供标准 API 路由与鉴权能力。',
             code: 'APPLICATION_CODE_ROUTER',
-            location: 'http://localhost:5181',
+            location: 'http://localhost:3011',
             codePackagePath: 'git@github.com:yeying-community/router.git'
         }
     },

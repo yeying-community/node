@@ -31,6 +31,8 @@ const MAX_POLICY_SEARCH_SIZE = 1000;
 const DEFAULT_CAN = 'invoke';
 const ROUTER_CODE = 'APPLICATION_CODE_ROUTER';
 const CHAT_CODE = 'APPLICATION_CODE_CHAT';
+const ROUTER_WEB_PORT = '5181';
+const ROUTER_API_PORT = '3011';
 
 function parseServiceCodes(raw: unknown): string[] {
   if (Array.isArray(raw)) {
@@ -151,6 +153,15 @@ function normalizeTargetLocation(targetUrl: URL): string {
   return cloned.toString();
 }
 
+function normalizePolicyTargetUrl(targetUrl: URL, targetCode?: string): URL {
+  const cloned = new URL(targetUrl.toString());
+  const code = String(targetCode || '').trim();
+  if (code === ROUTER_CODE && cloned.port === ROUTER_WEB_PORT) {
+    cloned.port = ROUTER_API_PORT;
+  }
+  return cloned;
+}
+
 export function serializeApplicationUcanCapabilities(
   capabilities: Array<
     | ApplicationUcanCapability
@@ -205,7 +216,20 @@ export async function resolveApplicationUcanPolicy(input: {
   let targetApp: Application | null = null;
   let targetUrl: URL | null = null;
 
+  if (appCode === CHAT_CODE) {
+    const routerTarget = findRouterTarget(apps);
+    const routerUrl = routerTarget ? parseLocationUrl(routerTarget.location) : null;
+    if (routerTarget && routerUrl) {
+      targetApp = routerTarget;
+      targetUrl = routerUrl;
+      source = 'router';
+    }
+  }
+
   for (const dependencyName of dependencyNames) {
+    if (targetUrl) {
+      break;
+    }
     const matched = findDependencyTargetByName(apps, dependencyName);
     if (!matched) {
       continue;
@@ -220,16 +244,6 @@ export async function resolveApplicationUcanPolicy(input: {
     break;
   }
 
-  if (!targetUrl && appCode === CHAT_CODE) {
-    const routerTarget = findRouterTarget(apps);
-    const routerUrl = routerTarget ? parseLocationUrl(routerTarget.location) : null;
-    if (routerTarget && routerUrl) {
-      targetApp = routerTarget;
-      targetUrl = routerUrl;
-      source = 'router';
-    }
-  }
-
   if (!targetUrl && selfTargetUrl) {
     targetUrl = selfTargetUrl;
     source = 'self';
@@ -242,13 +256,14 @@ export async function resolveApplicationUcanPolicy(input: {
     );
   }
 
-  const capabilityWith = buildCapabilityWithFromUrl(targetUrl);
+  const normalizedTargetUrl = normalizePolicyTargetUrl(targetUrl, targetApp?.code || appCode);
+  const capabilityWith = buildCapabilityWithFromUrl(normalizedTargetUrl);
   return {
-    audience: buildAudienceFromUrl(targetUrl),
+    audience: buildAudienceFromUrl(normalizedTargetUrl),
     capabilities: [{ with: capabilityWith, can: DEFAULT_CAN }],
     source,
     targetUid: targetApp?.uid,
     targetName: targetApp?.name,
-    targetLocation: normalizeTargetLocation(targetUrl),
+    targetLocation: normalizeTargetLocation(normalizedTargetUrl),
   };
 }

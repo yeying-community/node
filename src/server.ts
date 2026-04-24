@@ -45,6 +45,7 @@ import { AddApplicationRedirectUris20260423121000 } from './migrations/202604231
 import { AddTotpSubjectSecrets20260423182000 } from './migrations/20260423182000-add-totp-subject-secrets';
 import { AddApplicationUcanPolicy20260423193000 } from './migrations/20260423193000-add-application-ucan-policy';
 import { BackfillApplicationUcanPolicy20260424110000 } from './migrations/20260424110000-backfill-application-ucan-policy';
+import { FixApplicationUcanPolicyRouterPriority20260424123000 } from './migrations/20260424123000-fix-application-ucan-policy-router-priority';
 import { getConfig } from './config/runtime';
 import { startActionRequestCleanupJobs } from './domain/service/actionRequestCleanup';
 import { startMpcCleanupJobs } from './domain/service/mpcCleanup';
@@ -170,7 +171,8 @@ builder.migrations([
     AddApplicationRedirectUris20260423121000,
     AddTotpSubjectSecrets20260423182000,
     AddApplicationUcanPolicy20260423193000,
-    BackfillApplicationUcanPolicy20260424110000
+    BackfillApplicationUcanPolicy20260424110000,
+    FixApplicationUcanPolicyRouterPriority20260424123000
 ])
 
 builder.build().initialize().then(async (conn) => {
