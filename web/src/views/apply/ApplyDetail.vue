@@ -1,10 +1,5 @@
 <template>
     <div class="detail">
-        <el-breadcrumb v-if="showRouteBreadcrumb" separator="/">
-            <el-breadcrumb-item :to="{ path: '/market/' }">应用中心</el-breadcrumb-item>
-            <el-breadcrumb-item>应用详情</el-breadcrumb-item>
-        </el-breadcrumb>
-
         <div class="header">
             <div class="left-header">
                 <BreadcrumbHeader :pageName="detailInfo.name" />
@@ -33,6 +28,7 @@
             <div v-if="pageFrom === 'myCreate'">
                 <div>
                     <el-popconfirm
+                        v-if="!isOnline"
                         confirm-button-text="确定"
                         cancel-button-text="取消"
                         :icon="WarningFilled"
@@ -47,7 +43,8 @@
                     </el-popconfirm>
                     <el-button plain @click="toEdit">编辑</el-button>
                     <el-button plain @click="exportIdentity">导出身份</el-button>
-                    <el-button plain @click="handleOnline">上架应用</el-button>
+                    <el-button v-if="isOnline" plain @click="handleOfflineConfirm">下架应用</el-button>
+                    <el-button v-if="!isOnline" plain @click="handleOnline">上架应用</el-button>
                 </div>
             </div>
             <!-- 应用中心-我的申请的详情 -->
@@ -194,7 +191,6 @@ const detailInfo = ref<ApplicationMetadata>({
     codePackagePath: ''
 })
 const pageFrom = String(route.query.pageFrom || '')
-const showRouteBreadcrumb = computed(() => pageFrom === 'myCreate' || pageFrom === 'myApply')
 const innerVisible = ref(false)
 const modalVisible = ref(false)
 const dialogVisible = ref(false)
@@ -465,6 +461,10 @@ const cancelApply = async () => {
  */
 const toDelete = async () => {
     if (pageFrom === 'myCreate') {
+        if (isOnline.value) {
+            notifyError('❌请先下架应用后再删除')
+            return
+        }
         await $application.myCreateDelete(applyUid)
     } else if (pageFrom === 'market') {
         const app = detailInfo.value?.uid ? detailInfo.value : await $application.queryByUid(applyUid)
@@ -537,7 +537,7 @@ const handleOnline = () => {
             h(
                 'div',
                 { style: 'font-size:14px;font-weight:400;color:rgba(0,0,0,0.85)' },
-                '上架后当前应用将不可再编辑修改。'
+                '上架后仍可编辑，更新版本后可重新提交上架。'
             )
         ]),
         type: 'warning',
@@ -571,6 +571,19 @@ const handleOnline = () => {
 /**
  * 下架应用
  */
+const handleOffline = async () => {
+    const target = detailInfo.value?.uid
+        ? { uid: detailInfo.value.uid, did: detailInfo.value.did, version: detailInfo.value.version }
+        : { uid: applyUid }
+    const result = await $application.offline(target)
+    if (!result?.unpublished) {
+        notifyError('❌下架失败')
+        return
+    }
+    notifySuccess('已下架')
+    await detail()
+}
+
 const handleOfflineConfirm = () => {
     ElMessageBox.confirm('', {
         message: h('p', null, [
@@ -587,11 +600,7 @@ const handleOfflineConfirm = () => {
         showClose: false,
         customClass: 'messageBox-wrap'
     })
-        .then(() => {
-            /**
-             * todo 学虎 我创建的-详情页-右上角-下架按钮调用接口
-             */
-        })
+        .then(() => handleOffline())
         .catch(() => {})
 }
 

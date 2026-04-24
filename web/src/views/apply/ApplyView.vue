@@ -1,9 +1,5 @@
 <template>
     <div class="apply">
-        <el-breadcrumb separator="/">
-            <el-breadcrumb-item :to="{ path: '/market/' }">应用中心</el-breadcrumb-item>
-            <el-breadcrumb-item>我的应用</el-breadcrumb-item>
-        </el-breadcrumb>
         <div class="top-group">
             <div class="search">
                 <el-input
@@ -184,7 +180,7 @@ onMounted(() => {
 
     .top-group {
         background: white;
-        margin-top: 20px;
+        margin-top: 0;
         padding: 12px;
         .search {
             width: 50%;

@@ -1,28 +1,35 @@
 <template>
     <div class="list-wrap">
-        <el-table :data="items" style="width: 100%">
-            <el-table-column label="名称" min-width="300">
+        <el-table :data="items" style="width: 100%" :row-class-name="resolveRowClassName" @row-click="handleRowClick">
+            <el-table-column label="名称" :min-width="nameColumnMinWidth">
                 <template #default="scope">
                     <div class="name-cell">
-                        <el-avatar shape="square" size="34" :src="scope.row.avatar" />
+                        <el-avatar shape="square" size="34" :src="resolveAvatarSrc(scope.row.avatar)">
+                            <img class="avatar-fallback" :src="defaultAppAvatar" alt="默认应用图标" />
+                        </el-avatar>
                         <div class="name-main">
-                            <div class="title">{{ scope.row.name || '-' }}</div>
                             <el-tooltip
                                 class="box-item"
                                 effect="dark"
                                 :content="scope.row.description || '-'"
                                 placement="top-start"
                             >
-                                <el-text class="desc" truncated>{{ scope.row.description || '-' }}</el-text>
+                                <div class="title">{{ scope.row.name || '-' }}</div>
                             </el-tooltip>
                         </div>
                     </div>
                 </template>
             </el-table-column>
 
-            <el-table-column prop="code" label="分类" width="150">
+            <el-table-column prop="code" label="分类" width="75">
                 <template #default="scope">
                     {{ resolveApplicationCategoryLabel(scope.row.code) }}
+                </template>
+            </el-table-column>
+
+            <el-table-column v-if="pageFrom === 'myCreate'" prop="version" label="版本" width="55">
+                <template #default="scope">
+                    {{ formatVersion(scope.row.version) }}
                 </template>
             </el-table-column>
 
@@ -34,7 +41,7 @@
                 </template>
             </el-table-column>
 
-            <el-table-column v-if="pageFrom === 'myCreate'" label="状态" width="150">
+            <el-table-column v-if="pageFrom === 'myCreate'" label="状态" width="100">
                 <template #default="scope">
                     <span class="state-dot">
                         <el-badge is-dot :type="businessState(scope.row).type" />
@@ -49,18 +56,36 @@
                 </template>
             </el-table-column>
 
-            <el-table-column label="时间" width="170">
+            <el-table-column label="创建时间" width="170">
                 <template #default="scope">
                     {{ formatDate(scope.row.createdAt) }}
+                </template>
+            </el-table-column>
+
+            <el-table-column label="更新时间" width="170">
+                <template #default="scope">
+                    {{ formatDate(scope.row.updatedAt) }}
                 </template>
             </el-table-column>
 
             <el-table-column fixed="right" label="操作" min-width="260">
                 <template #default="scope">
                     <div class="actions">
-                        <el-button link type="primary" size="small" @click="toDetail(scope.row)">详情</el-button>
+                        <el-button
+                            v-if="pageFrom !== 'myCreate'"
+                            link
+                            type="primary"
+                            size="small"
+                            @click="toDetail(scope.row)"
+                        >
+                            详情
+                        </el-button>
 
                         <template v-if="pageFrom === 'myCreate'">
+                            <el-button link type="primary" size="small" @click="toEdit(scope.row)">
+                                编辑
+                            </el-button>
+
                             <el-button
                                 v-if="isOnline(scope.row)"
                                 link
@@ -72,15 +97,6 @@
                             </el-button>
                             <el-button v-else link type="primary" size="small" @click="handleOnline(scope.row)">
                                 上架应用
-                            </el-button>
-                            <el-button
-                                v-if="!isOnline(scope.row)"
-                                link
-                                type="primary"
-                                size="small"
-                                @click="toEdit(scope.row)"
-                            >
-                                编辑
                             </el-button>
                             <el-popconfirm
                                 v-if="!isOnline(scope.row)"
@@ -171,6 +187,7 @@ import { exportIdentityInfo } from '@/plugins/account'
 import { getCurrentAccount } from '@/plugins/auth'
 import { normalizeAddress } from '@/utils/actionSignature'
 import { notifyError } from '@/utils/message'
+import defaultAppAvatar from '@/assets/img/default.jpg'
 
 const props = defineProps({
     items: {
@@ -190,6 +207,11 @@ const modalVisible = ref(false)
 const selectedRow = ref<ApplicationMetadata | null>(null)
 
 const items = computed(() => props.items || [])
+const nameColumnMinWidth = computed(() => (props.pageFrom === 'myCreate' ? 150 : 300))
+const resolveAvatarSrc = (value: unknown) => {
+    const src = String(value || '').trim()
+    return src || defaultAppAvatar
+}
 
 const shortAddress = (value: unknown) => {
     const text = String(value || '').trim()
@@ -218,10 +240,34 @@ const formatDate = (value: unknown) => {
     return parsed.isValid() ? parsed.format('YYYY-MM-DD') : '-'
 }
 
+const formatVersion = (value: unknown) => {
+    if (value === undefined || value === null || value === '') {
+        return '-'
+    }
+    const parsed = Number(value)
+    if (Number.isFinite(parsed) && parsed > 0) {
+        return `v${parsed}`
+    }
+    return String(value)
+}
+
 const resolveApplyStatus = (row: ApplicationMetadata) => String(row.applyStatus || 'applying')
 
 const refreshList = () => {
     props.refreshList?.()
+}
+
+const resolveRowClassName = () => (props.pageFrom === 'myCreate' ? 'clickable-row' : '')
+
+const handleRowClick = (row: ApplicationMetadata, _column: unknown, event: Event) => {
+    if (props.pageFrom !== 'myCreate') {
+        return
+    }
+    const target = event?.target as HTMLElement | null
+    if (target?.closest('.actions')) {
+        return
+    }
+    toDetail(row)
 }
 
 const toDetail = (row: ApplicationMetadata) => {
@@ -271,7 +317,7 @@ const handleOffline = async (row: ApplicationMetadata) => {
 }
 
 const handleOnline = (row: ApplicationMetadata) => {
-    ElMessageBox.confirm('上架后当前应用将不可再编辑修改。', '确认上架申请', {
+    ElMessageBox.confirm('上架后仍可编辑，更新版本后可重新提交上架。', '确认上架申请', {
         type: 'warning',
         confirmButtonText: '确定',
         cancelButtonText: '取消',
@@ -380,10 +426,21 @@ const cancelModal = () => {
     background-color: #fafafa !important;
 }
 
+:deep(.el-table__body .clickable-row > td) {
+    cursor: pointer;
+}
+
 .name-cell {
     display: flex;
     align-items: center;
     gap: 10px;
+}
+
+.avatar-fallback {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
 }
 
 .name-main {
@@ -395,11 +452,6 @@ const cancelModal = () => {
     font-weight: 500;
     color: rgba(0, 0, 0, 0.88);
     line-height: 1.4;
-}
-
-.desc {
-    max-width: 320px;
-    color: rgba(0, 0, 0, 0.55);
 }
 
 .address-cell {

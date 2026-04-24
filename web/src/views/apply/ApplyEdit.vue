@@ -1,10 +1,5 @@
 <template>
     <div class="publish-page">
-        <el-breadcrumb separator="/">
-            <el-breadcrumb-item :to="{ path: '/market/' }">应用中心</el-breadcrumb-item>
-            <el-breadcrumb-item>{{ isEdit ? '编辑应用' : '发布应用' }}</el-breadcrumb-item>
-        </el-breadcrumb>
-
         <BreadcrumbHeader :pageName="isEdit ? '编辑应用' : '发布应用'" />
 
         <div class="publish-panel">
@@ -158,12 +153,26 @@
                     </el-form-item>
 
                     <el-form-item label="应用图标（可选）">
-                        <div class="upload-row">
-                            <img class="avatar-preview" :src="imageUrl" alt="avatar" />
-                            <Uploader v-model="avatarList" accept=".png,.jpg,.jpeg,.svg" @change="changeFileAvatar">
-                                <el-button :icon="Upload">上传图标</el-button>
-                            </Uploader>
-                            <span class="upload-text">默认使用系统图标，建议上传 1:1 图标</span>
+                        <div class="icon-uploader">
+                            <div class="icon-preview-wrap">
+                                <img
+                                    class="avatar-preview"
+                                    :src="imageUrl"
+                                    alt="应用图标预览"
+                                    @error="handleAvatarPreviewError"
+                                />
+                            </div>
+                            <div class="icon-actions">
+                                <Uploader
+                                    v-model="avatarList"
+                                    :show-file-list="false"
+                                    accept=".png,.jpg,.jpeg,.svg"
+                                    @change="changeFileAvatar"
+                                >
+                                    <el-button :icon="Upload" plain>更换图标</el-button>
+                                </Uploader>
+                                <span class="upload-text">建议 1:1，支持 PNG/JPG/SVG</span>
+                            </div>
                         </div>
                     </el-form-item>
                 </div>
@@ -189,6 +198,7 @@ import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'elem
 import { Upload } from '@element-plus/icons-vue'
 import BreadcrumbHeader from '@/views/components/BreadcrumbHeader.vue'
 import Uploader from '@/components/common/Uploader.vue'
+import defaultAppAvatar from '@/assets/img/default.jpg'
 import $application, { type ApplicationMetadata, codeMap, filterLegacyDependencies } from '@/plugins/application'
 import $audit from '@/plugins/audit'
 import { generateIdentity } from '@/plugins/account'
@@ -273,18 +283,6 @@ const presets: ApplicationPreset[] = [
     }
 ]
 
-const defaultAvatar = import.meta.env.VITE_WEBDAV_AVATAR || 'default.jpg'
-const webdavBase = (import.meta.env.VITE_WEBDAV_BASE_URL || '').replace(/\/+$/, '')
-const webdavPrefix = (import.meta.env.VITE_WEBDAV_PREFIX || '').replace(/\/+$/, '')
-const webdavFallback = webdavBase
-    ? `${webdavBase}${webdavPrefix ? `/${webdavPrefix.replace(/^\/+/, '')}` : ''}`
-    : ''
-const prefixURL = (
-    import.meta.env.VITE_WEBDAV_PUBLIC_BASE ||
-    webdavFallback ||
-    (typeof window !== 'undefined' ? window.location.origin : '')
-).replace(/\/+$/, '')
-
 const route = useRoute()
 const router = useRouter()
 
@@ -293,7 +291,8 @@ const selectedPreset = ref<PresetKey>('chat')
 const formRef = ref<FormInstance>()
 
 const avatarList = ref<Array<Record<string, unknown>>>([])
-const imageUrl = ref(`${prefixURL}/${defaultAvatar}`)
+const avatarValue = ref('')
+const imageUrl = ref(defaultAppAvatar)
 const dependencyOptions = ref<DependencyOption[]>([])
 const redirectUriInput = ref('')
 
@@ -526,7 +525,8 @@ async function getDetailInfo() {
     }
     redirectUriInput.value = toSingleRedirectUri(res.redirectUris)
     selectedPreset.value = detectPreset(res)
-    imageUrl.value = res.avatar || imageUrl.value
+    avatarValue.value = String(res.avatar || '').trim()
+    imageUrl.value = avatarValue.value || defaultAppAvatar
     avatarList.value = res.avatar
         ? [{ name: String(res.avatarName || res.name || 'avatar'), url: String(res.avatar) }]
         : []
@@ -586,7 +586,7 @@ function buildSubmitParams(account: string): ApplicationMetadata & { codeType?: 
         redirectUris: redirectUri ? [redirectUri] : [],
         ucanAudience,
         ucanCapabilities,
-        avatar: imageUrl.value,
+        avatar: avatarValue.value,
         codePackagePath: String(detailInfo.value.codePackagePath || ''),
         codeType: '1',
         owner: normalizedOwner,
@@ -731,7 +731,20 @@ async function changeFileAvatar(uploadFile: Record<string, unknown>) {
         notifyError('上传失败')
         return
     }
+    avatarValue.value = publicUrl
     imageUrl.value = publicUrl
+}
+
+function handleAvatarPreviewError(event: Event) {
+    const target = event.target as HTMLImageElement | null
+    if (!target) {
+        return
+    }
+    const fallbackUrl = new URL(defaultAppAvatar, window.location.origin).href
+    if (target.src === fallbackUrl) {
+        return
+    }
+    target.src = fallbackUrl
 }
 
 onMounted(() => {
@@ -807,24 +820,49 @@ onMounted(() => {
     gap: 10px;
 }
 
-.upload-row {
+.icon-uploader {
     display: flex;
     align-items: center;
-    gap: 12px;
-    flex-wrap: wrap;
+    gap: 14px;
+    width: fit-content;
+    min-height: 84px;
+    padding: 10px 12px;
+    background: #fff;
+    border: 1px dashed #d9e2ef;
+    border-radius: 10px;
+}
+
+.icon-preview-wrap {
+    flex-shrink: 0;
+    width: 62px;
+    height: 62px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #f5f8fe;
+    border: 1px solid #e3e8f2;
+    border-radius: 14px;
+    overflow: hidden;
+}
+
+.icon-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    min-width: 0;
 }
 
 .upload-text {
-    font-size: 13px;
-    color: rgba(0, 0, 0, 0.5);
+    font-size: 12px;
+    line-height: 1.4;
+    color: #64748b;
 }
 
 .avatar-preview {
-    width: 36px;
-    height: 36px;
-    border-radius: 8px;
+    width: 100%;
+    height: 100%;
     object-fit: cover;
-    border: 1px solid #e5e7eb;
+    display: block;
 }
 
 .actions {
@@ -837,6 +875,11 @@ onMounted(() => {
 @media (max-width: 960px) {
     .capability-row {
         grid-template-columns: 1fr;
+    }
+
+    .icon-uploader {
+        width: 100%;
+        align-items: flex-start;
     }
 }
 </style>

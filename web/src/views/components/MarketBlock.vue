@@ -2,7 +2,9 @@
     <div class="tab" :class="{ 'tab-market-clickable': pageFrom === 'market' }" @click="handleCardClick">
         <div class="top">
             <div class="top-left">
-                <el-avatar shape="square" size="70" :src="detail.avatar" />
+                <el-avatar shape="square" size="70" :src="resolveAvatarSrc(detail.avatar)">
+                    <img class="avatar-fallback" :src="defaultAppAvatar" alt="默认应用图标" />
+                </el-avatar>
             </div>
             <div class="top-right" :class="{ 'has-menu': pageFrom === 'market' }">
                 <div v-if="pageFrom === 'market'" class="card-menu" @click.stop>
@@ -94,7 +96,7 @@
                                     </el-popconfirm>
                                 </el-dropdown-item>
 
-                                <el-dropdown-item v-if="!isOnline" @click="toEdit">编辑</el-dropdown-item>
+                                <el-dropdown-item @click="toEdit">编辑</el-dropdown-item>
                                 <el-dropdown-item @click="exportIdentity">导出身份</el-dropdown-item>
                             </el-dropdown-menu>
                         </template>
@@ -184,6 +186,7 @@ import $application, {
 import { notifyError, notifySuccess } from '@/utils/message'
 import { getCurrentAccount } from '@/plugins/auth'
 import { normalizeAddress } from '@/utils/actionSignature'
+import defaultAppAvatar from '@/assets/img/default.jpg'
 
 const router = useRouter()
 const props = defineProps({
@@ -211,6 +214,10 @@ let descriptionResizeObserver: ResizeObserver | null = null
 const businessStatus = computed(() => resolveBusinessStatus(props.detail))
 const businessInfo = computed(() => businessStatusMap[businessStatus.value] || businessStatusMap.BUSINESS_STATUS_UNKNOWN)
 const isOnline = computed(() => businessStatus.value === 'BUSINESS_STATUS_ONLINE')
+const resolveAvatarSrc = (value: unknown) => {
+    const src = String(value || '').trim()
+    return src || defaultAppAvatar
+}
 const ownerAddress = computed(() => String(props.detail?.owner || '').trim())
 const ownerShortAddress = computed(() => {
     const value = ownerAddress.value
@@ -550,7 +557,7 @@ const handleOnline = () => {
             h(
                 'div',
                 { style: 'font-size:14px;font-weight:400;color:rgba(0,0,0,0.85)' },
-                '上架后当前应用将不可再编辑修改。'
+                '上架后仍可编辑，更新版本后可重新提交上架。'
             )
         ]),
         type: 'warning',
@@ -640,6 +647,12 @@ onBeforeUnmount(() => {
             display: flex;
             align-items: center;
             justify-content: center;
+            .avatar-fallback {
+                width: 100%;
+                height: 100%;
+                object-fit: cover;
+                display: block;
+            }
         }
         .top-right {
             position: relative;
