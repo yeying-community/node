@@ -339,8 +339,8 @@
                 <div class="flow-step"><b>Step 1:</b> 钱包登录 Node 应用，进入“应用中心”。</div>
                 <div class="flow-step"><b>Step 2:</b> 在“发布应用”填写信息并保存，系统会创建应用记录。</div>
                 <div class="flow-step">
-                  <b>Step 2.1:</b> 如需中心化 UCAN，需同时配置
-                  <code>redirectUri(单值) + ucanAudience + ucanCapabilities</code>。
+                  <b>Step 2.1:</b> 如需中心化 UCAN，仅需配置
+                  <code>redirectUri(单值)</code>；<code>audience/capability</code> 由 Node 自动推导。
                 </div>
                 <div class="flow-step">
                   <b>Step 3:</b> 创建成功后会得到应用 <code>AppId</code>（即 <code>applications.uid</code>）。
@@ -355,8 +355,7 @@
                 <strong>关键点：</strong>
                 <code>appId</code> 不在发布时新生成，使用的是创建应用时的
                 <code>AppId(uid)</code>。应用必须已上架，且需在发布页配置
-                <code>redirectUri</code> 回调地址与
-                <code>ucanAudience/ucanCapabilities</code> 签发策略。
+                <code>redirectUri</code> 回调地址。签发策略由服务端按“依赖应用/访问地址”自动协调。
               </div>
             </div>
           </details>
@@ -395,8 +394,8 @@
               <ul class="list">
                 <li><code>appId</code>：必须使用应用市场 AppId（<code>applications.uid</code>）。</li>
                 <li><code>redirectUri</code>：必须命中该应用发布字段 <code>redirectUris</code>（仅一个）。</li>
-                <li><code>ucanAudience</code>：签发 UCAN 的 aud，按应用发布配置读取。</li>
-                <li><code>ucanCapabilities</code>：签发 UCAN 的能力集合，按应用发布配置读取。</li>
+                <li><code>audience</code>：由 Node 基于应用依赖与目标地址自动推导。</li>
+                <li><code>capabilities</code>：由 Node 自动生成（默认 <code>can=invoke</code>）。</li>
                 <li><code>audience / capability / appName</code>：由服务端按应用策略决定，不接受客户端覆写。</li>
                 <li><code>address</code>：需先在 Node 完成 TOTP 扫码配置，否则无法发起授权。</li>
               </ul>
@@ -409,7 +408,7 @@
               <ul class="list">
                 <li><code>redirectUri is not allowed</code>：回调地址未进入允许列表。</li>
                 <li><code>Unauthorized appId</code>：appId 不存在或应用未上架。</li>
-                <li><code>TOTP_AUTH_APP_POLICY_NOT_CONFIGURED</code>：应用未配置 <code>ucanAudience/ucanCapabilities</code>。</li>
+                <li><code>TOTP_AUTH_APP_POLICY_AUTO_RESOLVE_FAILED</code>：应用访问地址无效且依赖应用不可解析。</li>
                 <li><code>TOTP authenticator is not configured for this address</code>：该地址尚未完成 TOTP 扫码配置。</li>
                 <li>
                   <code>column ApplicationDO.redirect_uris does not exist</code>：数据库未执行最新迁移，需重启服务触发迁移或手动补列。

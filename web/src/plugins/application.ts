@@ -339,8 +339,6 @@ function buildApplicationCreateBody(params: ApplicationMetadata, actor: string) 
     location: String(params.location || ''),
     serviceCodes: toServiceCodesString(params.serviceCodes),
     redirectUris: toRedirectUris(params.redirectUris),
-    ucanAudience: String(params.ucanAudience || '').trim(),
-    ucanCapabilities: toUcanCapabilities(params.ucanCapabilities),
     avatar: String(params.avatar || ''),
     codePackagePath: String(params.codePackagePath || '')
   }
@@ -361,8 +359,6 @@ function buildApplicationCreatePayload(body: ReturnType<typeof buildApplicationC
     location: body.location,
     serviceCodes: body.serviceCodes,
     redirectUris: body.redirectUris,
-    ucanAudience: body.ucanAudience,
-    ucanCapabilities: body.ucanCapabilities,
     avatar: body.avatar,
     codePackagePath: body.codePackagePath
   }
@@ -378,12 +374,6 @@ function buildApplicationUpdateBody(patch: Partial<ApplicationMetadata>) {
       ? { serviceCodes: toServiceCodesString(patch.serviceCodes) }
       : {}),
     ...(patch.redirectUris !== undefined ? { redirectUris: toRedirectUris(patch.redirectUris) } : {}),
-    ...(patch.ucanAudience !== undefined
-      ? { ucanAudience: String(patch.ucanAudience || '').trim() }
-      : {}),
-    ...(patch.ucanCapabilities !== undefined
-      ? { ucanCapabilities: toUcanCapabilities(patch.ucanCapabilities) }
-      : {}),
     ...(patch.avatar !== undefined ? { avatar: String(patch.avatar || '') } : {}),
     ...(patch.codePackagePath !== undefined
       ? { codePackagePath: String(patch.codePackagePath || '') }

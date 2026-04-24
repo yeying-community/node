@@ -15,11 +15,11 @@ import { AuditManager } from '../../domain/manager/audit';
 import { CommentManager } from '../../domain/manager/comments';
 import { ApplicationManager } from '../../domain/manager/application';
 import { ApplicationConfigService } from '../../domain/service/applicationConfig';
-
-type UcanCapability = {
-  with: string
-  can: string
-}
+import {
+  ApplicationUcanPolicyError,
+  resolveApplicationUcanPolicy,
+  serializeApplicationUcanCapabilities,
+} from '../../domain/service/applicationUcanPolicy';
 
 class RedirectUriSingleValueError extends Error {
   constructor() {
@@ -90,60 +90,6 @@ function toRedirectUrisStorage(value: unknown): string {
     throw new RedirectUriSingleValueError();
   }
   return uris[0];
-}
-
-function parseUcanCapabilities(value: unknown): UcanCapability[] {
-  const values: UcanCapability[] = []
-  const pushValue = (entry: unknown) => {
-    if (!entry || typeof entry !== 'object') {
-      return
-    }
-    const source = entry as Record<string, unknown>
-    const withValue =
-      (typeof source.with === 'string' && source.with.trim()) ||
-      (typeof source.resource === 'string' && source.resource.trim()) ||
-      ''
-    const canValue =
-      (typeof source.can === 'string' && source.can.trim()) ||
-      (typeof source.action === 'string' && source.action.trim()) ||
-      ''
-    if (!withValue || !canValue) {
-      return
-    }
-    values.push({ with: withValue, can: canValue })
-  }
-
-  if (Array.isArray(value)) {
-    value.forEach((item) => pushValue(item))
-    return values
-  }
-  if (value === undefined || value === null) {
-    return []
-  }
-  const raw = String(value).trim()
-  if (!raw) {
-    return []
-  }
-  if (raw.startsWith('[')) {
-    try {
-      const parsed = JSON.parse(raw)
-      if (Array.isArray(parsed)) {
-        parsed.forEach((item) => pushValue(item))
-        return values
-      }
-    } catch {
-      return []
-    }
-  }
-  return []
-}
-
-function toUcanCapabilitiesStorage(value: unknown): string {
-  const capabilities = parseUcanCapabilities(value)
-  if (capabilities.length === 0) {
-    return ''
-  }
-  return JSON.stringify(capabilities)
 }
 
 function normalizeApplicationConfig(input: unknown): Array<{ code: string; instance: string }> {
@@ -256,6 +202,9 @@ function mapApplicationWriteError(error: unknown, fallback: string) {
   if (error instanceof RedirectUriSingleValueError) {
     return { status: 400, message: error.message };
   }
+  if (error instanceof ApplicationUcanPolicyError) {
+    return { status: error.status, message: error.message };
+  }
   const message = error instanceof Error ? error.message : fallback;
   const signatureStatus = getActionSignatureErrorStatus(message);
   const status =
@@ -288,6 +237,7 @@ export function registerPublicApplicationRoutes(app: Express) {
       await ensureUserCanWriteBusinessData(user.address);
       const body = req.body || {};
       const redirectUrisStorage = toRedirectUrisStorage(body.redirectUris);
+      const serviceCodes = toServiceCodes(body.serviceCodes);
       const owner = String(body.owner || user.address).trim();
       if (normalizeAddress(owner) !== normalizeAddress(user.address)) {
         res.status(403).json(fail(403, 'Owner mismatch'));
@@ -311,10 +261,8 @@ export function registerPublicApplicationRoutes(app: Express) {
         description: String(body.description || ''),
         code: String(body.code || 'APPLICATION_CODE_UNKNOWN'),
         location: String(body.location || ''),
-        serviceCodes: toServiceCodes(body.serviceCodes),
+        serviceCodes,
         redirectUris: redirectUrisStorage ? [redirectUrisStorage] : [],
-        ucanAudience: String(body.ucanAudience || '').trim(),
-        ucanCapabilities: parseUcanCapabilities(body.ucanCapabilities),
         avatar: String(body.avatar || ''),
         codePackagePath: String(body.codePackagePath || ''),
       };
@@ -335,8 +283,15 @@ export function registerPublicApplicationRoutes(app: Express) {
             return { status: 409, body: fail(409, 'Application already exists') };
           }
           const now = getCurrentUtcString();
+          const uid = body.uid || uuidv4();
+          const policy = await resolveApplicationUcanPolicy({
+            uid,
+            code: body.code,
+            location: body.location,
+            serviceCodes,
+          });
           const application: Application = {
-            uid: body.uid || uuidv4(),
+            uid,
             owner,
             ownerName: body.ownerName || owner,
             network: body.network || '',
@@ -347,10 +302,10 @@ export function registerPublicApplicationRoutes(app: Express) {
             description: body.description || '',
             code: body.code || 'APPLICATION_CODE_UNKNOWN',
             location: body.location || '',
-            serviceCodes: toServiceCodes(body.serviceCodes),
+            serviceCodes,
             redirectUris: redirectUrisStorage,
-            ucanAudience: String(body.ucanAudience || '').trim(),
-            ucanCapabilities: toUcanCapabilitiesStorage(body.ucanCapabilities),
+            ucanAudience: policy.audience,
+            ucanCapabilities: serializeApplicationUcanCapabilities(policy.capabilities),
             avatar: body.avatar || '',
             createdAt: body.createdAt || now,
             updatedAt: now,
@@ -410,14 +365,6 @@ export function registerPublicApplicationRoutes(app: Express) {
                 ? [redirectUrisStorage]
                 : []
               : undefined,
-          ucanAudience:
-            body.ucanAudience !== undefined && body.ucanAudience !== null
-              ? String(body.ucanAudience).trim()
-              : undefined,
-          ucanCapabilities:
-            body.ucanCapabilities !== undefined && body.ucanCapabilities !== null
-              ? parseUcanCapabilities(body.ucanCapabilities)
-              : undefined,
           avatar: body.avatar !== undefined && body.avatar !== null ? String(body.avatar) : undefined,
           codePackagePath:
             body.codePackagePath !== undefined && body.codePackagePath !== null
@@ -430,12 +377,20 @@ export function registerPublicApplicationRoutes(app: Express) {
             return { status: 404, body: fail(404, 'Application not found') };
           }
           if (existing.isOnline) {
-            return { status: 409, body: fail(409, 'Please unpublish application before delete') };
+            return { status: 409, body: fail(409, 'Please unpublish application before edit') };
           }
           const isAdmin = await isAdminUser(user.address);
           if (!isAdmin && normalizeAddress(existing.owner) !== normalizeAddress(user.address)) {
             return { status: 403, body: fail(403, 'Owner mismatch') };
           }
+          const serviceCodes =
+            body.serviceCodes !== undefined ? toServiceCodes(body.serviceCodes) : existing.serviceCodes;
+          const policy = await resolveApplicationUcanPolicy({
+            uid: existing.uid,
+            code: body.code ?? existing.code,
+            location: body.location ?? existing.location,
+            serviceCodes,
+          });
           const now = getCurrentUtcString();
           const updated: Application = {
             ...existing,
@@ -443,17 +398,11 @@ export function registerPublicApplicationRoutes(app: Express) {
             description: body.description ?? existing.description,
             location: body.location ?? existing.location,
             code: body.code ?? existing.code,
-            serviceCodes: body.serviceCodes !== undefined ? toServiceCodes(body.serviceCodes) : existing.serviceCodes,
+            serviceCodes,
             redirectUris:
               redirectUrisStorage !== undefined ? redirectUrisStorage : existing.redirectUris || '',
-            ucanAudience:
-              body.ucanAudience !== undefined
-                ? String(body.ucanAudience || '').trim()
-                : existing.ucanAudience || '',
-            ucanCapabilities:
-              body.ucanCapabilities !== undefined
-                ? toUcanCapabilitiesStorage(body.ucanCapabilities)
-                : existing.ucanCapabilities || '',
+            ucanAudience: policy.audience,
+            ucanCapabilities: serializeApplicationUcanCapabilities(policy.capabilities),
             avatar: body.avatar ?? existing.avatar,
             codePackagePath: body.codePackagePath ?? existing.codePackagePath,
             updatedAt: now,

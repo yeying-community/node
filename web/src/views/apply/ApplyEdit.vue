@@ -103,52 +103,8 @@
                         />
                         <div class="field-hint">
                             使用中心化 UCAN 时，第三方应用需传入 <code>appId</code>，且
-                            <code>redirectUri</code> 必须与这里配置完全一致。
-                        </div>
-                    </el-form-item>
-
-                    <el-row :gutter="20">
-                        <el-col :span="12" :xs="24">
-                            <el-form-item label="UCAN Audience（可选）">
-                                <el-input
-                                    v-model="detailInfo.ucanAudience"
-                                    placeholder="例如：did:web:127.0.0.1:3011"
-                                />
-                            </el-form-item>
-                        </el-col>
-                    </el-row>
-
-                    <el-form-item label="UCAN Capabilities（可选）">
-                        <div class="capability-list">
-                            <div
-                                v-for="(capability, index) in detailInfo.ucanCapabilities || []"
-                                :key="`capability-${index}`"
-                                class="capability-row"
-                            >
-                                <el-input
-                                    v-model="capability.with"
-                                    placeholder="with，例如：app:all:chat-*"
-                                />
-                                <el-input
-                                    v-model="capability.can"
-                                    placeholder="can，例如：invoke"
-                                />
-                                <el-button
-                                    text
-                                    type="danger"
-                                    :disabled="(detailInfo.ucanCapabilities?.length || 0) <= 1"
-                                    @click="removeUcanCapability(index)"
-                                >
-                                    删除
-                                </el-button>
-                            </div>
-                            <el-button text type="primary" @click="addUcanCapability">
-                                添加 capability
-                            </el-button>
-                        </div>
-                        <div class="field-hint">
-                            中心化 UCAN 授权将严格按应用配置签发。需同时配置
-                            <code>audience</code> 与至少一条 <code>{ with, can }</code>。
+                            <code>redirectUri</code> 必须与这里配置完全一致。<code>audience/capability</code>
+                            由服务端自动推导，无需手填。
                         </div>
                     </el-form-item>
 
@@ -227,11 +183,6 @@ type DependencyOption = {
     value: string
 }
 
-type UcanCapabilityForm = {
-    with: string
-    can: string
-}
-
 const presets: ApplicationPreset[] = [
     {
         key: 'chat',
@@ -303,8 +254,6 @@ const detailInfo = ref<ApplicationMetadata>({
     code: 'APPLICATION_CODE_CHAT',
     serviceCodes: [],
     redirectUris: [],
-    ucanAudience: '',
-    ucanCapabilities: [{ with: '', can: '' }],
     avatar: '',
     owner: '',
     ownerName: '',
@@ -387,74 +336,6 @@ function toSingleRedirectUri(value: unknown): string {
     return values[0]
 }
 
-function toUcanCapabilityArray(value: unknown): UcanCapabilityForm[] {
-    const values: UcanCapabilityForm[] = []
-    const pushValue = (entry: unknown) => {
-        if (!entry || typeof entry !== 'object') {
-            return
-        }
-        const source = entry as Record<string, unknown>
-        const withValue =
-            (typeof source.with === 'string' && source.with.trim()) ||
-            (typeof source.resource === 'string' && source.resource.trim()) ||
-            ''
-        const canValue =
-            (typeof source.can === 'string' && source.can.trim()) ||
-            (typeof source.action === 'string' && source.action.trim()) ||
-            ''
-        if (!withValue || !canValue) {
-            return
-        }
-        values.push({ with: withValue, can: canValue })
-    }
-    if (Array.isArray(value)) {
-        value.forEach((item) => pushValue(item))
-        return values
-    }
-    if (value === undefined || value === null) {
-        return []
-    }
-    const raw = String(value).trim()
-    if (!raw || !raw.startsWith('[')) {
-        return []
-    }
-    try {
-        const parsed = JSON.parse(raw)
-        if (Array.isArray(parsed)) {
-            parsed.forEach((item) => pushValue(item))
-        }
-    } catch {
-        return []
-    }
-    return values
-}
-
-function hasPartialUcanCapability(value: unknown): boolean {
-    if (!Array.isArray(value)) {
-        return false
-    }
-    for (const item of value) {
-        if (!item || typeof item !== 'object') {
-            continue
-        }
-        const source = item as Record<string, unknown>
-        const withValue = String(source.with || '').trim()
-        const canValue = String(source.can || '').trim()
-        if ((withValue || canValue) && (!withValue || !canValue)) {
-            return true
-        }
-    }
-    return false
-}
-
-function toCapabilityRows(value: unknown): UcanCapabilityForm[] {
-    const parsed = toUcanCapabilityArray(value)
-    if (parsed.length > 0) {
-        return parsed
-    }
-    return [{ with: '', can: '' }]
-}
-
 function detectPreset(app: ApplicationMetadata): PresetKey {
     const source = String(app.codePackagePath || '').toLowerCase()
     const name = String(app.name || '').toLowerCase()
@@ -519,8 +400,6 @@ async function getDetailInfo() {
         code: String(res.code || 'APPLICATION_CODE_UNKNOWN'),
         serviceCodes: toServiceCodeArray(res.serviceCodes),
         redirectUris: toRedirectUriArray(res.redirectUris),
-        ucanAudience: String(res.ucanAudience || '').trim(),
-        ucanCapabilities: toCapabilityRows(res.ucanCapabilities),
         codePackagePath: String(res.codePackagePath || '')
     }
     redirectUriInput.value = toSingleRedirectUri(res.redirectUris)
@@ -569,14 +448,6 @@ async function loadDependencyOptions() {
 }
 
 function buildSubmitParams(account: string): ApplicationMetadata & { codeType?: string } {
-    if (hasPartialUcanCapability(detailInfo.value.ucanCapabilities)) {
-        throw new Error('UCAN capability 配置不完整，请同时填写 with 和 can')
-    }
-    const ucanAudience = String(detailInfo.value.ucanAudience || '').trim()
-    const ucanCapabilities = toUcanCapabilityArray(detailInfo.value.ucanCapabilities)
-    if ((ucanAudience && ucanCapabilities.length === 0) || (!ucanAudience && ucanCapabilities.length > 0)) {
-        throw new Error('UCAN audience 与 capability 需要同时配置')
-    }
     const normalizedOwner = normalizeAddress(account)
     const redirectUri = toSingleRedirectUri(redirectUriInput.value)
     return {
@@ -584,25 +455,12 @@ function buildSubmitParams(account: string): ApplicationMetadata & { codeType?: 
         code: String(detailInfo.value.code || 'APPLICATION_CODE_UNKNOWN'),
         serviceCodes: toServiceCodeArray(detailInfo.value.serviceCodes),
         redirectUris: redirectUri ? [redirectUri] : [],
-        ucanAudience,
-        ucanCapabilities,
         avatar: avatarValue.value,
         codePackagePath: String(detailInfo.value.codePackagePath || ''),
         codeType: '1',
         owner: normalizedOwner,
         ownerName: normalizedOwner
     }
-}
-
-function addUcanCapability() {
-    const next = toCapabilityRows(detailInfo.value.ucanCapabilities)
-    next.push({ with: '', can: '' })
-    detailInfo.value.ucanCapabilities = next
-}
-
-function removeUcanCapability(index: number) {
-    const next = toCapabilityRows(detailInfo.value.ucanCapabilities).filter((_, current) => current !== index)
-    detailInfo.value.ucanCapabilities = next.length > 0 ? next : [{ with: '', can: '' }]
 }
 
 async function submitPublishRequest(application: ApplicationMetadata) {
@@ -674,8 +532,6 @@ async function submitForm(andPublish: boolean) {
                 ownerName: params.ownerName,
                 serviceCodes: params.serviceCodes,
                 redirectUris: params.redirectUris,
-                ucanAudience: params.ucanAudience,
-                ucanCapabilities: params.ucanCapabilities,
                 avatar: params.avatar
             })
             if (!updated) {
@@ -807,19 +663,6 @@ onMounted(() => {
     color: rgba(0, 0, 0, 0.55);
 }
 
-.capability-list {
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
-}
-
-.capability-row {
-    display: grid;
-    grid-template-columns: 1fr 220px auto;
-    align-items: center;
-    gap: 10px;
-}
-
 .icon-uploader {
     display: flex;
     align-items: center;
@@ -873,10 +716,6 @@ onMounted(() => {
 }
 
 @media (max-width: 960px) {
-    .capability-row {
-        grid-template-columns: 1fr;
-    }
-
     .icon-uploader {
         width: 100%;
         align-items: flex-start;

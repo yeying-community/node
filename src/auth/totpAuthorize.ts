@@ -1,6 +1,11 @@
 import * as crypto from 'crypto';
 import { getConfig } from '../config/runtime';
 import { ApplicationService } from '../domain/service/application';
+import {
+  ApplicationUcanPolicyError,
+  resolveApplicationUcanPolicy,
+  serializeApplicationUcanCapabilities,
+} from '../domain/service/applicationUcanPolicy';
 import { type UcanCapability } from './ucanIssuer';
 import {
   TotpAuthError,
@@ -10,6 +15,7 @@ import {
   markTotpEnrollmentBoundForSubject,
   verifyTotpCodeForSubject,
 } from './totpAuth';
+import { getCurrentUtcString } from '../common/date';
 
 export type TotpAuthorizeRequestStatus = 'pending' | 'used' | 'expired' | 'revoked';
 
@@ -381,20 +387,61 @@ async function resolveAuthorizeAppByAppId(appId: string): Promise<TotpAuthorizeC
     );
   }
   const defaultAudience = String(app.ucanAudience || '').trim();
-  const defaultCapabilities = parseCapabilitiesFromApplication(app.ucanCapabilities);
-  if (!defaultAudience || defaultCapabilities.length === 0) {
-    throw new TotpAuthError(
-      403,
-      'TOTP_AUTH_APP_POLICY_NOT_CONFIGURED',
-      'UCAN authorization policy is not configured for this app'
-    );
+  let defaultCapabilities = parseCapabilitiesFromApplication(app.ucanCapabilities);
+  let resolvedAudience = defaultAudience;
+  if (!resolvedAudience || defaultCapabilities.length === 0) {
+    let policy: Awaited<ReturnType<typeof resolveApplicationUcanPolicy>>;
+    try {
+      policy = await resolveApplicationUcanPolicy({
+        uid: app.uid,
+        code: app.code,
+        location: app.location,
+        serviceCodes: app.serviceCodes,
+      });
+    } catch (error) {
+      if (error instanceof TotpAuthError) {
+        throw error;
+      }
+      if (error instanceof ApplicationUcanPolicyError) {
+        const status =
+          error.status >= 500
+            ? 500
+            : Number.isFinite(error.status) && error.status >= 400
+            ? Math.trunc(error.status)
+            : 400;
+        throw new TotpAuthError(
+          status,
+          'TOTP_AUTH_APP_POLICY_AUTO_RESOLVE_FAILED',
+          error.message
+        );
+      }
+      throw new TotpAuthError(
+        403,
+        'TOTP_AUTH_APP_POLICY_AUTO_RESOLVE_FAILED',
+        'UCAN authorization policy cannot be derived for this app'
+      );
+    }
+    resolvedAudience = policy.audience;
+    defaultCapabilities = [...policy.capabilities];
+    try {
+      const now = getCurrentUtcString();
+      const serviceToSave = new ApplicationService();
+      await serviceToSave.save({
+        ...app,
+        ucanAudience: resolvedAudience,
+        ucanCapabilities: serializeApplicationUcanCapabilities(defaultCapabilities),
+        updatedAt: now,
+      });
+    } catch {
+      // ignore persist failure; authorization can still proceed with computed policy
+    }
   }
 
   const client: TotpAuthorizeClient = {
     appId,
     appName: normalizeAppName(app.name || app.code || appId),
     redirectUri,
-    defaultAudience,
+    defaultAudience: resolvedAudience,
     defaultCapabilities,
   };
   DYNAMIC_CLIENT_CACHE.set(appId, { client, expiresAt: nowMs + DYNAMIC_CLIENT_CACHE_TTL_MS });
