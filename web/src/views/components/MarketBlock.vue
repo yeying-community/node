@@ -2,7 +2,7 @@
     <div class="tab" :class="{ 'tab-market-clickable': pageFrom === 'market' }" @click="handleCardClick">
         <div class="top">
             <div class="top-left">
-                <el-avatar shape="square" size="72" :src="detail.avatar" />
+                <el-avatar shape="square" size="70" :src="detail.avatar" />
             </div>
             <div class="top-right" :class="{ 'has-menu': pageFrom === 'market' }">
                 <div v-if="pageFrom === 'market'" class="card-menu" @click.stop>
@@ -17,23 +17,25 @@
                         </template>
                     </el-dropdown>
                 </div>
-                <div class="name">{{ detail.name }}</div>
                 <div v-if="businessStatus !== 'BUSINESS_STATUS_UNKNOWN' && pageFrom !== 'market'" class="badge-info">
                     <el-badge is-dot :type="businessInfo.type" />
                     <span class="badge-text">{{ businessInfo.text }}</span>
                 </div>
-                <div class="title" v-if="pageFrom === 'market'">
-                    <el-tag type="primary" size="small">社区</el-tag>
-                    <span class="market-title-time">{{ marketPublishedDateText }}</span>
-                </div>
-                <div class="title" v-else-if="pageFrom === 'myCreate' || !ownerAddress">
-                    <span v-if="pageFrom === 'myCreate' || !ownerAddress">
+                <div class="headline">
+                    <div class="name">{{ detail.name }}</div>
+                    <div class="title" v-if="pageFrom === 'market'">
                         <el-tag type="primary" size="small">社区</el-tag>
-                    </span>
-                    <span>
-                        {{ pageFrom === 'myCreate' || !isOnline ? '创建于' : '上架于' }}
-                        {{ dayjs(detail.createdAt).format('YYYY-MM-DD') }}
-                    </span>
+                        <span class="market-title-time">{{ marketPublishedDateText }}</span>
+                    </div>
+                    <div class="title" v-else-if="pageFrom === 'myCreate' || !ownerAddress">
+                        <span v-if="pageFrom === 'myCreate' || !ownerAddress">
+                            <el-tag type="primary" size="small">社区</el-tag>
+                        </span>
+                        <span>
+                            {{ pageFrom === 'myCreate' || !isOnline ? '创建于' : '上架于' }}
+                            {{ dayjs(detail.createdAt).format('YYYY-MM-DD') }}
+                        </span>
+                    </div>
                 </div>
                 <div v-if="ownerAddress" class="meta owner-meta-line">
                     <span class="owner-meta">
@@ -620,7 +622,7 @@ onBeforeUnmount(() => {
 .tab {
     background-color: #fff;
     border-radius: 6px;
-    padding: 18px 14px;
+    padding: 14px 10px;
     &.tab-market-clickable {
         cursor: pointer;
     }
@@ -630,15 +632,14 @@ onBeforeUnmount(() => {
     .top {
         display: flex;
         align-items: flex-start;
-        gap: 12px;
+        gap: 10px;
         .top-left {
-            width: 72px;
-            height: 72px;
-            flex: 0 0 72px;
+            width: 70px;
+            height: 70px;
+            flex: 0 0 70px;
             display: flex;
             align-items: center;
             justify-content: center;
-            margin-top: 1px;
         }
         .top-right {
             position: relative;
@@ -646,7 +647,7 @@ onBeforeUnmount(() => {
             flex-direction: column;
             gap: 8px;
             &.has-menu {
-                padding-right: 26px;
+                padding-right: 22px;
             }
             .card-menu {
                 position: absolute;
@@ -674,6 +675,13 @@ onBeforeUnmount(() => {
                 color: rgba(0, 0, 0, 0.85);
                 line-height: 1.35;
             }
+            .headline {
+                min-height: 70px;
+                display: flex;
+                flex-direction: column;
+                justify-content: center;
+                gap: 8px;
+            }
             .title {
                 display: flex;
                 align-items: center;
@@ -693,7 +701,7 @@ onBeforeUnmount(() => {
             .meta {
                 display: flex;
                 flex-wrap: wrap;
-                gap: 8px 16px;
+                gap: 6px 12px;
                 color: rgba(0, 0, 0, 0.6);
                 font-size: 13px;
                 .owner-meta {

@@ -52,11 +52,13 @@ watch(
 
 <style scoped lang="less">
 .app-center {
-    margin: 20px;
+    box-sizing: border-box;
+    min-height: calc(100dvh - 72px);
+    padding: 20px;
+    background: #f5f7fb;
 }
 
 .item-group {
-    margin-top: 20px;
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
     gap: 20px;
