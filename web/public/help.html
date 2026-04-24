@@ -375,10 +375,15 @@
                   <b>3)</b> 用户在 Node 验证页输入 TOTP，授权通过后拿到一次性 <code>code</code>。
                 </div>
                 <div class="flow-step">
-                  <b>4)</b> 业务端用 <code>code + appId + redirectUri</code> 兑换 <code>JWT + UCAN</code>。
+                  <b>4)</b> 业务端用 <code>code + appId + redirectUri</code> 兑换 <code>JWT + 初始 UCAN</code>。
                 </div>
                 <div class="flow-step">
-                  <b>5)</b> 业务端携带 Bearer Token 调用受保护接口，服务端按统一 UCAN 规则验证。
+                  <b>5)</b> 如需多后端访问，业务端用 <code>JWT</code> 调
+                  <code>/auth/central/session</code>，再按目标后端调用
+                  <code>/auth/central/issue</code> 分别签发 UCAN。
+                </div>
+                <div class="flow-step">
+                  <b>6)</b> 业务端携带对应后端的 Bearer UCAN 调用受保护接口，服务端按统一 UCAN 规则验证。
                 </div>
               </div>
               <div class="tip">
@@ -398,6 +403,7 @@
                 <li><code>capabilities</code>：由 Node 自动生成（默认 <code>can=invoke</code>）。</li>
                 <li><code>audience / capability / appName</code>：由服务端按应用策略决定，不接受客户端覆写。</li>
                 <li><code>address</code>：需先在 Node 完成 TOTP 扫码配置，否则无法发起授权。</li>
+                <li>多后端访问：在 <code>exchange</code> 后使用 <code>central/session + central/issue</code> 按后端分别签发 UCAN。</li>
               </ul>
             </div>
           </details>
@@ -415,6 +421,7 @@
                 </li>
                 <li><code>UCAN audience mismatch</code>：Token 的 aud 与服务端期望不一致。</li>
                 <li><code>UCAN capability denied</code>：签发能力不足，需调整能力并重签。</li>
+                <li><code>missing UCAN proof chain</code>：传错 token 类型（JWT 当 UCAN）或请求链路丢失 Authorization。</li>
                 <li><code>USER_ROLE_DENIED</code>：账号角色不满足发布/审批权限。</li>
               </ul>
             </div>
@@ -461,7 +468,7 @@
 
       <div class="meta">
         页面地址：<code>/help.html</code>（由 Header 右上角帮助图标打开）。<br />
-        最近更新：2026-04-23
+        最近更新：2026-04-24
       </div>
     </main>
     <script>
