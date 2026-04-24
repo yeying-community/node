@@ -1,29 +1,40 @@
 <template>
-    <div class="tab">
-        <div class="top" :class="{ clickable: pageFrom === 'market' }" @click="handleCardClick">
+    <div class="tab" :class="{ 'tab-market-clickable': pageFrom === 'market' }" @click="handleCardClick">
+        <div class="top">
             <div class="top-left">
                 <el-avatar shape="square" size="50" :src="detail.avatar" />
             </div>
-            <div class="top-right">
-                <div class="name">{{ detail.name }}</div>
-                <div v-if="businessStatus !== 'BUSINESS_STATUS_UNKNOWN'" class="badge-info">
-                    <template v-if="pageFrom === 'market'">
-                        <span class="badge-text badge-text-market">{{ marketPublishedDateText }}</span>
-                    </template>
-                    <template v-else>
-                        <el-badge is-dot :type="businessInfo.type" />
-                        <span class="badge-text">{{ businessInfo.text }}</span>
-                    </template>
+            <div class="top-right" :class="{ 'has-menu': pageFrom === 'market' }">
+                <div v-if="pageFrom === 'market'" class="card-menu" @click.stop>
+                    <el-dropdown trigger="click" placement="bottom-end">
+                        <span class="card-menu-trigger">
+                            <el-icon><MoreFilled /></el-icon>
+                        </span>
+                        <template #dropdown>
+                            <el-dropdown-menu>
+                                <el-dropdown-item @click="toDetail">详情</el-dropdown-item>
+                            </el-dropdown-menu>
+                        </template>
+                    </el-dropdown>
                 </div>
-                <div class="title" v-if="pageFrom !== 'market' || pageFrom === 'myCreate' || !ownerAddress">
+                <div class="name">{{ detail.name }}</div>
+                <div v-if="businessStatus !== 'BUSINESS_STATUS_UNKNOWN' && pageFrom !== 'market'" class="badge-info">
+                    <el-badge is-dot :type="businessInfo.type" />
+                    <span class="badge-text">{{ businessInfo.text }}</span>
+                </div>
+                <div class="title" v-if="pageFrom === 'market'">
+                    <el-tag type="primary" size="small">社区</el-tag>
+                </div>
+                <div class="title" v-else-if="pageFrom === 'myCreate' || !ownerAddress">
                     <span v-if="pageFrom === 'myCreate' || !ownerAddress">
                         <el-tag type="primary" size="small">社区</el-tag>
                     </span>
-                    <span v-if="pageFrom !== 'market'">
+                    <span>
                         {{ pageFrom === 'myCreate' || !isOnline ? '创建于' : '上架于' }}
-                        {{ dayjs(detail.createdAt).format('YYYY-MM-DD') }}</span
-                    >
+                        {{ dayjs(detail.createdAt).format('YYYY-MM-DD') }}
+                    </span>
                 </div>
+                <div v-if="pageFrom === 'market'" class="publish-time">{{ marketPublishedDateText }}</div>
                 <div v-if="ownerAddress" class="meta owner-meta-line">
                     <span class="owner-meta">
                         作者：{{ ownerShortAddress }}
@@ -36,22 +47,22 @@
                 </div>
                 <div class="meta">
                     <span>分类：{{ applicationCodeText }}</span>
+                </div>
+                <div class="meta meta-version">
                     <span>版本：{{ versionText }}</span>
                 </div>
-                <el-tooltip :content="detail.description || '-'" placement="top" :disabled="!isDescOverflow">
+                <el-tooltip :content="descriptionText" placement="top" :disabled="!isDescOverflow">
                     <div ref="descRef" class="desc">
-                        {{ detail.description || '-' }}
+                        {{ displayDescription }}
                     </div>
                 </el-tooltip>
             </div>
         </div>
 
         <!-- 应用市场 -->
-        <div v-if="pageFrom === 'market'">
+        <div v-if="pageFrom === 'market' && !isOwner">
             <div class="bottom owner">
-                <div @click.stop="goUse" class="cursor">立即使用</div>
-                <el-divider v-if="!isOwner" direction="vertical" />
-                <div v-if="!isOwner" @click.stop="applyUse()" class="cursor">申请使用</div>
+                <div @click.stop="applyUse()" class="cursor">申请使用</div>
             </div>
         </div>
         <!-- 我的创建 -->
@@ -154,7 +165,7 @@
 import { ref, computed, nextTick, onBeforeUnmount, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import $audit, { isAuditForResource, resolveUsageAuditStatus } from '@/plugins/audit'
-import { CopyDocument, SuccessFilled, WarningFilled } from '@element-plus/icons-vue'
+import { CopyDocument, MoreFilled, SuccessFilled, WarningFilled } from '@element-plus/icons-vue'
 import dayjs from 'dayjs'
 import { exportIdentityInfo } from '@/plugins/account'
 import { ElMessage, ElMessageBox } from 'element-plus'
@@ -180,20 +191,20 @@ const props = defineProps({
     pageFrom: String
 })
 
-const isOwner = () => {
+const isOwner = computed(() => {
     const account = getCurrentAccount()
-    if (account === undefined || account === null) {
-        notifyError("❌未查询到当前账户，请登录")
+    if (!account) {
         return false
     }
     return normalizeAddress(account) === normalizeAddress(String(props.detail?.owner || ''))
-}
+})
 
 const innerVisible = ref(false)
 const dialogVisible = ref(false)
 const modalVisible = ref(false)
 const descRef = ref<HTMLElement | null>(null)
 const isDescOverflow = ref(false)
+const displayDescription = ref('-')
 let descriptionResizeObserver: ResizeObserver | null = null
 const businessStatus = computed(() => resolveBusinessStatus(props.detail))
 const businessInfo = computed(() => businessStatusMap[businessStatus.value] || businessStatusMap.BUSINESS_STATUS_UNKNOWN)
@@ -235,6 +246,10 @@ const versionText = computed(() => {
     }
     return String(raw)
 })
+const descriptionText = computed(() => {
+    const raw = String(props.detail?.description || '').trim()
+    return raw || '-'
+})
 const writeClipboardText = async (value: string) => {
     if (navigator?.clipboard?.writeText) {
         await navigator.clipboard.writeText(value)
@@ -265,13 +280,39 @@ const copyOwnerAddress = async () => {
 }
 
 const updateDescriptionOverflow = async () => {
+    displayDescription.value = descriptionText.value
     await nextTick()
     const el = descRef.value
     if (!el) {
         isDescOverflow.value = false
         return
     }
-    isDescOverflow.value = el.scrollHeight > el.clientHeight + 1
+    const isOverflow = () => el.scrollHeight > el.clientHeight + 1
+    if (!isOverflow()) {
+        isDescOverflow.value = false
+        return
+    }
+    if (descriptionText.value === '-') {
+        isDescOverflow.value = false
+        return
+    }
+    isDescOverflow.value = true
+    let left = 0
+    let right = descriptionText.value.length
+    let best = '...'
+    while (left <= right) {
+        const mid = Math.floor((left + right) / 2)
+        const candidate = `${descriptionText.value.slice(0, mid).trimEnd()}...`
+        displayDescription.value = candidate
+        await nextTick()
+        if (!isOverflow()) {
+            best = candidate
+            left = mid + 1
+        } else {
+            right = mid - 1
+        }
+    }
+    displayDescription.value = best
 }
 
 /**
@@ -392,6 +433,15 @@ const exportIdentity = async () => {
 }
 
 const toDetail = () => {
+    if (props.pageFrom === 'market') {
+        router.push({
+            path: '/market/detail',
+            query: {
+                uid: props.detail?.uid
+            }
+        })
+        return
+    }
     router.push({
         path: '/market/dev/apply-detail',
         query: {
@@ -575,15 +625,15 @@ onBeforeUnmount(() => {
     background-color: #fff;
     border-radius: 6px;
     padding: 20px;
+    &.tab-market-clickable {
+        cursor: pointer;
+    }
     .cursor {
         cursor: pointer;
     }
     .top {
         display: flex;
         gap: 16px;
-        &.clickable {
-            cursor: pointer;
-        }
         .top-left {
         }
         .top-right {
@@ -591,6 +641,29 @@ onBeforeUnmount(() => {
             display: flex;
             flex-direction: column;
             gap: 8px;
+            &.has-menu {
+                padding-right: 26px;
+            }
+            .card-menu {
+                position: absolute;
+                top: 0;
+                right: 0;
+                z-index: 5;
+            }
+            .card-menu-trigger {
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+                width: 22px;
+                height: 22px;
+                border-radius: 6px;
+                color: rgba(0, 0, 0, 0.45);
+                transition: background-color 0.2s ease, color 0.2s ease;
+            }
+            .card-menu-trigger:hover {
+                background-color: rgba(0, 0, 0, 0.06);
+                color: rgba(0, 0, 0, 0.72);
+            }
             .name {
                 font-size: 18px;
                 font-weight: 500;
@@ -606,6 +679,12 @@ onBeforeUnmount(() => {
                 .el-tag {
                     margin-top: -4px;
                 }
+            }
+            .publish-time {
+                color: rgba(0, 0, 0, 0.45);
+                font-size: 13px;
+                line-height: 1.4;
+                margin-top: -4px;
             }
             .meta {
                 display: flex;
@@ -624,6 +703,9 @@ onBeforeUnmount(() => {
                     cursor: pointer;
                 }
             }
+            .meta-version {
+                margin-top: -4px;
+            }
             .owner-meta-line {
                 align-items: center;
             }
@@ -632,12 +714,9 @@ onBeforeUnmount(() => {
                 font-size: 14px;
                 font-weight: 400;
                 line-height: 22px;
-                height: 44px;
-                display: -webkit-box;
-                -webkit-box-orient: vertical;
-                -webkit-line-clamp: 2;
+                height: 33px;
                 overflow: hidden;
-                text-overflow: ellipsis;
+                word-break: break-word;
             }
 
             .badge-info {
@@ -657,11 +736,6 @@ onBeforeUnmount(() => {
                 font-size: 13px;
                 margin-left: 8px;
                 line-height: 1.2;
-            }
-
-            .badge-text-market {
-                margin-left: 0;
-                text-align: right;
             }
         }
     }

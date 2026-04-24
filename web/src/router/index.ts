@@ -45,6 +45,11 @@ export const routes = [
                 component: () => import('../views/apply/AppCenterView.vue')
             },
             {
+                path: 'detail',
+                name: 'marketDetail',
+                component: () => import('../views/apply/ApplyDetail.vue')
+            },
+            {
                 path: 'dev',
                 component: () => import('../views/apply/Main.vue'),
                 children: [
