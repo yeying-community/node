@@ -1,12 +1,8 @@
 <template>
     <div class="publish-page">
-        <BreadcrumbHeader :pageName="isEdit ? '编辑应用' : '发布应用'" />
+        <BreadcrumbHeader :pageName="isEdit ? '编辑应用' : '创建应用'" />
 
         <div class="publish-panel">
-            <div class="panel-head">
-                <div class="panel-title">发布 Web3 应用</div>
-            </div>
-
             <el-form ref="formRef" label-position="top" :model="detailInfo" :rules="rules">
                 <div class="section">
                     <div class="section-title">1. 选择应用模版</div>
@@ -136,10 +132,10 @@
                 <div class="actions">
                     <el-button @click="cancelForm">取消</el-button>
                     <el-button @click="submitForm(false)">
-                        {{ isEdit ? '保存修改' : '仅保存' }}
+                        {{ saveButtonText }}
                     </el-button>
                     <el-button type="primary" @click="submitForm(true)">
-                        {{ isEdit ? '保存并提交上架' : '保存并提交上架' }}
+                        {{ publishButtonText }}
                     </el-button>
                 </div>
             </el-form>
@@ -190,7 +186,7 @@ const presets: ApplicationPreset[] = [
         note: '应用默认地址 http://localhost:3020',
         defaults: {
             name: 'Chat',
-            description: '多模态 AI 聊天应用',
+            description: '集成多模型对话和云同步的智能聊天应用，可在桌面和手机浏览器中使用。',
             code: 'APPLICATION_CODE_CHAT',
             location: 'http://localhost:3020',
             codePackagePath: 'git@github.com:yeying-community/chat.git'
@@ -263,6 +259,9 @@ const detailInfo = ref<ApplicationMetadata>({
 const currentPreset = computed(() =>
     presets.find((item) => item.key === selectedPreset.value) || null
 )
+
+const saveButtonText = computed(() => (isEdit.value ? '保存修改' : '保存草稿'))
+const publishButtonText = computed(() => (isEdit.value ? '提交上架申请' : '提交上架'))
 
 const rules = reactive<FormRules>({
     name: [{ required: true, message: '请输入应用名称', trigger: 'blur' }],
@@ -378,7 +377,7 @@ function resolveSubmitError(error: unknown): string {
         return '当前账号暂无发布权限（USER_ROLE_DENIED）。请重新登录后重试，或联系管理员确认角色为 NORMAL/OWNER。'
     }
     if (message.includes('USER_BLOCKED')) {
-        return '当前账号已被禁用或冻结，无法发布应用。'
+        return '当前账号已被禁用或冻结，无法创建应用。'
     }
     return message
 }
