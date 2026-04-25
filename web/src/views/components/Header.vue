@@ -3,9 +3,31 @@
         <div class="left">
             <img @click="go('/')" class="w-24 h-6 pr-4 border-r" src="../../assets/img/logo.svg"/>
         </div>
-        <div class="hidden lg:flex">
+        <div class="center">
+            <el-input
+                v-if="showMarketSearch"
+                v-model="marketKeyword"
+                size="large"
+                class="market-search"
+                placeholder="搜索应用名称/作者地址"
+                @keyup.enter="submitMarketSearch"
+            >
+                <template #suffix>
+                    <el-icon class="search-icon" @click="submitMarketSearch">
+                        <Search />
+                    </el-icon>
+                </template>
+            </el-input>
         </div>
         <div class="account">
+            <button
+                v-if="showDevEntry"
+                type="button"
+                class="dev-entry-btn"
+                @click="goDeveloperEntry"
+            >
+                {{ devEntryText }}
+            </button>
             <el-tooltip content="帮助文档" placement="bottom" :show-after="250">
                 <button
                     type="button"
@@ -50,18 +72,43 @@
     </div>
 </template>
 <script lang="ts" setup>
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
-import { useRouter } from 'vue-router'
-import { CaretBottom, Check, DocumentCopy, QuestionFilled } from '@element-plus/icons-vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
+import { CaretBottom, Check, DocumentCopy, QuestionFilled, Search } from '@element-plus/icons-vue'
 import { getCurrentAccount, logoutWithUcan } from '@/plugins/auth'
 
 const router = useRouter();
+const route = useRoute()
 const currentAccount = ref<string | null>(null)
 const isAddressCopied = ref(false)
+const marketKeyword = ref('')
 let copiedTimer: number | null = null
 
 const go = async (url: string) => {
     router.push(url)
+}
+
+const showDevEntry = computed(() => String(route.path || '').startsWith('/market'))
+const showMarketSearch = computed(() => route.name === 'appCenter')
+const devEntryText = computed(() => (showMarketSearch.value ? '开发者入口' : '返回应用中心'))
+
+const submitMarketSearch = () => {
+    if (!showMarketSearch.value) {
+        return
+    }
+    const keyword = String(marketKeyword.value || '').trim()
+    router.replace({
+        path: '/market/',
+        query: keyword ? { keyword } : {}
+    })
+}
+
+const goDeveloperEntry = async () => {
+    if (showMarketSearch.value) {
+        await router.push('/market/dev/my-apps')
+        return
+    }
+    await router.push('/market/')
 }
 
 function openHelpDoc() {
@@ -134,6 +181,20 @@ onMounted(() => {
     window.addEventListener('wallet:accountChanged', handleAccountChanged)
 })
 
+watch(
+    [() => route.name, () => route.query.keyword],
+    ([nextName, nextKeyword]) => {
+        if (nextName !== 'appCenter') {
+            return
+        }
+        if (!showMarketSearch.value) {
+            return
+        }
+        marketKeyword.value = String(nextKeyword || '')
+    },
+    { immediate: true }
+)
+
 onBeforeUnmount(() => {
     window.removeEventListener('wallet:accountChanged', handleAccountChanged)
     if (copiedTimer !== null) {
@@ -149,11 +210,21 @@ onBeforeUnmount(() => {
     display: flex;
     justify-content: space-between;
     align-items: center;
+    gap: 12px;
     border-bottom: 1px solid #e5e7eb;
     .left{
         display: flex;
         align-items: center;
         gap: 10px;
+    }
+    .center{
+        flex: 1;
+        display: flex;
+        justify-content: center;
+        .market-search{
+            width: 560px;
+            max-width: 100%;
+        }
     }
     .account{
         display: inline-flex;
@@ -161,6 +232,20 @@ onBeforeUnmount(() => {
         gap: 8px;
         font-size: 14px;
         color: rgba(0,0,0,0.85);
+        .dev-entry-btn{
+            height: 28px;
+            border: 1px solid rgba(0,0,0,0.12);
+            border-radius: 8px;
+            padding: 0 10px;
+            background: white;
+            color: rgba(0,0,0,0.72);
+            cursor: pointer;
+            transition: all 0.2s ease;
+            &:hover{
+                border-color: rgba(0,0,0,0.2);
+                color: rgba(0,0,0,0.88);
+            }
+        }
         .help-link-btn{
             width: 24px;
             height: 24px;
@@ -224,6 +309,14 @@ onBeforeUnmount(() => {
             align-items: center;
             font-size: 12px;
             color: rgba(0,0,0,0.45);
+        }
+    }
+}
+
+@media (max-width: 992px) {
+    .header{
+        .center{
+            display: none;
         }
     }
 }

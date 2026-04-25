@@ -1,19 +1,27 @@
 import * as crypto from 'crypto';
 import { getConfig } from '../config/runtime';
 import { ApplicationService } from '../domain/service/application';
-import { getCentralIssuerStatus, type UcanCapability } from './ucanIssuer';
+import {
+  ApplicationUcanPolicyError,
+  resolveApplicationUcanPolicy,
+  serializeApplicationUcanCapabilities,
+} from '../domain/service/applicationUcanPolicy';
+import { type UcanCapability } from './ucanIssuer';
 import {
   TotpAuthError,
   assertTotpAuthReady,
   buildTotpVerifyUrl,
+  hasTotpEnrollmentForSubject,
+  markTotpEnrollmentBoundForSubject,
   verifyTotpCodeForSubject,
 } from './totpAuth';
+import { getCurrentUtcString } from '../common/date';
 
 export type TotpAuthorizeRequestStatus = 'pending' | 'used' | 'expired' | 'revoked';
 
 export type TotpAuthorizeClient = {
-  clientId: string;
-  redirectUris: string[];
+  appId: string;
+  redirectUri: string;
   appName?: string;
   defaultAudience?: string;
   defaultCapabilities?: UcanCapability[];
@@ -24,7 +32,7 @@ export type TotpAuthorizeRequestCreateResult = {
   status: TotpAuthorizeRequestStatus;
   subject: string;
   subjectHint: string;
-  clientId: string;
+  appId: string;
   redirectUri: string;
   state?: string;
   audience: string;
@@ -40,7 +48,7 @@ export type TotpAuthorizeRequestPublicResult = Omit<TotpAuthorizeRequestCreateRe
 export type TotpAuthorizeRequestConsumeResult = {
   requestId: string;
   subject: string;
-  clientId: string;
+  appId: string;
   redirectUri: string;
   state?: string;
   audience: string;
@@ -60,7 +68,7 @@ export type TotpAuthorizeCodeCreateResult = {
 export type TotpAuthorizeCodeExchangeResult = {
   requestId: string;
   subject: string;
-  clientId: string;
+  appId: string;
   redirectUri: string;
   state?: string;
   token: string;
@@ -76,7 +84,6 @@ export type TotpAuthorizeCodeExchangeResult = {
 };
 
 type TotpAuthorizeRuntimeState = {
-  clients: Map<string, TotpAuthorizeClient>;
   exchangeCodeTtlMs: number;
 };
 
@@ -84,7 +91,7 @@ type TotpAuthorizeRequestRecord = {
   requestId: string;
   status: TotpAuthorizeRequestStatus;
   subject: string;
-  clientId: string;
+  appId: string;
   redirectUri: string;
   state?: string;
   audience: string;
@@ -102,7 +109,7 @@ type TotpAuthorizeCodeRecord = {
   code: string;
   requestId: string;
   subject: string;
-  clientId: string;
+  appId: string;
   redirectUri: string;
   state?: string;
   token: string;
@@ -186,7 +193,7 @@ function normalizeRequestId(input: unknown): string {
   return String(input || '').trim();
 }
 
-function normalizeClientId(input: unknown): string {
+function normalizeAppId(input: unknown): string {
   return String(input || '').trim();
 }
 
@@ -227,112 +234,18 @@ function normalizeRedirectUri(input: unknown): string {
   return parsed.toString();
 }
 
-function sanitizeCapability(entry: unknown): UcanCapability | null {
-  if (!entry || typeof entry !== 'object') return null;
-  const value = entry as Record<string, unknown>;
-  const withValue =
-    (typeof value.with === 'string' && value.with.trim()) ||
-    (typeof value.resource === 'string' && value.resource.trim()) ||
-    '';
-  const canValue =
-    (typeof value.can === 'string' && value.can.trim()) ||
-    (typeof value.action === 'string' && value.action.trim()) ||
-    '';
-  if (!withValue || !canValue) {
-    return null;
-  }
-  return { with: withValue, can: canValue };
-}
-
-function parseCapabilityList(raw: unknown): UcanCapability[] {
-  const parsed =
-    typeof raw === 'string'
-      ? (() => {
-          try {
-            return JSON.parse(raw);
-          } catch {
-            return null;
-          }
-        })()
-      : raw;
-  if (!Array.isArray(parsed)) {
-    return [];
-  }
-  return parsed
-    .map(item => sanitizeCapability(item))
-    .filter((item): item is UcanCapability => Boolean(item));
-}
-
-function parseClientConfig(raw: unknown): Map<string, TotpAuthorizeClient> {
-  const parsed =
-    typeof raw === 'string'
-      ? (() => {
-          try {
-            return JSON.parse(raw);
-          } catch {
-            return null;
-          }
-        })()
-      : raw;
-  if (!Array.isArray(parsed)) {
-    return new Map();
-  }
-
-  const clients = new Map<string, TotpAuthorizeClient>();
-  for (const item of parsed) {
-    if (!item || typeof item !== 'object') continue;
-    const source = item as Record<string, unknown>;
-    const clientId = normalizeClientId(source.clientId);
-    if (!clientId) continue;
-
-    const redirectUris = Array.isArray(source.redirectUris)
-      ? source.redirectUris
-          .map(uri => {
-            try {
-              return normalizeRedirectUri(uri);
-            } catch {
-              return '';
-            }
-          })
-          .filter(Boolean)
-      : [];
-    if (redirectUris.length === 0) continue;
-
-    const defaultAudience =
-      typeof source.defaultAudience === 'string' && source.defaultAudience.trim()
-        ? source.defaultAudience.trim()
-        : undefined;
-    const defaultCapabilities = parseCapabilityList(source.defaultCapabilities);
-    const appName =
-      typeof source.appName === 'string' && source.appName.trim()
-        ? normalizeAppName(source.appName)
-        : undefined;
-    clients.set(clientId, {
-      clientId,
-      redirectUris,
-      appName,
-      defaultAudience,
-      defaultCapabilities: defaultCapabilities.length > 0 ? defaultCapabilities : undefined,
-    });
-  }
-  return clients;
-}
-
 function loadAuthorizeRuntime(): TotpAuthorizeRuntimeState {
-  const clients = parseClientConfig(
-    process.env.TOTP_AUTH_CLIENTS ?? getConfig<unknown>('totpAuth.clients')
-  );
   const exchangeCodeTtlMs = clampExchangeCodeTtlMs(
     process.env.TOTP_AUTH_EXCHANGE_CODE_TTL_MS ??
       getConfig<number>('totpAuth.exchangeCodeTtlMs')
   );
-  return { clients, exchangeCodeTtlMs };
+  return { exchangeCodeTtlMs };
 }
 
 function cleanupAuthorizeRecords(nowMs = Date.now()): void {
-  for (const [clientId, cacheItem] of DYNAMIC_CLIENT_CACHE.entries()) {
+  for (const [appId, cacheItem] of DYNAMIC_CLIENT_CACHE.entries()) {
     if (cacheItem.expiresAt <= nowMs) {
-      DYNAMIC_CLIENT_CACHE.delete(clientId);
+      DYNAMIC_CLIENT_CACHE.delete(appId);
     }
   }
 
@@ -358,83 +271,198 @@ function cleanupAuthorizeRecords(nowMs = Date.now()): void {
   }
 }
 
-function deriveRedirectUrisByAppLocation(locationInput: unknown): string[] {
-  const location = String(locationInput || '').trim();
-  if (!location) return [];
-  let parsed: URL;
+function parseRedirectUriFromApplication(raw: unknown): string {
+  const values: string[] = [];
+  const pushValue = (input: unknown) => {
+    const value = String(input || '').trim();
+    if (!value) return;
+    values.push(value);
+  };
+
+  if (Array.isArray(raw)) {
+    raw.forEach((item) => pushValue(item));
+  } else {
+    const text = String(raw || '').trim();
+    if (text) {
+      if (text.startsWith('[')) {
+        try {
+          const parsed = JSON.parse(text);
+          if (Array.isArray(parsed)) {
+            parsed.forEach((item) => pushValue(item));
+          }
+        } catch {
+          // fallback to split mode
+        }
+      }
+      if (values.length === 0) {
+        text
+          .split(/[\n,]/)
+          .map((item) => item.trim())
+          .filter(Boolean)
+          .forEach((item) => pushValue(item));
+      }
+    }
+  }
+
+  const normalized = new Set<string>();
+  values.forEach((uri) => {
+    try {
+      normalized.add(normalizeRedirectUri(uri));
+    } catch {
+      // ignore invalid redirect uri values
+    }
+  });
+  const resolved = [...normalized];
+  if (resolved.length === 0) {
+    return '';
+  }
+  if (resolved.length > 1) {
+    throw new TotpAuthError(
+      403,
+      'TOTP_AUTH_REDIRECT_MULTIPLE_NOT_ALLOWED',
+      'Only one redirectUri is allowed for this app'
+    );
+  }
+  return resolved[0];
+}
+
+function parseCapabilitiesFromApplication(raw: unknown): UcanCapability[] {
+  const values: UcanCapability[] = [];
+  const pushValue = (entry: unknown) => {
+    if (!entry || typeof entry !== 'object') return;
+    const source = entry as Record<string, unknown>;
+    const resource =
+      (typeof source.with === 'string' && source.with.trim()) ||
+      (typeof source.resource === 'string' && source.resource.trim()) ||
+      '';
+    const action =
+      (typeof source.can === 'string' && source.can.trim()) ||
+      (typeof source.action === 'string' && source.action.trim()) ||
+      '';
+    if (!resource || !action) return;
+    values.push({ with: resource, can: action });
+  };
+
+  if (Array.isArray(raw)) {
+    raw.forEach((item) => pushValue(item));
+    return values;
+  }
+
+  const text = String(raw || '').trim();
+  if (!text) return [];
+  if (!text.startsWith('[')) return [];
   try {
-    parsed = new URL(location);
+    const parsed = JSON.parse(text);
+    if (!Array.isArray(parsed)) return [];
+    parsed.forEach((item) => pushValue(item));
+    return values;
   } catch {
     return [];
   }
-  if (!/^https?:$/i.test(parsed.protocol)) {
-    return [];
-  }
-  const redirectUris = new Set<string>();
-  redirectUris.add(new URL('/central-ucan-callback.html', parsed.origin).toString());
-  redirectUris.add(new URL('/chat-callback.html', parsed.origin).toString());
-  return [...redirectUris];
 }
 
-async function resolveAppClientByAppId(clientId: string): Promise<TotpAuthorizeClient | null> {
-  if (!APP_ID_REGEX.test(clientId)) {
+async function resolveAuthorizeAppByAppId(appId: string): Promise<TotpAuthorizeClient | null> {
+  if (!APP_ID_REGEX.test(appId)) {
     return null;
   }
   const nowMs = Date.now();
-  const cached = DYNAMIC_CLIENT_CACHE.get(clientId);
+  const cached = DYNAMIC_CLIENT_CACHE.get(appId);
   if (cached && cached.expiresAt > nowMs) {
     return cached.client;
   }
 
   const service = new ApplicationService();
-  const app = await service.queryByUid(clientId);
+  const app = await service.queryByUid(appId);
   if (!app || !app.uid || !app.isOnline) {
-    DYNAMIC_CLIENT_CACHE.set(clientId, { client: null, expiresAt: nowMs + DYNAMIC_CLIENT_CACHE_TTL_MS });
+    DYNAMIC_CLIENT_CACHE.set(appId, { client: null, expiresAt: nowMs + DYNAMIC_CLIENT_CACHE_TTL_MS });
     return null;
   }
 
-  const redirectUris = deriveRedirectUrisByAppLocation(app.location);
-  if (redirectUris.length === 0) {
-    DYNAMIC_CLIENT_CACHE.set(clientId, { client: null, expiresAt: nowMs + DYNAMIC_CLIENT_CACHE_TTL_MS });
-    return null;
+  const redirectUri = parseRedirectUriFromApplication(app.redirectUris);
+  if (!redirectUri) {
+    throw new TotpAuthError(
+      403,
+      'TOTP_AUTH_REDIRECT_NOT_CONFIGURED',
+      'redirectUri is not configured for this app'
+    );
   }
-
-  const issuerStatus = getCentralIssuerStatus();
-  const defaultCapabilities =
-    Array.isArray(issuerStatus.defaultCapabilities) && issuerStatus.defaultCapabilities.length > 0
-      ? issuerStatus.defaultCapabilities
-      : undefined;
+  const defaultAudience = String(app.ucanAudience || '').trim();
+  let defaultCapabilities = parseCapabilitiesFromApplication(app.ucanCapabilities);
+  let resolvedAudience = defaultAudience;
+  if (!resolvedAudience || defaultCapabilities.length === 0) {
+    let policy: Awaited<ReturnType<typeof resolveApplicationUcanPolicy>>;
+    try {
+      policy = await resolveApplicationUcanPolicy({
+        uid: app.uid,
+        code: app.code,
+        location: app.location,
+        serviceCodes: app.serviceCodes,
+      });
+    } catch (error) {
+      if (error instanceof TotpAuthError) {
+        throw error;
+      }
+      if (error instanceof ApplicationUcanPolicyError) {
+        const status =
+          error.status >= 500
+            ? 500
+            : Number.isFinite(error.status) && error.status >= 400
+            ? Math.trunc(error.status)
+            : 400;
+        throw new TotpAuthError(
+          status,
+          'TOTP_AUTH_APP_POLICY_AUTO_RESOLVE_FAILED',
+          error.message
+        );
+      }
+      throw new TotpAuthError(
+        403,
+        'TOTP_AUTH_APP_POLICY_AUTO_RESOLVE_FAILED',
+        'UCAN authorization policy cannot be derived for this app'
+      );
+    }
+    resolvedAudience = policy.audience;
+    defaultCapabilities = [...policy.capabilities];
+    try {
+      const now = getCurrentUtcString();
+      const serviceToSave = new ApplicationService();
+      await serviceToSave.save({
+        ...app,
+        ucanAudience: resolvedAudience,
+        ucanCapabilities: serializeApplicationUcanCapabilities(defaultCapabilities),
+        updatedAt: now,
+      });
+    } catch {
+      // ignore persist failure; authorization can still proceed with computed policy
+    }
+  }
 
   const client: TotpAuthorizeClient = {
-    clientId,
-    appName: normalizeAppName(app.name || app.code || clientId),
-    redirectUris,
-    defaultAudience: issuerStatus.defaultAudience || undefined,
+    appId,
+    appName: normalizeAppName(app.name || app.code || appId),
+    redirectUri,
+    defaultAudience: resolvedAudience,
     defaultCapabilities,
   };
-  DYNAMIC_CLIENT_CACHE.set(clientId, { client, expiresAt: nowMs + DYNAMIC_CLIENT_CACHE_TTL_MS });
+  DYNAMIC_CLIENT_CACHE.set(appId, { client, expiresAt: nowMs + DYNAMIC_CLIENT_CACHE_TTL_MS });
   return client;
 }
 
-async function getAuthorizeClient(clientIdInput: unknown): Promise<TotpAuthorizeClient> {
-  const clientId = normalizeClientId(clientIdInput);
-  if (!clientId) {
-    throw new TotpAuthError(400, 'TOTP_AUTH_CLIENT_REQUIRED', 'Missing clientId');
+async function getAuthorizeApp(appIdInput: unknown): Promise<TotpAuthorizeClient> {
+  const appId = normalizeAppId(appIdInput);
+  if (!appId) {
+    throw new TotpAuthError(400, 'TOTP_AUTH_APP_REQUIRED', 'Missing appId');
   }
-  const staticClient = AUTHORIZE_RUNTIME.clients.get(clientId);
-  if (staticClient) {
-    return staticClient;
-  }
-  const appClient = await resolveAppClientByAppId(clientId);
+  const appClient = await resolveAuthorizeAppByAppId(appId);
   if (appClient) {
     return appClient;
   }
-  throw new TotpAuthError(403, 'TOTP_AUTH_CLIENT_DENIED', 'Unauthorized clientId');
+  throw new TotpAuthError(403, 'TOTP_AUTH_APP_DENIED', 'Unauthorized appId (must be published AppId)');
 }
 
-function requireClientRedirect(client: TotpAuthorizeClient, redirectUriInput: unknown): string {
+function requireAppRedirect(app: TotpAuthorizeClient, redirectUriInput: unknown): string {
   const redirectUri = normalizeRedirectUri(redirectUriInput);
-  if (!client.redirectUris.includes(redirectUri)) {
+  if (app.redirectUri !== redirectUri) {
     throw new TotpAuthError(403, 'TOTP_AUTH_REDIRECT_DENIED', 'redirectUri is not allowed');
   }
   return redirectUri;
@@ -491,7 +519,7 @@ function toPublicResult(record: TotpAuthorizeRequestRecord): TotpAuthorizeReques
     requestId: record.requestId,
     status: record.status,
     subjectHint: maskSubject(record.subject),
-    clientId: record.clientId,
+    appId: record.appId,
     redirectUri: record.redirectUri,
     state: record.state,
     audience: record.audience,
@@ -515,12 +543,9 @@ function appendQuery(baseUrl: string, query: Record<string, string>): string {
 
 export async function createTotpAuthorizeRequest(input: {
   subject: string;
-  clientId: string;
+  appId: string;
   redirectUri: string;
   state?: string;
-  audience?: string;
-  capabilities?: UcanCapability[];
-  appName?: string;
   requestTtlMs?: number;
   sessionTtlMs?: number;
   tokenTtlMs?: number;
@@ -529,29 +554,33 @@ export async function createTotpAuthorizeRequest(input: {
   cleanupAuthorizeRecords();
 
   const subject = requireWalletAddress(input.subject);
-  const client = await getAuthorizeClient(input.clientId);
-  const redirectUri = requireClientRedirect(client, input.redirectUri);
+  if (!(await hasTotpEnrollmentForSubject(subject))) {
+    throw new TotpAuthError(
+      403,
+      'TOTP_AUTH_NOT_ENROLLED',
+      'TOTP authenticator is not configured for this address'
+    );
+  }
+  const app = await getAuthorizeApp(input.appId);
+  const redirectUri = requireAppRedirect(app, input.redirectUri);
   const state = normalizeState(input.state);
-  const capabilitiesInput = Array.isArray(input.capabilities) ? input.capabilities : [];
-  const capabilities = capabilitiesInput
-    .map(entry => sanitizeCapability(entry))
-    .filter((entry): entry is UcanCapability => Boolean(entry));
-  const resolvedCapabilities =
-    capabilities.length > 0 ? capabilities : client.defaultCapabilities || [];
+  const resolvedCapabilities = Array.isArray(app.defaultCapabilities)
+    ? [...app.defaultCapabilities]
+    : [];
   if (resolvedCapabilities.length === 0) {
     throw new TotpAuthError(
       400,
       'TOTP_AUTH_CAPABILITIES_REQUIRED',
-      'Missing capabilities for authorize request'
+      'Missing capabilities in app authorization policy'
     );
   }
 
-  const audience = String(input.audience || client.defaultAudience || '').trim();
+  const audience = String(app.defaultAudience || '').trim();
   if (!audience) {
     throw new TotpAuthError(
       400,
       'TOTP_AUTH_AUDIENCE_REQUIRED',
-      'Missing audience for authorize request'
+      'Missing audience in app authorization policy'
     );
   }
 
@@ -563,12 +592,12 @@ export async function createTotpAuthorizeRequest(input: {
     requestId,
     status: 'pending',
     subject,
-    clientId: client.clientId,
+    appId: app.appId,
     redirectUri,
     state,
     audience,
     capabilities: resolvedCapabilities,
-    appName: normalizeAppName(input.appName || client.appName || client.clientId),
+    appName: normalizeAppName(app.appName || app.appId),
     createdAt: nowMs,
     updatedAt: nowMs,
     expiresAt,
@@ -596,10 +625,10 @@ export function getTotpAuthorizeRequest(
   return toPublicResult(record);
 }
 
-export function consumeTotpAuthorizeRequest(input: {
+export async function consumeTotpAuthorizeRequest(input: {
   requestId: string;
   code: string;
-}): TotpAuthorizeRequestConsumeResult {
+}): Promise<TotpAuthorizeRequestConsumeResult> {
   const totpStatus = assertTotpAuthReady();
   cleanupAuthorizeRecords();
 
@@ -614,7 +643,7 @@ export function consumeTotpAuthorizeRequest(input: {
   const nowMs = Date.now();
   const pending = requirePendingRequest(record, nowMs);
 
-  if (!verifyTotpCodeForSubject(pending.subject, input.code)) {
+  if (!(await verifyTotpCodeForSubject(pending.subject, input.code))) {
     pending.attempts += 1;
     pending.updatedAt = nowMs;
     if (pending.attempts >= totpStatus.maxAttempts) {
@@ -631,11 +660,12 @@ export function consumeTotpAuthorizeRequest(input: {
   pending.status = 'used';
   pending.updatedAt = nowMs;
   AUTHORIZE_REQUESTS.set(requestId, pending);
+  await markTotpEnrollmentBoundForSubject(pending.subject);
 
   return {
     requestId: pending.requestId,
     subject: pending.subject,
-    clientId: pending.clientId,
+    appId: pending.appId,
     redirectUri: pending.redirectUri,
     state: pending.state,
     audience: pending.audience,
@@ -650,7 +680,7 @@ export function consumeTotpAuthorizeRequest(input: {
 export async function createTotpAuthorizeCode(input: {
   requestId: string;
   subject: string;
-  clientId: string;
+  appId: string;
   redirectUri: string;
   state?: string;
   token: string;
@@ -668,8 +698,8 @@ export async function createTotpAuthorizeCode(input: {
   assertTotpAuthReady();
   cleanupAuthorizeRecords();
 
-  const client = await getAuthorizeClient(input.clientId);
-  const redirectUri = requireClientRedirect(client, input.redirectUri);
+  const app = await getAuthorizeApp(input.appId);
+  const redirectUri = requireAppRedirect(app, input.redirectUri);
   const requestId = normalizeRequestId(input.requestId);
   if (!requestId) {
     throw new TotpAuthError(400, 'TOTP_AUTH_REQUEST_REQUIRED', 'Missing requestId');
@@ -691,7 +721,7 @@ export async function createTotpAuthorizeCode(input: {
     code,
     requestId,
     subject,
-    clientId: client.clientId,
+    appId: app.appId,
     redirectUri,
     state,
     token,
@@ -723,7 +753,7 @@ export async function createTotpAuthorizeCode(input: {
 
 export async function exchangeTotpAuthorizeCode(input: {
   code: string;
-  clientId: string;
+  appId: string;
   redirectUri: string;
 }): Promise<TotpAuthorizeCodeExchangeResult> {
   assertTotpAuthReady();
@@ -733,8 +763,8 @@ export async function exchangeTotpAuthorizeCode(input: {
   if (!code) {
     throw new TotpAuthError(400, 'TOTP_AUTH_CODE_REQUIRED', 'Missing authorization code');
   }
-  const client = await getAuthorizeClient(input.clientId);
-  const redirectUri = requireClientRedirect(client, input.redirectUri);
+  const app = await getAuthorizeApp(input.appId);
+  const redirectUri = requireAppRedirect(app, input.redirectUri);
   const record = AUTHORIZE_CODES.get(code);
   if (!record) {
     throw new TotpAuthError(404, 'TOTP_AUTH_CODE_NOT_FOUND', 'Authorization code not found');
@@ -747,11 +777,11 @@ export async function exchangeTotpAuthorizeCode(input: {
   if (nowMs > record.codeExpiresAt) {
     throw new TotpAuthError(410, 'TOTP_AUTH_CODE_EXPIRED', 'Authorization code expired');
   }
-  if (record.clientId !== client.clientId || record.redirectUri !== redirectUri) {
+  if (record.appId !== app.appId || record.redirectUri !== redirectUri) {
     throw new TotpAuthError(
       403,
-      'TOTP_AUTH_CODE_CLIENT_MISMATCH',
-      'Authorization code does not match client binding'
+      'TOTP_AUTH_CODE_APP_MISMATCH',
+      'Authorization code does not match app binding'
     );
   }
 
@@ -761,7 +791,7 @@ export async function exchangeTotpAuthorizeCode(input: {
   return {
     requestId: record.requestId,
     subject: record.subject,
-    clientId: record.clientId,
+    appId: record.appId,
     redirectUri: record.redirectUri,
     state: record.state,
     token: record.token,

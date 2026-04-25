@@ -8,7 +8,7 @@
 - 统一签发接口、配置项、校验逻辑与安全基线。
 - 记录实现里程碑、回滚策略、已知风险，作为长期维护入口。
 
-## 2. 当前状态（截至 2026-04-17）
+## 2. 当前状态（截至 2026-04-24）
 - 已实现：
   - SIWE/JWT 登录接口：`/api/v1/public/auth/challenge|verify|refresh|logout`
   - UCAN 校验模式：`Authorization: Bearer <UCAN>`，服务端验证 `aud/cap/proof`
@@ -16,6 +16,7 @@
   - 手机桥接签发接口：`/api/v1/public/auth/totp/status|totp/provision|bind/request|bind/approve`
   - 手机地址授权接口：`/api/v1/public/auth/totp/authorize/request|approve|exchange`
   - 中心化 UCAN 校验分支：支持 `UCAN_ISSUER_DID` 信任 + `mode` 分支（`verify|issue|hybrid`）
+  - 第三方应用多后端签发：`authorize/exchange` 后可通过 `central/session|issue` 按后端动态签发 UCAN
 - 未实现（后续阶段）：
   - key rotation（active/next）
   - revoke 与 token 黑名单联动（当前仅 session revoke）
@@ -51,6 +52,13 @@
   - Header：`Authorization: Bearer <sessionToken>`
   - 输出：`revoked`
 
+### 4.0.1 多后端签发推荐顺序
+用于需要访问多个后端（不同 `audience`）的第三方应用：
+1. `POST /api/v1/public/auth/totp/authorize/exchange` 获取 `JWT + 初始 UCAN`。
+2. `POST /api/v1/public/auth/central/session`（Bearer JWT）获取 `sessionToken`。
+3. 按目标后端循环调用 `POST /api/v1/public/auth/central/issue`，分别签发 UCAN。
+4. 客户端按 `audience + capabilities` 缓存 UCAN，过期后重新签发。
+
 ## 4.1 接口定义（手机桥接签发）
 
 接口前缀：`/api/v1/public/auth/totp`
@@ -75,8 +83,8 @@
 接口前缀：`/api/v1/public/auth/totp/authorize`
 
 - `POST /request`
-  - 输入：`address`、`clientId`、`redirectUri`、`state`（可选）
-  - 建议：`clientId` 直接使用应用市场 `AppId`（`applications.uid`）
+  - 输入：`address`、`appId`、`redirectUri`、`state`（可选）
+  - 建议：`appId` 直接使用应用市场 `AppId`（`applications.uid`）
   - 输出：`requestId`、`verifyUrl`
 - `GET /request/:requestId`
   - 输出：授权请求状态与摘要
@@ -84,7 +92,7 @@
   - 输入：`requestId`、`code`
   - 输出：`authorizationCode` + `redirectTo`
 - `POST /exchange`
-  - 输入：`code`、`clientId`、`redirectUri`
+  - 输入：`code`、`appId`、`redirectUri`
   - 输出：`JWT access token` + `UCAN`
 
 前端承载页（Node Web）：
@@ -118,8 +126,8 @@
 - `totpAuth.codeWindow` / `TOTP_AUTH_CODE_WINDOW`
 - `totpAuth.maxAttempts` / `TOTP_AUTH_MAX_ATTEMPTS`
 - `totpAuth.totpMasterKey` / `TOTP_AUTH_TOTP_MASTER_KEY`
-- `totpAuth.clients` / `TOTP_AUTH_CLIENTS`
-  - 可选覆盖：未命中 `AppId` 自动识别时，使用该白名单显式配置 `clientId + redirectUris`
+- 应用发布字段：`redirectUris`
+  - `appId` 必须为应用市场 `AppId`（`applications.uid`），`redirectUri` 必须命中该字段
 
 ## 6. 服务端验证逻辑（第三方无感）
 
@@ -128,6 +136,10 @@
 - capability 必须满足 required `with/can`
 - `exp/nbf` 时间窗合法
 - 钱包模式要求 `prf` 证明链可验证
+
+补充说明：
+- Node 作为 Issuer 新增签发接口是为了“签发模式”能力，不改变业务服务的 UCAN 校验入口。
+- 第三方服务在验 token 时无须新增分支：仍按统一 UCAN 规则校验 `aud/cap/exp/nbf/signature` 即可。
 
 模式分派：
 - 钱包模式：`Root(SIWE) -> Delegation -> Invocation`
@@ -198,4 +210,5 @@
 | 2026-04-17 | 首版创建 | 建立 Node UCAN 签发模式长期维护文档 |
 | 2026-04-17 | 明确中心化接口 | 采用 `/api/v1/public/auth/central/*` 路由并保持业务验 token 无感 |
 | 2026-04-21 | 增加 `/totp-auth` 承载页约定 | 明确手机地址授权流程中的 Node 公共审批页职责（查询/授权/回跳） |
-| 2026-04-21 | 引入 `AppId` 客户端识别 | 支持 `clientId=applications.uid` 动态解析回跳白名单，降低 Chat 集成配置复杂度 |
+| 2026-04-21 | 引入 `AppId` 客户端识别 | 支持 `appId=applications.uid` 动态解析回跳白名单，降低 Chat 集成配置复杂度 |
+| 2026-04-24 | 补充多后端签发实践 | 明确 `authorize/exchange` 后通过 `central/session|issue` 按后端动态签发 UCAN，并强调服务端验证无感 |

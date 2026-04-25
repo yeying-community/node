@@ -15,6 +15,18 @@ import { AuditManager } from '../../domain/manager/audit';
 import { CommentManager } from '../../domain/manager/comments';
 import { ApplicationManager } from '../../domain/manager/application';
 import { ApplicationConfigService } from '../../domain/service/applicationConfig';
+import {
+  ApplicationUcanPolicyError,
+  resolveApplicationUcanPolicy,
+  serializeApplicationUcanCapabilities,
+} from '../../domain/service/applicationUcanPolicy';
+
+class RedirectUriSingleValueError extends Error {
+  constructor() {
+    super('Only one redirectUri is allowed')
+    this.name = 'RedirectUriSingleValueError'
+  }
+}
 
 function toServiceCodes(value: unknown): string {
   if (Array.isArray(value)) {
@@ -24,6 +36,60 @@ function toServiceCodes(value: unknown): string {
     return '';
   }
   return String(value);
+}
+
+function toRedirectUriArray(value: unknown): string[] {
+  const normalize = (input: unknown) => String(input ?? '').trim();
+  const deduped = new Set<string>();
+  const collect = (input: unknown) => {
+    const normalized = normalize(input);
+    if (!normalized) return;
+    deduped.add(normalized);
+  };
+
+  if (Array.isArray(value)) {
+    value.forEach((item) => collect(item));
+    return [...deduped];
+  }
+
+  if (value === undefined || value === null) {
+    return [];
+  }
+
+  const raw = normalize(value);
+  if (!raw) {
+    return [];
+  }
+
+  if (raw.startsWith('[')) {
+    try {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) {
+        parsed.forEach((item) => collect(item));
+        return [...deduped];
+      }
+    } catch {
+      // fallback to split mode
+    }
+  }
+
+  raw
+    .split(/[\n,]/)
+    .map((item) => item.trim())
+    .filter(Boolean)
+    .forEach((item) => collect(item));
+  return [...deduped];
+}
+
+function toRedirectUrisStorage(value: unknown): string {
+  const uris = toRedirectUriArray(value);
+  if (uris.length === 0) {
+    return '';
+  }
+  if (uris.length > 1) {
+    throw new RedirectUriSingleValueError();
+  }
+  return uris[0];
 }
 
 function normalizeApplicationConfig(input: unknown): Array<{ code: string; instance: string }> {
@@ -133,6 +199,12 @@ async function hasApprovedAudit(did: string, version: number) {
 }
 
 function mapApplicationWriteError(error: unknown, fallback: string) {
+  if (error instanceof RedirectUriSingleValueError) {
+    return { status: 400, message: error.message };
+  }
+  if (error instanceof ApplicationUcanPolicyError) {
+    return { status: error.status, message: error.message };
+  }
   const message = error instanceof Error ? error.message : fallback;
   const signatureStatus = getActionSignatureErrorStatus(message);
   const status =
@@ -145,6 +217,9 @@ function mapApplicationWriteError(error: unknown, fallback: string) {
 }
 
 function mapApplicationReadError(error: unknown, fallback: string) {
+  if (error instanceof RedirectUriSingleValueError) {
+    return { status: 400, message: error.message };
+  }
   const message = error instanceof Error ? error.message : fallback;
   const status = message === 'USER_BLOCKED' ? 403 : 500;
   return { status, message };
@@ -161,6 +236,8 @@ export function registerPublicApplicationRoutes(app: Express) {
       await ensureUserActive(user.address);
       await ensureUserCanWriteBusinessData(user.address);
       const body = req.body || {};
+      const redirectUrisStorage = toRedirectUrisStorage(body.redirectUris);
+      const serviceCodes = toServiceCodes(body.serviceCodes);
       const owner = String(body.owner || user.address).trim();
       if (normalizeAddress(owner) !== normalizeAddress(user.address)) {
         res.status(403).json(fail(403, 'Owner mismatch'));
@@ -184,7 +261,8 @@ export function registerPublicApplicationRoutes(app: Express) {
         description: String(body.description || ''),
         code: String(body.code || 'APPLICATION_CODE_UNKNOWN'),
         location: String(body.location || ''),
-        serviceCodes: toServiceCodes(body.serviceCodes),
+        serviceCodes,
+        redirectUris: redirectUrisStorage ? [redirectUrisStorage] : [],
         avatar: String(body.avatar || ''),
         codePackagePath: String(body.codePackagePath || ''),
       };
@@ -205,8 +283,15 @@ export function registerPublicApplicationRoutes(app: Express) {
             return { status: 409, body: fail(409, 'Application already exists') };
           }
           const now = getCurrentUtcString();
+          const uid = body.uid || uuidv4();
+          const policy = await resolveApplicationUcanPolicy({
+            uid,
+            code: body.code,
+            location: body.location,
+            serviceCodes,
+          });
           const application: Application = {
-            uid: body.uid || uuidv4(),
+            uid,
             owner,
             ownerName: body.ownerName || owner,
             network: body.network || '',
@@ -217,7 +302,10 @@ export function registerPublicApplicationRoutes(app: Express) {
             description: body.description || '',
             code: body.code || 'APPLICATION_CODE_UNKNOWN',
             location: body.location || '',
-            serviceCodes: toServiceCodes(body.serviceCodes),
+            serviceCodes,
+            redirectUris: redirectUrisStorage,
+            ucanAudience: policy.audience,
+            ucanCapabilities: serializeApplicationUcanCapabilities(policy.capabilities),
             avatar: body.avatar || '',
             createdAt: body.createdAt || now,
             updatedAt: now,
@@ -253,6 +341,10 @@ export function registerPublicApplicationRoutes(app: Express) {
       await ensureUserCanWriteBusinessData(user.address);
       const uid = req.params.uid;
       const body = req.body || {};
+      const redirectUrisStorage =
+        body.redirectUris !== undefined && body.redirectUris !== null
+          ? toRedirectUrisStorage(body.redirectUris)
+          : undefined;
       const result = await executeSignedAction({
         raw: body,
         action: 'application_update',
@@ -267,6 +359,12 @@ export function registerPublicApplicationRoutes(app: Express) {
             body.serviceCodes !== undefined && body.serviceCodes !== null
               ? toServiceCodes(body.serviceCodes)
               : undefined,
+          redirectUris:
+            redirectUrisStorage !== undefined
+              ? redirectUrisStorage
+                ? [redirectUrisStorage]
+                : []
+              : undefined,
           avatar: body.avatar !== undefined && body.avatar !== null ? String(body.avatar) : undefined,
           codePackagePath:
             body.codePackagePath !== undefined && body.codePackagePath !== null
@@ -278,10 +376,21 @@ export function registerPublicApplicationRoutes(app: Express) {
           if (!existing) {
             return { status: 404, body: fail(404, 'Application not found') };
           }
+          if (existing.isOnline) {
+            return { status: 409, body: fail(409, 'Please unpublish application before edit') };
+          }
           const isAdmin = await isAdminUser(user.address);
           if (!isAdmin && normalizeAddress(existing.owner) !== normalizeAddress(user.address)) {
             return { status: 403, body: fail(403, 'Owner mismatch') };
           }
+          const serviceCodes =
+            body.serviceCodes !== undefined ? toServiceCodes(body.serviceCodes) : existing.serviceCodes;
+          const policy = await resolveApplicationUcanPolicy({
+            uid: existing.uid,
+            code: body.code ?? existing.code,
+            location: body.location ?? existing.location,
+            serviceCodes,
+          });
           const now = getCurrentUtcString();
           const updated: Application = {
             ...existing,
@@ -289,7 +398,11 @@ export function registerPublicApplicationRoutes(app: Express) {
             description: body.description ?? existing.description,
             location: body.location ?? existing.location,
             code: body.code ?? existing.code,
-            serviceCodes: body.serviceCodes !== undefined ? toServiceCodes(body.serviceCodes) : existing.serviceCodes,
+            serviceCodes,
+            redirectUris:
+              redirectUrisStorage !== undefined ? redirectUrisStorage : existing.redirectUris || '',
+            ucanAudience: policy.audience,
+            ucanCapabilities: serializeApplicationUcanCapabilities(policy.capabilities),
             avatar: body.avatar ?? existing.avatar,
             codePackagePath: body.codePackagePath ?? existing.codePackagePath,
             updatedAt: now,

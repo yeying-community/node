@@ -89,29 +89,20 @@
               <el-form-item label="区块链地址">
                 <el-input v-model="form.address" placeholder="0x..." />
               </el-form-item>
-              <el-form-item label="clientId">
-                <el-input v-model="form.clientId" placeholder="chat-web" />
+              <el-form-item label="AppId">
+                <el-input v-model="form.appId" placeholder="应用发布后生成的 AppId（UUID）" />
               </el-form-item>
               <el-form-item class="full" label="redirectUri">
-                <el-input v-model="form.redirectUri" placeholder="https://app.example.com/callback" />
+                <el-input
+                  v-model="form.redirectUri"
+                  placeholder="必须命中应用发布中的授权回调地址，例如：https://app.example.com/callback"
+                />
               </el-form-item>
               <el-form-item label="state">
                 <el-input v-model="form.state" placeholder="可选" />
               </el-form-item>
-              <el-form-item label="appName">
-                <el-input v-model="form.appName" placeholder="chat-totp" />
-              </el-form-item>
-              <el-form-item label="audience">
-                <el-input v-model="form.audience" placeholder="did:web:localhost:8100" />
-              </el-form-item>
               <el-form-item label="requestTtlMs">
                 <el-input-number v-model="form.requestTtlMs" :min="60000" :step="30000" />
-              </el-form-item>
-              <el-form-item label="capability.with">
-                <el-input v-model="form.capWith" placeholder="app:all:localhost-*" />
-              </el-form-item>
-              <el-form-item label="capability.can">
-                <el-input v-model="form.capCan" placeholder="invoke" />
               </el-form-item>
             </div>
           </el-form>
@@ -248,7 +239,7 @@ type AuthorizeRequestResult = {
   status: string;
   subject: string;
   subjectHint: string;
-  clientId: string;
+  appId: string;
   redirectUri: string;
   state?: string;
   audience: string;
@@ -271,7 +262,7 @@ type AuthorizeApproveResult = {
 type AuthorizeExchangeResult = {
   requestId: string;
   subject: string;
-  clientId: string;
+  appId: string;
   redirectUri: string;
   state?: string;
   token: string;
@@ -296,13 +287,9 @@ type ProfileResult = {
 
 type ConfigForm = {
   address: string;
-  clientId: string;
+  appId: string;
   redirectUri: string;
   state: string;
-  audience: string;
-  capWith: string;
-  capCan: string;
-  appName: string;
   requestTtlMs: number;
 };
 
@@ -322,13 +309,9 @@ const authCodeInput = ref('');
 
 const form = reactive<ConfigForm>({
   address: '',
-  clientId: 'chat-web',
-  redirectUri: 'http://127.0.0.1:8001/examples/frontend/chat-callback.html',
+  appId: '',
+  redirectUri: '',
   state: '',
-  audience: 'did:web:localhost:8100',
-  capWith: 'app:all:localhost-*',
-  capCan: 'invoke',
-  appName: 'chat-totp',
   requestTtlMs: 300000,
 });
 
@@ -377,13 +360,13 @@ function ensureAddress() {
   return address;
 }
 
-function ensureClientConfig() {
-  const clientId = String(form.clientId || '').trim();
+function ensureAppConfig() {
+  const appId = String(form.appId || '').trim();
   const redirectUri = String(form.redirectUri || '').trim();
-  if (!clientId || !redirectUri) {
-    throw new Error('请填写 clientId 和 redirectUri');
+  if (!appId || !redirectUri) {
+    throw new Error('请填写 AppId 和 redirectUri');
   }
-  return { clientId, redirectUri };
+  return { appId, redirectUri };
 }
 
 function restoreConfig() {
@@ -398,15 +381,9 @@ function restoreConfig() {
   try {
     const parsed = JSON.parse(raw) as Partial<ConfigForm>;
     form.address = String(parsed.address || getCurrentAccount() || '');
-    form.clientId = String(parsed.clientId || 'chat-web');
-    form.redirectUri = String(
-      parsed.redirectUri || 'http://127.0.0.1:8001/examples/frontend/chat-callback.html'
-    );
+    form.appId = String(parsed.appId || '');
+    form.redirectUri = String(parsed.redirectUri || '');
     form.state = String(parsed.state || '');
-    form.audience = String(parsed.audience || 'did:web:localhost:8100');
-    form.capWith = String(parsed.capWith || 'app:all:localhost-*');
-    form.capCan = String(parsed.capCan || 'invoke');
-    form.appName = String(parsed.appName || 'chat-totp');
     form.requestTtlMs = Number(parsed.requestTtlMs || 300000);
   } catch {
     notifyError('读取本地配置失败，已使用默认值');
@@ -476,20 +453,12 @@ async function loadTotpProvision() {
 async function createAuthorizeRequest() {
   try {
     const address = ensureAddress();
-    const { clientId, redirectUri } = ensureClientConfig();
+    const { appId, redirectUri } = ensureAppConfig();
     const payload = {
       address,
-      clientId,
+      appId,
       redirectUri,
       state: form.state || undefined,
-      audience: String(form.audience || '').trim() || undefined,
-      capabilities: [
-        {
-          with: String(form.capWith || '').trim(),
-          can: String(form.capCan || '').trim(),
-        },
-      ],
-      appName: String(form.appName || '').trim() || undefined,
       requestTtlMs: form.requestTtlMs,
     };
     const result = await postJson<AuthorizeRequestResult>(
@@ -553,14 +522,14 @@ async function approveAuthorizeRequest() {
 async function exchangeAuthorizeCode() {
   try {
     const code = String(authCodeInput.value || '').trim();
-    const { clientId, redirectUri } = ensureClientConfig();
+    const { appId, redirectUri } = ensureAppConfig();
     if (!code) {
       notifyError('请填写 authorization code');
       return;
     }
     const result = await postJson<AuthorizeExchangeResult>(
       '/api/v1/public/auth/totp/authorize/exchange',
-      { code, clientId, redirectUri },
+      { code, appId, redirectUri },
       '兑换授权码失败'
     );
     exchangeResult.value = result;

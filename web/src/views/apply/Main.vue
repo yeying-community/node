@@ -22,7 +22,7 @@
           <div
             @click="changeRouter(item.to)"
             class="item"
-            :class="{ active: selectName.includes(item.name) }"
+            :class="{ active: selectName === item.name }"
           >
             <el-icon class="item-icon">
               <component :is="item.icon" />
@@ -41,7 +41,7 @@
 <script lang="ts" setup>
 import { onMounted, ref, watch } from "vue";
 import { useRouter, useRoute } from "vue-router";
-import { Menu, Operation, Document, Setting, Expand, Fold } from "@element-plus/icons-vue";
+import { Tickets, Document, Setting, Expand, Fold } from "@element-plus/icons-vue";
 
 const SIDEBAR_COLLAPSED_KEY = "market:sidebar:collapsed";
 
@@ -51,33 +51,39 @@ const selectName = ref("");
 const isCollapsed = ref(false);
 
 const navigation = [
-  { title: "应用中心", to: "/market/", name: "apply", icon: Menu },
-  {
-    title: "服务中心",
-    to: "/market/service/",
-    name: "service",
-    icon: Operation,
-  },
+  { title: "我的应用", to: "/market/dev/my-apps/", name: "apply", icon: Tickets },
   {
     title: "我的审批",
-    to: "/market/approval/",
+    to: "/market/dev/approval/",
     name: "approval",
     icon: Document,
   },
   {
     title: "我的配置",
-    to: "/market/my-config/",
+    to: "/market/dev/my-config/",
     name: "myConfig",
     icon: Setting,
   }
 ];
 
+const resolveActiveName = (currentRoute: typeof route) => {
+  const name = String(currentRoute?.name || "");
+  if (name === "applyDetail" || name === "applyEdit" || name === "apply") {
+    return "apply";
+  }
+  if (name === "approval") {
+    return "approval";
+  }
+  if (name === "myConfig") {
+    return "myConfig";
+  }
+  return name;
+};
+
 watch(
   () => route,
   (newRoute) => {
-    if (newRoute?.name) {
-      selectName.value = String(newRoute.name);
-    }
+    selectName.value = resolveActiveName(newRoute);
   },
   { deep: true, immediate: true }
 );

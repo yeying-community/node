@@ -1,10 +1,5 @@
 <template>
     <div class="detail">
-        <el-breadcrumb separator="/">
-            <el-breadcrumb-item :to="{ path: '/market/' }">应用中心</el-breadcrumb-item>
-            <el-breadcrumb-item>应用详情</el-breadcrumb-item>
-        </el-breadcrumb>
-
         <div class="header">
             <div class="left-header">
                 <BreadcrumbHeader :pageName="detailInfo.name" />
@@ -33,6 +28,7 @@
             <div v-if="pageFrom === 'myCreate'">
                 <div>
                     <el-popconfirm
+                        v-if="!isOnline"
                         confirm-button-text="确定"
                         cancel-button-text="取消"
                         :icon="WarningFilled"
@@ -47,13 +43,14 @@
                     </el-popconfirm>
                     <el-button plain @click="toEdit">编辑</el-button>
                     <el-button plain @click="exportIdentity">导出身份</el-button>
-                    <el-button plain @click="handleOnline">上架应用</el-button>
+                    <el-button v-if="isOnline" plain @click="handleOfflineConfirm">下架应用</el-button>
+                    <el-button v-if="!isOnline" plain @click="handleOnline">上架应用</el-button>
                 </div>
             </div>
             <!-- 应用中心-我的申请的详情 -->
             <div v-if="pageFrom === 'myApply'">
                 <div v-if="applyStatus === 'success'">
-                    <el-button plain @click="toConfigService">配置服务</el-button>
+                    <el-button plain @click="toConfigCapability">配置能力</el-button>
                 </div>
                 <div v-if="applyStatus === 'applying'">
                     <el-button plain @click="cancelApply">取消申请</el-button>
@@ -71,6 +68,21 @@
                 <el-col :span="8" :xs="24">应用状态: {{ businessStatusText }}</el-col>
             </el-row>
             <el-row class="part-row">
+                <el-col :span="24" :xs="24" class="app-id-cell">
+                    AppId:
+                    <span class="app-id-text">{{ appIdText }}</span>
+                    <el-button
+                        v-if="appIdText !== '-'"
+                        class="app-id-copy-btn"
+                        link
+                        type="primary"
+                        @click="copyAppId"
+                    >
+                        复制
+                    </el-button>
+                </el-col>
+            </el-row>
+            <el-row class="part-row">
                 <el-col :span="24">应用描述: {{ detailInfo.description }}</el-col>
             </el-row>
         </div>
@@ -79,8 +91,8 @@
             <el-row class="part-row">
                 <el-col :span="8" :xs="24">应用分类: {{ applicationCodeText }}</el-col>
                 <el-col :span="8" :xs="24"
-                    >依赖服务:
-                    {{ serviceCodeText }}
+                    >依赖应用:
+                    {{ dependencyText }}
                 </el-col>
                 <el-col :span="8" :xs="24">访问地址(URL): {{ detailInfo.location }} </el-col>
             </el-row>
@@ -102,6 +114,7 @@
                         {{ detailInfo.codePackagePath || '-' }}
                     </template>
                 </el-col>
+                <el-col :span="16" :xs="24">授权回调地址: {{ redirectUriText }}</el-col>
             </el-row>
         </div>
 
@@ -122,7 +135,7 @@
         </template>
     </ResultChooseModal>
 
-    <ConfigServiceModal :modalVisible="modalVisible" :cancelModal="cancelModal" :detail="detailInfo" operateType="application" />
+    <ConfigCapabilityModal :modalVisible="modalVisible" :cancelModal="cancelModal" :detail="detailInfo" />
 
     <ApplyUseModal
         title="重新申请"
@@ -130,7 +143,6 @@
         :detail="detailInfo"
         :afterSubmit="afterSubmit"
         :closeClick="afterSubmit"
-        operateType="application"
     />
 </template>
 
@@ -146,17 +158,18 @@ import { useRoute, useRouter } from 'vue-router'
 import $application, {
     ApplicationMetadata,
     businessStatusMap,
-    codeMap,
+    filterLegacyDependencies,
+    resolveApplicationCategoryLabel,
     resolveBusinessStatus,
     serviceCodeMap
 } from '@/plugins/application'
 import { Link } from '@element-plus/icons-vue'
-import ConfigServiceModal from '@/views/components/ConfigServiceModal.vue'
+import ConfigCapabilityModal from '@/views/components/ConfigCapabilityModal.vue'
 import ApplyUseModal from '@/views/components/ApplyUseModal.vue'
 import AuditSummaryPanel from '@/views/components/AuditSummaryPanel.vue'
 import { exportIdentityInfo } from '@/plugins/account'
 import { getCurrentAccount } from '@/plugins/auth'
-import { notifyError } from '@/utils/message'
+import { notifyError, notifySuccess } from '@/utils/message'
 import $audit, {
     AuditAuditDetail,
     isAuditForResource,
@@ -171,6 +184,7 @@ const detailInfo = ref<ApplicationMetadata>({
     location: '',
     code: '',
     serviceCodes: [],
+    redirectUris: [],
     avatar: '',
     owner: '',
     ownerName: '',
@@ -202,25 +216,79 @@ const businessStatusText = computed(() => {
     return businessStatusMap[status]?.text || '-'
 })
 
-const applicationCodeText = computed(() => {
-    const code = String(detailInfo.value.code || '').trim()
-    if (!code) {
-        return '-'
-    }
-    return codeMap[code] || code
+const appIdText = computed(() => {
+    const uid = String(detailInfo.value?.uid || applyUid || '').trim()
+    return uid || '-'
 })
 
-const serviceCodeText = computed(() => {
+const applicationCodeText = computed(() => {
+    return resolveApplicationCategoryLabel(detailInfo.value.code)
+})
+
+const dependencyText = computed(() => {
     const raw = detailInfo.value.serviceCodes
-    const codes = Array.isArray(raw)
-        ? raw.map((item) => String(item).trim()).filter(Boolean)
-        : typeof raw === 'string'
-          ? raw.split(',').map((item) => item.trim()).filter(Boolean)
-          : []
-    if (codes.length === 0) {
+    const codes = filterLegacyDependencies(
+        Array.isArray(raw)
+            ? raw.map((item) => String(item).trim()).filter(Boolean)
+            : typeof raw === 'string'
+              ? raw.split(',').map((item) => item.trim()).filter(Boolean)
+              : []
+    )
+    const names = codes
+        .map((code) => {
+            if (code.startsWith('SERVICE_CODE_')) {
+                return serviceCodeMap[code] || code
+            }
+            return code
+        })
+        .filter(Boolean)
+    if (names.length === 0) {
         return '-'
     }
-    return codes.map((code) => serviceCodeMap[code] || code).join('、')
+    const preview = names.slice(0, 2).join('、')
+    return names.length > 2 ? `${preview}...` : preview
+})
+
+function toRedirectUriArray(value: unknown): string[] {
+    const normalize = (item: unknown) => String(item || '').trim()
+    if (Array.isArray(value)) {
+        return Array.from(
+            new Set(value.map((item) => normalize(item)).filter((item) => item.length > 0))
+        )
+    }
+    const raw = String(value || '').trim()
+    if (!raw) {
+        return []
+    }
+    if (raw.startsWith('[')) {
+        try {
+            const parsed = JSON.parse(raw)
+            if (Array.isArray(parsed)) {
+                return Array.from(
+                    new Set(parsed.map((item) => normalize(item)).filter((item) => item.length > 0))
+                )
+            }
+        } catch {
+            // fallback to split mode
+        }
+    }
+    return Array.from(
+        new Set(
+            raw
+                .split(/[\n,]/)
+                .map((item) => item.trim())
+                .filter((item) => item.length > 0)
+        )
+    )
+}
+
+const redirectUriText = computed(() => {
+    const values = toRedirectUriArray(detailInfo.value.redirectUris)
+    if (values.length === 0) {
+        return '-'
+    }
+    const preview = values.slice(0, 2).join('、')
+    return values.length > 2 ? `${preview}...` : preview
 })
 
 const isCodePackageUrl = computed(() => {
@@ -273,6 +341,36 @@ const fillDetailFromAudit = async (audit: AuditAuditDetail) => {
     auditDetail.value = audit
     applyStatus.value = resolveUsageAuditStatus(audit)
     updateOnlineState()
+}
+
+const writeClipboardText = async (value: string) => {
+    if (navigator?.clipboard?.writeText) {
+        await navigator.clipboard.writeText(value)
+        return
+    }
+    const textarea = document.createElement('textarea')
+    textarea.value = value
+    textarea.setAttribute('readonly', 'readonly')
+    textarea.style.position = 'fixed'
+    textarea.style.left = '-9999px'
+    document.body.appendChild(textarea)
+    textarea.select()
+    document.execCommand('copy')
+    document.body.removeChild(textarea)
+}
+
+const copyAppId = async () => {
+    const appId = String(detailInfo.value?.uid || applyUid || '').trim()
+    if (!appId) {
+        notifyError('当前应用缺少 AppId')
+        return
+    }
+    try {
+        await writeClipboardText(appId)
+        notifySuccess('AppId 已复制')
+    } catch {
+        notifyError('复制 AppId 失败')
+    }
 }
 
 const resolveCurrentAuditId = async () => {
@@ -363,6 +461,10 @@ const cancelApply = async () => {
  */
 const toDelete = async () => {
     if (pageFrom === 'myCreate') {
+        if (isOnline.value) {
+            notifyError('❌请先下架应用后再删除')
+            return
+        }
         await $application.myCreateDelete(applyUid)
     } else if (pageFrom === 'market') {
         const app = detailInfo.value?.uid ? detailInfo.value : await $application.queryByUid(applyUid)
@@ -377,8 +479,17 @@ const toDelete = async () => {
 }
 
 const toList = () => {
+    if (pageFrom === 'myCreate' || pageFrom === 'myApply') {
+        router.push({
+            path: '/market/dev/my-apps',
+            query: {
+                tab: pageFrom
+            }
+        })
+        return
+    }
     router.push({
-        path: '/market'
+        path: '/market/'
     })
 }
 const closeInnerModal = () => {
@@ -389,14 +500,14 @@ const closeInnerModal = () => {
  */
 const toEdit = () => {
     router.push({
-        path: '/market/apply-edit',
+        path: '/market/dev/apply-edit',
         query: {
             uid: applyUid
         }
     })
 }
 
-const toConfigService = () => {
+const toConfigCapability = () => {
     modalVisible.value = true
 }
 
@@ -426,7 +537,7 @@ const handleOnline = () => {
             h(
                 'div',
                 { style: 'font-size:14px;font-weight:400;color:rgba(0,0,0,0.85)' },
-                '上架后当前应用将不可再编辑修改。'
+                '上架后仍可编辑，更新版本后可重新提交上架。'
             )
         ]),
         type: 'warning',
@@ -460,6 +571,19 @@ const handleOnline = () => {
 /**
  * 下架应用
  */
+const handleOffline = async () => {
+    const target = detailInfo.value?.uid
+        ? { uid: detailInfo.value.uid, did: detailInfo.value.did, version: detailInfo.value.version }
+        : { uid: applyUid }
+    const result = await $application.offline(target)
+    if (!result?.unpublished) {
+        notifyError('❌下架失败')
+        return
+    }
+    notifySuccess('已下架')
+    await detail()
+}
+
 const handleOfflineConfirm = () => {
     ElMessageBox.confirm('', {
         message: h('p', null, [
@@ -476,11 +600,7 @@ const handleOfflineConfirm = () => {
         showClose: false,
         customClass: 'messageBox-wrap'
     })
-        .then(() => {
-            /**
-             * todo 学虎 我创建的-详情页-右上角-下架按钮调用接口
-             */
-        })
+        .then(() => handleOffline())
         .catch(() => {})
 }
 
@@ -535,6 +655,19 @@ onMounted(() => {
     }
     .link-icon {
         color: rgba(22, 119, 255, 1);
+    }
+    .app-id-cell {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        flex-wrap: wrap;
+    }
+    .app-id-text {
+        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New',
+            monospace;
+    }
+    .app-id-copy-btn {
+        padding: 0;
     }
 }
 </style>

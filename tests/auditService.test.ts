@@ -4,10 +4,8 @@ import { mockClass } from './support/mockClass'
 const auditStore = new Map<string, any>()
 const commentStore = new Map<string, any[]>()
 const applicationStore = new Map<string, any>()
-const serviceStore = new Map<string, any>()
 
 const updateApplicationPublishStateMock = vi.fn()
-const updateServicePublishStateMock = vi.fn()
 
 function normalizeAuditLike(raw?: string) {
   if (!raw) return ''
@@ -152,25 +150,6 @@ vi.doMock('../src/domain/manager/application', () => ({
   })),
 }))
 
-vi.doMock('../src/domain/manager/service', () => ({
-  ServiceManager: mockClass(() => ({
-    query: async (did: string, version: number) => serviceStore.get(`${did}:${version}`) || null,
-    updatePublishState: async (did: string, version: number, status: string, isOnline: boolean) => {
-      updateServicePublishStateMock(did, version, status, isOnline)
-      const key = `${did}:${version}`
-      const existing = serviceStore.get(key)
-      if (existing) {
-        serviceStore.set(key, {
-          ...existing,
-          status,
-          isOnline,
-        })
-      }
-      return true
-    },
-  })),
-}))
-
 const { AuditService } = await import('../src/domain/service/audit')
 
 function runAs<T>(address: string, execute: () => Promise<T>) {
@@ -192,9 +171,7 @@ describe('AuditService', () => {
     auditStore.clear()
     commentStore.clear()
     applicationStore.clear()
-    serviceStore.clear()
     updateApplicationPublishStateMock.mockClear()
-    updateServicePublishStateMock.mockClear()
   })
 
   it('allows non-owner usage requests without changing publish state', async () => {
@@ -428,7 +405,7 @@ describe('AuditService', () => {
     })
     auditStore.set('audit-query-3', {
       uid: 'audit-query-3',
-      auditType: 'service',
+      auditType: 'contract',
       applicant: '0x4444444444444444444444444444444444444444::user-c',
       approver: JSON.stringify({
         approvers: [owner],
@@ -439,15 +416,15 @@ describe('AuditService', () => {
       updatedAt: new Date('2026-04-03T00:00:00.000Z'),
       signature: 'sig',
       appOrServiceMetadata: JSON.stringify({
-        operateType: 'service',
-        did: 'did:service:query:3',
+        operateType: 'contract',
+        did: 'did:contract:query:3',
         version: 1,
-        name: 'Search Service C',
+        name: 'Search Contract C',
       }),
-      targetType: 'service',
-      targetDid: 'did:service:query:3',
+      targetType: 'contract',
+      targetDid: 'did:contract:query:3',
       targetVersion: 1,
-      targetName: 'Search Service C',
+      targetName: 'Search Contract C',
       previousTargetStatus: 'BUSINESS_STATUS_ONLINE',
       previousTargetIsOnline: true,
     })

@@ -79,6 +79,10 @@ export function registerPublicAuditRoutes(app: Express) {
         res.status(400).json(fail(400, 'Missing audit target fields'));
         return;
       }
+      if (targetType !== 'application') {
+        res.status(400).json(fail(400, 'Invalid audit target type'));
+        return;
+      }
       const applicantAddress = normalizeAddress(extractApplicantAddress(body.applicant));
       if (!applicantAddress) {
         res.status(400).json(fail(400, 'Missing applicant address'));

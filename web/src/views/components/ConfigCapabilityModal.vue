@@ -1,16 +1,16 @@
 <template>
     <el-dialog
         v-model="props.modalVisible"
-        title="配置服务"
+        title="应用配置"
         width="430px"
         :close-on-click-modal="false"
         @close="props.cancelModal()"
     >
-        <div class="case-label">配置服务实例：</div>
+        <div class="case-label">配置实例：</div>
         <el-form ref="formRef" :model="dynamicValidateForm" label-width="120px" class="demo-dynamic">
             <el-row class="part-row" :gutter="8" style="margin-bottom: 8px">
-                <el-col :span="8" :xs="24">服务代号</el-col>
-                <el-col :span="16" :xs="24">服务实例</el-col>
+                <el-col :span="8" :xs="24">能力代号</el-col>
+                <el-col :span="16" :xs="24">实例标识</el-col>
             </el-row>
 
             <div v-for="(domain, index) in dynamicValidateForm.domains" :key="domain.key">
@@ -47,7 +47,7 @@
             </div>
 
             <el-form-item>
-                <el-button @click="addDomain" :icon="Plus" class="addBtn">添加服务实例</el-button>
+                <el-button @click="addDomain" :icon="Plus" class="addBtn">添加实例</el-button>
             </el-form-item>
         </el-form>
         <template #footer>
@@ -63,30 +63,25 @@
 import { reactive, ref, watch, computed } from 'vue'
 import type { FormInstance } from 'element-plus'
 import { ElMessage } from 'element-plus'
-import $service, { serviceCodeMap, type ServiceConfigItem } from '@/plugins/service'
 import $application, { type ApplicationConfigItem } from '@/plugins/application'
 const props = defineProps({
     modalVisible: Boolean,
     detail: Object,
     title: String,
-    cancelModal: Function,
-    operateType: String
+    cancelModal: Function
 })
 
 const serviceCodeOptions = computed(() => {
-    if (props.operateType === 'application') {
-        const codes = Array.isArray(props.detail?.serviceCodes)
-            ? props.detail?.serviceCodes
-            : typeof props.detail?.serviceCodes === 'string'
-              ? props.detail?.serviceCodes.split(',').map((item) => item.trim()).filter(Boolean)
-              : []
-        const options: Record<string, string> = {}
-        for (const code of codes) {
-            options[code] = code
-        }
-        return options
+    const codes = Array.isArray(props.detail?.serviceCodes)
+        ? props.detail?.serviceCodes
+        : typeof props.detail?.serviceCodes === 'string'
+          ? props.detail?.serviceCodes.split(',').map((item) => item.trim()).filter(Boolean)
+          : []
+    const options: Record<string, string> = {}
+    for (const code of codes) {
+        options[code] = code
     }
-    return serviceCodeMap
+    return options
 })
 
 const formRef = ref<FormInstance>()
@@ -110,14 +105,14 @@ interface DomainItem {
 
 // 定义验证规则（单独声明，方便维护）
 const rules = reactive({
-    // 服务代号（value）的验证规则
+    // 能力代号（value）的验证规则
     value: [
-        { required: true, message: '服务代号不能为空', trigger: 'blur' },
-        { min: 2, max: 10, message: '服务代号长度在 2-10 之间', trigger: 'blur' }
+        { required: true, message: '能力代号不能为空', trigger: 'blur' },
+        { min: 2, max: 32, message: '能力代号长度在 2-32 之间', trigger: 'blur' }
     ],
-    // 服务实例（case）的验证规则
+    // 实例标识（case）的验证规则
     case: [
-        { required: true, message: '服务实例不能为空', trigger: 'blur' },
+        { required: true, message: '实例标识不能为空', trigger: 'blur' },
         {
             pattern: /^[a-zA-Z0-9_]+$/,
             message: '只能包含字母、数字和下划线',
@@ -148,7 +143,7 @@ const submitForm = (formEl: FormInstance | undefined) => {
         }
         void (async () => {
             if (!props.detail?.uid) {
-                ElMessage.error('缺少服务信息')
+                ElMessage.error('缺少应用信息')
                 return
             }
             const configItems = dynamicValidateForm.domains
@@ -157,11 +152,7 @@ const submitForm = (formEl: FormInstance | undefined) => {
                     instance: item.case
                 }))
                 .filter((item) => item.code && item.instance)
-            if (props.operateType === 'application') {
-                await $application.saveConfig(props.detail.uid, configItems as ApplicationConfigItem[])
-            } else {
-                await $service.saveConfig(props.detail.uid, configItems as ServiceConfigItem[])
-            }
+            await $application.saveConfig(props.detail.uid, configItems as ApplicationConfigItem[])
             ElMessage.success('保存成功')
             props.cancelModal?.()
         })()
@@ -177,9 +168,7 @@ const loadConfig = async () => {
     if (!props.detail?.uid) {
         return
     }
-    const configs = props.operateType === 'application'
-        ? await $application.getConfig(props.detail.uid)
-        : await $service.getConfig(props.detail.uid)
+    const configs = await $application.getConfig(props.detail.uid)
     if (Array.isArray(configs) && configs.length > 0) {
         dynamicValidateForm.domains = configs.map((item, index) => ({
             key: Date.now() + index,

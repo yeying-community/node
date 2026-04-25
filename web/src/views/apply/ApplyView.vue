@@ -1,8 +1,5 @@
 <template>
     <div class="apply">
-        <el-breadcrumb separator="/">
-            <el-breadcrumb-item>应用中心</el-breadcrumb-item>
-        </el-breadcrumb>
         <div class="top-group">
             <div class="search">
                 <el-input
@@ -17,31 +14,20 @@
                         </el-icon>
                     </template>
                 </el-input>
-                <el-select
-                    v-if="activeService === 'market'"
-                    v-model="statusFilter"
-                    size="large"
-                    placeholder="业务状态"
-                >
-                    <el-option
-                        v-for="item in businessStatusOptions"
-                        :key="item.value"
-                        :label="item.label"
-                        :value="item.value"
-                    />
-                </el-select>
-                <el-button type="primary" size="large" @click="changeRouter('/market/apply-edit')">创建应用</el-button>
+                <el-button v-if="activeService === 'myCreate'" type="primary" size="large" @click="changeRouter('/market/dev/apply-edit')">
+                    创建应用
+                </el-button>
             </div>
         </div>
         <div>
             <el-tabs v-model="activeService" class="demo-tabs" @tab-click="handleTabClick">
                 <template v-for="item in tabs" :key="item.name">
                     <el-tab-pane :label="item.title" :name="item.name">
-                        <div class="item-group">
-                            <template v-for="(app, index) in applicationList" :key="index + app.name">
-                                <MarketBlock :detail="app" :refreshCardList="search" :pageFrom="activeService" />
-                            </template>
-                        </div>
+                        <ApplicationListTable
+                            :items="applicationList"
+                            :page-from="item.name"
+                            :refresh-list="search"
+                        />
                     </el-tab-pane>
                 </template>
             </el-tabs>
@@ -62,16 +48,15 @@
 <script lang="ts" setup>
 import { onMounted, ref, watch } from 'vue'
 import { Search } from '@element-plus/icons-vue'
-import $application, { ApplicationMetadata, businessStatusOptions } from '@/plugins/application'
-import MarketBlock from '@/views/components/MarketBlock.vue'
+import $application, { ApplicationMetadata } from '@/plugins/application'
+import ApplicationListTable from '@/views/components/ApplicationListTable.vue'
 import { useRouter, RouteLocationAsPathGeneric, RouteLocationAsRelativeGeneric } from 'vue-router'
 import { notifyError } from '@/utils/message'
 import { getCurrentAccount } from '@/plugins/auth'
 
 const searchVal = ref<string>('')
-const activeService = ref<string>('market')
+const activeService = ref<string>('myCreate')
 const applicationList = ref<ApplicationMetadata[]>([])
-const statusFilter = ref<string>('BUSINESS_STATUS_ONLINE')
 const router = useRouter()
 
 interface Tab {
@@ -80,10 +65,6 @@ interface Tab {
 }
 
 const tabs: Tab[] = [
-  {
-    name: 'market',
-    title: '应用市场',
-  },
   {
     name: 'myCreate',
     title: '我创建的',
@@ -107,13 +88,11 @@ const handleTabClick = (tab: Tab) => {
 
 const search = async () => {
     try {
-        let condition = { keyword: searchVal.value, status: statusFilter.value }
         const account = getCurrentAccount()
         if (account === undefined || account === null) {
             notifyError("❌未查询到当前账户，请登录")
             return
         }
-        console.log(`activeService.value=${activeService.value}`)
         applicationList.value = []
         if (activeService.value === 'myCreate') {
             const res = await $application.myCreateList(account)
@@ -125,7 +104,8 @@ const search = async () => {
             }
             pagination.value.total = 0
             return;
-        } else if (activeService.value === 'myApply') {
+        }
+        if (activeService.value === 'myApply') {
             let res = await $application.myApplyList(account)
             if (searchVal.value) {
                 res = res.filter((item) => {
@@ -146,14 +126,6 @@ const search = async () => {
             pagination.value.total = 0
             return;
         }
-        const res = await $application.search(condition, pagination.value.page, pagination.value.pageSize)
-        if (Array.isArray(res)) {
-            applicationList.value = res
-        } else {
-            console.warn('Expected array, but got:', res)
-            applicationList.value = []
-        }
-        pagination.value.total = 0
     } catch (error) {
         console.error('❌获取应用列表失败', error)
         notifyError(`❌获取应用列表失败 ${error}`)
@@ -182,8 +154,7 @@ watch(
         () => pagination.value.page,
         () => pagination.value.pageSize,
         () => searchVal.value,
-        () => activeService.value,
-        () => statusFilter.value
+        () => activeService.value
     ],
     () => {
         search()
@@ -192,6 +163,10 @@ watch(
 )
 
 onMounted(() => {
+    const tab = String(router.currentRoute.value.query.tab || '').trim()
+    if (tab === 'myApply' || tab === 'myCreate') {
+        activeService.value = tab
+    }
     search()
 })
 </script>
@@ -205,7 +180,7 @@ onMounted(() => {
 
     .top-group {
         background: white;
-        margin-top: 20px;
+        margin-top: 0;
         padding: 12px;
         .search {
             width: 50%;

@@ -7,7 +7,7 @@ export type BusinessStatusKey =
   | 'BUSINESS_STATUS_UNKNOWN'
 
 export const businessStatusMap: Record<BusinessStatusKey, { text: string; type: string }> = {
-  BUSINESS_STATUS_PENDING: { text: '待审核', type: 'info' },
+  BUSINESS_STATUS_PENDING: { text: '待提交', type: 'info' },
   BUSINESS_STATUS_REVIEWING: { text: '审核中', type: 'warning' },
   BUSINESS_STATUS_REJECTED: { text: '已拒绝', type: 'danger' },
   BUSINESS_STATUS_ONLINE: { text: '已上架', type: 'success' },
@@ -18,7 +18,7 @@ export const businessStatusMap: Record<BusinessStatusKey, { text: string; type: 
 export const businessStatusOptions: Array<{ label: string; value: BusinessStatusKey }> = [
   { label: '已上架', value: 'BUSINESS_STATUS_ONLINE' },
   { label: '已下架', value: 'BUSINESS_STATUS_OFFLINE' },
-  { label: '待审核', value: 'BUSINESS_STATUS_PENDING' },
+  { label: '待提交', value: 'BUSINESS_STATUS_PENDING' },
   { label: '审核中', value: 'BUSINESS_STATUS_REVIEWING' },
   { label: '已拒绝', value: 'BUSINESS_STATUS_REJECTED' }
 ]

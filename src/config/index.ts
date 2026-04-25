@@ -68,12 +68,6 @@ export interface TotpAuthRuntimeConfig {
     codeWindow?: number
     maxAttempts?: number
     totpMasterKey?: string
-    clients?: {
-        clientId: string
-        redirectUris: string[]
-        defaultAudience?: string
-        defaultCapabilities?: UcanIssuerCapabilityConfig[]
-    }[]
 }
 
 export interface AuditRuntimeConfig {

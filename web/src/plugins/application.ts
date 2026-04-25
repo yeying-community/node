@@ -25,10 +25,16 @@ export interface ApplicationDetail {
   location: string
   code: string
   serviceCodes: string[]
+  redirectUris: string[]
   avatar: string
   owner: string
   ownerName: string
   codePackagePath: string
+}
+
+export interface ApplicationUcanCapability {
+  with: string
+  can: string
 }
 
 export const codeMapTrans = {
@@ -43,16 +49,14 @@ export const codeMapTrans = {
 
 export const serviceCodeMapTrans = {
   0: 'SERVICE_CODE_UNKNOWN',
-  1: 'SERVICE_CODE_NODE',
   2: 'SERVICE_CODE_WAREHOUSE',
-  3: 'SERVICE_CODE_AGENT',
-  4: 'SERVICE_CODE_MCP'
+  3: 'SERVICE_CODE_AGENT'
 }
 
 export const codeMap = {
-  APPLICATION_CODE_CHAT: 'Chat 应用',
-  APPLICATION_CODE_ROUTER: 'Router 网关',
-  APPLICATION_CODE_WAREHOUSE: 'Warehouse 仓储',
+  APPLICATION_CODE_CHAT: '聊天',
+  APPLICATION_CODE_ROUTER: '网关',
+  APPLICATION_CODE_WAREHOUSE: '仓储',
   APPLICATION_CODE_UNKNOWN: '未知',
   APPLICATION_CODE_MARKET: '社区集市',
   APPLICATION_CODE_ASSET: '资产应用',
@@ -62,12 +66,41 @@ export const codeMap = {
   APPLICATION_CODE_WORKBENCH: '工作台应用'
 }
 
+export function resolveApplicationCategoryLabel(code: unknown): string {
+  const normalizedCode = String(code || '').trim()
+  if (!normalizedCode) {
+    return '未分类'
+  }
+  const fullLabel = codeMap[normalizedCode as keyof typeof codeMap]
+  if (!fullLabel) {
+    return '未分类'
+  }
+  const parts = fullLabel.trim().split(/\s+/).filter((item) => item.length > 0)
+  return parts.length > 1 ? parts[parts.length - 1] : parts[0] || '未分类'
+}
+
 export const serviceCodeMap = {
   SERVICE_CODE_UNKNOWN: '未知',
-  SERVICE_CODE_NODE: '网络节点供应商',
   SERVICE_CODE_WAREHOUSE: '仓储服务供应商',
-  SERVICE_CODE_AGENT: '智能体供应商',
-  SERVICE_CODE_MCP: '模型上下文供应商'
+  SERVICE_CODE_AGENT: '智能体供应商'
+}
+
+const legacyServiceCodeSet = new Set(['SERVICE_CODE_NODE', 'SERVICE_CODE_MCP'])
+const legacyServiceLabelSet = new Set(['网络节点供应商', '模型上下文供应商'])
+
+export function isLegacyDependencyValue(value: unknown): boolean {
+  const text = String(value || '').trim()
+  if (!text) {
+    return false
+  }
+  if (legacyServiceCodeSet.has(text.toUpperCase())) {
+    return true
+  }
+  return legacyServiceLabelSet.has(text)
+}
+
+export function filterLegacyDependencies(values: string[]): string[] {
+  return values.filter((item) => !isLegacyDependencyValue(item))
 }
 
 export interface ApplicationMetadata {
@@ -82,6 +115,9 @@ export interface ApplicationMetadata {
   description?: string
   location?: string
   serviceCodes?: string[]
+  redirectUris?: string[]
+  ucanAudience?: string
+  ucanCapabilities?: ApplicationUcanCapability[]
   avatar?: string
   createdAt?: string
   updatedAt?: string
@@ -116,8 +152,9 @@ export type ApplicationConfigItem = {
 }
 
 function toServiceCodes(value: unknown): string[] {
+  const normalize = (item: unknown) => String(item).trim()
   if (Array.isArray(value)) {
-    return value.map((item) => String(item)).filter((item) => item.length > 0)
+    return filterLegacyDependencies(value.map(normalize).filter((item) => item.length > 0))
   }
   if (value === undefined || value === null) {
     return []
@@ -126,14 +163,50 @@ function toServiceCodes(value: unknown): string[] {
   if (!text) {
     return []
   }
-  return text
-    .split(',')
-    .map((item) => item.trim())
-    .filter((item) => item.length > 0)
+  return filterLegacyDependencies(
+    text
+      .split(',')
+      .map((item) => item.trim())
+      .filter((item) => item.length > 0)
+  )
 }
 
 function toServiceCodesString(value: unknown): string {
   return toServiceCodes(value).join(',')
+}
+
+function toRedirectUris(value: unknown): string[] {
+  const normalize = (item: unknown) => String(item || '').trim()
+  if (Array.isArray(value)) {
+    return Array.from(new Set(value.map((item) => normalize(item)).filter((item) => item.length > 0)))
+  }
+  if (value === undefined || value === null) {
+    return []
+  }
+  const raw = String(value).trim()
+  if (!raw) {
+    return []
+  }
+  if (raw.startsWith('[')) {
+    try {
+      const parsed = JSON.parse(raw)
+      if (Array.isArray(parsed)) {
+        return Array.from(
+          new Set(parsed.map((item) => normalize(item)).filter((item) => item.length > 0))
+        )
+      }
+    } catch {
+      // fallback to split mode
+    }
+  }
+  return Array.from(
+    new Set(
+      raw
+        .split(/[\n,]/)
+        .map((item) => item.trim())
+        .filter((item) => item.length > 0)
+    )
+  )
 }
 
 function normalizeApplication<T extends Record<string, unknown>>(
@@ -142,10 +215,62 @@ function normalizeApplication<T extends Record<string, unknown>>(
   if (!app) {
     return app
   }
+  const normalized: Record<string, unknown> = { ...app }
   if ('serviceCodes' in app) {
-    return { ...app, serviceCodes: toServiceCodes(app.serviceCodes) }
+    normalized.serviceCodes = toServiceCodes(app.serviceCodes)
   }
-  return app
+  if ('redirectUris' in app) {
+    normalized.redirectUris = toRedirectUris(app.redirectUris)
+  }
+  if ('ucanAudience' in app) {
+    normalized.ucanAudience = String(app.ucanAudience || '').trim()
+  }
+  if ('ucanCapabilities' in app) {
+    normalized.ucanCapabilities = toUcanCapabilities(app.ucanCapabilities)
+  }
+  return normalized as T
+}
+
+function toUcanCapabilities(value: unknown): ApplicationUcanCapability[] {
+  const values: ApplicationUcanCapability[] = []
+  const pushValue = (entry: unknown) => {
+    if (!entry || typeof entry !== 'object') {
+      return
+    }
+    const source = entry as Record<string, unknown>
+    const withValue =
+      (typeof source.with === 'string' && source.with.trim()) ||
+      (typeof source.resource === 'string' && source.resource.trim()) ||
+      ''
+    const canValue =
+      (typeof source.can === 'string' && source.can.trim()) ||
+      (typeof source.action === 'string' && source.action.trim()) ||
+      ''
+    if (!withValue || !canValue) {
+      return
+    }
+    values.push({ with: withValue, can: canValue })
+  }
+  if (Array.isArray(value)) {
+    value.forEach((item) => pushValue(item))
+    return values
+  }
+  if (value === undefined || value === null) {
+    return []
+  }
+  const raw = String(value).trim()
+  if (!raw || !raw.startsWith('[')) {
+    return []
+  }
+  try {
+    const parsed = JSON.parse(raw)
+    if (Array.isArray(parsed)) {
+      parsed.forEach((item) => pushValue(item))
+    }
+  } catch {
+    return []
+  }
+  return values
 }
 
 function ensureWalletConnected() {
@@ -213,6 +338,7 @@ function buildApplicationCreateBody(params: ApplicationMetadata, actor: string) 
     code: String(params.code || 'APPLICATION_CODE_UNKNOWN'),
     location: String(params.location || ''),
     serviceCodes: toServiceCodesString(params.serviceCodes),
+    redirectUris: toRedirectUris(params.redirectUris),
     avatar: String(params.avatar || ''),
     codePackagePath: String(params.codePackagePath || '')
   }
@@ -232,6 +358,7 @@ function buildApplicationCreatePayload(body: ReturnType<typeof buildApplicationC
     code: body.code,
     location: body.location,
     serviceCodes: body.serviceCodes,
+    redirectUris: body.redirectUris,
     avatar: body.avatar,
     codePackagePath: body.codePackagePath
   }
@@ -246,6 +373,7 @@ function buildApplicationUpdateBody(patch: Partial<ApplicationMetadata>) {
     ...(patch.serviceCodes !== undefined
       ? { serviceCodes: toServiceCodesString(patch.serviceCodes) }
       : {}),
+    ...(patch.redirectUris !== undefined ? { redirectUris: toRedirectUris(patch.redirectUris) } : {}),
     ...(patch.avatar !== undefined ? { avatar: String(patch.avatar || '') } : {}),
     ...(patch.codePackagePath !== undefined
       ? { codePackagePath: String(patch.codePackagePath || '') }

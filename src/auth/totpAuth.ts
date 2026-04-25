@@ -1,6 +1,9 @@
 import * as crypto from 'crypto';
+import { Repository } from 'typeorm';
 import type { UcanCapability } from './ucanIssuer';
 import { getConfig } from '../config/runtime';
+import { SingletonDataSource } from '../domain/facade/datasource';
+import { TotpSubjectSecretDO } from '../domain/mapper/entity';
 
 export type TotpBindRequestStatus = 'pending' | 'used' | 'expired' | 'revoked';
 
@@ -128,6 +131,9 @@ const MAX_CODE_WINDOW = 5;
 const DEFAULT_MAX_ATTEMPTS = 5;
 const MAX_MAX_ATTEMPTS = 20;
 const GC_RETENTION_MS = 24 * 60 * 60 * 1000;
+const TOTP_SECRET_BYTES = 20;
+const SECRET_CIPHER_VERSION = 'v1';
+const SECRET_ENCRYPTION_CONTEXT = 'totp-auth-secret:v1';
 
 const TOTP_BIND_REQUESTS = new Map<string, TotpBindRequestRecord>();
 const TOTP_AUTH_RUNTIME = loadTotpAuthRuntime();
@@ -173,7 +179,11 @@ function decodeMasterKey(raw: string): Buffer {
     // fallback to utf8 below
   }
 
-  return Buffer.from(normalized, 'utf8');
+  const utf8 = Buffer.from(normalized, 'utf8');
+  if (utf8.length < 16) {
+    throw new Error('totp auth master key must be at least 16 bytes');
+  }
+  return utf8;
 }
 
 function normalizeVerifyPath(input: unknown): string {
@@ -407,13 +417,141 @@ function base32Encode(input: Buffer): string {
   return output;
 }
 
-function deriveSubjectSecret(subject: string): Buffer {
-  const runtime = ensureTotpAuthReady();
+function toBase64Url(input: Buffer): string {
+  return input
+    .toString('base64')
+    .replace(/\+/g, '-')
+    .replace(/\//g, '_')
+    .replace(/=+$/g, '');
+}
+
+function fromBase64Url(input: string): Buffer {
+  const normalized = String(input || '').replace(/-/g, '+').replace(/_/g, '/');
+  const pad = normalized.length % 4 === 0 ? '' : '='.repeat(4 - (normalized.length % 4));
+  return Buffer.from(normalized + pad, 'base64');
+}
+
+function getTotpSecretRepository(): Repository<TotpSubjectSecretDO> {
+  try {
+    const dataSource = SingletonDataSource.get();
+    if (!dataSource || !dataSource.isInitialized) {
+      throw new Error('datasource not ready');
+    }
+    return dataSource.getRepository(TotpSubjectSecretDO);
+  } catch {
+    throw new TotpAuthError(503, 'TOTP_AUTH_STORAGE_NOT_READY', 'TOTP auth storage is not ready');
+  }
+}
+
+function getTotpSecretEncryptionKey(runtime: TotpAuthRuntimeState): Buffer {
   return crypto
-    .createHmac('sha256', runtime.masterKey as Buffer)
-    .update(`totp-auth:${subject}`)
-    .digest()
-    .subarray(0, 20);
+    .createHash('sha256')
+    .update(runtime.masterKey as Buffer)
+    .update(SECRET_ENCRYPTION_CONTEXT)
+    .digest();
+}
+
+function encryptTotpSecret(secret: Buffer): string {
+  const runtime = ensureTotpAuthReady();
+  const key = getTotpSecretEncryptionKey(runtime);
+  const iv = crypto.randomBytes(12);
+  const cipher = crypto.createCipheriv('aes-256-gcm', key, iv);
+  const ciphertext = Buffer.concat([cipher.update(secret), cipher.final()]);
+  const tag = cipher.getAuthTag();
+  return `${SECRET_CIPHER_VERSION}.${toBase64Url(iv)}.${toBase64Url(tag)}.${toBase64Url(ciphertext)}`;
+}
+
+function decryptTotpSecret(ciphertextInput: string): Buffer {
+  const runtime = ensureTotpAuthReady();
+  const key = getTotpSecretEncryptionKey(runtime);
+  const ciphertext = String(ciphertextInput || '').trim();
+  const [version, ivEncoded, tagEncoded, dataEncoded] = ciphertext.split('.');
+  if (
+    version !== SECRET_CIPHER_VERSION ||
+    !ivEncoded ||
+    !tagEncoded ||
+    !dataEncoded
+  ) {
+    throw new TotpAuthError(
+      500,
+      'TOTP_AUTH_SECRET_CORRUPTED',
+      'Stored TOTP secret is invalid'
+    );
+  }
+  try {
+    const iv = fromBase64Url(ivEncoded);
+    const tag = fromBase64Url(tagEncoded);
+    const data = fromBase64Url(dataEncoded);
+    const decipher = crypto.createDecipheriv('aes-256-gcm', key, iv);
+    decipher.setAuthTag(tag);
+    return Buffer.concat([decipher.update(data), decipher.final()]);
+  } catch {
+    throw new TotpAuthError(
+      500,
+      'TOTP_AUTH_SECRET_CORRUPTED',
+      'Stored TOTP secret is invalid'
+    );
+  }
+}
+
+function nowIso(nowMs = Date.now()): string {
+  return new Date(nowMs).toISOString();
+}
+
+function isDuplicateRecordError(error: unknown): boolean {
+  const message = error instanceof Error ? error.message.toLowerCase() : '';
+  return (
+    message.includes('duplicate') ||
+    message.includes('unique') ||
+    message.includes('constraint')
+  );
+}
+
+async function getTotpSecretRecord(subject: string): Promise<TotpSubjectSecretDO | null> {
+  const repository = getTotpSecretRepository();
+  return await repository.findOneBy({ subject });
+}
+
+async function ensureTotpSecretRecord(subject: string): Promise<TotpSubjectSecretDO> {
+  const repository = getTotpSecretRepository();
+  const existing = await repository.findOneBy({ subject });
+  if (existing) {
+    return existing;
+  }
+  const now = nowIso();
+  const created = repository.create({
+    subject,
+    secretCiphertext: encryptTotpSecret(crypto.randomBytes(TOTP_SECRET_BYTES)),
+    isBound: false,
+    createdAt: now,
+    updatedAt: now,
+    boundAt: '',
+  });
+  try {
+    return await repository.save(created);
+  } catch (error) {
+    if (!isDuplicateRecordError(error)) {
+      throw error;
+    }
+    const latest = await repository.findOneBy({ subject });
+    if (latest) {
+      return latest;
+    }
+    throw error;
+  }
+}
+
+async function markTotpSecretBound(subject: string): Promise<void> {
+  const repository = getTotpSecretRepository();
+  const record = await repository.findOneBy({ subject });
+  if (!record || record.isBound) {
+    return;
+  }
+  const now = nowIso();
+  record.isBound = true;
+  record.boundAt = now;
+  record.updatedAt = now;
+  await repository.save(record);
 }
 
 function buildTotpUri(input: {
@@ -458,13 +596,12 @@ function codeEquals(expected: string, actual: string): boolean {
   return crypto.timingSafeEqual(expectedBuffer, actualBuffer);
 }
 
-function verifyTotpCode(subject: string, code: string, nowMs = Date.now()): boolean {
+function verifyTotpCode(secret: Buffer, code: string, nowMs = Date.now()): boolean {
   const runtime = ensureTotpAuthReady();
   const normalizedCode = normalizeCode(code);
   if (normalizedCode.length !== runtime.codeDigits) {
     return false;
   }
-  const secret = deriveSubjectSecret(subject);
   const currentCounter = Math.floor(nowMs / (runtime.codePeriodSec * 1000));
   for (let offset = -runtime.codeWindow; offset <= runtime.codeWindow; offset += 1) {
     const candidate = generateTotpCode(secret, currentCounter + offset, runtime.codeDigits);
@@ -528,22 +665,49 @@ export function buildTotpVerifyUrl(requestIdInput: string): string {
   return buildVerifyUrl(requestId);
 }
 
-export function verifyTotpCodeForSubject(subjectInput: string, codeInput: string): boolean {
+export async function hasTotpEnrollmentForSubject(subjectInput: string): Promise<boolean> {
   assertTotpAuthReady();
   const subject = normalizeSubject(subjectInput);
   if (!subject) {
     return false;
   }
-  return verifyTotpCode(subject, codeInput);
+  const record = await getTotpSecretRecord(subject);
+  return Boolean(record);
 }
 
-export function getTotpProvision(subjectInput: string): TotpProvision {
+export async function markTotpEnrollmentBoundForSubject(subjectInput: string): Promise<void> {
+  assertTotpAuthReady();
+  const subject = normalizeSubject(subjectInput);
+  if (!subject) {
+    return;
+  }
+  await markTotpSecretBound(subject);
+}
+
+export async function verifyTotpCodeForSubject(
+  subjectInput: string,
+  codeInput: string
+): Promise<boolean> {
+  assertTotpAuthReady();
+  const subject = normalizeSubject(subjectInput);
+  if (!subject) {
+    return false;
+  }
+  const record = await getTotpSecretRecord(subject);
+  if (!record) {
+    return false;
+  }
+  return verifyTotpCode(decryptTotpSecret(record.secretCiphertext), codeInput);
+}
+
+export async function getTotpProvision(subjectInput: string): Promise<TotpProvision> {
   const runtime = ensureTotpAuthReady();
   const subject = normalizeSubject(subjectInput);
   if (!subject) {
     throw new TotpAuthError(400, 'TOTP_AUTH_SUBJECT_REQUIRED', 'Missing subject');
   }
-  const secretBuffer = deriveSubjectSecret(subject);
+  const record = await ensureTotpSecretRecord(subject);
+  const secretBuffer = decryptTotpSecret(record.secretCiphertext);
   const secret = base32Encode(secretBuffer);
   const accountName = subject;
   return {
@@ -623,11 +787,11 @@ export function getTotpBindRequest(requestIdInput: string): TotpBindRequestPubli
   return toPublicBindResult(record);
 }
 
-export function consumeTotpBindRequest(input: {
+export async function consumeTotpBindRequest(input: {
   requestId: string;
   code: string;
   expectedSubject?: string;
-}): TotpBindConsumeResult {
+}): Promise<TotpBindConsumeResult> {
   const runtime = ensureTotpAuthReady();
   cleanupBindRequests();
 
@@ -651,7 +815,15 @@ export function consumeTotpBindRequest(input: {
   if (!code) {
     throw new TotpAuthError(400, 'TOTP_AUTH_CODE_REQUIRED', 'Missing TOTP code');
   }
-  if (!verifyTotpCode(pending.subject, code, nowMs)) {
+  const secretRecord = await getTotpSecretRecord(pending.subject);
+  if (!secretRecord) {
+    throw new TotpAuthError(
+      403,
+      'TOTP_AUTH_NOT_ENROLLED',
+      'TOTP authenticator is not configured for this address'
+    );
+  }
+  if (!verifyTotpCode(decryptTotpSecret(secretRecord.secretCiphertext), code, nowMs)) {
     pending.attempts += 1;
     pending.updatedAt = nowMs;
     if (pending.attempts >= runtime.maxAttempts) {
@@ -668,6 +840,7 @@ export function consumeTotpBindRequest(input: {
   pending.status = 'used';
   pending.updatedAt = nowMs;
   TOTP_BIND_REQUESTS.set(requestId, pending);
+  await markTotpSecretBound(pending.subject);
 
   return {
     requestId: pending.requestId,

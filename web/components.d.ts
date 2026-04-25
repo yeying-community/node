@@ -9,8 +9,6 @@ export {}
 declare module 'vue' {
   export interface GlobalComponents {
     Captcha: typeof import('./src/components/common/Captcha.vue')['default']
-    ElAnchor: typeof import('element-plus/es')['ElAnchor']
-    ElAnchorLink: typeof import('element-plus/es')['ElAnchorLink']
     ElAvatar: typeof import('element-plus/es')['ElAvatar']
     ElBadge: typeof import('element-plus/es')['ElBadge']
     ElBreadcrumb: typeof import('element-plus/es')['ElBreadcrumb']

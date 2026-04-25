@@ -69,7 +69,7 @@ export interface AuditDetailBox {
   applicantor?: string
   state?: string
   date?: string
-  serviceType?: string
+  typeLabel?: string
   auditType?: string
   msg?: string
   progress?: string
@@ -87,7 +87,7 @@ export interface AuditSearchResult {
   page: AuditSearchPage
 }
 
-type AuditTargetType = 'application' | 'service'
+type AuditTargetType = 'application' | 'contract'
 
 export type AuditApplyStatus = 'success' | 'applying' | 'reject'
 
@@ -143,7 +143,7 @@ function cvData(auditMyApply: AuditAuditDetail) {
     targetVersion: parsed.version,
     name: parsed.name || String(parsed.raw.name || ''),
     desc: String(parsed.raw.description || ''),
-    serviceType: auditType === 'service' ? '服务' : auditType === 'application' ? '应用' : auditType,
+    typeLabel: auditType === 'application' ? '应用' : auditType === 'contract' ? '合约' : auditType,
     auditType,
     applicantor: did,
     state: getAuditState(summary),

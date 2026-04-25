@@ -14,8 +14,8 @@
       label-width="100px"
     >
       <el-space direction="vertical" alignment="flex-start">
-        <div>申请应用/服务：{{ detail?.name }}</div>
-        <div>应用创建人：{{ detail?.owner }}</div>
+        <div>申请{{ resourceLabel }}：{{ detail?.name }}</div>
+        <div>{{ resourceLabel }}创建人：{{ detail?.owner }}</div>
         <el-form-item label="申请原因" prop="reason">
           <el-input
             type="textarea"
@@ -38,8 +38,8 @@
   <ResultChooseModal
     v-model="innerVisible"
     title="申请使用"
-    mainDesc="应用/服务申请中,请联系应用/服务 owner 审批"
-    subDesc="正在等待应用/服务所有人审批，请耐心等待"
+    :mainDesc="`${resourceLabel}申请中，请联系${resourceLabel} owner 审批`"
+    :subDesc="`正在等待${resourceLabel}所有人审批，请耐心等待`"
     leftBtnText="查看详情"
     rightBtnText="返回列表"
     :leftBtnClick="toDetail"
@@ -58,9 +58,8 @@ import $audit, {
   resolveUsageAuditStatus
 } from '@/plugins/audit'
 import $application from '@/plugins/application'
-import $service from '@/plugins/service'
 import ResultChooseModal from './ResultChooseModal.vue'
-import { ref, reactive } from 'vue'
+import { computed, ref, reactive } from 'vue'
 import { useRouter } from 'vue-router'
 import { SuccessFilled } from '@element-plus/icons-vue'
 import { notifyError } from '@/utils/message'
@@ -84,9 +83,9 @@ const props = defineProps({
   afterSubmit: Function,
   detail: Object,
   title: String,
-  closeClick: Function,
-  operateType: String
+  closeClick: Function
 })
+const resourceLabel = computed(() => '应用')
 
 /**
  * 表单提交
@@ -102,19 +101,10 @@ const submitForm = () => {
   }
   formRef.value.validate(async (valid: boolean) => {
     if (valid) {
-        let detailRst = null
-        if (props.operateType === `application`) {
-          detailRst = await $application.detail(props.detail?.did, props.detail?.version)
-          if (detailRst === undefined || detailRst === null) {
-              notifyError("应用不存在")
-              return
-          }
-        } else if (props.operateType === `service`) {
-          detailRst = await $service.detail(props.detail?.did, props.detail?.version)
-          if (detailRst === undefined || detailRst === null) {
-              notifyError("❌服务不存在")
-              return
-          }
+        const detailRst = await $application.detail(props.detail?.did, props.detail?.version)
+        if (detailRst === undefined || detailRst === null) {
+            notifyError("应用不存在")
+            return
         }
         const applicant = `${normalizeAddress(account)}::${normalizeAddress(account)}`
         const audits = await $audit.search({ applicant })
@@ -122,7 +112,7 @@ const submitForm = () => {
           ? audits
               .filter((audit) =>
                 isAuditForResource(audit, {
-                  auditType: props.operateType as 'application' | 'service',
+                  auditType: 'application',
                   reason: '申请使用',
                   uid: detailRst.uid,
                   did: detailRst.did,
@@ -143,14 +133,14 @@ const submitForm = () => {
             return
           }
         }
-        detailRst.operateType = props.operateType
+        detailRst.operateType = 'application'
         const approverActor = normalizeAddress(String(props.detail?.owner || ''))
         if (!approverActor) {
           notifyError('❌缺少审批人')
           return
         }
         const auditR = await $audit.submitUsageRequest({
-          auditType: props.operateType as 'application' | 'service',
+          auditType: 'application',
           resource: detailRst as Record<string, unknown>,
           approver: `${approverActor}::${String(props.detail?.ownerName || approverActor)}`
         })
@@ -169,7 +159,7 @@ const submitForm = () => {
 
 const toDetail = () => {
   router.push({
-    path: props.operateType === 'service' ? '/market/service-detail' : '/market/apply-detail',
+    path: '/market/dev/apply-detail',
     query: {
       uid: submittedResourceUid.value || props.detail?.uid,
       pageFrom: 'myApply',

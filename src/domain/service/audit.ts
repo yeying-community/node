@@ -22,7 +22,6 @@ import {
     isAdminUser
 } from '../../common/permission';
 import { ApplicationManager } from '../manager/application';
-import { ServiceManager } from '../manager/service';
 import { getConfig } from '../../config/runtime';
 import { AuditRuntimeConfig } from '../../config';
 import { v4 as uuidv4 } from 'uuid'
@@ -34,13 +33,11 @@ export class AuditService {
     private auditManager: AuditManager
     private commentManager: CommentManager
     private applicationManager: ApplicationManager
-    private serviceManager: ServiceManager
 
     constructor() {
         this.auditManager = new AuditManager()
         this.commentManager = new CommentManager()
         this.applicationManager = new ApplicationManager()
-        this.serviceManager = new ServiceManager()
     }
 
     private getAuditConfig(): AuditRuntimeConfig {
@@ -222,7 +219,7 @@ export class AuditService {
         }
 
         const operateType = parsed.operateType || meta.auditType
-        if (!operateType || (operateType !== 'application' && operateType !== 'service')) {
+        if (!operateType || operateType !== 'application') {
             throw new Error('Invalid auditType')
         }
         if (parsed.operateType && meta.auditType && parsed.operateType !== meta.auditType) {
@@ -313,18 +310,11 @@ export class AuditService {
     }
 
     private async ensureTargetExists(target: { operateType: string; did: string; version: number }) {
-        if (target.operateType === 'application') {
-            const app = await this.applicationManager.query(target.did, target.version)
-            if (!app) {
-                throw new Error('Target application not found')
-            }
-            return app
+        const app = await this.applicationManager.query(target.did, target.version)
+        if (!app) {
+            throw new Error('Target application not found')
         }
-        const service = await this.serviceManager.query(target.did, target.version)
-        if (!service) {
-            throw new Error('Target service not found')
-        }
-        return service
+        return app
     }
 
     private async hasPendingAudit(
@@ -353,11 +343,7 @@ export class AuditService {
     }
 
     private async updateTargetPublishState(target: { operateType: string; did: string; version: number }, status: string, isOnline: boolean) {
-        if (target.operateType === 'application') {
-            await this.applicationManager.updatePublishState(target.did, target.version, status, isOnline)
-            return
-        }
-        await this.serviceManager.updatePublishState(target.did, target.version, status, isOnline)
+        await this.applicationManager.updatePublishState(target.did, target.version, status, isOnline)
     }
 
     async detail(id: string): Promise<AuditDetail> {

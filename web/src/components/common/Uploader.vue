@@ -1,10 +1,12 @@
 <template>
     <el-upload
+      ref="uploadRef"
       :file-list="modelValue"
       @update:file-list="$emit('update:modelValue', $event)"
       class="upload-demo"
       :multiple="multiple"
       :on-change="handleChange"
+      :on-exceed="handleExceed"
       :limit="limit"
       :auto-upload="false"
       :show-file-list="showFileList"
@@ -16,10 +18,12 @@
     </el-upload>
   </template>
 <script lang="ts" setup>
-  import { ref,watch } from 'vue'
+  import { ref } from 'vue'
+  import type { UploadInstance, UploadProps, UploadRawFile } from 'element-plus'
+  import { genFileId } from 'element-plus'
   
   const emit = defineEmits(['change','removeAllFile','update:modelValue']);
-  const props = defineProps({
+  defineProps({
     desc: String,
     action: String,
     multiple: {
@@ -43,12 +47,21 @@
         default: () => []
     }
   })
+  const uploadRef = ref<UploadInstance>()
+
   const handleChange = (uploadFile) => {
     emit("change",uploadFile)
   }
-  const handleRemove = (file, fileList) => {
-    internalFileList.value = fileList;
-  };
+
+  const handleExceed: UploadProps['onExceed'] = (files) => {
+    const file = files[0] as UploadRawFile | undefined
+    if (!file || !uploadRef.value) {
+      return
+    }
+    uploadRef.value.clearFiles()
+    file.uid = genFileId()
+    uploadRef.value.handleStart(file)
+  }
 
   </script>
   

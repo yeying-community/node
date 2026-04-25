@@ -1,66 +1,72 @@
 <template>
-    <div class="tab">
+    <div class="tab" :class="{ 'tab-market-clickable': pageFrom === 'market' }" @click="handleCardClick">
         <div class="top">
             <div class="top-left">
-                <el-avatar shape="square" size="50" :src="detail.avatar" />
+                <el-avatar shape="square" size="70" :src="resolveAvatarSrc(detail.avatar)">
+                    <img class="avatar-fallback" :src="defaultAppAvatar" alt="默认应用图标" />
+                </el-avatar>
             </div>
-            <div class="top-right">
-                <div class="name">{{ detail.name }}</div>
-                <div v-if="businessStatus !== 'BUSINESS_STATUS_UNKNOWN'" class="badge-info">
-                    <el-badge is-dot :type="businessInfo.type" />
-                    <span class="badge-text">{{ businessInfo.text }}</span>
-                </div>
-                <div class="title">
-                     <div class="ownerWrap" v-if="detail.owner && pageFrom !== 'myCreate'">
-                        <div>所有者:</div>
-                        <div class="ownerContent">{{ detail.owner }}</div>
-                    </div>
-                    <span v-else>
-                        <el-tag type="primary" size="small">官方</el-tag>
-                    </span>
-                    <span>
-                        {{ pageFrom === 'myCreate' || !isOnline ? '创建于' : '上架于' }}
-                        {{ dayjs(detail.createdAt).format('YYYY-MM-DD') }}</span
-                    >
-                </div>
-                <div class="meta">
-                    <span>分类：{{ applicationCodeText }}</span>
-                    <span v-if="serviceCodeText !== '-'">依赖：{{ serviceCodeText }}</span>
-                </div>
-                <div class="desc">
-                    <div class="ownerWrap" v-if="detail.ownerName && pageFrom !== 'myCreate'">
-                        <div>所有者名称：</div>
-                        <div class="ownerContent">{{ detail.ownerName }}</div>
-                    </div>
-                </div>
-                <div class="desc">
-                    {{ detail.description }}
-                </div>
-            </div>
-        </div>
-
-        <!-- 应用市场 -->
-        <div v-if="pageFrom === 'market'">
-            <div class="bottom owner" v-if="!isOwner">
-                <div @click="toDetail" class="cursor">详情</div>
-                <el-divider direction="vertical" />
-                <div v-if="!isOwner" @click="applyUse()" class="cursor">申请使用</div>
-            </div>
-            <div class="bottom owner" v-else>
-                <div @click="toDetail" class="cursor">详情</div>
-                <el-divider direction="vertical" />
-                <div @click="handleOfflineConfirm" class="cursor">下架应用</div>
-                <el-divider direction="vertical" />
-                <div class="bottom-more">
-                    <el-dropdown placement="top-start">
-                        <div>更多</div>
+            <div class="top-right" :class="{ 'has-menu': pageFrom === 'market' }">
+                <div v-if="pageFrom === 'market'" class="card-menu" @click.stop>
+                    <el-dropdown trigger="click" placement="bottom-end">
+                        <span class="card-menu-trigger">
+                            <el-icon><MoreFilled /></el-icon>
+                        </span>
                         <template #dropdown>
                             <el-dropdown-menu>
-                                <el-dropdown-item @click="exportIdentity">导出身份</el-dropdown-item>
+                                <el-dropdown-item @click="toDetail">详情</el-dropdown-item>
                             </el-dropdown-menu>
                         </template>
                     </el-dropdown>
                 </div>
+                <div v-if="businessStatus !== 'BUSINESS_STATUS_UNKNOWN' && pageFrom !== 'market'" class="badge-info">
+                    <el-badge is-dot :type="businessInfo.type" />
+                    <span class="badge-text">{{ businessInfo.text }}</span>
+                </div>
+                <div class="headline">
+                    <div class="name">{{ detail.name }}</div>
+                    <div class="title" v-if="pageFrom === 'market'">
+                        <el-tag type="primary" size="small">社区</el-tag>
+                        <span class="market-title-time">{{ marketPublishedDateText }}</span>
+                    </div>
+                    <div class="title" v-else-if="pageFrom === 'myCreate' || !ownerAddress">
+                        <span v-if="pageFrom === 'myCreate' || !ownerAddress">
+                            <el-tag type="primary" size="small">社区</el-tag>
+                        </span>
+                        <span>
+                            {{ pageFrom === 'myCreate' || !isOnline ? '创建于' : '上架于' }}
+                            {{ dayjs(detail.createdAt).format('YYYY-MM-DD') }}
+                        </span>
+                    </div>
+                </div>
+                <div v-if="ownerAddress" class="meta owner-meta-line">
+                    <span class="owner-meta">
+                        作者：{{ ownerShortAddress }}
+                    </span>
+                    <el-tooltip content="复制" placement="top">
+                        <el-icon class="copy-owner-icon" @click.stop="copyOwnerAddress">
+                            <CopyDocument />
+                        </el-icon>
+                    </el-tooltip>
+                </div>
+                <div class="meta">
+                    <span>分类：{{ applicationCodeText }}</span>
+                </div>
+                <div class="meta meta-version">
+                    <span>版本：{{ versionText }}</span>
+                </div>
+                <el-tooltip :content="descriptionText" placement="top" :disabled="!isDescOverflow">
+                    <div ref="descRef" class="desc">
+                        {{ displayDescription }}
+                    </div>
+                </el-tooltip>
+            </div>
+        </div>
+
+        <!-- 应用市场 -->
+        <div v-if="pageFrom === 'market' && !isOwner">
+            <div class="bottom owner">
+                <div @click.stop="applyUse()" class="cursor">申请使用</div>
             </div>
         </div>
         <!-- 我的创建 -->
@@ -90,7 +96,7 @@
                                     </el-popconfirm>
                                 </el-dropdown-item>
 
-                                <el-dropdown-item v-if="!isOnline" @click="toEdit">编辑</el-dropdown-item>
+                                <el-dropdown-item @click="toEdit">编辑</el-dropdown-item>
                                 <el-dropdown-item @click="exportIdentity">导出身份</el-dropdown-item>
                             </el-dropdown-menu>
                         </template>
@@ -119,7 +125,7 @@
                     </template>
                 </el-popconfirm>
 
-                <div v-if="applyStatus === 'success'" @click="toConfigService" class="cursor">配置服务</div>
+                <div v-if="applyStatus === 'success'" @click="toConfigCapability" class="cursor">配置能力</div>
 
                 <el-divider v-if="applyStatus === 'success' || applyStatus === 'reject'" direction="vertical" />
                 <div v-if="applyStatus === 'reject'" class="bottom-more">
@@ -141,9 +147,8 @@
         :detail="detail"
         :afterSubmit="afterSubmit"
         :closeClick="afterSubmit"
-        :operateType="operateType"
     />
-    <ConfigServiceModal :modalVisible="modalVisible" :cancelModal="cancelModal" :detail="detail" operateType="application" />
+    <ConfigCapabilityModal :modalVisible="modalVisible" :cancelModal="cancelModal" :detail="detail" />
     <ResultChooseModal
         v-model="innerVisible"
         title="应用上架申请"
@@ -161,27 +166,27 @@
     </ResultChooseModal>
 </template>
 <script lang="ts" setup>
-import { ref, computed } from 'vue'
+import { ref, computed, nextTick, onBeforeUnmount, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import $audit, { isAuditForResource, resolveUsageAuditStatus } from '@/plugins/audit'
-import { SuccessFilled, WarningFilled } from '@element-plus/icons-vue'
+import { CopyDocument, MoreFilled, SuccessFilled, WarningFilled } from '@element-plus/icons-vue'
 import dayjs from 'dayjs'
 import { exportIdentityInfo } from '@/plugins/account'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { h } from 'vue'
 import ApplyUseModal from './ApplyUseModal.vue'
-import ConfigServiceModal from './ConfigServiceModal.vue'
+import ConfigCapabilityModal from './ConfigCapabilityModal.vue'
 import ResultChooseModal from './ResultChooseModal.vue'
 import $application, {
     ApplicationMetadata,
     businessStatusMap,
-    codeMap,
-    resolveBusinessStatus,
-    serviceCodeMap
+    resolveApplicationCategoryLabel,
+    resolveBusinessStatus
 } from '@/plugins/application'
-import { notifyError } from '@/utils/message'
+import { notifyError, notifySuccess } from '@/utils/message'
 import { getCurrentAccount } from '@/plugins/auth'
 import { normalizeAddress } from '@/utils/actionSignature'
+import defaultAppAvatar from '@/assets/img/default.jpg'
 
 const router = useRouter()
 const props = defineProps({
@@ -191,42 +196,129 @@ const props = defineProps({
     pageFrom: String
 })
 
-const isOwner = () => {
+const isOwner = computed(() => {
     const account = getCurrentAccount()
-    if (account === undefined || account === null) {
-        notifyError("❌未查询到当前账户，请登录")
+    if (!account) {
         return false
     }
     return normalizeAddress(account) === normalizeAddress(String(props.detail?.owner || ''))
-}
+})
 
 const innerVisible = ref(false)
 const dialogVisible = ref(false)
 const modalVisible = ref(false)
-const operateType = ref('application')
-
+const descRef = ref<HTMLElement | null>(null)
+const isDescOverflow = ref(false)
+const displayDescription = ref('-')
+let descriptionResizeObserver: ResizeObserver | null = null
 const businessStatus = computed(() => resolveBusinessStatus(props.detail))
 const businessInfo = computed(() => businessStatusMap[businessStatus.value] || businessStatusMap.BUSINESS_STATUS_UNKNOWN)
 const isOnline = computed(() => businessStatus.value === 'BUSINESS_STATUS_ONLINE')
-const applicationCodeText = computed(() => {
-    const code = String(props.detail?.code || '').trim()
-    if (!code) {
-        return '未分类'
+const resolveAvatarSrc = (value: unknown) => {
+    const src = String(value || '').trim()
+    return src || defaultAppAvatar
+}
+const ownerAddress = computed(() => String(props.detail?.owner || '').trim())
+const ownerShortAddress = computed(() => {
+    const value = ownerAddress.value
+    if (!value) {
+        return ''
     }
-    return codeMap[code] || code
+    if (value.length <= 12) {
+        return value
+    }
+    return `${value.slice(0, 6)}...${value.slice(-4)}`
 })
-const serviceCodeText = computed(() => {
-    const raw = props.detail?.serviceCodes
-    const codes = Array.isArray(raw)
-        ? raw.map((item) => String(item).trim()).filter(Boolean)
-        : typeof raw === 'string'
-          ? raw.split(',').map((item) => item.trim()).filter(Boolean)
-          : []
-    if (codes.length === 0) {
+const marketPublishedDateText = computed(() => {
+    const raw = String(props.detail?.createdAt || '').trim()
+    if (!raw) {
         return '-'
     }
-    return codes.map((code) => serviceCodeMap[code] || code).join('、')
+    const parsed = dayjs(raw)
+    return parsed.isValid() ? parsed.format('YYYY-MM-DD') : '-'
 })
+const applicationCodeText = computed(() => {
+    return resolveApplicationCategoryLabel(props.detail?.code)
+})
+const versionText = computed(() => {
+    const raw = props.detail?.version
+    if (raw === undefined || raw === null || raw === '') {
+        return '-'
+    }
+    const parsed = Number(raw)
+    if (Number.isFinite(parsed) && parsed > 0) {
+        return `v${parsed}`
+    }
+    return String(raw)
+})
+const descriptionText = computed(() => {
+    const raw = String(props.detail?.description || '').trim()
+    return raw || '-'
+})
+const writeClipboardText = async (value: string) => {
+    if (navigator?.clipboard?.writeText) {
+        await navigator.clipboard.writeText(value)
+        return
+    }
+    const textarea = document.createElement('textarea')
+    textarea.value = value
+    textarea.setAttribute('readonly', 'readonly')
+    textarea.style.position = 'fixed'
+    textarea.style.left = '-9999px'
+    document.body.appendChild(textarea)
+    textarea.select()
+    document.execCommand('copy')
+    document.body.removeChild(textarea)
+}
+
+const copyOwnerAddress = async () => {
+    const value = ownerAddress.value
+    if (!value) {
+        return
+    }
+    try {
+        await writeClipboardText(value)
+        notifySuccess('已复制')
+    } catch {
+        notifyError('复制失败')
+    }
+}
+
+const updateDescriptionOverflow = async () => {
+    displayDescription.value = descriptionText.value
+    await nextTick()
+    const el = descRef.value
+    if (!el) {
+        isDescOverflow.value = false
+        return
+    }
+    const isOverflow = () => el.scrollHeight > el.clientHeight + 1
+    if (!isOverflow()) {
+        isDescOverflow.value = false
+        return
+    }
+    if (descriptionText.value === '-') {
+        isDescOverflow.value = false
+        return
+    }
+    isDescOverflow.value = true
+    let left = 0
+    let right = descriptionText.value.length
+    let best = '...'
+    while (left <= right) {
+        const mid = Math.floor((left + right) / 2)
+        const candidate = `${descriptionText.value.slice(0, mid).trimEnd()}...`
+        displayDescription.value = candidate
+        await nextTick()
+        if (!isOverflow()) {
+            best = candidate
+            left = mid + 1
+        } else {
+            right = mid - 1
+        }
+    }
+    displayDescription.value = best
+}
 
 /**
  * 申请应用的状态
@@ -326,7 +418,7 @@ const toDelete = async () => {
 
 const toEdit = async () => {
     router.push({
-        path: '/market/apply-edit',
+        path: '/market/dev/apply-edit',
         query: {
             uid: props.detail?.uid
         }
@@ -346,8 +438,17 @@ const exportIdentity = async () => {
 }
 
 const toDetail = () => {
+    if (props.pageFrom === 'market') {
+        router.push({
+            path: '/market/detail',
+            query: {
+                uid: props.detail?.uid
+            }
+        })
+        return
+    }
     router.push({
-        path: '/market/apply-detail',
+        path: '/market/dev/apply-detail',
         query: {
             uid: props.detail?.uid,
             pageFrom: props.pageFrom,
@@ -355,11 +456,43 @@ const toDetail = () => {
         }
     })
 }
+
+const normalizeLocationUrl = (value: unknown) => {
+    const raw = String(value || '').trim()
+    if (!raw) {
+        return ''
+    }
+    try {
+        return new URL(raw).toString()
+    } catch {
+        try {
+            return new URL(`http://${raw}`).toString()
+        } catch {
+            return ''
+        }
+    }
+}
+
+const goUse = () => {
+    const target = normalizeLocationUrl(props.detail?.location)
+    if (!target) {
+        notifyError('❌应用未配置可访问地址')
+        return
+    }
+    window.location.href = target
+}
+
+const handleCardClick = () => {
+    if (props.pageFrom !== 'market') {
+        return
+    }
+    toDetail()
+}
 const toList = () => {
     innerVisible.value = false
 }
 
-const toConfigService = () => {
+const toConfigCapability = () => {
     modalVisible.value = true
 }
 
@@ -424,7 +557,7 @@ const handleOnline = () => {
             h(
                 'div',
                 { style: 'font-size:14px;font-weight:400;color:rgba(0,0,0,0.85)' },
-                '上架后当前应用将不可再编辑修改。'
+                '上架后仍可编辑，更新版本后可重新提交上架。'
             )
         ]),
         type: 'warning',
@@ -466,85 +599,168 @@ if (props.pageFrom === 'myApply') {
     getApplyStatus()
 }
 
+onMounted(() => {
+    updateDescriptionOverflow()
+    if (typeof ResizeObserver !== 'undefined' && descRef.value) {
+        descriptionResizeObserver = new ResizeObserver(() => {
+            updateDescriptionOverflow()
+        })
+        descriptionResizeObserver.observe(descRef.value)
+    }
+})
+
+watch(
+    () => props.detail?.description,
+    () => {
+        updateDescriptionOverflow()
+    }
+)
+
+onBeforeUnmount(() => {
+    if (descriptionResizeObserver) {
+        descriptionResizeObserver.disconnect()
+        descriptionResizeObserver = null
+    }
+})
+
 // const emit = defineEmits(['change']);
 </script>
 <style scoped lang="less">
 .tab {
     background-color: #fff;
     border-radius: 6px;
-    padding: 20px;
+    padding: 14px 10px;
+    &.tab-market-clickable {
+        cursor: pointer;
+    }
     .cursor {
         cursor: pointer;
     }
     .top {
         display: flex;
-        gap: 16px;
+        align-items: flex-start;
+        gap: 10px;
         .top-left {
+            width: 70px;
+            height: 70px;
+            flex: 0 0 70px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            .avatar-fallback {
+                width: 100%;
+                height: 100%;
+                object-fit: cover;
+                display: block;
+            }
         }
         .top-right {
             position: relative;
             display: flex;
             flex-direction: column;
             gap: 8px;
+            &.has-menu {
+                padding-right: 22px;
+            }
+            .card-menu {
+                position: absolute;
+                top: 0;
+                right: 0;
+                z-index: 5;
+            }
+            .card-menu-trigger {
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+                width: 22px;
+                height: 22px;
+                border-radius: 6px;
+                color: rgba(0, 0, 0, 0.45);
+                transition: background-color 0.2s ease, color 0.2s ease;
+            }
+            .card-menu-trigger:hover {
+                background-color: rgba(0, 0, 0, 0.06);
+                color: rgba(0, 0, 0, 0.72);
+            }
             .name {
                 font-size: 18px;
                 font-weight: 500;
                 color: rgba(0, 0, 0, 0.85);
                 line-height: 1.35;
             }
+            .headline {
+                min-height: 70px;
+                display: flex;
+                flex-direction: column;
+                justify-content: center;
+                gap: 8px;
+            }
             .title {
                 display: flex;
+                align-items: center;
                 color: rgba(0, 0, 0, 0.45);
                 font-size: 14px;
                 font-weight: 400;
-                gap: 4px;
+                gap: 8px;
                 .el-tag {
-                    margin-top: -4px;
+                    margin-top: 0;
                 }
+            }
+            .market-title-time {
+                color: rgba(0, 0, 0, 0.45);
+                font-size: 13px;
+                line-height: 1.2;
             }
             .meta {
                 display: flex;
                 flex-wrap: wrap;
-                gap: 8px 16px;
+                gap: 6px 12px;
                 color: rgba(0, 0, 0, 0.6);
                 font-size: 13px;
+                .owner-meta {
+                    display: inline-flex;
+                    align-items: center;
+                    gap: 6px;
+                }
+                .copy-owner-icon {
+                    font-size: 14px;
+                    color: rgba(22, 119, 255, 1);
+                    cursor: pointer;
+                }
             }
-            .ownerWrap {
-                display: flex;
+            .meta-version {
+                margin-top: -4px;
             }
-            .ownerTitle {
-                white-space: nowrap;
-            }
-            .ownerContent {
-                max-width: 120px;
-                overflow: hidden;
-                text-overflow: ellipsis;
+            .owner-meta-line {
+                align-items: center;
             }
             .desc {
                 color: rgba(0, 0, 0, 0.45);
                 font-size: 14px;
                 font-weight: 400;
-                line-height: 1.6;
-                height: 44px;
-                display: -webkit-box;
-                -webkit-box-orient: vertical;
-                -webkit-line-clamp: 2; /* 限制显示的行数 */
+                line-height: 22px;
+                height: 33px;
                 overflow: hidden;
-                text-overflow: ellipsis; /* 文本溢出时显示省略号 */
+                word-break: break-word;
             }
 
             .badge-info {
                 position: absolute;
-                right: 0px;
-                top: 0px;
+                right: 0;
+                top: 0;
+                width: 100%;
+                display: inline-flex;
+                align-items: center;
+                justify-content: flex-end;
                 .el-badge {
-                    margin-top: 5px;
+                    margin-top: 0;
                 }
             }
 
             .badge-text {
                 font-size: 13px;
-                margin: -15px 0 0 8px;
+                margin-left: 8px;
+                line-height: 1.2;
             }
         }
     }

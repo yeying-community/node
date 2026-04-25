@@ -1,25 +1,12 @@
 <template>
     <div class="publish-page">
-        <el-breadcrumb separator="/">
-            <el-breadcrumb-item :to="{ path: '/market/' }">应用中心</el-breadcrumb-item>
-            <el-breadcrumb-item>{{ isEdit ? '编辑应用' : '发布应用' }}</el-breadcrumb-item>
-        </el-breadcrumb>
-
-        <BreadcrumbHeader :pageName="isEdit ? '编辑应用' : '发布应用'" />
+        <BreadcrumbHeader :pageName="isEdit ? '编辑应用' : '创建应用'" />
 
         <div class="publish-panel">
-            <div class="panel-head">
-                <div class="panel-title">发布 Web3 应用</div>
-                <div class="panel-subtitle">
-                    先支持快速发布，默认提供 Chat / Router / Warehouse 三个模板，源码路径按当前仓库父目录约定：
-                    <code>../chat</code>、<code>../router</code>、<code>../warehouse</code>。
-                </div>
-            </div>
-
             <el-form ref="formRef" label-position="top" :model="detailInfo" :rules="rules">
                 <div class="section">
-                    <div class="section-title">1. 选择模板</div>
-                    <el-form-item label="应用模板">
+                    <div class="section-title">1. 选择应用模版</div>
+                    <el-form-item>
                         <el-radio-group v-model="selectedPreset" @change="handlePresetChange">
                             <el-radio
                                 v-for="preset in presets"
@@ -90,41 +77,54 @@
                         </el-col>
                     </el-row>
 
-                    <el-form-item label="依赖服务（可选）">
+                    <el-form-item label="依赖应用（可选）">
                         <el-select
                             v-model="detailInfo.serviceCodes"
-                            placeholder="可选：按应用实际依赖选择"
+                            placeholder="可选：按实际依赖选择应用"
                             multiple
                         >
                             <el-option
-                                v-for="(label, code) in serviceCodeMap"
-                                :key="String(code)"
-                                :label="label"
-                                :value="String(code)"
+                                v-for="option in dependencyOptions"
+                                :key="option.value"
+                                :label="option.label"
+                                :value="option.value"
                             />
                         </el-select>
                     </el-form-item>
 
-                    <el-form-item label="上传代码包（可选，上传后会覆盖源码路径）">
-                        <div class="upload-row">
-                            <Uploader
-                                v-model="codeList"
-                                accept=".zip,.rar,.tar.gz"
-                                @change="changeFileCode"
-                            >
-                                <el-button :icon="Upload">上传压缩包</el-button>
-                            </Uploader>
-                            <span class="upload-text">支持 .zip / .rar / .tar.gz</span>
+                    <el-form-item label="授权回调地址（redirectUri，可选）">
+                        <el-input
+                            v-model="redirectUriInput"
+                            placeholder="例如：http://localhost:3020/central-ucan-callback.html"
+                        />
+                        <div class="field-hint">
+                            使用中心化 UCAN 时，第三方应用需传入 <code>appId</code>，且
+                            <code>redirectUri</code> 必须与这里配置完全一致。<code>audience/capability</code>
+                            由服务端自动推导，无需手填。
                         </div>
                     </el-form-item>
 
                     <el-form-item label="应用图标（可选）">
-                        <div class="upload-row">
-                            <img class="avatar-preview" :src="imageUrl" alt="avatar" />
-                            <Uploader v-model="avatarList" accept=".png,.jpg,.jpeg,.svg" @change="changeFileAvatar">
-                                <el-button :icon="Upload">上传图标</el-button>
-                            </Uploader>
-                            <span class="upload-text">默认使用系统图标，建议上传 1:1 图标</span>
+                        <div class="icon-uploader">
+                            <div class="icon-preview-wrap">
+                                <img
+                                    class="avatar-preview"
+                                    :src="imageUrl"
+                                    alt="应用图标预览"
+                                    @error="handleAvatarPreviewError"
+                                />
+                            </div>
+                            <div class="icon-actions">
+                                <Uploader
+                                    v-model="avatarList"
+                                    :show-file-list="false"
+                                    accept=".png,.jpg,.jpeg,.svg"
+                                    @change="changeFileAvatar"
+                                >
+                                    <el-button :icon="Upload" plain>更换图标</el-button>
+                                </Uploader>
+                                <span class="upload-text">建议 1:1，支持 PNG/JPG/SVG</span>
+                            </div>
                         </div>
                     </el-form-item>
                 </div>
@@ -132,10 +132,10 @@
                 <div class="actions">
                     <el-button @click="cancelForm">取消</el-button>
                     <el-button @click="submitForm(false)">
-                        {{ isEdit ? '保存修改' : '仅保存' }}
+                        {{ saveButtonText }}
                     </el-button>
                     <el-button type="primary" @click="submitForm(true)">
-                        {{ isEdit ? '保存并提交上架' : '保存并提交上架' }}
+                        {{ publishButtonText }}
                     </el-button>
                 </div>
             </el-form>
@@ -150,7 +150,8 @@ import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'elem
 import { Upload } from '@element-plus/icons-vue'
 import BreadcrumbHeader from '@/views/components/BreadcrumbHeader.vue'
 import Uploader from '@/components/common/Uploader.vue'
-import $application, { type ApplicationMetadata, codeMap, serviceCodeMap } from '@/plugins/application'
+import defaultAppAvatar from '@/assets/img/default.jpg'
+import $application, { type ApplicationMetadata, codeMap, filterLegacyDependencies } from '@/plugins/application'
 import $audit from '@/plugins/audit'
 import { generateIdentity } from '@/plugins/account'
 import { getCurrentAccount } from '@/plugins/auth'
@@ -168,50 +169,51 @@ type ApplicationPreset = {
         name: string
         description: string
         code: string
-        serviceCodes: string[]
         location: string
         codePackagePath: string
     }
+}
+
+type DependencyOption = {
+    label: string
+    value: string
 }
 
 const presets: ApplicationPreset[] = [
     {
         key: 'chat',
         label: 'Chat',
-        note: '模板默认指向父目录源码 ../chat，端口建议 http://localhost:3020',
+        note: '应用默认地址 http://localhost:3020',
         defaults: {
             name: 'Chat',
-            description: '多模态 AI 聊天应用',
+            description: '集成多模型对话和云同步的智能聊天应用，可在桌面和手机浏览器中使用。',
             code: 'APPLICATION_CODE_CHAT',
-            serviceCodes: ['SERVICE_CODE_AGENT', 'SERVICE_CODE_WAREHOUSE', 'SERVICE_CODE_MCP'],
             location: 'http://localhost:3020',
-            codePackagePath: '../chat'
+            codePackagePath: 'git@github.com:yeying-community/chat.git'
         }
     },
     {
         key: 'router',
         label: 'Router',
-        note: '模板默认指向父目录源码 ../router，前端访问建议 http://localhost:5181',
+        note: '应用默认地址 http://localhost:3011',
         defaults: {
             name: 'Router',
             description: '统一模型网关与管理后台，提供标准 API 路由与鉴权能力。',
             code: 'APPLICATION_CODE_ROUTER',
-            serviceCodes: ['SERVICE_CODE_NODE', 'SERVICE_CODE_MCP'],
-            location: 'http://localhost:5181',
-            codePackagePath: '../router'
+            location: 'http://localhost:3011',
+            codePackagePath: 'git@github.com:yeying-community/router.git'
         }
     },
     {
         key: 'warehouse',
         label: 'Warehouse',
-        note: '模板默认指向父目录源码 ../warehouse，服务地址建议 http://localhost:6065',
+        note: '应用默认地址 http://localhost:6065',
         defaults: {
             name: 'Warehouse',
             description: 'Web3 数据与文件仓储服务，提供存储能力与身份认证能力。',
             code: 'APPLICATION_CODE_WAREHOUSE',
-            serviceCodes: ['SERVICE_CODE_WAREHOUSE'],
             location: 'http://localhost:6065',
-            codePackagePath: '../warehouse'
+            codePackagePath: 'git@github.com:yeying-community/warehouse.git'
         }
     },
     {
@@ -222,24 +224,11 @@ const presets: ApplicationPreset[] = [
             name: '',
             description: '',
             code: 'APPLICATION_CODE_UNKNOWN',
-            serviceCodes: [],
             location: '',
             codePackagePath: ''
         }
     }
 ]
-
-const defaultAvatar = import.meta.env.VITE_WEBDAV_AVATAR || 'default.jpg'
-const webdavBase = (import.meta.env.VITE_WEBDAV_BASE_URL || '').replace(/\/+$/, '')
-const webdavPrefix = (import.meta.env.VITE_WEBDAV_PREFIX || '').replace(/\/+$/, '')
-const webdavFallback = webdavBase
-    ? `${webdavBase}${webdavPrefix ? `/${webdavPrefix.replace(/^\/+/, '')}` : ''}`
-    : ''
-const prefixURL = (
-    import.meta.env.VITE_WEBDAV_PUBLIC_BASE ||
-    webdavFallback ||
-    (typeof window !== 'undefined' ? window.location.origin : '')
-).replace(/\/+$/, '')
 
 const route = useRoute()
 const router = useRouter()
@@ -249,8 +238,10 @@ const selectedPreset = ref<PresetKey>('chat')
 const formRef = ref<FormInstance>()
 
 const avatarList = ref<Array<Record<string, unknown>>>([])
-const codeList = ref<Array<Record<string, unknown>>>([])
-const imageUrl = ref(`${prefixURL}/${defaultAvatar}`)
+const avatarValue = ref('')
+const imageUrl = ref(defaultAppAvatar)
+const dependencyOptions = ref<DependencyOption[]>([])
+const redirectUriInput = ref('')
 
 const detailInfo = ref<ApplicationMetadata>({
     name: '',
@@ -258,6 +249,7 @@ const detailInfo = ref<ApplicationMetadata>({
     location: '',
     code: 'APPLICATION_CODE_CHAT',
     serviceCodes: [],
+    redirectUris: [],
     avatar: '',
     owner: '',
     ownerName: '',
@@ -267,6 +259,9 @@ const detailInfo = ref<ApplicationMetadata>({
 const currentPreset = computed(() =>
     presets.find((item) => item.key === selectedPreset.value) || null
 )
+
+const saveButtonText = computed(() => (isEdit.value ? '保存修改' : '保存草稿'))
+const publishButtonText = computed(() => (isEdit.value ? '提交上架申请' : '提交上架'))
 
 const rules = reactive<FormRules>({
     name: [{ required: true, message: '请输入应用名称', trigger: 'blur' }],
@@ -278,15 +273,66 @@ const rules = reactive<FormRules>({
 
 function toServiceCodeArray(value: unknown): string[] {
     if (Array.isArray(value)) {
-        return value.map((item) => String(item)).filter((item) => item.trim().length > 0)
+        return filterLegacyDependencies(
+            value.map((item) => String(item).trim()).filter((item) => item.length > 0)
+        )
     }
     if (value === undefined || value === null) {
         return []
     }
-    return String(value)
-        .split(',')
-        .map((item) => item.trim())
-        .filter((item) => item.length > 0)
+    return filterLegacyDependencies(
+        String(value)
+            .split(',')
+            .map((item) => item.trim())
+            .filter((item) => item.length > 0)
+    )
+}
+
+function toRedirectUriArray(value: unknown): string[] {
+    const normalize = (item: unknown) => String(item || '').trim()
+    if (Array.isArray(value)) {
+        return Array.from(
+            new Set(value.map((item) => normalize(item)).filter((item) => item.length > 0))
+        )
+    }
+    if (value === undefined || value === null) {
+        return []
+    }
+    const raw = String(value).trim()
+    if (!raw) {
+        return []
+    }
+    if (raw.startsWith('[')) {
+        try {
+            const parsed = JSON.parse(raw)
+            if (Array.isArray(parsed)) {
+                return Array.from(
+                    new Set(parsed.map((item) => normalize(item)).filter((item) => item.length > 0))
+                )
+            }
+        } catch {
+            // fallback to split mode
+        }
+    }
+    return Array.from(
+        new Set(
+            raw
+                .split(/[\n,]/)
+                .map((item) => item.trim())
+                .filter((item) => item.length > 0)
+        )
+    )
+}
+
+function toSingleRedirectUri(value: unknown): string {
+    const values = toRedirectUriArray(value)
+    if (values.length === 0) {
+        return ''
+    }
+    if (values.length > 1) {
+        throw new Error('仅支持配置一个 redirectUri')
+    }
+    return values[0]
 }
 
 function detectPreset(app: ApplicationMetadata): PresetKey {
@@ -315,7 +361,6 @@ function applyPreset(key: PresetKey) {
         name: preset.defaults.name,
         description: preset.defaults.description,
         code: preset.defaults.code,
-        serviceCodes: [...preset.defaults.serviceCodes],
         location: preset.defaults.location,
         codePackagePath: preset.defaults.codePackagePath
     }
@@ -332,7 +377,7 @@ function resolveSubmitError(error: unknown): string {
         return '当前账号暂无发布权限（USER_ROLE_DENIED）。请重新登录后重试，或联系管理员确认角色为 NORMAL/OWNER。'
     }
     if (message.includes('USER_BLOCKED')) {
-        return '当前账号已被禁用或冻结，无法发布应用。'
+        return '当前账号已被禁用或冻结，无法创建应用。'
     }
     return message
 }
@@ -353,25 +398,63 @@ async function getDetailInfo() {
         ...res,
         code: String(res.code || 'APPLICATION_CODE_UNKNOWN'),
         serviceCodes: toServiceCodeArray(res.serviceCodes),
+        redirectUris: toRedirectUriArray(res.redirectUris),
         codePackagePath: String(res.codePackagePath || '')
     }
+    redirectUriInput.value = toSingleRedirectUri(res.redirectUris)
     selectedPreset.value = detectPreset(res)
-    imageUrl.value = res.avatar || imageUrl.value
+    avatarValue.value = String(res.avatar || '').trim()
+    imageUrl.value = avatarValue.value || defaultAppAvatar
     avatarList.value = res.avatar
         ? [{ name: String(res.avatarName || res.name || 'avatar'), url: String(res.avatar) }]
         : []
-    codeList.value = res.codePackagePath
-        ? [{ name: String(res.codePackageName || res.name || 'package'), url: String(res.codePackagePath) }]
-        : []
+}
+
+async function loadDependencyOptions() {
+    const currentUid = String(route.query.uid || '').trim()
+    const options = new Set<string>()
+    try {
+        const onlineApps = await $application.search(
+            {
+                status: 'BUSINESS_STATUS_ONLINE'
+            },
+            1,
+            500
+        )
+        if (Array.isArray(onlineApps)) {
+            for (const app of onlineApps) {
+                const uid = String(app?.uid || '').trim()
+                const name = String(app?.name || '').trim()
+                if (!name) {
+                    continue
+                }
+                if (currentUid && uid && uid === currentUid) {
+                    continue
+                }
+                options.add(name)
+            }
+        }
+    } catch {
+        // ignore and keep fallback options from current values
+    }
+    for (const value of toServiceCodeArray(detailInfo.value.serviceCodes)) {
+        options.add(value)
+    }
+    dependencyOptions.value = Array.from(options).map((value) => ({
+        label: value,
+        value
+    }))
 }
 
 function buildSubmitParams(account: string): ApplicationMetadata & { codeType?: string } {
     const normalizedOwner = normalizeAddress(account)
+    const redirectUri = toSingleRedirectUri(redirectUriInput.value)
     return {
         ...detailInfo.value,
         code: String(detailInfo.value.code || 'APPLICATION_CODE_UNKNOWN'),
         serviceCodes: toServiceCodeArray(detailInfo.value.serviceCodes),
-        avatar: imageUrl.value,
+        redirectUris: redirectUri ? [redirectUri] : [],
+        avatar: avatarValue.value,
         codePackagePath: String(detailInfo.value.codePackagePath || ''),
         codeType: '1',
         owner: normalizedOwner,
@@ -390,7 +473,7 @@ async function submitPublishRequest(application: ApplicationMetadata) {
 }
 
 function toList() {
-    router.push({ path: '/market' })
+    router.push({ path: '/market/dev/my-apps', query: { tab: 'myCreate' } })
 }
 
 function cancelForm() {
@@ -447,6 +530,7 @@ async function submitForm(andPublish: boolean) {
                 owner: params.owner,
                 ownerName: params.ownerName,
                 serviceCodes: params.serviceCodes,
+                redirectUris: params.redirectUris,
                 avatar: params.avatar
             })
             if (!updated) {
@@ -490,7 +574,7 @@ async function submitForm(andPublish: boolean) {
     }
 }
 
-async function changeFile(fileType: 'avatar' | 'code', uploadFile: Record<string, unknown>) {
+async function changeFileAvatar(uploadFile: Record<string, unknown>) {
     const blobCandidate = uploadFile.raw instanceof Blob ? uploadFile.raw : uploadFile
     if (!(blobCandidate instanceof Blob)) {
         notifyError('上传文件格式无效')
@@ -502,23 +586,27 @@ async function changeFile(fileType: 'avatar' | 'code', uploadFile: Record<string
         notifyError('上传失败')
         return
     }
-    if (fileType === 'avatar') {
-        imageUrl.value = publicUrl
+    avatarValue.value = publicUrl
+    imageUrl.value = publicUrl
+}
+
+function handleAvatarPreviewError(event: Event) {
+    const target = event.target as HTMLImageElement | null
+    if (!target) {
         return
     }
-    detailInfo.value.codePackagePath = publicUrl
-}
-
-function changeFileAvatar(uploadFile: Record<string, unknown>) {
-    void changeFile('avatar', uploadFile)
-}
-
-function changeFileCode(uploadFile: Record<string, unknown>) {
-    void changeFile('code', uploadFile)
+    const fallbackUrl = new URL(defaultAppAvatar, window.location.origin).href
+    if (target.src === fallbackUrl) {
+        return
+    }
+    target.src = fallbackUrl
 }
 
 onMounted(() => {
-    void getDetailInfo()
+    void (async () => {
+        await getDetailInfo()
+        await loadDependencyOptions()
+    })()
 })
 </script>
 
@@ -547,13 +635,6 @@ onMounted(() => {
     color: rgba(0, 0, 0, 0.88);
 }
 
-.panel-subtitle {
-    margin-top: 8px;
-    font-size: 14px;
-    color: rgba(0, 0, 0, 0.55);
-    line-height: 1.6;
-}
-
 .section {
     padding: 16px;
     margin-bottom: 18px;
@@ -575,24 +656,55 @@ onMounted(() => {
     color: #4f6b95;
 }
 
-.upload-row {
+.field-hint {
+    margin-top: 8px;
+    font-size: 12px;
+    color: rgba(0, 0, 0, 0.55);
+}
+
+.icon-uploader {
     display: flex;
     align-items: center;
-    gap: 12px;
-    flex-wrap: wrap;
+    gap: 14px;
+    width: fit-content;
+    min-height: 84px;
+    padding: 10px 12px;
+    background: #fff;
+    border: 1px dashed #d9e2ef;
+    border-radius: 10px;
+}
+
+.icon-preview-wrap {
+    flex-shrink: 0;
+    width: 62px;
+    height: 62px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #f5f8fe;
+    border: 1px solid #e3e8f2;
+    border-radius: 14px;
+    overflow: hidden;
+}
+
+.icon-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    min-width: 0;
 }
 
 .upload-text {
-    font-size: 13px;
-    color: rgba(0, 0, 0, 0.5);
+    font-size: 12px;
+    line-height: 1.4;
+    color: #64748b;
 }
 
 .avatar-preview {
-    width: 36px;
-    height: 36px;
-    border-radius: 8px;
+    width: 100%;
+    height: 100%;
     object-fit: cover;
-    border: 1px solid #e5e7eb;
+    display: block;
 }
 
 .actions {
@@ -600,5 +712,12 @@ onMounted(() => {
     justify-content: flex-end;
     gap: 12px;
     padding-top: 6px;
+}
+
+@media (max-width: 960px) {
+    .icon-uploader {
+        width: 100%;
+        align-items: flex-start;
+    }
 }
 </style>

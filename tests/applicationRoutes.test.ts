@@ -186,6 +186,7 @@ describe('public application routes idempotency', () => {
       code: 'APPLICATION_CODE_TEST',
       location: '/index',
       serviceCodes: ['svc-a'],
+      redirectUris: ['https://app.example.com/callback'],
       avatar: 'avatar',
       codePackagePath: '/pkg',
     }
@@ -202,6 +203,7 @@ describe('public application routes idempotency', () => {
       code: 'APPLICATION_CODE_TEST',
       location: '/index',
       serviceCodes: 'svc-a',
+      redirectUris: ['https://app.example.com/callback'],
       avatar: 'avatar',
       codePackagePath: '/pkg',
     }
@@ -249,6 +251,7 @@ describe('public application routes idempotency', () => {
       code: 'APPLICATION_CODE_TEST',
       location: '/index',
       serviceCodes: ['svc-a'],
+      redirectUris: ['https://app.example.com/callback'],
       avatar: 'avatar',
       codePackagePath: '/pkg',
     }
@@ -265,6 +268,7 @@ describe('public application routes idempotency', () => {
       code: 'APPLICATION_CODE_TEST',
       location: '/index',
       serviceCodes: 'svc-a',
+      redirectUris: ['https://app.example.com/callback'],
       avatar: 'avatar',
       codePackagePath: '/pkg',
     }
@@ -331,6 +335,7 @@ describe('public application routes idempotency', () => {
       code: 'APPLICATION_CODE_TEST',
       location: '/delete',
       serviceCodes: 'svc-a',
+      redirectUris: '',
       avatar: 'avatar',
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
@@ -400,6 +405,7 @@ describe('public application routes idempotency', () => {
       code: 'APPLICATION_CODE_TEST',
       location: '/before',
       serviceCodes: 'svc-a',
+      redirectUris: '',
       avatar: 'avatar',
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
@@ -469,6 +475,7 @@ describe('public application routes idempotency', () => {
       code: 'APPLICATION_CODE_TEST',
       location: '/config',
       serviceCodes: 'svc-a',
+      redirectUris: '',
       avatar: 'avatar',
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),

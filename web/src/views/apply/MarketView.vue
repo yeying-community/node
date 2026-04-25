@@ -1,12 +1,11 @@
 <template>
   <div class="layout_bg">
     <Header/>
-    <Main />
+    <router-view />
   </div>
 </template>
 <script lang="ts" setup>
 import Header from '@/views/components/Header.vue'
-import Main from './Main.vue'
 import { waitForWallet } from '../../plugins/auth'
 import { getWalletDataStore } from '@/stores/auth'
 import { notifyError } from '@/utils/message';

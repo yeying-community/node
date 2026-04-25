@@ -279,7 +279,7 @@
       <section class="hero">
         <h1>Node 使用帮助</h1>
         <div class="subtitle">
-          帮助页支持折叠章节。可手动展开单个章节，也可在左侧目录一键展开/折叠全部内容。
+          帮助页支持折叠章节。可通过左侧目录定位章节，并按需展开阅读。
         </div>
       </section>
 
@@ -339,18 +339,23 @@
                 <div class="flow-step"><b>Step 1:</b> 钱包登录 Node 应用，进入“应用中心”。</div>
                 <div class="flow-step"><b>Step 2:</b> 在“发布应用”填写信息并保存，系统会创建应用记录。</div>
                 <div class="flow-step">
+                  <b>Step 2.1:</b> 如需中心化 UCAN，仅需配置
+                  <code>redirectUri(单值)</code>；<code>audience/capability</code> 由 Node 自动推导。
+                </div>
+                <div class="flow-step">
                   <b>Step 3:</b> 创建成功后会得到应用 <code>AppId</code>（即 <code>applications.uid</code>）。
                 </div>
                 <div class="flow-step"><b>Step 4:</b> 提交上架申请并完成审批。</div>
                 <div class="flow-step"><b>Step 5:</b> 上架成功后 <code>is_online=true</code>，应用进入可用状态。</div>
                 <div class="flow-step">
-                  <b>Step 6:</b> 第三方应用把 <code>AppId</code> 作为 <code>clientId</code> 接入中心化 UCAN。
+                  <b>Step 6:</b> 第三方应用把 <code>AppId</code> 作为 <code>appId</code> 接入中心化 UCAN。
                 </div>
               </div>
               <div class="tip">
                 <strong>关键点：</strong>
-                <code>clientId</code> 不在发布时新生成，使用的是创建应用时的
-                <code>AppId(uid)</code>。但要用于动态授权白名单，应用必须已上架。
+                <code>appId</code> 不在发布时新生成，使用的是创建应用时的
+                <code>AppId(uid)</code>。应用必须已上架，且需在发布页配置
+                <code>redirectUri</code> 回调地址。签发策略由服务端按“依赖应用/访问地址”自动协调。
               </div>
             </div>
           </details>
@@ -360,24 +365,30 @@
             <div class="section-body">
               <div class="flow">
                 <div class="flow-step">
-                  <b>1)</b> 业务端发起授权请求：提交 <code>address + clientId + redirectUri</code>。
+                  <b>1)</b> 业务端发起授权请求：提交 <code>address + appId + redirectUri</code>。
                 </div>
                 <div class="flow-step">
-                  <b>2)</b> Node 校验 <code>clientId + redirectUri</code> 是否可用（静态白名单或 AppId 动态识别）。
+                  <b>2)</b> Node 校验 <code>appId + redirectUri</code>：仅接受已上架应用 AppId，且
+                  <code>redirectUri</code> 必须命中应用发布字段 <code>redirectUris</code>（单值）。
                 </div>
                 <div class="flow-step">
                   <b>3)</b> 用户在 Node 验证页输入 TOTP，授权通过后拿到一次性 <code>code</code>。
                 </div>
                 <div class="flow-step">
-                  <b>4)</b> 业务端用 <code>code + clientId + redirectUri</code> 兑换 <code>JWT + UCAN</code>。
+                  <b>4)</b> 业务端用 <code>code + appId + redirectUri</code> 兑换 <code>JWT + 初始 UCAN</code>。
                 </div>
                 <div class="flow-step">
-                  <b>5)</b> 业务端携带 Bearer Token 调用受保护接口，服务端按统一 UCAN 规则验证。
+                  <b>5)</b> 如需多后端访问，业务端用 <code>JWT</code> 调
+                  <code>/auth/central/session</code>，再按目标后端调用
+                  <code>/auth/central/issue</code> 分别签发 UCAN。
+                </div>
+                <div class="flow-step">
+                  <b>6)</b> 业务端携带对应后端的 Bearer UCAN 调用受保护接口，服务端按统一 UCAN 规则验证。
                 </div>
               </div>
               <div class="tip">
                 <strong>推荐实践：</strong>
-                移动端无钱包插件时，优先走此流程；PC 有插件时可继续钱包直连，两者服务端验证逻辑一致。
+                无钱包插件时优先走此流程；有钱包插件时可继续钱包直连，两者服务端验证逻辑一致。
               </div>
             </div>
           </details>
@@ -386,10 +397,13 @@
             <summary class="section-summary">03. 参数与约束</summary>
             <div class="section-body">
               <ul class="list">
-                <li><code>clientId</code>：建议使用应用市场 AppId（<code>applications.uid</code>）。</li>
-                <li><code>redirectUri</code>：必须命中该 clientId 的允许回调列表。</li>
-                <li><code>audience</code>：需与服务端 UCAN audience 配置一致。</li>
-                <li><code>capability.with/can</code>：必须与服务端能力策略一致。</li>
+                <li><code>appId</code>：必须使用应用市场 AppId（<code>applications.uid</code>）。</li>
+                <li><code>redirectUri</code>：必须命中该应用发布字段 <code>redirectUris</code>（仅一个）。</li>
+                <li><code>audience</code>：由 Node 基于应用依赖与目标地址自动推导。</li>
+                <li><code>capabilities</code>：由 Node 自动生成（默认 <code>can=invoke</code>）。</li>
+                <li><code>audience / capability / appName</code>：由服务端按应用策略决定，不接受客户端覆写。</li>
+                <li><code>address</code>：需先在 Node 完成 TOTP 扫码配置，否则无法发起授权。</li>
+                <li>多后端访问：在 <code>exchange</code> 后使用 <code>central/session + central/issue</code> 按后端分别签发 UCAN。</li>
               </ul>
             </div>
           </details>
@@ -399,9 +413,15 @@
             <div class="section-body">
               <ul class="list">
                 <li><code>redirectUri is not allowed</code>：回调地址未进入允许列表。</li>
-                <li><code>Unauthorized clientId</code>：clientId 不存在、未上架或不在白名单。</li>
+                <li><code>Unauthorized appId</code>：appId 不存在或应用未上架。</li>
+                <li><code>TOTP_AUTH_APP_POLICY_AUTO_RESOLVE_FAILED</code>：应用访问地址无效且依赖应用不可解析。</li>
+                <li><code>TOTP authenticator is not configured for this address</code>：该地址尚未完成 TOTP 扫码配置。</li>
+                <li>
+                  <code>column ApplicationDO.redirect_uris does not exist</code>：数据库未执行最新迁移，需重启服务触发迁移或手动补列。
+                </li>
                 <li><code>UCAN audience mismatch</code>：Token 的 aud 与服务端期望不一致。</li>
                 <li><code>UCAN capability denied</code>：签发能力不足，需调整能力并重签。</li>
+                <li><code>missing UCAN proof chain</code>：传错 token 类型（JWT 当 UCAN）或请求链路丢失 Authorization。</li>
                 <li><code>USER_ROLE_DENIED</code>：账号角色不满足发布/审批权限。</li>
               </ul>
             </div>
@@ -424,9 +444,9 @@
             <div class="section-body">
               <ol class="list">
                 <li>钱包登录并进入“我的配置”。</li>
-                <li>刷新 Totp Auth 状态，确认服务已就绪。</li>
+                <li>刷新 TOTP 状态，确认服务已就绪。</li>
                 <li>加载认证器配置并扫码绑定 TOTP。</li>
-                <li>填写 <code>address/clientId/redirectUri</code> 并创建授权请求。</li>
+                <li>填写 <code>address/appId/redirectUri</code> 并创建授权请求。</li>
                 <li>批准授权并兑换 code，验证 JWT/UCAN 可用性。</li>
               </ol>
             </div>
@@ -437,8 +457,9 @@
             <div class="section-body">
               <ul class="list">
                 <li>先查服务端 <code>logs/</code>，再看浏览器控制台与 Network 面板。</li>
-                <li>优先核对三元组：<code>address</code>、<code>clientId</code>、<code>redirectUri</code>。</li>
+                <li>优先核对三元组：<code>address</code>、<code>appId</code>、<code>redirectUri</code>。</li>
                 <li>涉及 UCAN 校验时，同时核对 <code>audience</code> 和 <code>capability</code>。</li>
+                <li>出现频繁 429 时，检查是否触发了授权接口限流（request/approve/exchange）。</li>
               </ul>
             </div>
           </details>
@@ -447,7 +468,7 @@
 
       <div class="meta">
         页面地址：<code>/help.html</code>（由 Header 右上角帮助图标打开）。<br />
-        最近更新：2026-04-22
+        最近更新：2026-04-24
       </div>
     </main>
     <script>
