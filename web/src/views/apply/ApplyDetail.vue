@@ -69,17 +69,13 @@
             </el-row>
             <el-row class="part-row">
                 <el-col :span="24" :xs="24" class="app-id-cell">
-                    AppId:
+                    应用标识:
                     <span class="app-id-text">{{ appIdText }}</span>
-                    <el-button
-                        v-if="appIdText !== '-'"
-                        class="app-id-copy-btn"
-                        link
-                        type="primary"
-                        @click="copyAppId"
-                    >
-                        复制
-                    </el-button>
+                    <el-tooltip v-if="appIdText !== '-'" content="复制应用标识" placement="top">
+                        <el-icon class="app-id-copy-icon" @click="copyAppId">
+                            <CopyDocument />
+                        </el-icon>
+                    </el-tooltip>
                 </el-col>
             </el-row>
             <el-row class="part-row">
@@ -150,7 +146,7 @@
 import { computed, onMounted, ref } from 'vue'
 import BreadcrumbHeader from '@/views/components/BreadcrumbHeader.vue'
 import ApplyStatus from '@/views/components/ApplyStatus.vue'
-import { WarningFilled, SuccessFilled } from '@element-plus/icons-vue'
+import { WarningFilled, SuccessFilled, Link, CopyDocument } from '@element-plus/icons-vue'
 import ResultChooseModal from '@/views/components/ResultChooseModal.vue'
 import { ElMessageBox } from 'element-plus'
 import { h } from 'vue'
@@ -163,7 +159,6 @@ import $application, {
     resolveBusinessStatus,
     serviceCodeMap
 } from '@/plugins/application'
-import { Link } from '@element-plus/icons-vue'
 import ConfigCapabilityModal from '@/views/components/ConfigCapabilityModal.vue'
 import ApplyUseModal from '@/views/components/ApplyUseModal.vue'
 import AuditSummaryPanel from '@/views/components/AuditSummaryPanel.vue'
@@ -362,14 +357,14 @@ const writeClipboardText = async (value: string) => {
 const copyAppId = async () => {
     const appId = String(detailInfo.value?.uid || applyUid || '').trim()
     if (!appId) {
-        notifyError('当前应用缺少 AppId')
+        notifyError('当前应用缺少应用标识')
         return
     }
     try {
         await writeClipboardText(appId)
-        notifySuccess('AppId 已复制')
+        notifySuccess('应用标识已复制')
     } catch {
-        notifyError('复制 AppId 失败')
+        notifyError('复制应用标识失败')
     }
 }
 
@@ -666,8 +661,14 @@ onMounted(() => {
         font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New',
             monospace;
     }
-    .app-id-copy-btn {
-        padding: 0;
+    .app-id-copy-icon {
+        font-size: 15px;
+        color: #1677ff;
+        cursor: pointer;
+        transition: color 0.2s ease;
+        &:hover {
+            color: #4096ff;
+        }
     }
 }
 </style>
