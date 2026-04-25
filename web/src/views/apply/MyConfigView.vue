@@ -312,7 +312,7 @@ const form = reactive<ConfigForm>({
   appId: '',
   redirectUri: '',
   state: '',
-  requestTtlMs: 300000,
+  requestTtlMs: 120000,
 });
 
 async function parseEnvelope<T>(response: Response, fallbackMessage: string): Promise<T> {
@@ -384,7 +384,7 @@ function restoreConfig() {
     form.appId = String(parsed.appId || '');
     form.redirectUri = String(parsed.redirectUri || '');
     form.state = String(parsed.state || '');
-    form.requestTtlMs = Number(parsed.requestTtlMs || 300000);
+    form.requestTtlMs = Number(parsed.requestTtlMs || 120000);
   } catch {
     notifyError('读取本地配置失败，已使用默认值');
   }

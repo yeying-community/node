@@ -95,8 +95,8 @@ module.exports = {
     verifyPath: '/totp-auth',
     // Base URL used to build verifyUrl in bind request response.
     portalBaseUrl: 'http://127.0.0.1:8100',
-    // One-time bind request TTL.
-    requestTtlMs: 5 * 60 * 1000,
+    // One-time bind request TTL (120s).
+    requestTtlMs: 2 * 60 * 1000,
     // Auth code TTL for /auth/totp/authorize/exchange.
     exchangeCodeTtlMs: 60 * 1000,
     // TOTP config (RFC 6238).
