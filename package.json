@@ -7,6 +7,9 @@
     "build": "rm -rf dist && tsc --project tsconfig.json",
     "build:web": "npm --prefix web run build",
     "build:all": "npm run build && npm run build:web",
+    "dev:secure": "node scripts/dev-secure.cjs",
+    "secrets:init": "node scripts/init-secrets.cjs",
+    "secrets:unlock": "node scripts/unlock-secrets.cjs",
     "package:release": "bash scripts/package.sh",
     "start": "node dist/server.js",
     "dev": "nodemon --watch 'src/**/*' -e ts --exec 'ts-node src/server.ts'"

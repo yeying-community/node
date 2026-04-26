@@ -14,6 +14,10 @@ export interface AppRuntimeConfig {
     port: number
 }
 
+export interface SecretsRuntimeConfig {
+    file?: string
+}
+
 export interface AuthRuntimeConfig {
     jwtSecret: string
     accessTtlMs: number

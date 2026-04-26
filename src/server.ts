@@ -51,6 +51,10 @@ import { startActionRequestCleanupJobs } from './domain/service/actionRequestCle
 import { startMpcCleanupJobs } from './domain/service/mpcCleanup';
 import { initMpcEventBus } from './domain/service/mpcEvents';
 import { SingletonLogger } from './domain/facade/logger';
+import { getCentralIssuerStatus } from './auth/ucanIssuer';
+import { getTotpAuthStatus } from './auth/totpAuth';
+import { initializeRuntimeSecrets } from './security/secretVault';
+import { assertJwtSecretReady } from './auth/siwe';
 
 // 初始化日志
 new LoggerService(getConfig<LoggerConfig>('logger')).initialize()
@@ -128,6 +132,34 @@ function registerApiRequestLogger(app: Express) {
     })
 }
 
+function assertSecurityPreflight(): void {
+    const errors: string[] = []
+    try {
+        assertJwtSecretReady()
+    } catch (error) {
+        errors.push(error instanceof Error ? error.message : 'JWT secret is not ready')
+    }
+    const issuerStatus = getCentralIssuerStatus()
+    const issueModeEnabled =
+        issuerStatus.mode === 'issue' || issuerStatus.mode === 'hybrid'
+    if (issuerStatus.enabled && issueModeEnabled && !issuerStatus.ready) {
+        errors.push(
+            `中心化 UCAN 签发未就绪: ${issuerStatus.error || '缺少有效 UCAN_ISSUER_PRIVATE_KEY/UCAN_ISSUER_DID'}`
+        )
+    }
+
+    const totpStatus = getTotpAuthStatus()
+    if (totpStatus.enabled && !totpStatus.ready) {
+        errors.push(
+            `TOTP 授权未就绪: ${totpStatus.error || '缺少有效 TOTP_AUTH_TOTP_MASTER_KEY'}`
+        )
+    }
+
+    if (errors.length > 0) {
+        throw new Error(`安全启动检查失败:\n- ${errors.join('\n- ')}`)
+    }
+}
+
 let port = 8100
 const configPort = getConfig<number>('app.port')
 if (typeof configPort === 'number' && Number.isFinite(configPort)) {
@@ -139,6 +171,9 @@ if (process.env.APP_PORT) {
         port = envPort
     }
 }
+
+initializeRuntimeSecrets()
+assertSecurityPreflight()
 
 // 初始化数据库
 const databaseConfig: DatabaseConfig = getConfig<DatabaseConfig>('database')

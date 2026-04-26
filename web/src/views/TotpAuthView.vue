@@ -1,59 +1,70 @@
 <template>
   <div class="totp-auth-page">
     <div class="totp-auth-card">
-      <h1>授权确认</h1>
-      <p class="subtitle">请输入认证器中的 6 位验证码，完成本次授权。</p>
+      <h1>授权验证</h1>
+      <p class="subtitle">输入 6 位验证码完成授权。</p>
 
       <div class="meta-row">
         <span class="app-name">{{ requestAppName }}</span>
-        <span class="status-chip" :class="`status-${requestInfo?.status || 'unknown'}`">
+        <span class="status-chip" :class="requestStatusClass">
           {{ requestStatusText }}
         </span>
       </div>
 
       <p v-if="requestSubjectHint" class="subject-hint">地址：{{ requestSubjectHint }}</p>
-      <p v-if="requestExpireText" class="expire-text">{{ requestExpireText }}</p>
 
-      <div class="totp-timer">
-        验证码剩余
-        <strong>{{ totpCountdown }}</strong>
-        秒
+      <div v-if="requestExpired" class="expired-panel">
+        <p class="expired-title">授权已过期</p>
+        <p class="expired-desc">请返回应用重新发起授权。</p>
+        <div class="expired-actions">
+          <el-button type="primary" :disabled="!hasReturnTarget" @click="goBackToApp(false)">
+            返回应用
+          </el-button>
+          <el-button :disabled="!hasReturnTarget" @click="goBackToApp(true)">重新发起</el-button>
+        </div>
       </div>
 
-      <div class="digit-group">
-        <input
-          v-for="(_, index) in digitValues"
-          :key="`totp-digit-${index}`"
-          :ref="(el) => setDigitRef(el as HTMLInputElement | null, index)"
-          class="digit-input"
-          inputmode="numeric"
-          pattern="[0-9]*"
-          maxlength="1"
-          autocomplete="one-time-code"
-          :value="digitValues[index]"
-          :disabled="inputDisabled"
-          @input="onDigitInput($event, index)"
-          @keydown="onDigitKeydown($event, index)"
-        />
-      </div>
+      <template v-else>
+        <div class="totp-timer">
+          本次授权剩余
+          <strong>{{ requestCountdownText }}</strong>
+        </div>
 
-      <p class="hint" :class="`hint-${hintType}`">{{ hintMessage }}</p>
+        <div class="digit-group">
+          <input
+            v-for="(_, index) in digitValues"
+            :key="`totp-digit-${index}`"
+            :ref="(el) => setDigitRef(el as HTMLInputElement | null, index)"
+            class="digit-input"
+            inputmode="numeric"
+            pattern="[0-9]*"
+            maxlength="1"
+            autocomplete="one-time-code"
+            :value="digitValues[index]"
+            :disabled="inputDisabled"
+            @input="onDigitInput($event, index)"
+            @keydown="onDigitKeydown($event, index)"
+          />
+        </div>
 
-      <el-button
-        class="confirm-btn"
-        type="primary"
-        :loading="approving"
-        :disabled="!canApprove"
-        @click="approveRequest({ auto: false })"
-      >
-        确认授权
-      </el-button>
+        <p class="hint" :class="`hint-${hintType}`">{{ hintMessage }}</p>
 
-      <p v-if="redirecting" class="redirect-tip">
-        验证成功，{{ redirectCountdown }} 秒后自动返回应用…
-      </p>
+        <el-button
+          class="confirm-btn"
+          type="primary"
+          :loading="approving"
+          :disabled="!canApprove"
+          @click="approveRequest({ auto: false })"
+        >
+          确认
+        </el-button>
 
-      <p v-if="loadingRequest" class="loading-tip">正在加载授权请求…</p>
+        <p v-if="redirecting" class="redirect-tip">
+          验证成功，{{ redirectCountdown }} 秒后返回应用…
+        </p>
+      </template>
+
+      <p v-if="loadingRequest" class="loading-tip">加载请求中…</p>
     </div>
   </div>
 </template>
@@ -74,10 +85,6 @@ type Envelope<T> = {
 type UcanCapability = {
   with?: string;
   can?: string;
-};
-
-type TotpStatus = {
-  codePeriodSec?: number;
 };
 
 type BindRequestInfo = {
@@ -134,7 +141,10 @@ type ApproveResultView = {
 
 const route = useRoute();
 const DIGIT_COUNT = 6;
-const DEFAULT_TOTP_PERIOD_SEC = 30;
+const AUTO_VERIFY_HINT = '输入 6 位后自动验证';
+const REQUEST_INVALID_HINT = '请求无效，请返回应用重试';
+const REQUEST_EXPIRED_HINT = '请求已失效，请返回应用重试';
+const REQUEST_READ_FAILED_HINT = '请求读取失败，请返回应用重试';
 
 const requestId = ref('');
 const requestMode = ref<'authorize' | 'bind' | ''>('');
@@ -148,15 +158,13 @@ const digitRefs = ref<Array<HTMLInputElement | null>>(
   Array.from({ length: DIGIT_COUNT }, () => null)
 );
 const lastSubmittedCode = ref('');
-const hintMessage = ref('输满 6 位验证码后会自动验证');
+const hintMessage = ref(AUTO_VERIFY_HINT);
 const hintType = ref<'info' | 'error' | 'success'>('info');
-const totpPeriodSec = ref(DEFAULT_TOTP_PERIOD_SEC);
-const totpCountdown = ref(DEFAULT_TOTP_PERIOD_SEC);
 const nowSec = ref(Math.floor(Date.now() / 1000));
 
 let redirectTimer: number | null = null;
 let countdownTimer: number | null = null;
-let totpTimer: number | null = null;
+let clockTimer: number | null = null;
 
 function clearRedirectTimers() {
   if (redirectTimer !== null) {
@@ -170,28 +178,22 @@ function clearRedirectTimers() {
   redirectCountdown.value = 0;
 }
 
-function clearTotpTimer() {
-  if (totpTimer !== null) {
-    window.clearInterval(totpTimer);
-    totpTimer = null;
+function clearClockTimer() {
+  if (clockTimer !== null) {
+    window.clearInterval(clockTimer);
+    clockTimer = null;
   }
 }
 
-function updateTimeTick() {
+function updateNowTick() {
   nowSec.value = Math.floor(Date.now() / 1000);
-  const period = Math.max(1, Number(totpPeriodSec.value || DEFAULT_TOTP_PERIOD_SEC));
-  let remain = period - (nowSec.value % period);
-  if (remain <= 0) {
-    remain = period;
-  }
-  totpCountdown.value = remain;
 }
 
-function startTotpTimer() {
-  clearTotpTimer();
-  updateTimeTick();
-  totpTimer = window.setInterval(() => {
-    updateTimeTick();
+function startClockTimer() {
+  clearClockTimer();
+  updateNowTick();
+  clockTimer = window.setInterval(() => {
+    updateNowTick();
   }, 1000);
 }
 
@@ -227,26 +229,9 @@ async function parseEnvelope<T>(response: Response, fallbackMessage: string): Pr
   return payload.data;
 }
 
-async function loadTotpStatus() {
-  try {
-    const response = await fetch(apiUrl('/api/v1/public/auth/totp/status'), {
-      method: 'GET',
-      credentials: 'include',
-    });
-    const status = await parseEnvelope<TotpStatus>(response, '读取 TOTP 状态失败');
-    const period = Number(status?.codePeriodSec || 0);
-    if (Number.isFinite(period) && period > 0) {
-      totpPeriodSec.value = Math.trunc(period);
-      updateTimeTick();
-    }
-  } catch {
-    // ignore status fetch errors and keep default 30s period
-  }
-}
-
 async function loadRequestInfo() {
   if (!requestId.value) {
-    setHint('error', '授权请求无效，请返回应用重新发起。');
+    setHint('error', REQUEST_INVALID_HINT);
     return;
   }
   loadingRequest.value = true;
@@ -265,9 +250,9 @@ async function loadRequestInfo() {
       );
       requestMode.value = 'authorize';
       if (requestInfo.value.status === 'pending') {
-        setHint('info', '输满 6 位验证码后会自动验证');
+        setHint('info', AUTO_VERIFY_HINT);
       } else {
-        setHint('error', '该授权请求已失效，请返回应用重新发起。');
+        setHint('error', REQUEST_EXPIRED_HINT);
       }
       return;
     }
@@ -282,13 +267,13 @@ async function loadRequestInfo() {
     requestInfo.value = await parseEnvelope<BindRequestInfo>(bindResponse, '查询绑定请求失败');
     requestMode.value = 'bind';
     if (requestInfo.value.status === 'pending') {
-      setHint('info', '输满 6 位验证码后会自动验证');
+      setHint('info', AUTO_VERIFY_HINT);
     } else {
-      setHint('error', '该授权请求已失效，请返回应用重新发起。');
+      setHint('error', REQUEST_EXPIRED_HINT);
     }
   } catch (error) {
-    setHint('error', '授权请求读取失败，请返回应用重新发起。');
-    notifyInfo('授权请求读取失败，请重试');
+    setHint('error', REQUEST_READ_FAILED_HINT);
+    notifyInfo('请求读取失败，请重试');
   } finally {
     loadingRequest.value = false;
   }
@@ -312,6 +297,66 @@ function startRedirect(redirectTo: string) {
   redirectTimer = window.setTimeout(() => {
     window.location.href = redirectTo;
   }, 2000);
+}
+
+function resolveRequestRedirectUri(): string {
+  const info = requestInfo.value;
+  if (!info) return '';
+  if (requestMode.value === 'authorize') {
+    return String((info as AuthorizeRequestInfo).redirectUri || '').trim();
+  }
+  return String((info as BindRequestInfo).redirectUri || '').trim();
+}
+
+function buildRedirectUrl(baseUrl: string, params: Record<string, string>) {
+  try {
+    const url = new URL(baseUrl);
+    Object.entries(params).forEach(([key, value]) => {
+      if (value) {
+        url.searchParams.set(key, value);
+      }
+    });
+    return url.toString();
+  } catch {
+    const query = Object.entries(params)
+      .filter(([, value]) => Boolean(value))
+      .map(([key, value]) => `${encodeURIComponent(key)}=${encodeURIComponent(value)}`)
+      .join('&');
+    if (!query) {
+      return baseUrl;
+    }
+    return `${baseUrl}${baseUrl.includes('?') ? '&' : '?'}${query}`;
+  }
+}
+
+function resolveExpiredRedirectTarget(retry: boolean) {
+  const baseUrl = resolveRequestRedirectUri();
+  if (!baseUrl) return '';
+  const state =
+    requestMode.value === 'authorize'
+      ? String((requestInfo.value as AuthorizeRequestInfo | null)?.state || '').trim()
+      : '';
+  const params: Record<string, string> = {
+    error: 'access_denied',
+    error_code: 'request_expired',
+    error_description: 'request expired',
+  };
+  if (state) {
+    params.state = state;
+  }
+  if (retry) {
+    params.retry = '1';
+  }
+  return buildRedirectUrl(baseUrl, params);
+}
+
+function goBackToApp(retry: boolean) {
+  const target = resolveExpiredRedirectTarget(retry);
+  if (!target) {
+    notifyInfo('缺少返回地址，请回到应用重试');
+    return;
+  }
+  window.location.href = target;
 }
 
 function setDigitRef(el: HTMLInputElement | null, index: number) {
@@ -347,7 +392,7 @@ function onDigitInput(event: Event, index: number) {
   const target = event.target as HTMLInputElement;
   const normalized = sanitizeDigits(target.value);
   if (hintType.value === 'error') {
-    setHint('info', '输满 6 位验证码后会自动验证');
+    setHint('info', AUTO_VERIFY_HINT);
   }
   if (!normalized) {
     digitValues.value[index] = '';
@@ -412,37 +457,41 @@ function resolveApproveHint(error: unknown): string {
     normalized.includes('code') &&
     (normalized.includes('invalid') || normalized.includes('mismatch') || normalized.includes('wrong'))
   ) {
-    return '验证码错误，请重试';
+    return '验证码错误';
   }
   if (normalized.includes('expired')) {
-    return '请求已过期，请返回应用重新发起';
+    return '请求已过期，请返回应用重试';
   }
   if (normalized.includes('used') || normalized.includes('processed')) {
-    return '请求已处理，请返回应用查看结果';
+    return '请求已处理，请返回应用查看';
   }
   if (normalized.includes('request') && normalized.includes('not found')) {
-    return '授权请求不存在，请返回应用重新发起';
+    return '请求不存在，请返回应用重试';
   }
   return message;
 }
 
 async function approveRequest(options: { auto: boolean }) {
   if (!requestId.value) {
-    setHint('error', '授权请求无效，请返回应用重新发起。');
+    setHint('error', REQUEST_INVALID_HINT);
     return;
   }
   if (!requestMode.value) {
-    setHint('error', '未识别授权流程，请返回应用重新发起。');
+    setHint('error', '流程无效，请返回应用重试');
+    return;
+  }
+  if (requestExpired.value) {
+    setHint('error', REQUEST_EXPIRED_HINT);
     return;
   }
   if (requestInfo.value?.status !== 'pending') {
-    setHint('error', '该授权请求已失效，请返回应用重新发起。');
+    setHint('error', REQUEST_EXPIRED_HINT);
     return;
   }
   const code = totpCode.value;
   if (code.length !== DIGIT_COUNT) {
     if (!options.auto) {
-      notifyInfo('请输入 6 位认证器验证码');
+      notifyInfo('请输入 6 位验证码');
     }
     return;
   }
@@ -469,10 +518,10 @@ async function approveRequest(options: { auto: boolean }) {
         redirectTo: result.redirectUri || '',
       };
       if (result.redirectUri) {
-        setHint('success', '验证成功，正在返回应用…');
+        setHint('success', '验证成功，正在返回…');
         startRedirect(result.redirectUri);
       } else {
-        setHint('success', '验证成功，请返回应用继续。');
+        setHint('success', '验证成功，请返回应用继续');
       }
     } else {
       const response = await fetch(apiUrl('/api/v1/public/auth/totp/authorize/approve'), {
@@ -489,7 +538,7 @@ async function approveRequest(options: { auto: boolean }) {
         mode: 'authorize',
         redirectTo: result.redirectTo,
       };
-      setHint('success', '验证成功，正在返回应用…');
+      setHint('success', '验证成功，正在返回…');
       startRedirect(result.redirectTo);
     }
   } catch (error) {
@@ -507,9 +556,26 @@ async function approveRequest(options: { auto: boolean }) {
 
 const totpCode = computed(() => digitValues.value.join(''));
 
+const requestExpiresSec = computed(() => {
+  const raw = Number(requestInfo.value?.expiresAt || 0);
+  if (!Number.isFinite(raw) || raw <= 0) {
+    return null;
+  }
+  return Math.floor(raw / 1000);
+});
+
+const requestRemainingSec = computed(() => {
+  const expiresSec = requestExpiresSec.value;
+  if (expiresSec === null) {
+    return null;
+  }
+  return Math.max(0, expiresSec - nowSec.value);
+});
+
 const canApprove = computed(() => {
   return (
     requestInfo.value?.status === 'pending' &&
+    !requestExpired.value &&
     totpCode.value.length === DIGIT_COUNT &&
     !approving.value &&
     !redirecting.value
@@ -519,12 +585,40 @@ const canApprove = computed(() => {
 const redirecting = computed(() => redirectCountdown.value > 0);
 
 const inputDisabled = computed(() => {
-  return approving.value || redirecting.value || requestInfo.value?.status !== 'pending';
+  return approving.value || redirecting.value || requestInfo.value?.status !== 'pending' || requestExpired.value;
+});
+
+const requestExpired = computed(() => {
+  if (requestInfo.value?.status === 'expired') {
+    return true;
+  }
+  const remain = requestRemainingSec.value;
+  if (remain === null) {
+    return false;
+  }
+  return remain <= 0;
+});
+
+const hasReturnTarget = computed(() => {
+  return resolveRequestRedirectUri().length > 0;
+});
+
+const requestCountdownText = computed(() => {
+  const remain = requestRemainingSec.value;
+  if (remain === null) {
+    return '-';
+  }
+  const minute = Math.floor(remain / 60);
+  const second = remain % 60;
+  if (minute > 0) {
+    return `${minute}分${String(second).padStart(2, '0')}秒`;
+  }
+  return `${second}秒`;
 });
 
 const requestAppName = computed(() => {
   const name = String(requestInfo.value?.appName || '').trim();
-  return name || '授权应用';
+  return name || '应用';
 });
 
 const requestSubjectHint = computed(() => {
@@ -533,8 +627,9 @@ const requestSubjectHint = computed(() => {
 });
 
 const requestStatusText = computed(() => {
+  if (requestExpired.value) return '已过期';
   const status = requestInfo.value?.status || '';
-  if (status === 'pending') return '待确认';
+  if (status === 'pending') return '待处理';
   if (status === 'used') return '已处理';
   if (status === 'expired') return '已过期';
   if (status === 'revoked') return '已撤销';
@@ -542,25 +637,15 @@ const requestStatusText = computed(() => {
   return status;
 });
 
-const requestExpireText = computed(() => {
-  if (!requestInfo.value?.expiresAt) return '';
-  const expireSec = Math.floor(Number(requestInfo.value.expiresAt) / 1000);
-  if (!Number.isFinite(expireSec) || expireSec <= 0) return '';
-  const remain = expireSec - nowSec.value;
-  if (remain <= 0) {
-    return '该请求已过期，请返回应用重新发起。';
-  }
-  const minute = Math.floor(remain / 60);
-  const second = remain % 60;
-  if (minute > 0) {
-    return `授权请求剩余 ${minute} 分 ${second} 秒`;
-  }
-  return `授权请求剩余 ${second} 秒`;
+const requestStatusClass = computed(() => {
+  if (requestExpired.value) return 'status-expired';
+  const status = String(requestInfo.value?.status || '').trim();
+  return status ? `status-${status}` : 'status-unknown';
 });
 
 watch(
   () => route.query.requestId,
-  (value) => {
+  async (value) => {
     requestId.value = resolveRequestId(value);
     requestMode.value = '';
     requestInfo.value = null;
@@ -568,8 +653,11 @@ watch(
     lastSubmittedCode.value = '';
     clearDigits(false);
     clearRedirectTimers();
-    setHint('info', '输满 6 位验证码后会自动验证');
-    loadRequestInfo().catch(() => {});
+    setHint('info', AUTO_VERIFY_HINT);
+    await loadRequestInfo();
+    if (!requestExpired.value) {
+      focusFirstDigit();
+    }
   }
 );
 
@@ -579,6 +667,7 @@ watch(
     if (
       value.length === DIGIT_COUNT &&
       requestInfo.value?.status === 'pending' &&
+      !requestExpired.value &&
       !approving.value &&
       !redirecting.value
     ) {
@@ -586,22 +675,23 @@ watch(
       return;
     }
     if (oldValue !== value && hintType.value === 'error' && value.length > 0) {
-      setHint('info', '输满 6 位验证码后会自动验证');
+      setHint('info', AUTO_VERIFY_HINT);
     }
   }
 );
 
 onMounted(async () => {
-  startTotpTimer();
-  await loadTotpStatus();
+  startClockTimer();
   requestId.value = resolveRequestId(route.query.requestId);
   await loadRequestInfo();
-  focusFirstDigit();
+  if (!requestExpired.value) {
+    focusFirstDigit();
+  }
 });
 
 onBeforeUnmount(() => {
   clearRedirectTimers();
-  clearTotpTimer();
+  clearClockTimer();
 });
 </script>
 
@@ -694,8 +784,7 @@ h1 {
   border-color: #d8dce6;
 }
 
-.subject-hint,
-.expire-text {
+.subject-hint {
   margin: 0;
   font-size: 13px;
   color: #6b7280;
@@ -716,6 +805,34 @@ h1 {
 .totp-timer strong {
   font-size: 16px;
   margin: 0 4px;
+}
+
+.expired-panel {
+  margin-top: 4px;
+  border: 1px solid #fde68a;
+  background: #fffbeb;
+  border-radius: 12px;
+  padding: 12px;
+}
+
+.expired-title {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: #92400e;
+}
+
+.expired-desc {
+  margin: 6px 0 0;
+  font-size: 13px;
+  color: #a16207;
+}
+
+.expired-actions {
+  margin-top: 12px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
 }
 
 .digit-group {

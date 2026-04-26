@@ -3,6 +3,7 @@ import * as jwt from 'jsonwebtoken';
 import type { JwtPayload } from 'jsonwebtoken';
 import { verifyMessage } from 'ethers';
 import { getConfig } from '../config/runtime';
+import { getRuntimeSecret } from '../security/secretVault';
 
 export type ChallengeRecord = {
   address: string;
@@ -36,10 +37,9 @@ const INSECURE_JWT_SECRET = 'replace-this-in-production';
 const MIN_JWT_SECRET_LENGTH = 32;
 
 function resolveJwtSecret(): string {
+  const runtimeSecret = getRuntimeSecret('JWT_SECRET');
   const raw = String(
-    process.env.JWT_SECRET ??
-      getConfig<string>('auth.jwtSecret') ??
-      INSECURE_JWT_SECRET
+    runtimeSecret || process.env.JWT_SECRET || getConfig<string>('auth.jwtSecret') || INSECURE_JWT_SECRET
   ).trim();
   if (!raw || raw === INSECURE_JWT_SECRET) {
     throw new Error(
@@ -54,7 +54,18 @@ function resolveJwtSecret(): string {
   return raw;
 }
 
-const JWT_SECRET = resolveJwtSecret();
+let JWT_SECRET_CACHE = '';
+
+function getJwtSecret(): string {
+  if (!JWT_SECRET_CACHE) {
+    JWT_SECRET_CACHE = resolveJwtSecret();
+  }
+  return JWT_SECRET_CACHE;
+}
+
+export function assertJwtSecretReady(): void {
+  getJwtSecret();
+}
 const ACCESS_TTL_MS = parseNumber(
   process.env.ACCESS_TTL_MS ?? getConfig<number>('auth.accessTtlMs'),
   15 * 60 * 1000
@@ -139,7 +150,7 @@ export function verifyChallengeSignature(
 function signAccessToken(address: string, sessionId: string): string {
   return jwt.sign(
     { address, typ: 'access', sid: sessionId },
-    JWT_SECRET,
+    getJwtSecret(),
     { expiresIn: Math.floor(ACCESS_TTL_MS / 1000) }
   );
 }
@@ -147,7 +158,7 @@ function signAccessToken(address: string, sessionId: string): string {
 function signRefreshToken(address: string, refreshId: string): string {
   return jwt.sign(
     { address, typ: 'refresh', jti: refreshId },
-    JWT_SECRET,
+    getJwtSecret(),
     { expiresIn: Math.floor(REFRESH_TTL_MS / 1000) }
   );
 }
@@ -183,7 +194,7 @@ export function issueTokens(address: string): TokenBundle {
 
 export function verifyAccessToken(token: string): AccessTokenPayload | null {
   try {
-    const payload = jwt.verify(token, JWT_SECRET) as JwtPayload & {
+    const payload = jwt.verify(token, getJwtSecret()) as JwtPayload & {
       address?: string;
       typ?: string;
       sid?: string;
@@ -205,7 +216,7 @@ export function verifyAccessToken(token: string): AccessTokenPayload | null {
 export function consumeRefreshToken(refreshToken: string): RefreshSession | null {
   let payload: JwtPayload & { address?: string; typ?: string; jti?: string };
   try {
-    payload = jwt.verify(refreshToken, JWT_SECRET) as JwtPayload & {
+    payload = jwt.verify(refreshToken, getJwtSecret()) as JwtPayload & {
       address?: string;
       typ?: string;
       jti?: string;
@@ -234,7 +245,7 @@ export function consumeRefreshToken(refreshToken: string): RefreshSession | null
 
 export function revokeRefreshToken(refreshToken: string): void {
   try {
-    const payload = jwt.verify(refreshToken, JWT_SECRET) as JwtPayload & { jti?: string };
+    const payload = jwt.verify(refreshToken, getJwtSecret()) as JwtPayload & { jti?: string };
     if (payload?.jti) {
       refreshStore.delete(payload.jti);
     }
