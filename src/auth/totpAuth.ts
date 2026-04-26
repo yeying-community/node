@@ -4,6 +4,7 @@ import type { UcanCapability } from './ucanIssuer';
 import { getConfig } from '../config/runtime';
 import { SingletonDataSource } from '../domain/facade/datasource';
 import { TotpSubjectSecretDO } from '../domain/mapper/entity';
+import { getRuntimeSecret } from '../security/secretVault';
 
 export type TotpBindRequestStatus = 'pending' | 'used' | 'expired' | 'revoked';
 
@@ -136,7 +137,14 @@ const SECRET_CIPHER_VERSION = 'v1';
 const SECRET_ENCRYPTION_CONTEXT = 'totp-auth-secret:v1';
 
 const TOTP_BIND_REQUESTS = new Map<string, TotpBindRequestRecord>();
-const TOTP_AUTH_RUNTIME = loadTotpAuthRuntime();
+let TOTP_AUTH_RUNTIME_CACHE: TotpAuthRuntimeState | null = null;
+
+function getTotpRuntime(): TotpAuthRuntimeState {
+  if (!TOTP_AUTH_RUNTIME_CACHE) {
+    TOTP_AUTH_RUNTIME_CACHE = loadTotpAuthRuntime();
+  }
+  return TOTP_AUTH_RUNTIME_CACHE;
+}
 
 function parseBoolean(value: unknown, fallback = false): boolean {
   if (value === undefined || value === null || value === '') return fallback;
@@ -282,7 +290,10 @@ function loadTotpAuthRuntime(): TotpAuthRuntimeState {
   }
 
   const masterKeyRaw = String(
-    process.env.TOTP_AUTH_TOTP_MASTER_KEY ?? getConfig<string>('totpAuth.totpMasterKey') ?? ''
+    getRuntimeSecret('TOTP_AUTH_TOTP_MASTER_KEY') ||
+      process.env.TOTP_AUTH_TOTP_MASTER_KEY ||
+      getConfig<string>('totpAuth.totpMasterKey') ||
+      ''
   ).trim();
   if (!masterKeyRaw) {
     runtime.error = 'TOTP_AUTH_TOTP_MASTER_KEY is required when totp auth is enabled';
@@ -300,17 +311,18 @@ function loadTotpAuthRuntime(): TotpAuthRuntimeState {
 }
 
 function ensureTotpAuthReady(): TotpAuthRuntimeState {
-  if (!TOTP_AUTH_RUNTIME.enabled) {
+  const runtime = getTotpRuntime();
+  if (!runtime.enabled) {
     throw new TotpAuthError(403, 'TOTP_AUTH_DISABLED', 'TOTP auth is disabled');
   }
-  if (!TOTP_AUTH_RUNTIME.ready || !TOTP_AUTH_RUNTIME.masterKey) {
+  if (!runtime.ready || !runtime.masterKey) {
     throw new TotpAuthError(
       503,
       'TOTP_AUTH_NOT_READY',
-      TOTP_AUTH_RUNTIME.error || 'TOTP auth is not ready'
+      runtime.error || 'TOTP auth is not ready'
     );
   }
-  return TOTP_AUTH_RUNTIME;
+  return runtime;
 }
 
 function createRequestId(): string {
@@ -392,8 +404,9 @@ function toCreateBindResult(record: TotpBindRequestRecord): TotpBindRequestCreat
 }
 
 function buildVerifyUrl(requestId: string): string {
-  const pathWithQuery = `${TOTP_AUTH_RUNTIME.verifyPath}?requestId=${encodeURIComponent(requestId)}`;
-  const base = TOTP_AUTH_RUNTIME.portalBaseUrl;
+  const runtime = getTotpRuntime();
+  const pathWithQuery = `${runtime.verifyPath}?requestId=${encodeURIComponent(requestId)}`;
+  const base = runtime.portalBaseUrl;
   if (!base) return pathWithQuery;
   return `${base}${pathWithQuery}`;
 }
@@ -630,18 +643,19 @@ function requirePendingRequest(record: TotpBindRequestRecord, nowMs: number): To
 }
 
 export function getTotpAuthStatus(): TotpAuthStatus {
+  const runtime = getTotpRuntime();
   return {
-    enabled: TOTP_AUTH_RUNTIME.enabled,
-    ready: TOTP_AUTH_RUNTIME.ready,
-    issuerName: TOTP_AUTH_RUNTIME.issuerName,
-    verifyPath: TOTP_AUTH_RUNTIME.verifyPath,
-    portalBaseUrl: TOTP_AUTH_RUNTIME.portalBaseUrl,
-    requestTtlMs: TOTP_AUTH_RUNTIME.requestTtlMs,
-    codeDigits: TOTP_AUTH_RUNTIME.codeDigits,
-    codePeriodSec: TOTP_AUTH_RUNTIME.codePeriodSec,
-    codeWindow: TOTP_AUTH_RUNTIME.codeWindow,
-    maxAttempts: TOTP_AUTH_RUNTIME.maxAttempts,
-    error: TOTP_AUTH_RUNTIME.error,
+    enabled: runtime.enabled,
+    ready: runtime.ready,
+    issuerName: runtime.issuerName,
+    verifyPath: runtime.verifyPath,
+    portalBaseUrl: runtime.portalBaseUrl,
+    requestTtlMs: runtime.requestTtlMs,
+    codeDigits: runtime.codeDigits,
+    codePeriodSec: runtime.codePeriodSec,
+    codeWindow: runtime.codeWindow,
+    maxAttempts: runtime.maxAttempts,
+    error: runtime.error,
   };
 }
 

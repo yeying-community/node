@@ -1,6 +1,7 @@
 import * as crypto from 'crypto';
 import type { UcanIssuerMode } from '../config';
 import { getConfig } from '../config/runtime';
+import { getRuntimeSecret } from '../security/secretVault';
 
 export type UcanCapability = {
   with?: string;
@@ -95,8 +96,15 @@ const DEFAULT_UCAN_CAN =
   getConfig<string>('ucan.can') ||
   'invoke';
 
-const ISSUER_RUNTIME = loadIssuerRuntime();
+let ISSUER_RUNTIME_CACHE: IssuerRuntimeState | null = null;
 const ISSUE_SESSIONS = new Map<string, IssueSessionRecord>();
+
+function getIssuerRuntime(): IssuerRuntimeState {
+  if (!ISSUER_RUNTIME_CACHE) {
+    ISSUER_RUNTIME_CACHE = loadIssuerRuntime();
+  }
+  return ISSUER_RUNTIME_CACHE;
+}
 
 function parseBoolean(value: unknown, fallback = false): boolean {
   if (value === undefined || value === null || value === '') return fallback;
@@ -275,11 +283,16 @@ function loadIssuerRuntime(): IssuerRuntimeState {
     false
   );
   const mode = parseIssuerMode(process.env.UCAN_ISSUER_MODE ?? getConfig<string>('ucanIssuer.mode'));
+  const runtimeDid = getRuntimeSecret('UCAN_ISSUER_DID');
+  const runtimePrivateKey = getRuntimeSecret('UCAN_ISSUER_PRIVATE_KEY');
   const configuredDid = String(
-    process.env.UCAN_ISSUER_DID ?? getConfig<string>('ucanIssuer.did') ?? ''
+    runtimeDid || process.env.UCAN_ISSUER_DID || getConfig<string>('ucanIssuer.did') || ''
   ).trim();
   const privateKeyRaw = String(
-    process.env.UCAN_ISSUER_PRIVATE_KEY ?? getConfig<string>('ucanIssuer.privateKey') ?? ''
+    runtimePrivateKey ||
+      process.env.UCAN_ISSUER_PRIVATE_KEY ||
+      getConfig<string>('ucanIssuer.privateKey') ||
+      ''
   ).trim();
   const defaultAudience = String(
     process.env.UCAN_ISSUER_DEFAULT_AUDIENCE ??
@@ -346,16 +359,17 @@ function isIssueModeEnabled(mode: UcanIssuerMode): boolean {
 }
 
 function validateIssueRuntime(): ReadyIssueRuntime {
-  if (!ISSUER_RUNTIME.enabled) {
+  const issuerRuntime = getIssuerRuntime();
+  if (!issuerRuntime.enabled) {
     throw new Error('UCAN issuer is disabled');
   }
-  if (!isIssueModeEnabled(ISSUER_RUNTIME.mode)) {
+  if (!isIssueModeEnabled(issuerRuntime.mode)) {
     throw new Error('UCAN issuer mode does not allow issue');
   }
-  if (!ISSUER_RUNTIME.ready || !ISSUER_RUNTIME.privateKey || !ISSUER_RUNTIME.did) {
-    throw new Error(ISSUER_RUNTIME.error || 'UCAN issuer is not ready');
+  if (!issuerRuntime.ready || !issuerRuntime.privateKey || !issuerRuntime.did) {
+    throw new Error(issuerRuntime.error || 'UCAN issuer is not ready');
   }
-  return ISSUER_RUNTIME as ReadyIssueRuntime;
+  return issuerRuntime as ReadyIssueRuntime;
 }
 
 function generateSessionToken(): string {
@@ -384,21 +398,27 @@ function toIssueSession(record: IssueSessionRecord): CentralIssueSession {
 }
 
 export function getCentralIssuerStatus(): UcanIssuerStatus {
+  const issuerRuntime = getIssuerRuntime();
   return {
-    enabled: ISSUER_RUNTIME.enabled,
-    mode: ISSUER_RUNTIME.mode,
-    ready: ISSUER_RUNTIME.ready,
-    issuerDid: ISSUER_RUNTIME.did || undefined,
-    sessionTtlMs: ISSUER_RUNTIME.sessionTtlMs,
-    tokenTtlMs: ISSUER_RUNTIME.tokenTtlMs,
-    defaultAudience: ISSUER_RUNTIME.defaultAudience,
-    defaultCapabilities: [...ISSUER_RUNTIME.defaultCapabilities],
-    error: ISSUER_RUNTIME.error,
+    enabled: issuerRuntime.enabled,
+    mode: issuerRuntime.mode,
+    ready: issuerRuntime.ready,
+    issuerDid: issuerRuntime.did || undefined,
+    sessionTtlMs: issuerRuntime.sessionTtlMs,
+    tokenTtlMs: issuerRuntime.tokenTtlMs,
+    defaultAudience: issuerRuntime.defaultAudience,
+    defaultCapabilities: [...issuerRuntime.defaultCapabilities],
+    error: issuerRuntime.error,
   };
 }
 
 export function isCentralUcanIssueEnabled(): boolean {
-  return ISSUER_RUNTIME.enabled && ISSUER_RUNTIME.ready && isIssueModeEnabled(ISSUER_RUNTIME.mode);
+  const issuerRuntime = getIssuerRuntime();
+  return (
+    issuerRuntime.enabled &&
+    issuerRuntime.ready &&
+    isIssueModeEnabled(issuerRuntime.mode)
+  );
 }
 
 export function createCentralIssueSession(input: {

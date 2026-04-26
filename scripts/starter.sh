@@ -11,6 +11,8 @@ CONFIG_PATH="${APP_CONFIG_PATH:-$ROOT_DIR/config.js}"
 WEB_DIST_PATH="${WEB_DIST_DIR:-$ROOT_DIR/web/dist}"
 NODE_ENV_VALUE="${NODE_ENV:-production}"
 START_WAIT_SECONDS="${START_WAIT_SECONDS:-3}"
+SECRETS_FILE="${SECRETS_FILE:-$RUN_DIR/secrets.enc.json}"
+SECRETS_PASSWORD_FILE="${SECRETS_PASSWORD_FILE:-}"
 
 info() {
   printf '%s\n' "$*"
@@ -47,6 +49,34 @@ ensure_config() {
 
 ensure_build_artifacts() {
   [[ -f "$ROOT_DIR/dist/server.js" ]] || fail "未找到后端构建产物: $ROOT_DIR/dist/server.js"
+}
+
+prepare_secrets_password_file() {
+  if [[ ! -f "$SECRETS_FILE" ]]; then
+    return 0
+  fi
+
+  info "检测到加密密钥文件: $SECRETS_FILE（将由 Node 进程内解密）"
+  if [[ -n "${NODE_SECRETS_PASSWORD:-}" || -n "$SECRETS_PASSWORD_FILE" || -n "${NODE_SECRETS_PASSWORD_FILE:-}" ]]; then
+    return 0
+  fi
+
+  if [[ ! -t 0 ]]; then
+    fail "缺少密钥文件密码。请设置 NODE_SECRETS_PASSWORD 或 SECRETS_PASSWORD_FILE。"
+  fi
+
+  mkdir -p "$RUN_DIR"
+  local temp_password_file
+  temp_password_file="$(mktemp "$RUN_DIR/.node-secrets-password.XXXXXX")"
+  chmod 600 "$temp_password_file"
+
+  local password=''
+  read -r -s -p "请输入密钥文件密码: " password
+  printf '\n'
+  [[ -n "$password" ]] || fail "密码不能为空"
+  printf '%s' "$password" > "$temp_password_file"
+  unset password
+  SECRETS_PASSWORD_FILE="$temp_password_file"
 }
 
 runtime_dependencies_ready() {
@@ -101,6 +131,8 @@ start_app() {
     install_runtime_dependencies
   fi
 
+  prepare_secrets_password_file
+
   if is_running; then
     info "服务已在运行，PID=$(read_pid)"
     return 0
@@ -114,9 +146,16 @@ start_app() {
       NODE_ENV="$NODE_ENV_VALUE" \
       APP_CONFIG_PATH="$CONFIG_PATH" \
       WEB_DIST_DIR="$WEB_DIST_PATH" \
+      SECRETS_FILE="$SECRETS_FILE" \
+      NODE_SECRETS_PASSWORD_FILE="${SECRETS_PASSWORD_FILE:-${NODE_SECRETS_PASSWORD_FILE:-}}" \
       node dist/server.js >>"$LOG_FILE" 2>&1 &
     echo $! > "$PID_FILE"
   )
+
+  if [[ -n "$SECRETS_PASSWORD_FILE" && -f "$SECRETS_PASSWORD_FILE" ]]; then
+    rm -f "$SECRETS_PASSWORD_FILE" || true
+    SECRETS_PASSWORD_FILE=""
+  fi
 
   sleep "$START_WAIT_SECONDS"
 

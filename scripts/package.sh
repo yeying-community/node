@@ -116,8 +116,15 @@ copy_release_files() {
   cp "$WORKTREE_DIR/config.js.template" "$release_root/config.js.template"
   cp "$WORKTREE_DIR/README.md" "$release_root/README.md"
   cp "$WORKTREE_DIR/scripts/starter.sh" "$release_root/scripts/starter.sh"
+  cp "$WORKTREE_DIR/scripts/init-secrets.cjs" "$release_root/scripts/init-secrets.cjs"
+  cp "$WORKTREE_DIR/scripts/unlock-secrets.cjs" "$release_root/scripts/unlock-secrets.cjs"
+  cp "$WORKTREE_DIR/scripts/secret-vault.cjs" "$release_root/scripts/secret-vault.cjs"
   cp "$WORKTREE_DIR/docs/运行配置.md" "$release_root/docs/运行配置.md"
   chmod +x "$release_root/scripts/starter.sh"
+  chmod +x \
+    "$release_root/scripts/init-secrets.cjs" \
+    "$release_root/scripts/unlock-secrets.cjs" \
+    "$release_root/scripts/secret-vault.cjs"
 }
 
 create_tarball() {

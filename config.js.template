@@ -10,6 +10,11 @@ module.exports = {
     // HTTP server port.
     port: 8100
   },
+  secrets: {
+    // 加密密钥文件路径。支持相对路径（相对当前项目目录）。
+    // 运行时优先级：SECRETS_FILE env > secrets.file > run/secrets.enc.json
+    file: 'run/secrets.enc.json'
+  },
   database: {
     // Default: local better-sqlite3 file for quick start and packaged smoke tests.
     // Switch to mysql/postgres for shared test or production deployments.
@@ -37,8 +42,8 @@ module.exports = {
     //   openssl rand -hex 32
     // or:
     //   node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
-    // Do not commit the real value.
-    jwtSecret: 'replace-this-in-production',
+    // 推荐留空并通过加密密钥文件或环境变量 JWT_SECRET 注入。
+    jwtSecret: '',
     accessTtlMs: 15 * 60 * 1000,
     refreshTtlMs: 7 * 24 * 60 * 60 * 1000,
     challengeTtlMs: 5 * 60 * 1000,
@@ -73,8 +78,10 @@ module.exports = {
     // hybrid: wallet UCAN verify + centralized UCAN issue/verify
     mode: 'verify',
     // did:key of centralized issuer. Must match private key derived DID when enabled.
+    // 推荐留空并通过环境变量 UCAN_ISSUER_DID 注入（或由私钥自动推导）。
     did: '',
     // Ed25519 private key (PEM / base64 seed / hex seed). Keep empty in template.
+    // 推荐通过加密密钥文件或环境变量 UCAN_ISSUER_PRIVATE_KEY 注入。
     privateKey: '',
     // Session TTL for /auth/central/session
     sessionTtlMs: 5 * 60 * 1000,
@@ -112,7 +119,7 @@ module.exports = {
     // or:
     //   node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
     // Required when enabled. Supports plain text / base64 / hex.
-    // IMPORTANT: replace with env injection in production.
+    // 推荐通过加密密钥文件或环境变量 TOTP_AUTH_TOTP_MASTER_KEY 注入。
     totpMasterKey: ''
   },
   audit: {
