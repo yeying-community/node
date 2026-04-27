@@ -4,6 +4,7 @@
   "main": "index.js",
   "scripts": {
     "test": "vitest run",
+    "check:api-prefixes": "node scripts/check-api-prefixes.cjs",
     "build": "rm -rf dist && tsc --project tsconfig.json",
     "build:web": "npm --prefix web run build",
     "build:all": "npm run build && npm run build:web",
