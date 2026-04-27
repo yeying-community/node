@@ -38,6 +38,8 @@
     "winston-daily-rotate-file": "^5.0.0"
   },
   "devDependencies": {
+    "@emnapi/core": "^1.10.0",
+    "@emnapi/runtime": "^1.10.0",
     "@types/config": "^3.3.5",
     "@types/cors": "^2.8.19",
     "@types/elliptic": "^6.4.18",
