@@ -9,6 +9,9 @@ function quoteIdent(value: string): string {
 
 function getSchemaRef() {
   const conn = SingletonDataSource.get()
+  if (conn.options.type !== 'postgres') {
+    return ''
+  }
   const schemaOption = (conn.options as { schema?: unknown }).schema
   const schema = typeof schemaOption === 'string' && schemaOption.trim() ? schemaOption : 'public'
   return quoteIdent(schema)
@@ -16,20 +19,32 @@ function getSchemaRef() {
 
 async function cleanupTable(table: string, cutoff: number) {
   const conn = SingletonDataSource.get()
+  const isPostgres = conn.options.type === 'postgres'
   const schemaRef = getSchemaRef()
+  const tableRef = isPostgres ? `${schemaRef}."${table}"` : `\`${table}\``
+  const createdAtExpr = isPostgres
+    ? "NULLIF(created_at, '')::bigint"
+    : "CAST(NULLIF(created_at, '') AS UNSIGNED)"
+  const marker = isPostgres ? '$1' : '?'
   const sql = `
-    DELETE FROM ${schemaRef}."${table}"
-    WHERE NULLIF(created_at, '')::bigint < $1
+    DELETE FROM ${tableRef}
+    WHERE ${createdAtExpr} < ${marker}
   `
   await conn.query(sql, [cutoff])
 }
 
 async function cleanupAuditTable(table: string, cutoff: number) {
   const conn = SingletonDataSource.get()
+  const isPostgres = conn.options.type === 'postgres'
   const schemaRef = getSchemaRef()
+  const tableRef = isPostgres ? `${schemaRef}."${table}"` : `\`${table}\``
+  const timeExpr = isPostgres
+    ? "NULLIF(time, '')::bigint"
+    : "CAST(NULLIF(time, '') AS UNSIGNED)"
+  const marker = isPostgres ? '$1' : '?'
   const sql = `
-    DELETE FROM ${schemaRef}."${table}"
-    WHERE NULLIF(time, '')::bigint < $1
+    DELETE FROM ${tableRef}
+    WHERE ${timeExpr} < ${marker}
   `
   await conn.query(sql, [cutoff])
 }

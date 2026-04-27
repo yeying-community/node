@@ -1,6 +1,3 @@
-import fs from 'fs'
-import os from 'os'
-import path from 'path'
 import { DataSource } from 'typeorm'
 import { SingletonDataSource } from '../src/domain/facade/datasource'
 import { ActionRequestDO } from '../src/domain/mapper/entity'
@@ -22,17 +19,16 @@ vi.doMock('../src/config/runtime', () => ({
 
 const { runActionRequestCleanupOnce } = await import('../src/domain/service/actionRequestCleanup')
 
-function createDbPath() {
-  return path.join(
-    os.tmpdir(),
-    `yeying-action-cleanup-${Date.now()}-${Math.random().toString(16).slice(2)}.sqlite`
-  )
-}
+const TEST_DATABASE_URL = String(process.env.TEST_DATABASE_URL || '').trim()
 
-async function initDatasource(database: string) {
+async function initDatasource() {
+  if (!TEST_DATABASE_URL) {
+    throw new Error('TEST_DATABASE_URL is required')
+  }
   const builder = new DataSourceBuilder({
-    type: 'better-sqlite3',
-    database,
+    type: 'postgres',
+    url: TEST_DATABASE_URL,
+    dropSchema: true,
     synchronize: true,
   })
   builder.entities([ActionRequestDO])
@@ -49,36 +45,22 @@ async function closeDatasource(datasource?: DataSource | null) {
   await datasource.destroy()
 }
 
-function removeDbFiles(database: string) {
-  for (const suffix of ['', '-journal', '-wal', '-shm']) {
-    const target = `${database}${suffix}`
-    if (fs.existsSync(target)) {
-      fs.rmSync(target, { force: true })
-    }
-  }
-}
-
 function isoFrom(baseMs: number, deltaMs: number) {
   return new Date(baseMs + deltaMs).toISOString()
 }
 
 describe('runActionRequestCleanupOnce', () => {
-  let database = ''
+  const runCase = TEST_DATABASE_URL ? it : it.skip
   let datasource: DataSource | null = null
 
   afterEach(async () => {
     await closeDatasource(datasource)
     datasource = null
-    if (database) {
-      removeDbFiles(database)
-      database = ''
-    }
   })
 
-  it('cleans success, failure and pending requests with separate retention policies', async () => {
+  runCase('cleans success, failure and pending requests with separate retention policies', async () => {
     const now = Date.parse('2026-04-03T12:00:00.000Z')
-    database = createDbPath()
-    datasource = await initDatasource(database)
+    datasource = await initDatasource()
     const repository = datasource.getRepository(ActionRequestDO)
 
     await repository.insert([

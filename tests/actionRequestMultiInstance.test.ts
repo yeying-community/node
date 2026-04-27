@@ -1,8 +1,5 @@
 import express, { Express } from 'express'
 import { AddressInfo } from 'net'
-import fs from 'fs'
-import os from 'os'
-import path from 'path'
 import { Wallet } from 'ethers'
 import { DataSource } from 'typeorm'
 import { buildActionSignatureMessage, executeSignedAction, getActionSignatureErrorStatus } from '../src/auth/actionSignature'
@@ -12,17 +9,16 @@ import { ActionRequestDO } from '../src/domain/mapper/entity'
 import { ActionRequestService } from '../src/domain/service/actionRequest'
 import { DataSourceBuilder } from '../src/infrastructure/db'
 
-function createDbPath() {
-  return path.join(
-    os.tmpdir(),
-    `yeying-action-request-${Date.now()}-${Math.random().toString(16).slice(2)}.sqlite`
-  )
-}
+const TEST_DATABASE_URL = String(process.env.TEST_DATABASE_URL || '').trim()
 
-async function initDatasource(database: string) {
+async function initDatasource() {
+  if (!TEST_DATABASE_URL) {
+    throw new Error('TEST_DATABASE_URL is required')
+  }
   const builder = new DataSourceBuilder({
-    type: 'better-sqlite3',
-    database,
+    type: 'postgres',
+    url: TEST_DATABASE_URL,
+    dropSchema: true,
     synchronize: true,
   })
   builder.entities([ActionRequestDO])
@@ -37,15 +33,6 @@ async function closeDatasource(datasource?: DataSource | null) {
     return
   }
   await datasource.destroy()
-}
-
-function removeDbFiles(database: string) {
-  for (const suffix of ['', '-journal', '-wal', '-shm']) {
-    const target = `${database}${suffix}`
-    if (fs.existsSync(target)) {
-      fs.rmSync(target, { force: true })
-    }
-  }
 }
 
 function buildRequestInput(overrides?: Partial<Parameters<ActionRequestService['begin']>[0]>) {
@@ -143,37 +130,30 @@ async function signBody(
 }
 
 describe('ActionRequestService multi-instance', () => {
-  let database = ''
+  const runCase = TEST_DATABASE_URL ? it : it.skip
   let datasource: DataSource | null = null
 
   afterEach(async () => {
     await closeDatasource(datasource)
     datasource = null
-    if (database) {
-      removeDbFiles(database)
-      database = ''
-    }
   })
 
-  it('keeps pending request state after a restarted instance', async () => {
-    database = createDbPath()
-
-    datasource = await initDatasource(database)
+  runCase('keeps pending request state after a restarted instance', async () => {
+    datasource = await initDatasource()
     const firstInstance = new ActionRequestService()
     await expect(firstInstance.begin(buildRequestInput())).resolves.toEqual({ kind: 'new' })
     await closeDatasource(datasource)
 
-    datasource = await initDatasource(database)
+    datasource = await initDatasource()
     const restartedInstance = new ActionRequestService()
 
     await expect(restartedInstance.begin(buildRequestInput())).rejects.toThrow('Request in progress')
   })
 
-  it('replays completed responses after a restarted instance', async () => {
-    database = createDbPath()
+  runCase('replays completed responses after a restarted instance', async () => {
     const responseBody = JSON.stringify(ok({ handledBy: 'instance-a' }))
 
-    datasource = await initDatasource(database)
+    datasource = await initDatasource()
     const firstInstance = new ActionRequestService()
     await expect(firstInstance.begin(buildRequestInput())).resolves.toEqual({ kind: 'new' })
     await firstInstance.complete({
@@ -185,7 +165,7 @@ describe('ActionRequestService multi-instance', () => {
     })
     await closeDatasource(datasource)
 
-    datasource = await initDatasource(database)
+    datasource = await initDatasource()
     const restartedInstance = new ActionRequestService()
 
     await expect(restartedInstance.begin(buildRequestInput())).resolves.toEqual({
@@ -195,14 +175,13 @@ describe('ActionRequestService multi-instance', () => {
     })
   })
 
-  it('replays the first route response across restarted instances', async () => {
-    database = createDbPath()
+  runCase('replays the first route response across restarted instances', async () => {
     const wallet = Wallet.createRandom()
     const requestId = 'req-route-multi-instance'
     const signedBody = await signBody(wallet, requestId, 'hello')
     const executionLog: string[] = []
 
-    datasource = await initDatasource(database)
+    datasource = await initDatasource()
     const appA = createSignedRouteApp('instance-a', executionLog)
     const firstJson = await withServer(appA, async (baseUrl) => {
       const response = await fetch(`${baseUrl}/signed`, {
@@ -216,7 +195,7 @@ describe('ActionRequestService multi-instance', () => {
     expect(executionLog).toEqual(['instance-a'])
     await closeDatasource(datasource)
 
-    datasource = await initDatasource(database)
+    datasource = await initDatasource()
     const appB = createSignedRouteApp('instance-b', executionLog)
     const secondJson = await withServer(appB, async (baseUrl) => {
       const response = await fetch(`${baseUrl}/signed`, {
