@@ -23,8 +23,10 @@ export class DataSourceBuilder {
         switch (this.options.type) {
             case 'mysql':
                 options = { ...this.options, port: this.options.port ?? 3306 }
+                break
             case 'postgres':
                 options = { ...this.options, port: this.options.port ?? 5432 }
+                break
             default:
                 options = this.options
         }

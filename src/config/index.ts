@@ -1,12 +1,13 @@
 export interface DatabaseConfig {
-    type: 'sqlite' | 'better-sqlite3' | 'mysql' | 'postgres'
+    type: 'mysql' | 'postgres'
     database: string
     username?: string
     password?: string
     host?: string
     port?: number
-    synchronize?: boolean
     logging?: boolean
+    schema?: string
+    synchronize?: boolean
 }
 
 export interface AppRuntimeConfig {

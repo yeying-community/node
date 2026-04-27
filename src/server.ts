@@ -177,10 +177,14 @@ assertSecurityPreflight()
 
 // 初始化数据库
 const databaseConfig: DatabaseConfig = getConfig<DatabaseConfig>('database')
-const shouldSynchronizeSchema =
-    (databaseConfig.type === 'sqlite' || databaseConfig.type === 'better-sqlite3') &&
-    Boolean(databaseConfig.synchronize)
-const builder = new DataSourceBuilder({ ...databaseConfig, synchronize: shouldSynchronizeSchema })
+if (databaseConfig.type !== 'postgres' && databaseConfig.type !== 'mysql') {
+    throw new Error(`Only postgres/mysql is supported, got: ${databaseConfig.type}`)
+}
+const usePostgresMigrations = databaseConfig.type === 'postgres'
+const builder = new DataSourceBuilder({
+    ...databaseConfig,
+    synchronize: usePostgresMigrations ? false : Boolean(databaseConfig.synchronize ?? true)
+})
 builder.entities([
     ActionRequestDO,
     UserStateDO,
@@ -213,15 +217,13 @@ builder.migrations([
 builder.build().initialize().then(async (conn) => {
     // 注册数据库连接
     SingletonDataSource.set(conn)
-    if (!shouldSynchronizeSchema) {
-        if (conn.options.type === 'postgres') {
-            const schema = (conn.options.schema as string) || 'public'
-            const schemaRef = `"${schema.replace(/"/g, '""')}"`
-            await conn.query(`CREATE SCHEMA IF NOT EXISTS ${schemaRef}`)
-        }
+    if (usePostgresMigrations) {
+        const schema = (conn.options as { schema?: string }).schema || 'public'
+        const schemaRef = `"${schema.replace(/"/g, '""')}"`
+        await conn.query(`CREATE SCHEMA IF NOT EXISTS ${schemaRef}`)
         await conn.runMigrations()
     } else {
-        console.log('Local sqlite synchronize mode enabled, skipping migrations.')
+        console.log('MySQL mode enabled, using synchronize schema initialization (no postgres migrations).')
     }
     console.log('The database has been initialized.')
     initMpcEventBus()

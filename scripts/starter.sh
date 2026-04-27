@@ -13,6 +13,13 @@ NODE_ENV_VALUE="${NODE_ENV:-production}"
 START_WAIT_SECONDS="${START_WAIT_SECONDS:-3}"
 SECRETS_FILE="${SECRETS_FILE:-$RUN_DIR/secrets.enc.json}"
 SECRETS_PASSWORD_FILE="${SECRETS_PASSWORD_FILE:-}"
+TEMP_SECRETS_PASSWORD_FILE=""
+
+cleanup_temp_secrets_password_file() {
+  if [[ -n "$TEMP_SECRETS_PASSWORD_FILE" && -f "$TEMP_SECRETS_PASSWORD_FILE" ]]; then
+    rm -f "$TEMP_SECRETS_PASSWORD_FILE" || true
+  fi
+}
 
 info() {
   printf '%s\n' "$*"
@@ -77,6 +84,7 @@ prepare_secrets_password_file() {
   printf '%s' "$password" > "$temp_password_file"
   unset password
   SECRETS_PASSWORD_FILE="$temp_password_file"
+  TEMP_SECRETS_PASSWORD_FILE="$temp_password_file"
 }
 
 runtime_dependencies_ready() {
@@ -132,6 +140,9 @@ start_app() {
   fi
 
   prepare_secrets_password_file
+  if [[ -n "$TEMP_SECRETS_PASSWORD_FILE" ]]; then
+    trap cleanup_temp_secrets_password_file EXIT INT TERM
+  fi
 
   if is_running; then
     info "服务已在运行，PID=$(read_pid)"
@@ -152,18 +163,19 @@ start_app() {
     echo $! > "$PID_FILE"
   )
 
-  if [[ -n "$SECRETS_PASSWORD_FILE" && -f "$SECRETS_PASSWORD_FILE" ]]; then
-    rm -f "$SECRETS_PASSWORD_FILE" || true
-    SECRETS_PASSWORD_FILE=""
-  fi
-
   sleep "$START_WAIT_SECONDS"
 
   if ! is_running; then
+    cleanup_temp_secrets_password_file
     info "启动失败，最近日志如下："
     tail -n 50 "$LOG_FILE" 2>/dev/null || true
     rm -f "$PID_FILE"
     exit 1
+  fi
+
+  if [[ -n "$TEMP_SECRETS_PASSWORD_FILE" ]]; then
+    trap - EXIT INT TERM
+    TEMP_SECRETS_PASSWORD_FILE=""
   fi
 
   info "服务启动成功，PID=$(read_pid)"

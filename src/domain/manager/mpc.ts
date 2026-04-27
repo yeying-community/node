@@ -76,13 +76,18 @@ export class MpcManager {
   }
 
   async queryMessages(query: MpcMessageQuery) {
+    const ds = SingletonDataSource.get()
+    const createdAtEpochExpr =
+      ds.options.type === 'postgres'
+        ? "NULLIF(message.created_at, '')::bigint"
+        : "CAST(NULLIF(message.created_at, '') AS UNSIGNED)"
     const qb = this.messageRepository.createQueryBuilder('message')
     qb.where('message.session_id = :sessionId', { sessionId: query.sessionId })
     if (typeof query.since === 'number' && Number.isFinite(query.since)) {
-      qb.andWhere("NULLIF(message.created_at, '')::bigint >= :since", { since: query.since })
+      qb.andWhere(`${createdAtEpochExpr} >= :since`, { since: query.since })
     }
     if (typeof query.cursorTime === 'number' && Number.isFinite(query.cursorTime)) {
-      qb.andWhere("NULLIF(message.created_at, '')::bigint > :cursorTime", { cursorTime: query.cursorTime })
+      qb.andWhere(`${createdAtEpochExpr} > :cursorTime`, { cursorTime: query.cursorTime })
     }
     qb.orderBy('message.created_at', 'ASC')
     qb.addOrderBy('message.id', 'ASC')

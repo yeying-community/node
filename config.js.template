@@ -16,24 +16,23 @@ module.exports = {
     file: 'run/secrets.enc.json'
   },
   database: {
-    // Default: local better-sqlite3 file for quick start and packaged smoke tests.
-    // Switch to mysql/postgres for shared test or production deployments.
-    // better-sqlite3 | sqlite | mysql | postgres
-    type: 'better-sqlite3',
-    // Database/schema name (for better-sqlite3/sqlite, this is the file path).
-    database: 'data/app.sqlite',
+    // 支持 postgres / mysql。
+    // 推荐 postgres；mysql 使用实体自动建表（synchronize）。
+    // mysql | postgres
+    type: 'postgres',
+    // Database name
+    database: 'node',
     host: '127.0.0.1',
     port: 5432,
     username: 'postgres',
     password: 'CHANGE_ME',
-    // Auto-sync schema.
-    // For the default local sqlite quick-start template this should stay true.
-    // For mysql/postgres shared deployments, keep it false and rely on migrations.
-    synchronize: true,
+    // postgres: 应保持 false，走 migration。
+    // mysql: 可设为 true（首次自动建表）。
+    synchronize: false,
     // Enable TypeORM SQL logging.
     // false | true | 'all' | ['error' | 'warn' | 'info' | 'log' | 'query' | 'schema' | 'migration']
     logging: false,
-    // Optional: schema name for postgres.
+    // Schema name for postgres（mysql 忽略）。
     schema: 'node'
   },
   auth: {
