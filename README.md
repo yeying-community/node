@@ -181,6 +181,31 @@ SECRETS_FILE=run/secrets.enc.json bash scripts/starter.sh restart
 - 启动时会提示输入密码，Node 进程内解密密钥并仅驻留内存
 - 详细说明见：`docs/加密启动.md`
 
+### 查看 UCAN Issuer DID
+
+有两种常用方式：
+
+1. 从加密密钥文件读取
+
+```bash
+node scripts/unlock-secrets.cjs --file run/secrets.enc.json | grep '^UCAN_ISSUER_DID='
+```
+
+如果不指定 `--file`，默认读取 `run/secrets.enc.json`。
+
+2. 从运行中服务读取当前生效值
+
+```bash
+curl http://127.0.0.1:8100/api/v1/public/auth/central/issuer
+```
+
+返回结果中的 `data.issuerDid` 就是当前服务实际使用的 DID。
+
+建议：
+- `ucanIssuer.did` 配置保持空值
+- 统一以 `UCAN_ISSUER_PRIVATE_KEY` 为唯一密钥源
+- DID 由私钥自动推导，避免手工填写不一致
+
 ![alt text](image.png)
 
 ![alt text](container.png)
