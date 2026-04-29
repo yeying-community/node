@@ -16,6 +16,7 @@ import {
   verifyTotpCodeForSubject,
 } from './totpAuth';
 import { getCurrentUtcString } from '../common/date';
+import { NotificationService, safelyRunNotificationTask } from '../domain/service/notification';
 
 export type TotpAuthorizeRequestStatus = 'pending' | 'used' | 'expired' | 'revoked';
 
@@ -103,6 +104,7 @@ type TotpAuthorizeRequestRecord = {
   attempts: number;
   sessionTtlMs?: number;
   tokenTtlMs?: number;
+  expiredNotified?: boolean;
 };
 
 type TotpAuthorizeCodeRecord = {
@@ -148,6 +150,48 @@ const DYNAMIC_CLIENT_CACHE = new Map<
     client: TotpAuthorizeClient | null;
   }
 >();
+
+function notifyAuthorizeApproved(record: {
+  requestId: string;
+  subject: string;
+  appId: string;
+  appName?: string;
+}) {
+  void safelyRunNotificationTask(async () => {
+    const service = new NotificationService();
+    await service.notifyTotpAuthorizeApproved(record);
+  });
+}
+
+function notifyAuthorizeExpired(record: {
+  requestId: string;
+  subject: string;
+  appId: string;
+  appName?: string;
+}) {
+  void safelyRunNotificationTask(async () => {
+    const service = new NotificationService();
+    await service.notifyTotpAuthorizeExpired(record);
+  });
+}
+
+function markRequestExpired(record: TotpAuthorizeRequestRecord, nowMs: number): TotpAuthorizeRequestRecord {
+  if (record.status !== 'pending' || nowMs <= record.expiresAt) {
+    return record;
+  }
+  record.status = 'expired';
+  record.updatedAt = nowMs;
+  if (!record.expiredNotified) {
+    record.expiredNotified = true;
+    notifyAuthorizeExpired({
+      requestId: record.requestId,
+      subject: record.subject,
+      appId: record.appId,
+      appName: record.appName,
+    });
+  }
+  return record;
+}
 
 function parsePositiveNumber(value: unknown, fallback: number): number {
   if (value === undefined || value === null || value === '') return fallback;
@@ -251,9 +295,7 @@ function cleanupAuthorizeRecords(nowMs = Date.now()): void {
 
   for (const [requestId, record] of AUTHORIZE_REQUESTS.entries()) {
     if (record.status === 'pending' && nowMs > record.expiresAt) {
-      record.status = 'expired';
-      record.updatedAt = nowMs;
-      AUTHORIZE_REQUESTS.set(requestId, record);
+      AUTHORIZE_REQUESTS.set(requestId, markRequestExpired(record, nowMs));
       continue;
     }
     if (record.status !== 'pending' && nowMs - record.updatedAt > GC_RETENTION_MS) {
@@ -498,10 +540,7 @@ function requirePendingRequest(
   record: TotpAuthorizeRequestRecord,
   nowMs: number
 ): TotpAuthorizeRequestRecord {
-  if (record.status === 'pending' && nowMs > record.expiresAt) {
-    record.status = 'expired';
-    record.updatedAt = nowMs;
-  }
+  markRequestExpired(record, nowMs);
   if (record.status === 'pending') {
     return record;
   }
@@ -661,6 +700,12 @@ export async function consumeTotpAuthorizeRequest(input: {
   pending.updatedAt = nowMs;
   AUTHORIZE_REQUESTS.set(requestId, pending);
   await markTotpEnrollmentBoundForSubject(pending.subject);
+  notifyAuthorizeApproved({
+    requestId: pending.requestId,
+    subject: pending.subject,
+    appId: pending.appId,
+    appName: pending.appName,
+  });
 
   return {
     requestId: pending.requestId,

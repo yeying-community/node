@@ -548,6 +548,13 @@ export function getCurrentAccount() {
   return localStorage.getItem('currentAccount');
 }
 
+export function getStoredAuthToken() {
+  if (typeof localStorage === 'undefined') {
+    return '';
+  }
+  return String(localStorage.getItem(AUTH_TOKEN_KEY) || '').trim();
+}
+
 export function logoutWithUcan(options: { redirect?: boolean } = {}) {
   const redirect = options.redirect !== false;
   markManualLogout();

@@ -27,17 +27,20 @@ import { AuditRuntimeConfig } from '../../config';
 import { v4 as uuidv4 } from 'uuid'
 import { isApproverMatch, normalizeAuditAddress } from '../../common/auditAccess';
 import { createResponsePage } from '../../common/page';
+import { NotificationService, safelyRunNotificationTask } from './notification';
 
 export class AuditService {
     private logger: Logger = SingletonLogger.get()
     private auditManager: AuditManager
     private commentManager: CommentManager
     private applicationManager: ApplicationManager
+    private notificationService: NotificationService
 
     constructor() {
         this.auditManager = new AuditManager()
         this.commentManager = new CommentManager()
         this.applicationManager = new ApplicationManager()
+        this.notificationService = new NotificationService()
     }
 
     private getAuditConfig(): AuditRuntimeConfig {
@@ -249,6 +252,94 @@ export class AuditService {
         return this.normalizeActor((applicant || '').split('::')[0] || '')
     }
 
+    private notifyAuditDecision(input: {
+        type: 'approved' | 'rejected'
+        audit?: AuditDO | null
+        actor?: string
+    }) {
+        const audit = input.audit
+        if (!audit) {
+            return
+        }
+        const applicant = this.extractApplicantAddress(audit.applicant)
+        if (!applicant) {
+            return
+        }
+        const targetName = String(audit.targetName || '').trim()
+        let targetUid = ''
+        try {
+            const parsed = JSON.parse(String(audit.appOrServiceMetadata || ''))
+            if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+                targetUid = String((parsed as Record<string, unknown>).uid || '').trim()
+            }
+        } catch {
+            targetUid = ''
+        }
+        void safelyRunNotificationTask(async () => {
+            if (input.type === 'approved') {
+                await this.notificationService.notifyAuditApproved({
+                    auditId: audit.uid,
+                    applicant,
+                    actor: input.actor,
+                    targetName,
+                    auditType: audit.auditType,
+                    targetUid,
+                    targetDid: audit.targetDid,
+                    targetVersion: audit.targetVersion,
+                })
+                return
+            }
+            await this.notificationService.notifyAuditRejected({
+                auditId: audit.uid,
+                applicant,
+                actor: input.actor,
+                targetName,
+                auditType: audit.auditType,
+                targetUid,
+                targetDid: audit.targetDid,
+                targetVersion: audit.targetVersion,
+            })
+        })
+    }
+
+    private notifyAuditCreated(input: {
+        audit: AuditDO
+        actor?: string
+        applicant?: string
+    }) {
+        const audit = input.audit
+        if (!audit) {
+            return
+        }
+        const policy = this.parseApproverPolicy(audit.approver)
+        const recipients = this.normalizeApproverActors(policy.approvers)
+        if (recipients.length === 0) {
+            return
+        }
+        let targetUid = ''
+        try {
+            const parsed = JSON.parse(String(audit.appOrServiceMetadata || ''))
+            if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+                targetUid = String((parsed as Record<string, unknown>).uid || '').trim()
+            }
+        } catch {
+            targetUid = ''
+        }
+        void safelyRunNotificationTask(async () => {
+            await this.notificationService.notifyAuditCreated({
+                auditId: audit.uid,
+                recipients,
+                actor: input.actor,
+                applicant: input.applicant,
+                targetName: String(audit.targetName || '').trim(),
+                auditType: audit.auditType,
+                targetUid,
+                targetDid: audit.targetDid,
+                targetVersion: audit.targetVersion,
+            })
+        })
+    }
+
     private enrichAuditMetadata(
         metadataRaw: string,
         target: { operateType: string; did: string; version: number },
@@ -403,6 +494,11 @@ export class AuditService {
         if (isPublishRequest) {
             await this.updateTargetPublishState(target, 'BUSINESS_STATUS_REVIEWING', false)
         }
+        this.notifyAuditCreated({
+            audit: auditDO,
+            actor: user?.address,
+            applicant: meta.applicant,
+        })
         return await this.queryById(auditDO.uid)
     }
 
@@ -551,6 +647,21 @@ export class AuditService {
                     signature: audit.signature,
                 })
                 await this.updateTargetPublishState(target, 'BUSINESS_STATUS_ONLINE', true)
+                this.notifyAuditDecision({
+                    type: 'approved',
+                    audit,
+                    actor,
+                })
+            }
+        } else if (audit) {
+            const updated = await this.commentManager.queryByAuditId(comment.auditId)
+            const updatedDecision = this.summarizeDecision(updated, policy.requiredApprovals)
+            if (updatedDecision.approvalCount >= policy.requiredApprovals) {
+                this.notifyAuditDecision({
+                    type: 'approved',
+                    audit,
+                    actor,
+                })
             }
         }
         return saved
@@ -599,6 +710,11 @@ export class AuditService {
             })
             await this.updateTargetPublishState(target, 'BUSINESS_STATUS_REJECTED', false)
         }
+        this.notifyAuditDecision({
+            type: 'rejected',
+            audit,
+            actor,
+        })
         return saved
     }
     
