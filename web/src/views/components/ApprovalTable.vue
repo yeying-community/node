@@ -1,8 +1,11 @@
 <template>
-    <el-table :data="items" style="width: 100%">
+    <el-table :data="items" style="width: 100%" :row-class-name="resolveRowClassName">
         <el-table-column prop="name" label="名称" min-width="300">
             <template #default="scope">
-                <div class="name">{{ scope.row.name }}</div>
+                <div class="name-row">
+                    <div class="name">{{ scope.row.name }}</div>
+                    <span v-if="isJustHandled(scope.row)" class="handled-tag">刚刚处理</span>
+                </div>
                 <el-tooltip class="box-item" effect="dark" :content="scope.row.desc" placement="top-start">
                     <el-text class="w-400px mb-2" truncated>{{ scope.row.desc }}</el-text>
                 </el-tooltip>
@@ -64,37 +67,17 @@
             </template>
         </el-table-column>
     </el-table>
-
-    <ApplRoveModal
-        :applroveShow="applroveShow"
-        :uid="record.uid"
-        :closeClick="closeClick"
-        :afterSubmit="handleAfterSubmit"
-    />
 </template>
 
 <script lang="ts" setup>
-import ApplRoveModal from './ApplRoveModal.vue'
 import dayjs from 'dayjs'
 import { Warning } from '@element-plus/icons-vue'
 import { ref } from 'vue'
 import { useRouter } from 'vue-router'
 import type { AuditDetailBox } from '@/plugins/audit'
 
-const emit = defineEmits(['refresh'])
+const emit = defineEmits(['refresh', 'open-approve'])
 const router = useRouter()
-
-const applroveShow = ref(false)
-const record = ref<AuditDetailBox>({
-    uid: '',
-    name : '',
-    desc : '',
-    applicantor: '',
-    state: '',
-    date: '',
-    typeLabel: '',
-    progress: '',
-})
 
 const statusInfo = {
     待审批: 'primary',
@@ -120,8 +103,7 @@ const shortAddress = (value?: string) => {
 }
 
 const handleClick = (row: any) => {
-    record.value = row 
-    applroveShow.value = true
+    emit('open-approve', row)
 }
 
 const handleDetail = (row: AuditDetailBox) => {
@@ -145,17 +127,24 @@ const handleDetail = (row: AuditDetailBox) => {
     router.push({ path: '/market/dev/apply-detail', query })
 }
 
-const closeClick = () => {
-    applroveShow.value = false
+const resolveRowClassName = ({ row }: { row: AuditDetailBox }) => {
+    const highlightAuditId = String(props.highlightAuditId || '').trim()
+    const rowAuditId = String(row.uid || '').trim()
+    if (highlightAuditId && rowAuditId === highlightAuditId) {
+        return 'approval-row-highlight'
+    }
+    return ''
 }
 
-const handleAfterSubmit = () => {
-    applroveShow.value = false
-    emit('refresh')
+const isJustHandled = (row: AuditDetailBox) => {
+    const highlightAuditId = String(props.highlightAuditId || '').trim()
+    const rowAuditId = String(row.uid || '').trim()
+    return Boolean(highlightAuditId && rowAuditId === highlightAuditId)
 }
 
 const props = defineProps({
     pageTabFrom: String, // finishApproval审批完成 / waitApproval待我审批
+    highlightAuditId: String,
     items: {
         type: Array as () => AuditDetailBox[],
         default: () => []
@@ -178,6 +167,25 @@ const props = defineProps({
 
 .name {
     color: rgba(22, 119, 255, 1);
+    font-weight: 500;
+}
+
+.name-row {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.handled-tag {
+    display: inline-flex;
+    align-items: center;
+    height: 20px;
+    padding: 0 8px;
+    border-radius: 999px;
+    background: rgba(34, 197, 94, 0.12);
+    color: rgba(21, 128, 61, 0.95);
+    font-size: 12px;
+    line-height: 1;
     font-weight: 500;
 }
 
@@ -208,5 +216,9 @@ const props = defineProps({
     font-size: 13px;
     line-height: 1.45;
     color: rgba(0, 0, 0, 0.45);
+}
+
+:deep(.approval-row-highlight > td) {
+    background: rgba(34, 197, 94, 0.08) !important;
 }
 </style>

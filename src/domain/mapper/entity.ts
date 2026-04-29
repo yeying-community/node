@@ -69,6 +69,93 @@ export class TotpSubjectSecretDO {
     boundAt!: string
 }
 
+@Entity('notifications')
+@Index('idx_notification_type_created_at', ['type', 'createdAt'])
+export class NotificationDO {
+    @PrimaryGeneratedColumn('uuid')
+    uid!: string
+
+    @Column({ length: 128 })
+    type!: string
+
+    @Column({ length: 64 })
+    source!: string
+
+    @Column({ length: 64, name: 'subject_type' })
+    subjectType!: string
+
+    @Column({ length: 128, name: 'subject_id' })
+    subjectId!: string
+
+    @Column({ length: 128, default: '' })
+    actor!: string
+
+    @Column({ length: 64, name: 'audience_type', default: 'user' })
+    audienceType!: string
+
+    @Column({ type: 'text', name: 'audience_ids', default: '' })
+    audienceIds!: string
+
+    @Column({ length: 32, default: 'info' })
+    level!: string
+
+    @Column({ length: 256 })
+    title!: string
+
+    @Column({ type: 'text', default: '' })
+    body!: string
+
+    @Column({ type: 'text', default: '' })
+    payload!: string
+
+    @Column({ length: 32, default: 'delivered' })
+    status!: string
+
+    @Column({ length: 64, name: 'created_at' })
+    createdAt!: string
+
+    @Column({ length: 64, name: 'updated_at' })
+    updatedAt!: string
+
+    @Column({ length: 64, name: 'expires_at', default: '' })
+    expiresAt!: string
+}
+
+@Entity('notification_inboxes')
+@Index('idx_notification_inbox_recipient_created_at', ['recipient', 'createdAt'])
+@Index('idx_notification_inbox_notification_uid', ['notificationUid'])
+export class NotificationInboxDO {
+    @PrimaryGeneratedColumn('uuid')
+    uid!: string
+
+    @Column({ length: 64, name: 'notification_uid' })
+    notificationUid!: string
+
+    @Column({ length: 128 })
+    recipient!: string
+
+    @Column({ length: 32, name: 'recipient_type', default: 'user' })
+    recipientType!: string
+
+    @Column({ type: 'boolean', name: 'is_read', default: false })
+    isRead!: boolean
+
+    @Column({ length: 64, name: 'read_at', default: '' })
+    readAt!: string
+
+    @Column({ length: 64, name: 'delivered_at', default: '' })
+    deliveredAt!: string
+
+    @Column({ length: 64, name: 'archived_at', default: '' })
+    archivedAt!: string
+
+    @Column({ length: 64, name: 'created_at' })
+    createdAt!: string
+
+    @Column({ length: 64, name: 'updated_at' })
+    updatedAt!: string
+}
+
 @Entity('action_requests')
 @Index('idx_action_request_dedup', ['actor', 'requestId'], { unique: true })
 export class ActionRequestDO {

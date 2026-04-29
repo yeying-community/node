@@ -136,6 +136,7 @@ const submitForm = () => {
                     ElMessage.success('审批通过')
                 } catch (e) {
                     notifyError(`审批失败: ${e}`)
+                    return
                 }
             } else if (applyResult === 'reject') {
                 try {
@@ -147,11 +148,13 @@ const submitForm = () => {
                     ElMessage.success('已驳回')
                 } catch (e) {
                     notifyError(`审批失败: ${e}`)
+                    return
                 }
             }
             resetForm()
-            props.afterSubmit?.()
-            props.closeClick?.()
+            await props.afterSubmit?.({
+                decision: applyResult
+            })
         } else {
             notifyError('请先选择审批结果')
         }

@@ -14,6 +14,8 @@ import {
     CommentDO,
     ApplicationConfigDO,
     TotpSubjectSecretDO,
+    NotificationDO,
+    NotificationInboxDO,
     MpcSessionDO,
     MpcSessionParticipantDO,
     MpcMessageDO,
@@ -33,6 +35,7 @@ import { registerPublicApplicationRoutes } from './routes/public/applications';
 import { registerPublicAuditRoutes } from './routes/public/audits';
 import { registerPublicHealthRoute } from './routes/public/health';
 import { registerPublicMpcRoutes } from './routes/public/mpc';
+import { registerPublicNotificationRoutes } from './routes/public/notifications';
 import { registerAdminAuditRoutes } from './routes/admin/audits';
 import { registerAdminUserRoutes } from './routes/admin/users';
 import { InitSchema20260126120000 } from './migrations/20260126120000-init-schema';
@@ -46,6 +49,7 @@ import { AddTotpSubjectSecrets20260423182000 } from './migrations/20260423182000
 import { AddApplicationUcanPolicy20260423193000 } from './migrations/20260423193000-add-application-ucan-policy';
 import { BackfillApplicationUcanPolicy20260424110000 } from './migrations/20260424110000-backfill-application-ucan-policy';
 import { FixApplicationUcanPolicyRouterPriority20260424123000 } from './migrations/20260424123000-fix-application-ucan-policy-router-priority';
+import { AddNotifications20260429110000 } from './migrations/20260429110000-add-notifications';
 import { getConfig } from './config/runtime';
 import { startActionRequestCleanupJobs } from './domain/service/actionRequestCleanup';
 import { startMpcCleanupJobs } from './domain/service/mpcCleanup';
@@ -194,6 +198,8 @@ builder.entities([
     CommentDO,
     ApplicationConfigDO,
     TotpSubjectSecretDO,
+    NotificationDO,
+    NotificationInboxDO,
     MpcSessionDO,
     MpcSessionParticipantDO,
     MpcMessageDO,
@@ -211,7 +217,8 @@ builder.migrations([
     AddTotpSubjectSecrets20260423182000,
     AddApplicationUcanPolicy20260423193000,
     BackfillApplicationUcanPolicy20260424110000,
-    FixApplicationUcanPolicyRouterPriority20260424123000
+    FixApplicationUcanPolicyRouterPriority20260424123000,
+    AddNotifications20260429110000
 ])
 
 builder.build().initialize().then(async (conn) => {
@@ -268,6 +275,7 @@ builder.build().initialize().then(async (conn) => {
     registerPublicApplicationRoutes(app);
     registerPublicAuditRoutes(app);
     registerPublicMpcRoutes(app);
+    registerPublicNotificationRoutes(app);
     registerAdminAuditRoutes(app);
     registerAdminUserRoutes(app);
     registerWebStaticRoutes(app, webDistDir);

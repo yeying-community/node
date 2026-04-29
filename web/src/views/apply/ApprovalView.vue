@@ -91,8 +91,10 @@
             <div style="width: 100%">
                 <ApprovalTable
                     :pageTabFrom="tabIndex ? 'finishApproval' : 'waitApproval'"
+                    :highlightAuditId="highlightAuditId"
                     :items="tableData"
                     @refresh="search"
+                    @open-approve="openApproveModal"
                 />
             </div>
         </div>
@@ -108,18 +110,34 @@
             @size-change="handleSizeChange"
         />
     </div>
+
+    <ApplRoveModal
+        :applroveShow="approveDialogVisible"
+        :uid="currentApproveAuditId"
+        :closeClick="closeApproveModal"
+        :afterSubmit="handleApproveSubmitted"
+    />
 </template>
 
 <script lang="ts" setup>
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, onBeforeUnmount, onMounted, watch } from 'vue'
 import dayjs from 'dayjs'
 import ApprovalTable from '@/views/components/ApprovalTable.vue'
 import $audit, { AuditDetailBox, convertAuditMetadata } from '@/plugins/audit'
 import { notifyError } from '@/utils/message'
 import { getCurrentAccount } from '@/plugins/auth'
+import { useRoute, useRouter } from 'vue-router'
+import ApplRoveModal from '@/views/components/ApplRoveModal.vue'
 
+const route = useRoute()
+const router = useRouter()
 const formRef = ref(null)
 const tabIndex = ref(0)
+const approveDialogVisible = ref(false)
+const currentApproveAuditId = ref('')
+const autoOpenedAuditId = ref('')
+const highlightAuditId = ref('')
+let highlightTimer: number | null = null
 const formInline = reactive({
     appName: '',
     auditType: 'application',
@@ -168,6 +186,68 @@ const onReset = (formEl: any) => {
 
 const tableData = ref<AuditDetailBox[]>([])
 
+const openApproveModal = (row: AuditDetailBox) => {
+    const auditId = String(row.uid || '').trim()
+    if (!auditId) {
+        return
+    }
+    currentApproveAuditId.value = auditId
+    approveDialogVisible.value = true
+}
+
+const closeApproveModal = async () => {
+    approveDialogVisible.value = false
+    currentApproveAuditId.value = ''
+    if (String(route.query.auditId || '').trim()) {
+        const nextQuery = { ...route.query }
+        delete nextQuery.auditId
+        await router.replace({ path: route.path, query: nextQuery })
+    }
+}
+
+const handleApproveSubmitted = async (input?: { decision?: string }) => {
+    const handledAuditId = currentApproveAuditId.value
+    approveDialogVisible.value = false
+    currentApproveAuditId.value = ''
+    if (tabIndex.value === 0 && (input?.decision === 'passed' || input?.decision === 'reject')) {
+        tabIndex.value = 1
+        formInline.status = input.decision === 'passed' ? '审批通过' : '审批驳回'
+        pagination.value.page = 1
+    }
+    await search()
+    if (handledAuditId) {
+        highlightAuditId.value = handledAuditId
+        if (highlightTimer !== null) {
+            window.clearTimeout(highlightTimer)
+        }
+        highlightTimer = window.setTimeout(() => {
+            highlightAuditId.value = ''
+            highlightTimer = null
+        }, 4000)
+    }
+    if (String(route.query.auditId || '').trim()) {
+        const nextQuery = { ...route.query }
+        delete nextQuery.auditId
+        await router.replace({ path: route.path, query: nextQuery })
+    }
+}
+
+const tryAutoOpenApproveModal = () => {
+    if (tabIndex.value !== 0) {
+        return
+    }
+    const targetAuditId = String(route.query.auditId || '').trim()
+    if (!targetAuditId || autoOpenedAuditId.value === targetAuditId) {
+        return
+    }
+    const targetRow = tableData.value.find((item) => String(item.uid || '').trim() === targetAuditId)
+    if (!targetRow) {
+        return
+    }
+    autoOpenedAuditId.value = targetAuditId
+    openApproveModal(targetRow)
+}
+
 const search = async () => {
     try {
         const account = getCurrentAccount()
@@ -203,6 +283,7 @@ const search = async () => {
         pagination.value.total = Number(result.page?.total || 0)
         pagination.value.page = Number(result.page?.page || pagination.value.page)
         pagination.value.pageSize = Number(result.page?.pageSize || pagination.value.pageSize)
+        tryAutoOpenApproveModal()
     } catch (error) {
         console.error('获取审批列表失败', error)
         notifyError(`❌ 获取审批列表失败 ${error}`)
@@ -222,6 +303,29 @@ const onSubmit = () => {
 onMounted(() => {
     search()
 })
+
+onBeforeUnmount(() => {
+    if (highlightTimer !== null) {
+        window.clearTimeout(highlightTimer)
+        highlightTimer = null
+    }
+})
+
+watch(
+    () => [route.query.auditId, tabIndex.value] as const,
+    ([nextAuditId]) => {
+        if (!String(nextAuditId || '').trim()) {
+            autoOpenedAuditId.value = ''
+            return
+        }
+        if (tabIndex.value !== 0) {
+            tabIndex.value = 0
+            return
+        }
+        tryAutoOpenApproveModal()
+    },
+    { immediate: true }
+)
 </script>
 <style scoped lang="less">
 .approval {
