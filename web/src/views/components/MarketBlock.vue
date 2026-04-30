@@ -486,7 +486,12 @@ const handleCardClick = () => {
     if (props.pageFrom !== 'market') {
         return
     }
-    toDetail()
+    const target = normalizeLocationUrl(props.detail?.location)
+    if (!target) {
+        toDetail()
+        return
+    }
+    window.location.href = target
 }
 const toList = () => {
     innerVisible.value = false
