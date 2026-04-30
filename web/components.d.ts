@@ -65,4 +65,7 @@ declare module 'vue' {
     Uploader: typeof import('./src/components/common/Uploader.vue')['default']
     UserMenu: typeof import('./src/components/common/UserMenu.vue')['default']
   }
+  export interface GlobalDirectives {
+    vLoading: typeof import('element-plus/es')['ElLoadingDirective']
+  }
 }
