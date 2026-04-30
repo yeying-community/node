@@ -7,8 +7,11 @@ import {
   isUcanToken,
   peekUcanTokenPayload,
   verifyUcanInvocation,
+  verifyUcanInvocationWithCap,
 } from '../auth/ucan';
 import { runWithRequestContext } from '../common/requestContext';
+import { getConfig } from '../config/runtime';
+import { MpcRuntimeConfig } from '../config';
 import { SingletonLogger } from '../domain/facade/logger';
 
 const PUBLIC_ROUTES = [
@@ -38,6 +41,24 @@ function getRequestIp(req: Request): string {
   return req.socket.remoteAddress || '';
 }
 
+function getRouteRequiredUcanCapabilities(req: Request) {
+  if (!req.path.startsWith('/api/v1/public/mpc')) {
+    return null;
+  }
+  const config = (getConfig<MpcRuntimeConfig>('mpc') || {}) as MpcRuntimeConfig;
+  const resource = String(config.ucanWith || '').trim();
+  const action = String(config.ucanCan || '').trim();
+  if (!resource && !action) {
+    return [];
+  }
+  return [
+    {
+      with: resource || '*',
+      can: action || '*',
+    },
+  ];
+}
+
 const authenticateToken = (req: Request, res: Response, next: NextFunction) => {
   const logger = SingletonLogger.get();
 
@@ -65,7 +86,11 @@ const authenticateToken = (req: Request, res: Response, next: NextFunction) => {
 
   if (isUcanToken(token)) {
     try {
-      const result = verifyUcanInvocation(token);
+      const routeCaps = getRouteRequiredUcanCapabilities(req);
+      const result =
+        routeCaps && routeCaps.length > 0
+          ? verifyUcanInvocationWithCap(token, routeCaps)
+          : verifyUcanInvocation(token);
       const user: AuthUser = {
         address: result.address,
         issuer: result.issuer,
@@ -77,13 +102,17 @@ const authenticateToken = (req: Request, res: Response, next: NextFunction) => {
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Invalid UCAN token';
       const claims = peekUcanTokenPayload(token);
+      const routeCaps = getRouteRequiredUcanCapabilities(req);
       logger.warn('ucan verification failed', {
         method: req.method,
         path: req.originalUrl,
         ip: getRequestIp(req),
         reason: message,
         expectedAud: getRequiredUcanAudience(),
-        expectedCap: getRequiredUcanCapability(),
+        expectedCap:
+          routeCaps && routeCaps.length > 0
+            ? routeCaps
+            : getRequiredUcanCapability(),
         tokenAud: claims?.aud,
         tokenCap: claims?.cap,
         tokenIss: claims?.iss,

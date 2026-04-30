@@ -3,6 +3,7 @@ import { Repository } from 'typeorm';
 import type { UcanCapability } from './ucanIssuer';
 import { getConfig } from '../config/runtime';
 import { SingletonDataSource } from '../domain/facade/datasource';
+import { SingletonLogger } from '../domain/facade/logger';
 import { TotpSubjectSecretDO } from '../domain/mapper/entity';
 import { getRuntimeSecret } from '../security/secretVault';
 
@@ -554,6 +555,16 @@ async function ensureTotpSecretRecord(subject: string): Promise<TotpSubjectSecre
   }
 }
 
+async function resetTotpSecretRecord(record: TotpSubjectSecretDO): Promise<TotpSubjectSecretDO> {
+  const repository = getTotpSecretRepository();
+  const now = nowIso();
+  record.secretCiphertext = encryptTotpSecret(crypto.randomBytes(TOTP_SECRET_BYTES));
+  record.isBound = false;
+  record.boundAt = '';
+  record.updatedAt = now;
+  return await repository.save(record);
+}
+
 async function markTotpSecretBound(subject: string): Promise<void> {
   const repository = getTotpSecretRepository();
   const record = await repository.findOneBy({ subject });
@@ -716,12 +727,30 @@ export async function verifyTotpCodeForSubject(
 
 export async function getTotpProvision(subjectInput: string): Promise<TotpProvision> {
   const runtime = ensureTotpAuthReady();
+  const logger = SingletonLogger.get();
   const subject = normalizeSubject(subjectInput);
   if (!subject) {
     throw new TotpAuthError(400, 'TOTP_AUTH_SUBJECT_REQUIRED', 'Missing subject');
   }
-  const record = await ensureTotpSecretRecord(subject);
-  const secretBuffer = decryptTotpSecret(record.secretCiphertext);
+  let record = await ensureTotpSecretRecord(subject);
+  let secretBuffer: Buffer;
+  try {
+    secretBuffer = decryptTotpSecret(record.secretCiphertext);
+  } catch (error) {
+    const isCorruptedSecret =
+      error instanceof TotpAuthError &&
+      error.code === 'TOTP_AUTH_SECRET_CORRUPTED';
+    if (!isCorruptedSecret) {
+      throw error;
+    }
+    logger?.warn?.('totp secret corrupted, rotating secret automatically', {
+      subject,
+      isBound: Boolean(record.isBound),
+      reason: error instanceof Error ? error.message : 'unknown'
+    });
+    record = await resetTotpSecretRecord(record);
+    secretBuffer = decryptTotpSecret(record.secretCiphertext);
+  }
   const secret = base32Encode(secretBuffer);
   const accountName = subject;
   return {

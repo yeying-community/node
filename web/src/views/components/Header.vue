@@ -118,6 +118,7 @@
                 </span>
                 <template #dropdown>
                     <el-dropdown-menu>
+                        <el-dropdown-item command="totpProvision">认证器配置</el-dropdown-item>
                         <el-dropdown-item command="logout">退出登录</el-dropdown-item>
                     </el-dropdown-menu>
                 </template>
@@ -125,15 +126,68 @@
             <span v-else>--</span>
         </div>
     </div>
+    <el-dialog
+        v-model="totpDialogVisible"
+        title="认证器配置"
+        width="420px"
+        class="totp-provision-dialog"
+        destroy-on-close
+    >
+        <div v-loading="totpProvisionLoading" class="totp-dialog-body">
+            <template v-if="totpProvision">
+                <div class="totp-dialog-qr">
+                    <img v-if="totpQrDataUrl" :src="totpQrDataUrl" alt="认证器二维码" />
+                    <div v-else class="totp-dialog-qr-empty">二维码不可用</div>
+                </div>
+                <div class="totp-dialog-hint">使用认证器扫码绑定当前登录地址</div>
+                <div class="totp-dialog-meta">
+                    <div class="totp-meta-row">
+                        <span class="totp-meta-label">Issuer</span>
+                        <span class="totp-meta-value">{{ totpProvision.issuer }}</span>
+                    </div>
+                    <div class="totp-meta-row">
+                        <span class="totp-meta-label">账户</span>
+                        <span class="totp-meta-value">{{ totpProvision.accountName }}</span>
+                    </div>
+                    <div class="totp-meta-row">
+                        <span class="totp-meta-label">周期</span>
+                        <span class="totp-meta-value">{{ totpProvision.period }}s / {{ totpProvision.digits }} 位</span>
+                    </div>
+                </div>
+                <div class="totp-dialog-actions">
+                    <el-button @click="copyText(totpProvision.secret, 'TOTP secret')">复制 Secret</el-button>
+                    <el-button @click="copyText(totpProvision.otpauthUri, 'otpauthUri')">复制链接</el-button>
+                </div>
+            </template>
+            <div v-else class="totp-dialog-empty">未获取到认证器配置</div>
+        </div>
+    </el-dialog>
 </template>
 <script lang="ts" setup>
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import dayjs from 'dayjs'
+import QRCode from 'qrcode'
 import { BellFilled, CaretBottom, Check, DocumentCopy, QuestionFilled, Search } from '@element-plus/icons-vue'
-import { getCurrentAccount, getStoredAuthToken, logoutWithUcan } from '@/plugins/auth'
+import { apiUrl } from '@/plugins/api'
+import { getAuthToken, getCurrentAccount, getStoredAuthToken, logoutWithUcan } from '@/plugins/auth'
 import $notification, { type NotificationListItem, type NotificationStreamPayload } from '@/plugins/notification'
-import { notifyError } from '@/utils/message'
+import { notifyError, notifySuccess } from '@/utils/message'
+
+type Envelope<T> = {
+    code?: number
+    message?: string
+    data?: T
+}
+
+type TotpProvision = {
+    issuer: string
+    accountName: string
+    secret: string
+    otpauthUri: string
+    period: number
+    digits: number
+}
 
 const router = useRouter();
 const route = useRoute()
@@ -145,6 +199,10 @@ const notificationLoading = ref(false)
 const unreadCount = ref(0)
 const notifications = ref<NotificationListItem[]>([])
 const notificationListDirty = ref(false)
+const totpDialogVisible = ref(false)
+const totpProvisionLoading = ref(false)
+const totpProvision = ref<TotpProvision | null>(null)
+const totpQrDataUrl = ref('')
 let notificationStream: { close: () => void } | null = null
 let notificationErrorShown = false
 let copiedTimer: number | null = null
@@ -389,8 +447,88 @@ async function copyCurrentAddress() {
     }
 }
 
+async function parseEnvelope<T>(response: Response, fallbackMessage: string): Promise<T> {
+    const text = await response.text()
+    let parsed: Envelope<T> | null = null
+    if (text) {
+        try {
+            parsed = JSON.parse(text) as Envelope<T>
+        } catch {
+            throw new Error(`${fallbackMessage}: ${text}`)
+        }
+    }
+    if (!response.ok) {
+        throw new Error(parsed?.message || `${fallbackMessage}: ${response.status}`)
+    }
+    if (!parsed || parsed.code !== 0) {
+        throw new Error(parsed?.message || fallbackMessage)
+    }
+    return parsed.data as T
+}
+
+async function renderTotpQrCode(uri: string) {
+    const value = String(uri || '').trim()
+    if (!value) {
+        totpQrDataUrl.value = ''
+        return
+    }
+    try {
+        totpQrDataUrl.value = await QRCode.toDataURL(value, {
+            margin: 1,
+            width: 220,
+            errorCorrectionLevel: 'M'
+        })
+    } catch {
+        totpQrDataUrl.value = ''
+        notifyError('生成二维码失败，可改为复制链接手动导入')
+    }
+}
+
+async function copyText(value: string, label: string) {
+    const normalized = String(value || '').trim()
+    if (!normalized) {
+        return
+    }
+    await navigator.clipboard.writeText(normalized)
+    notifySuccess(`${label} 已复制`)
+}
+
+async function openTotpProvisionDialog() {
+    try {
+        const token = await getAuthToken()
+        if (!token) {
+            notifyError('缺少登录态，请先登录')
+            return
+        }
+        totpDialogVisible.value = true
+        totpProvisionLoading.value = true
+        totpProvision.value = null
+        totpQrDataUrl.value = ''
+        const response = await fetch(apiUrl('/api/v1/public/auth/totp/totp/provision'), {
+            method: 'GET',
+            headers: {
+                Authorization: `Bearer ${token}`
+            },
+            credentials: 'include'
+        })
+        totpProvision.value = await parseEnvelope<TotpProvision>(response, '获取认证器配置失败')
+        await renderTotpQrCode(totpProvision.value.otpauthUri)
+    } catch (error) {
+        totpDialogVisible.value = false
+        totpProvision.value = null
+        totpQrDataUrl.value = ''
+        notifyError(String(error))
+    } finally {
+        totpProvisionLoading.value = false
+    }
+}
+
 const handleAccountCommand = async (command: string | number | object) => {
     const action = String(command)
+    if (action === 'totpProvision') {
+        await openTotpProvisionDialog()
+        return
+    }
     if (action !== 'logout') {
         return
     }
@@ -596,6 +734,78 @@ onBeforeUnmount(() => {
             color: rgba(0,0,0,0.45);
         }
     }
+}
+
+.totp-dialog-body{
+    min-height: 320px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 14px;
+}
+
+.totp-dialog-qr{
+    width: 236px;
+    height: 236px;
+    border-radius: 20px;
+    background: #f8fafc;
+    border: 1px solid rgba(15, 23, 42, 0.08);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    img{
+        width: 220px;
+        height: 220px;
+        display: block;
+    }
+}
+
+.totp-dialog-qr-empty,
+.totp-dialog-empty{
+    color: rgba(15,23,42,0.46);
+    font-size: 13px;
+}
+
+.totp-dialog-hint{
+    font-size: 13px;
+    color: rgba(15,23,42,0.64);
+}
+
+.totp-dialog-meta{
+    width: 100%;
+    padding: 12px 14px;
+    border-radius: 14px;
+    background: #f8fafc;
+    border: 1px solid rgba(15, 23, 42, 0.08);
+}
+
+.totp-meta-row{
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    font-size: 13px;
+    &:not(:first-child){
+        margin-top: 8px;
+    }
+}
+
+.totp-meta-label{
+    color: rgba(15,23,42,0.46);
+}
+
+.totp-meta-value{
+    color: rgba(15,23,42,0.88);
+    text-align: right;
+    word-break: break-all;
+}
+
+.totp-dialog-actions{
+    width: 100%;
+    display: flex;
+    justify-content: center;
+    gap: 10px;
 }
 
 :deep(.notification-popover){
