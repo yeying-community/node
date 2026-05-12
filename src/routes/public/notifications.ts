@@ -56,6 +56,8 @@ export function registerPublicNotificationRoutes(app: Express) {
       const result = await service.list({
         recipient: address,
         unreadOnly: parseBoolean(req.query.unreadOnly),
+        source: String(req.query.source || '').trim(),
+        level: String(req.query.level || '').trim(),
         page: parsePositiveInt(req.query.page, 1),
         pageSize: parsePositiveInt(req.query.pageSize, 20),
       })
@@ -137,17 +139,37 @@ export function registerPublicNotificationRoutes(app: Express) {
       res.setHeader('Connection', 'keep-alive')
       res.flushHeaders?.()
 
-      const writeEvent = (event: string, data: unknown) => {
+      const writeEvent = (event: string, data: unknown, id?: string) => {
+        if (id) {
+          res.write(`id: ${id}\n`)
+        }
         res.write(`event: ${event}\n`)
         res.write(`data: ${JSON.stringify(data)}\n\n`)
       }
 
       writeEvent('ready', { recipient: address, timestamp: Date.now() })
+      const lastEventId = String(req.headers['last-event-id'] || req.query.cursor || '').trim()
+      if (lastEventId) {
+        const backlog = await service.listCreatedAfterCursor(address, lastEventId, 200)
+        for (const item of backlog) {
+          const eventId = service.buildEventId(item)
+          writeEvent(
+            'notification.created',
+            {
+              event: 'notification.created',
+              recipient: address,
+              notificationUid: item.notificationUid,
+              timestamp: Date.parse(item.createdAt) || Date.now(),
+            },
+            eventId
+          )
+        }
+      }
       const unreadCount = await service.getUnreadCount(address)
       writeEvent('unread-count', { unreadCount, timestamp: Date.now() })
 
       const unsubscribe = subscribeNotificationEvents(address, (event) => {
-        writeEvent(event.event, event)
+        writeEvent(event.event, event, event.id)
       })
 
       const heartbeat = setInterval(() => {
@@ -167,6 +189,26 @@ export function registerPublicNotificationRoutes(app: Express) {
       res.write(`event: error\n`)
       res.write(`data: ${JSON.stringify({ message: mapped.message })}\n\n`)
       res.end()
+    }
+  })
+
+  app.get('/api/v1/public/notifications/:uid', async (req: Request, res: Response) => {
+    try {
+      const address = resolveCurrentAddress()
+      if (!address) {
+        res.status(401).json(fail(401, 'Missing access token'))
+        return
+      }
+      await ensureUserActive(address)
+      const item = await service.getByNotificationUid(req.params.uid, address)
+      if (!item) {
+        res.status(404).json(fail(404, 'Notification not found'))
+        return
+      }
+      res.json(ok(item))
+    } catch (error) {
+      const mapped = mapNotificationError(error)
+      res.status(mapped.status).json(fail(mapped.status, mapped.message))
     }
   })
 }

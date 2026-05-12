@@ -5,6 +5,7 @@ export type NotificationStreamEvent =
       notificationUid: string
       unreadCount?: number
       timestamp: number
+      id?: string
     }
   | {
       event: 'notification.read'
@@ -12,6 +13,7 @@ export type NotificationStreamEvent =
       notificationUid: string
       unreadCount?: number
       timestamp: number
+      id?: string
     }
 
 type Listener = (event: NotificationStreamEvent) => void
