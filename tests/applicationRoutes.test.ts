@@ -31,6 +31,7 @@ vi.doMock('../src/domain/service/application', () => ({
   ApplicationService: mockClass(() => ({
     queryByUid: async (uid: string) => applicationStore.get(`uid:${uid}`) || null,
     query: async (did: string, version: number) => applicationStore.get(`did:${did}:${version}`) || null,
+    search: async () => ({ data: Array.from(applicationStore.values()), page: { total: applicationStore.size, page: 1, pageSize: applicationStore.size } }),
     save: async (application: any) => {
       saveApplicationMock(application)
       applicationStore.set(`uid:${application.uid}`, application)

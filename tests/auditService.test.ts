@@ -75,6 +75,15 @@ vi.doMock('../src/config/runtime', () => ({
   getConfig: vi.fn().mockReturnValue({}),
 }))
 
+vi.doMock('../src/domain/service/notification', () => ({
+  NotificationService: mockClass(() => ({
+    notifyAuditApproved: vi.fn().mockResolvedValue(undefined),
+    notifyAuditCreated: vi.fn().mockResolvedValue(undefined),
+    notifyAuditRejected: vi.fn().mockResolvedValue(undefined),
+  })),
+  safelyRunNotificationTask: (task: () => Promise<void>) => task(),
+}))
+
 vi.doMock('../src/domain/manager/audit', () => ({
   AuditManager: mockClass(() => ({
     queryByTarget: async (targetType: string, did: string, version: number) =>

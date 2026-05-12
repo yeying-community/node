@@ -27,6 +27,8 @@ export type NotificationCreateInput = {
 export type NotificationListQuery = {
   recipient: string
   unreadOnly?: boolean
+  source?: string
+  level?: string
   page?: number
   pageSize?: number
 }
@@ -113,6 +115,29 @@ function shortAddress(input: unknown): string {
   return `${value.slice(0, 6)}...${value.slice(-4)}`
 }
 
+function buildNotificationEventId(createdAt: string, notificationUid: string): string {
+  return `${encodeURIComponent(createdAt || '')}|${encodeURIComponent(notificationUid || '')}`
+}
+
+function parseNotificationEventId(input: string): { createdAt: string; notificationUid: string } | null {
+  const text = String(input || '').trim()
+  if (!text) {
+    return null
+  }
+  const separator = text.indexOf('|')
+  if (separator <= 0) {
+    return { createdAt: text, notificationUid: '' }
+  }
+  try {
+    return {
+      createdAt: decodeURIComponent(text.slice(0, separator)),
+      notificationUid: decodeURIComponent(text.slice(separator + 1)),
+    }
+  } catch {
+    return null
+  }
+}
+
 export class NotificationService {
   private notificationRepository: Repository<NotificationDO>
   private inboxRepository: Repository<NotificationInboxDO>
@@ -154,6 +179,10 @@ export class NotificationService {
       updatedAt: notification.updatedAt,
       expiresAt: notification.expiresAt || '',
     }
+  }
+
+  buildEventId(item: { createdAt: string; notificationUid: string }): string {
+    return buildNotificationEventId(item.createdAt, item.notificationUid)
   }
 
   async create(input: NotificationCreateInput): Promise<NotificationDO | null> {
@@ -211,6 +240,7 @@ export class NotificationService {
         notificationUid: notification.uid,
         unreadCount,
         timestamp: Date.now(),
+        id: this.buildEventId({ createdAt: now, notificationUid: notification.uid }),
       })
     }
     return notification
@@ -235,6 +265,14 @@ export class NotificationService {
 
     if (query.unreadOnly) {
       qb.andWhere('inbox.is_read = :isRead', { isRead: false })
+    }
+    const source = String(query.source || '').trim()
+    if (source) {
+      qb.andWhere('notification.source = :source', { source })
+    }
+    const level = String(query.level || '').trim()
+    if (level) {
+      qb.andWhere('notification.level = :level', { level })
     }
 
     const total = await qb.clone().getCount()
@@ -313,6 +351,173 @@ export class NotificationService {
         pageSize,
       },
     }
+  }
+
+  async getByNotificationUid(notificationUidInput: string, recipientInput: string): Promise<NotificationListItem | null> {
+    const recipient = normalizeRecipient(recipientInput)
+    const notificationUid = String(notificationUidInput || '').trim()
+    if (!recipient || !notificationUid) {
+      return null
+    }
+    const row = await this.inboxRepository
+      .createQueryBuilder('inbox')
+      .innerJoin(NotificationDO, 'notification', 'notification.uid = inbox.notification_uid')
+      .where('LOWER(inbox.recipient) = :recipient', { recipient })
+      .andWhere('inbox.notification_uid = :notificationUid', { notificationUid })
+      .andWhere("COALESCE(inbox.archived_at, '') = ''")
+      .select([
+        'inbox.uid AS inbox_uid',
+        'inbox.notification_uid AS inbox_notification_uid',
+        'inbox.is_read AS inbox_is_read',
+        'inbox.read_at AS inbox_read_at',
+        'inbox.delivered_at AS inbox_delivered_at',
+        'inbox.archived_at AS inbox_archived_at',
+        'inbox.created_at AS inbox_created_at',
+        'inbox.updated_at AS inbox_updated_at',
+        'notification.uid AS notification_uid',
+        'notification.type AS notification_type',
+        'notification.source AS notification_source',
+        'notification.subject_type AS notification_subject_type',
+        'notification.subject_id AS notification_subject_id',
+        'notification.actor AS notification_actor',
+        'notification.audience_type AS notification_audience_type',
+        'notification.audience_ids AS notification_audience_ids',
+        'notification.level AS notification_level',
+        'notification.title AS notification_title',
+        'notification.body AS notification_body',
+        'notification.payload AS notification_payload',
+        'notification.status AS notification_status',
+        'notification.created_at AS notification_created_at',
+        'notification.updated_at AS notification_updated_at',
+        'notification.expires_at AS notification_expires_at',
+      ])
+      .getRawOne<Record<string, unknown>>()
+
+    if (!row) {
+      return null
+    }
+    return this.mapListItem(
+      {
+        uid: String(row.inbox_uid || ''),
+        notificationUid: String(row.inbox_notification_uid || ''),
+        recipient,
+        recipientType: 'user',
+        isRead: parseBooleanValue(row.inbox_is_read),
+        readAt: String(row.inbox_read_at || ''),
+        deliveredAt: String(row.inbox_delivered_at || ''),
+        archivedAt: String(row.inbox_archived_at || ''),
+        createdAt: String(row.inbox_created_at || ''),
+        updatedAt: String(row.inbox_updated_at || ''),
+      } as NotificationInboxDO,
+      {
+        uid: String(row.notification_uid || ''),
+        type: String(row.notification_type || ''),
+        source: String(row.notification_source || ''),
+        subjectType: String(row.notification_subject_type || ''),
+        subjectId: String(row.notification_subject_id || ''),
+        actor: String(row.notification_actor || ''),
+        audienceType: String(row.notification_audience_type || ''),
+        audienceIds: String(row.notification_audience_ids || ''),
+        level: String(row.notification_level || ''),
+        title: String(row.notification_title || ''),
+        body: String(row.notification_body || ''),
+        payload: String(row.notification_payload || ''),
+        status: String(row.notification_status || ''),
+        createdAt: String(row.notification_created_at || ''),
+        updatedAt: String(row.notification_updated_at || ''),
+        expiresAt: String(row.notification_expires_at || ''),
+      } as NotificationDO
+    )
+  }
+
+  async listCreatedAfterCursor(recipientInput: string, cursorInput: string, limitInput = 100): Promise<NotificationListItem[]> {
+    const recipient = normalizeRecipient(recipientInput)
+    const cursor = parseNotificationEventId(cursorInput)
+    if (!recipient || !cursor?.createdAt) {
+      return []
+    }
+    const limit = Number.isFinite(limitInput) && limitInput > 0 ? Math.min(Math.trunc(limitInput), 200) : 100
+    const qb = this.inboxRepository
+      .createQueryBuilder('inbox')
+      .innerJoin(NotificationDO, 'notification', 'notification.uid = inbox.notification_uid')
+      .where('LOWER(inbox.recipient) = :recipient', { recipient })
+      .andWhere("COALESCE(inbox.archived_at, '') = ''")
+      .andWhere(
+        cursor.notificationUid
+          ? '(notification.created_at > :createdAt OR (notification.created_at = :createdAt AND notification.uid > :notificationUid))'
+          : 'notification.created_at > :createdAt',
+        {
+          createdAt: cursor.createdAt,
+          notificationUid: cursor.notificationUid,
+        }
+      )
+
+    const rows = await qb
+      .select([
+        'inbox.uid AS inbox_uid',
+        'inbox.notification_uid AS inbox_notification_uid',
+        'inbox.is_read AS inbox_is_read',
+        'inbox.read_at AS inbox_read_at',
+        'inbox.delivered_at AS inbox_delivered_at',
+        'inbox.archived_at AS inbox_archived_at',
+        'inbox.created_at AS inbox_created_at',
+        'inbox.updated_at AS inbox_updated_at',
+        'notification.uid AS notification_uid',
+        'notification.type AS notification_type',
+        'notification.source AS notification_source',
+        'notification.subject_type AS notification_subject_type',
+        'notification.subject_id AS notification_subject_id',
+        'notification.actor AS notification_actor',
+        'notification.audience_type AS notification_audience_type',
+        'notification.audience_ids AS notification_audience_ids',
+        'notification.level AS notification_level',
+        'notification.title AS notification_title',
+        'notification.body AS notification_body',
+        'notification.payload AS notification_payload',
+        'notification.status AS notification_status',
+        'notification.created_at AS notification_created_at',
+        'notification.updated_at AS notification_updated_at',
+        'notification.expires_at AS notification_expires_at',
+      ])
+      .orderBy('notification.created_at', 'ASC')
+      .addOrderBy('notification.uid', 'ASC')
+      .limit(limit)
+      .getRawMany<Record<string, unknown>>()
+
+    return rows.map((row) =>
+      this.mapListItem(
+        {
+          uid: String(row.inbox_uid || ''),
+          notificationUid: String(row.inbox_notification_uid || ''),
+          recipient,
+          recipientType: 'user',
+          isRead: parseBooleanValue(row.inbox_is_read),
+          readAt: String(row.inbox_read_at || ''),
+          deliveredAt: String(row.inbox_delivered_at || ''),
+          archivedAt: String(row.inbox_archived_at || ''),
+          createdAt: String(row.inbox_created_at || ''),
+          updatedAt: String(row.inbox_updated_at || ''),
+        } as NotificationInboxDO,
+        {
+          uid: String(row.notification_uid || ''),
+          type: String(row.notification_type || ''),
+          source: String(row.notification_source || ''),
+          subjectType: String(row.notification_subject_type || ''),
+          subjectId: String(row.notification_subject_id || ''),
+          actor: String(row.notification_actor || ''),
+          audienceType: String(row.notification_audience_type || ''),
+          audienceIds: String(row.notification_audience_ids || ''),
+          level: String(row.notification_level || ''),
+          title: String(row.notification_title || ''),
+          body: String(row.notification_body || ''),
+          payload: String(row.notification_payload || ''),
+          status: String(row.notification_status || ''),
+          createdAt: String(row.notification_created_at || ''),
+          updatedAt: String(row.notification_updated_at || ''),
+          expiresAt: String(row.notification_expires_at || ''),
+        } as NotificationDO
+      )
+    )
   }
 
   async getUnreadCount(recipientInput: string): Promise<number> {

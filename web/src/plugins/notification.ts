@@ -99,8 +99,9 @@ function splitSseBlocks(input: string): { blocks: string[]; remain: string } {
   return { blocks: blocks.filter(Boolean), remain }
 }
 
-function parseSseBlock(block: string): { event: string; data: string } | null {
+function parseSseBlock(block: string): { id: string; event: string; data: string } | null {
   const lines = block.split('\n')
+  let id = ''
   let event = 'message'
   const dataLines: string[] = []
   for (const rawLine of lines) {
@@ -112,6 +113,10 @@ function parseSseBlock(block: string): { event: string; data: string } | null {
       event = line.slice(6).trim() || 'message'
       continue
     }
+    if (line.startsWith('id:')) {
+      id = line.slice(3).trim()
+      continue
+    }
     if (line.startsWith('data:')) {
       dataLines.push(line.slice(5).trim())
     }
@@ -120,18 +125,27 @@ function parseSseBlock(block: string): { event: string; data: string } | null {
     return null
   }
   return {
+    id,
     event,
     data: dataLines.join('\n'),
   }
 }
 
+let lastStreamEventId = ''
+
 class NotificationClient {
-  async list(input: { page?: number; pageSize?: number; unreadOnly?: boolean } = {}) {
+  async list(input: { page?: number; pageSize?: number; unreadOnly?: boolean; source?: string; level?: string } = {}) {
     const params = new URLSearchParams()
     params.set('page', String(input.page || 1))
     params.set('pageSize', String(input.pageSize || 20))
     if (input.unreadOnly) {
       params.set('unreadOnly', 'true')
+    }
+    if (input.source) {
+      params.set('source', input.source)
+    }
+    if (input.level) {
+      params.set('level', input.level)
     }
     const response = await fetch(apiUrl(`/api/v1/public/notifications?${params.toString()}`), {
       method: 'GET',
@@ -140,6 +154,16 @@ class NotificationClient {
       },
     })
     return await parseEnvelope<NotificationPageResult>(response)
+  }
+
+  async detail(notificationUid: string) {
+    const response = await fetch(apiUrl(`/api/v1/public/notifications/${notificationUid}`), {
+      method: 'GET',
+      headers: {
+        ...getAuthorizationHeaders(),
+      },
+    })
+    return await parseEnvelope<NotificationListItem>(response)
   }
 
   async unreadCount() {
@@ -178,7 +202,10 @@ class NotificationClient {
 
     const run = async () => {
       try {
-        const response = await fetch(apiUrl('/api/v1/public/notifications/stream'), {
+        const streamPath = lastStreamEventId
+          ? `/api/v1/public/notifications/stream?cursor=${encodeURIComponent(lastStreamEventId)}`
+          : '/api/v1/public/notifications/stream'
+        const response = await fetch(apiUrl(streamPath), {
           method: 'GET',
           headers: {
             ...getAuthorizationHeaders(),
@@ -204,6 +231,9 @@ class NotificationClient {
             const parsed = parseSseBlock(block)
             if (!parsed) {
               continue
+            }
+            if (parsed.id) {
+              lastStreamEventId = parsed.id
             }
             try {
               const data = JSON.parse(parsed.data) as NotificationStreamPayload
