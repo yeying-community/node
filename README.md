@@ -76,7 +76,7 @@ database: {
 }
 ```
 
-后端（终端 1）：
+后端：
 ```bash
 cp config.js.template config.js
 npm install
@@ -119,12 +119,24 @@ npm run dev:secure -- --file run/secrets.enc.json
 - `ucan.aud` / `ucan.with` / `ucan.can`
 - `audit.approvers` / `audit.requiredApprovals`（上架审核人列表与通过阈值）
 
+部署前需要修改的配置：
+- `database.host`：数据库地址，模板默认是 `127.0.0.1`，部署时要改成实际数据库地址。
+- `database.username` / `database.password`：数据库账号和密码，必须替换成目标环境的可用凭据，不要保留模板值，也不要把生产密码提交回仓库。
+- `auth.jwtSecret`：JWT 签名密钥。每个环境都应使用独立随机值；通过 `openssl rand -hex 32` 生成。
+- `ucanIssuer.enabled`：是否启用中心化 UCAN 签发模式。默认模板为 `false`；生产环境建议改为 `true`。
+- `totpAuth.enabled`：是否启用 TOTP 登录桥接。默认模板为 `false`；生产环境建议改为 `true`。
+- `totpAuth.totpMasterKey`：TOTP 主密钥。`totpAuth.enabled=true` 时必须提供，且必须为当前环境单独生成；通过 `openssl rand -hex 32` 生成。
+
+补充说明：
+- 如果 `ucanIssuer.enabled=true`，还需要同时准备 `ucanIssuer.privateKey`（或环境变量 `UCAN_ISSUER_PRIVATE_KEY`）；`ucanIssuer.did` 可留空，由私钥自动推导。
+- 如果 `totpAuth.enabled=true`，建议一并检查 `totpAuth.portalBaseUrl` 和 `totpAuth.verifyPath`，确保返回给前端的验证地址指向实际部署域名。
+
 密钥收敛建议：
 - `config.js` 中的 `auth.jwtSecret` / `ucanIssuer.privateKey` / `totpAuth.totpMasterKey` 建议保持空值。
 - 使用 `run/secrets.enc.json` + 启动时输入密码，避免明文落盘与密钥环境变量注入。
 - 若中心化签发或 TOTP 已启用但密钥未就绪，服务会在启动前直接失败。
 
-前端（终端 2）：
+前端：
 ```bash
 cd web
 cp .env.template .env
