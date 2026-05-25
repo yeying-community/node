@@ -96,7 +96,8 @@ JWT_SECRET=$(openssl rand -hex 32) npm run dev
   - 若配置了 `SECRETS_FILE`，会在进程内解密
 - 生产/类生产：`bash scripts/starter.sh start|restart`
   - 读取构建产物 `dist/server.js`
-  - 若存在 `SECRETS_FILE`（默认 `run/secrets.enc.json`），会在启动前提示输入密码，Node 进程内解密到内存
+  - 若存在 `SECRETS_FILE`（默认 `run/secrets.enc.json`），会在启动前解锁密钥文件，Node 进程内解密到内存
+  - 默认交互输入密码；自动化场景可通过 `NODE_SECRETS_PASSWORD` 或 `SECRETS_PASSWORD_FILE` 注入
   - 不支持热更新
 
 如果本地也要模拟“加密密钥启动”：
@@ -122,6 +123,7 @@ npm run dev:secure -- --file run/secrets.enc.json
 密钥收敛建议：
 - `config.js` 中的 `auth.jwtSecret` / `ucanIssuer.privateKey` / `totpAuth.totpMasterKey` 建议保持空值。
 - 使用 `run/secrets.enc.json` + 启动时输入密码，避免明文落盘与密钥环境变量注入。
+- 测试环境自动化更新可通过 `NODE_SECRETS_PASSWORD` 或 `SECRETS_PASSWORD_FILE` 非交互启动；生产环境更建议使用受权限保护的密码文件或主机密钥管理。
 - 若中心化签发或 TOTP 已启用但密钥未就绪，服务会在启动前直接失败。
 
 前端（终端 2）：
@@ -178,7 +180,22 @@ SECRETS_FILE=run/secrets.enc.json bash scripts/starter.sh restart
 ```
 
 - `init-secrets.cjs` 会生成 `JWT_SECRET`、`UCAN_ISSUER_PRIVATE_KEY`、`UCAN_ISSUER_DID`、`TOTP_AUTH_TOTP_MASTER_KEY`
-- 启动时会提示输入密码，Node 进程内解密密钥并仅驻留内存
+- 启动时默认提示输入密码，Node 进程内解密密钥并仅驻留内存
+- 自动化更新测试环境时，可用环境变量非交互启动：
+  ```bash
+  NODE_SECRETS_PASSWORD='your-secrets-password' \
+  SECRETS_FILE=run/secrets.enc.json \
+  bash scripts/starter.sh restart
+  ```
+- 也可以使用密码文件，避免密码出现在命令历史中：
+  ```bash
+  printf '%s' 'your-secrets-password' > /secure/path/node-secrets-password
+  chmod 600 /secure/path/node-secrets-password
+
+  SECRETS_PASSWORD_FILE=/secure/path/node-secrets-password \
+  SECRETS_FILE=run/secrets.enc.json \
+  bash scripts/starter.sh restart
+  ```
 - 详细说明见：`docs/加密启动.md`
 
 ### 查看 UCAN Issuer DID
