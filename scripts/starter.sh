@@ -3,6 +3,7 @@ set -euo pipefail
 
 ACTION="${1:-start}"
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+ENV_FILE="$ROOT_DIR/.env"
 RUN_DIR="${RUN_DIR:-$ROOT_DIR/run}"
 LOG_DIR="${LOG_DIR:-$ROOT_DIR/logs}"
 PID_FILE="${PID_FILE:-$RUN_DIR/node.pid}"
@@ -14,6 +15,17 @@ START_WAIT_SECONDS="${START_WAIT_SECONDS:-3}"
 SECRETS_FILE="${SECRETS_FILE:-$RUN_DIR/secrets.enc.json}"
 SECRETS_PASSWORD_FILE="${SECRETS_PASSWORD_FILE:-}"
 TEMP_SECRETS_PASSWORD_FILE=""
+
+load_env_file() {
+  if [[ ! -f "$ENV_FILE" ]]; then
+    return 0
+  fi
+
+  set -a
+  # shellcheck disable=SC1090
+  source "$ENV_FILE"
+  set +a
+}
 
 cleanup_temp_secrets_password_file() {
   if [[ -n "$TEMP_SECRETS_PASSWORD_FILE" && -f "$TEMP_SECRETS_PASSWORD_FILE" ]]; then
@@ -34,6 +46,8 @@ require_command() {
   local cmd="$1"
   command -v "$cmd" >/dev/null 2>&1 || fail "缺少命令: $cmd"
 }
+
+load_env_file
 
 ensure_runtime_dirs() {
   mkdir -p "$RUN_DIR" "$LOG_DIR" "$ROOT_DIR/data"
