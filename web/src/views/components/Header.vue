@@ -532,9 +532,9 @@ const handleAccountCommand = async (command: string | number | object) => {
     if (action !== 'logout') {
         return
     }
+    closeNotificationStream()
     logoutWithUcan({ redirect: false })
     currentAccount.value = null
-    closeNotificationStream()
     notifications.value = []
     unreadCount.value = 0
     await router.push('/')

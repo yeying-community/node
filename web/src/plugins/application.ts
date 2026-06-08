@@ -274,10 +274,6 @@ function toUcanCapabilities(value: unknown): ApplicationUcanCapability[] {
 }
 
 function ensureWalletConnected() {
-  if (localStorage.getItem('hasConnectedWallet') === 'false') {
-    notifyError('❌未检测到钱包，请先安装并连接钱包')
-    return false
-  }
   return true
 }
 

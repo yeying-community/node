@@ -63,6 +63,7 @@
 import { reactive, ref, watch, computed } from 'vue'
 import type { FormInstance } from 'element-plus'
 import { ElMessage } from 'element-plus'
+import { Delete, Plus } from '@element-plus/icons-vue'
 import $application, { type ApplicationConfigItem } from '@/plugins/application'
 const props = defineProps({
     modalVisible: Boolean,
