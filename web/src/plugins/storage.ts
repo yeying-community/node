@@ -42,10 +42,6 @@ class StorageClient {
   }
 
   async uploadFile(file: Blob, filename: string) {
-    if (localStorage.getItem("hasConnectedWallet") === "false") {
-      notifyError('❌未检测到钱包，请先安装并连接钱包');
-      return;
-    }
     try {
       const client = await this.ensureClient();
       await client.upload(`/${filename}`, file, file.type || "application/octet-stream");

@@ -2,7 +2,7 @@
     <div class="tab" :class="{ 'tab-market-clickable': pageFrom === 'market' }" @click="handleCardClick">
         <div class="top">
             <div class="top-left">
-                <el-avatar shape="square" size="70" :src="resolveAvatarSrc(detail.avatar)">
+                <el-avatar shape="square" :size="70" :src="resolveAvatarSrc(detail.avatar)">
                     <img class="avatar-fallback" :src="defaultAppAvatar" alt="默认应用图标" />
                 </el-avatar>
             </div>

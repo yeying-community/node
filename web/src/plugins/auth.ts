@@ -1,6 +1,7 @@
 import { notifyError } from '@/utils/message';
 import { getWalletDataStore } from '@/stores/auth';
 import {
+  classifyWalletError,
   createInvocationUcan,
   createUcanSession,
   clearUcanSession,
@@ -13,7 +14,9 @@ import {
   getProvider,
   normalizeUcanCapabilities,
   onAccountsChanged,
+  onChainChanged,
   requestAccounts,
+  watchProvider,
   type Eip1193Provider,
   type UcanCapability,
   type UcanRootProof,
@@ -33,20 +36,132 @@ const AUTH_MANUAL_LOGOUT_KEY = 'authManualLogout';
 const TOKEN_SKEW_MS = 5000;
 
 let cachedProvider: Eip1193Provider | null = null;
-let listenersReady = false;
-let loginInFlight: Promise<boolean> | null = null;
+let providerWatcherReady = false;
+let walletListenersProvider: Eip1193Provider | null = null;
+let walletListenersTeardown: Array<() => void> = [];
+let loginInFlight: { accountKey: string; promise: Promise<boolean> } | null = null;
 let cachedApiToken: CachedToken | null = null;
 let cachedWebDavToken: CachedToken | null = null;
 let cachedSession: UcanSessionKey | null = null;
 let cachedRoot: UcanRootProof | null = null;
 let cachedCapsKey: string | null = null;
 
-async function resolveProvider(timeoutMs = 5000) {
-  if (cachedProvider) {
+async function resolveProvider(timeoutMs = 5000, options: { refresh?: boolean } = {}) {
+  if (cachedProvider && !options.refresh) {
     return cachedProvider;
   }
-  cachedProvider = await getProvider({ preferYeYing: true, timeoutMs });
-  return cachedProvider;
+  const provider = await getProvider({ preferYeYing: true, timeoutMs });
+  if (provider) {
+    cachedProvider = provider;
+  }
+  return provider || cachedProvider;
+}
+
+function normalizeAccountKey(account?: string | null) {
+  return String(account || '').trim().toLowerCase();
+}
+
+function removeWalletListeners() {
+  for (const teardown of walletListenersTeardown) {
+    try {
+      teardown();
+    } catch {
+      // ignore listener cleanup errors
+    }
+  }
+  walletListenersTeardown = [];
+  walletListenersProvider = null;
+}
+
+function addProviderListener(
+  provider: Eip1193Provider,
+  event: string,
+  handler: (...args: any[]) => void
+) {
+  const target = provider as Eip1193Provider & {
+    on?: (event: string, handler: (...args: any[]) => void) => void;
+    removeListener?: (event: string, handler: (...args: any[]) => void) => void;
+    off?: (event: string, handler: (...args: any[]) => void) => void;
+  };
+  target.on?.(event, handler);
+  return () => {
+    target.removeListener?.(event, handler);
+    target.off?.(event, handler);
+  };
+}
+
+function startProviderWatcher() {
+  if (providerWatcherReady || typeof window === 'undefined') {
+    return;
+  }
+  providerWatcherReady = true;
+  watchProvider(({ provider, present }) => {
+    if (present && provider) {
+      cachedProvider = provider;
+      void bindWalletProvider(provider);
+      return;
+    }
+    cachedProvider = null;
+    getWalletDataStore().setWalletReady(false);
+    if (walletListenersProvider) {
+      removeWalletListeners();
+    }
+  }, {
+    preferYeYing: true,
+    pollIntervalMs: 100,
+    maxPolls: 50,
+  });
+}
+
+async function bindWalletProvider(provider: Eip1193Provider) {
+  if (walletListenersProvider === provider) {
+    return;
+  }
+  removeWalletListeners();
+  walletListenersProvider = provider;
+  getWalletDataStore().setWalletReady(true);
+
+  walletListenersTeardown.push(onAccountsChanged(provider, async (accounts) => {
+    if (!accounts || accounts.length === 0) {
+      if (!hasValidApiToken()) {
+        clearAuthSession();
+        emitAccountChange(null);
+        redirectHome();
+      }
+      return;
+    }
+    const nextAccount = accounts[0];
+    const stored = getCurrentAccount();
+    if (!stored || stored.toLowerCase() !== nextAccount.toLowerCase()) {
+      handleAccountChange(nextAccount);
+      emitAccountChange(nextAccount);
+      try {
+        const ok = await loginWithUcan(provider, nextAccount);
+        if (!ok) {
+          throw new Error('Login failed');
+        }
+      } catch {
+        clearAuthSession();
+        redirectHome();
+      }
+    }
+  }));
+
+  walletListenersTeardown.push(onChainChanged(provider, () => {
+    resetTokenCaches();
+  }));
+
+  walletListenersTeardown.push(addProviderListener(provider, 'connect', () => {
+    getWalletDataStore().setWalletReady(true);
+    void ensureWalletSession({ redirect: false });
+  }));
+
+  walletListenersTeardown.push(addProviderListener(provider, 'disconnect', () => {
+    getWalletDataStore().setWalletReady(false);
+    clearAuthSession();
+    emitAccountChange(null);
+    redirectHome();
+  }));
 }
 
 function getHomeUrl() {
@@ -503,6 +618,7 @@ export async function connectWallet(router: any, route: any) {
       return;
     }
     getWalletDataStore().setWalletReady(true);
+    void setupWalletListeners({ provider });
     try {
       const accounts = await requestAccounts({ provider });
       if (Array.isArray(accounts) && accounts.length > 0) {
@@ -521,20 +637,16 @@ export async function connectWallet(router: any, route: any) {
         notifyError('❌未获取到账户');
       }
     } catch (error) {
-      if (error && typeof error === 'object' && 'message' in error) {
-        const err = error as { message?: string; code?: number; [key: string]: any };
-        console.log(`❌error.message=${err.message}`);
-        if (typeof err.message === 'string' && err.message.includes('Session expired')) {
-          notifyError(`❌会话已过期，请打开钱包插件输入密码激活钱包状态 ${error}`);
-        } else if (err.code === 4001) {
-          notifyError(`❌用户拒绝了连接请求 ${error}`);
-        } else {
-          console.error('❌未知连接错误:', error);
-          notifyError(`❌连接失败，请检查钱包状态 ${error}`);
-        }
+      const walletError = classifyWalletError(error);
+      if (walletError.message.includes('Session expired')) {
+        notifyError(`❌会话已过期，请打开钱包插件输入密码激活钱包状态 ${walletError.message}`);
+      } else if (walletError.type === 'userRejected') {
+        notifyError(`❌用户拒绝了连接请求 ${walletError.message}`);
+      } else if (walletError.type === 'disconnected' || walletError.type === 'timeout') {
+        notifyError(`❌钱包连接已断开，请恢复钱包后重试 ${walletError.message}`);
       } else {
-        console.error('❌非预期的错误类型:', error);
-        notifyError(`❌连接失败，发生未知错误 ${error}`);
+        console.error('❌未知连接错误:', error);
+        notifyError(`❌连接失败，请检查钱包状态 ${walletError.message}`);
       }
       return;
     }
@@ -624,6 +736,9 @@ export async function ensureWalletSession(options: { redirect?: boolean } = {}) 
     accounts = [];
   }
   if (!accounts[0]) {
+    if (getCurrentAccount() && hasValidApiToken()) {
+      return true;
+    }
     clearAuthSession();
     emitAccountChange(null);
     if (redirect) {
@@ -661,40 +776,18 @@ export async function ensureWalletSession(options: { redirect?: boolean } = {}) 
   return true;
 }
 
-export async function setupWalletListeners() {
-  if (listenersReady) {
-    return;
-  }
-  const provider = await resolveProvider();
+export async function setupWalletListeners(options: {
+  provider?: Eip1193Provider;
+  refreshProvider?: boolean;
+} = {}) {
+  startProviderWatcher();
+  const provider = options.provider || (await resolveProvider(5000, {
+    refresh: options.refreshProvider,
+  }));
   if (!provider) {
     return;
   }
-  listenersReady = true;
-  onAccountsChanged(provider, async (accounts) => {
-    if (!accounts || accounts.length === 0) {
-      if (!hasValidApiToken()) {
-        clearAuthSession();
-        emitAccountChange(null);
-        redirectHome();
-      }
-      return;
-    }
-    const nextAccount = accounts[0];
-    const stored = getCurrentAccount();
-    if (!stored || stored.toLowerCase() !== nextAccount.toLowerCase()) {
-      handleAccountChange(nextAccount);
-      emitAccountChange(nextAccount);
-      try {
-        const ok = await loginWithUcan(provider, nextAccount);
-        if (!ok) {
-          throw new Error('Login failed');
-        }
-      } catch {
-        clearAuthSession();
-        redirectHome();
-      }
-    }
-  });
+  await bindWalletProvider(provider);
 }
 
 // 获取链 ID
@@ -754,15 +847,21 @@ export async function loginWithUcan(
   accountOverride?: string
 ): Promise<boolean> {
   if (loginInFlight) {
-    return await loginInFlight;
+    const requestedKey = normalizeAccountKey(accountOverride);
+    if (!requestedKey || requestedKey === loginInFlight.accountKey) {
+      return await loginInFlight.promise;
+    }
+    await loginInFlight.promise.catch(() => false);
   }
-  loginInFlight = (async () => {
+  const accountKey = normalizeAccountKey(accountOverride);
+  const promise = (async () => {
     try {
       const provider = providerOverride || (await resolveProvider());
       if (!provider) {
         notifyError('未检测到钱包，请先安装并连接钱包');
         return false;
       }
+      void setupWalletListeners({ provider });
       const accounts = accountOverride
         ? [accountOverride]
         : await requestAccounts({ provider });
@@ -771,12 +870,8 @@ export async function loginWithUcan(
         notifyError('❌未获取到账户');
         return false;
       }
-      const storedAccount = getCurrentAccount();
-      if (!storedAccount || storedAccount.toLowerCase() !== currentAccount.toLowerCase()) {
-        handleAccountChange(currentAccount);
-      } else {
-        localStorage.setItem('currentAccount', currentAccount);
-      }
+      handleAccountChange(currentAccount);
+      emitAccountChange(currentAccount);
       clearManualLogoutMark();
       await getAuthToken(provider);
       try {
@@ -791,10 +886,13 @@ export async function loginWithUcan(
       return false;
     }
   })();
+  loginInFlight = { accountKey, promise };
   try {
-    return await loginInFlight;
+    return await promise;
   } finally {
-    loginInFlight = null;
+    if (loginInFlight?.promise === promise) {
+      loginInFlight = null;
+    }
   }
 }
 

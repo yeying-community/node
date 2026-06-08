@@ -4,7 +4,7 @@
             <el-table-column label="名称" :min-width="nameColumnMinWidth">
                 <template #default="scope">
                     <div class="name-cell">
-                        <el-avatar shape="square" size="34" :src="resolveAvatarSrc(scope.row.avatar)">
+                        <el-avatar shape="square" :size="34" :src="resolveAvatarSrc(scope.row.avatar)">
                             <img class="avatar-fallback" :src="defaultAppAvatar" alt="默认应用图标" />
                         </el-avatar>
                         <div class="name-main">

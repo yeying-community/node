@@ -131,6 +131,18 @@ function parseSseBlock(block: string): { id: string; event: string; data: string
   }
 }
 
+function isAbortLikeError(error: unknown): boolean {
+  if (!error) return false
+  const message = error instanceof Error ? error.message : String(error)
+  const name = error instanceof Error ? error.name : ''
+  return (
+    name === 'AbortError' ||
+    message.includes('BodyStreamBuffer was aborted') ||
+    message.includes('The operation was aborted') ||
+    message.includes('aborted')
+  )
+}
+
 let lastStreamEventId = ''
 
 class NotificationClient {
@@ -244,7 +256,7 @@ class NotificationClient {
           }
         }
       } catch (error) {
-        if (closed || controller.signal.aborted) {
+        if (closed || controller.signal.aborted || isAbortLikeError(error)) {
           return
         }
         handlers.onError?.(error instanceof Error ? error : new Error(String(error)))

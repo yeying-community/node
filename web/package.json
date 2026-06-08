@@ -14,7 +14,7 @@
     "@headlessui/vue": "^1.7.23",
     "@heroicons/vue": "^2.2.0",
     "@types/qrcode": "^1.5.6",
-    "@yeying-community/web3-bs": "^1.0.6",
+    "@yeying-community/web3-bs": "^1.0.10",
     "@yeying-community/yeying-i18n": "^0.0.3",
     "dayjs": "^1.11.13",
     "element-plus": "^2.9.11",
