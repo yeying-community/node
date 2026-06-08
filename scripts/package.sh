@@ -113,6 +113,7 @@ copy_release_files() {
   cp -R "$WORKTREE_DIR/web/dist" "$release_root/web/dist"
   cp "$WORKTREE_DIR/package.json" "$release_root/package.json"
   cp "$WORKTREE_DIR/package-lock.json" "$release_root/package-lock.json"
+  cp "$WORKTREE_DIR/.env.template" "$release_root/.env.template"
   cp "$WORKTREE_DIR/config.js.template" "$release_root/config.js.template"
   cp "$WORKTREE_DIR/README.md" "$release_root/README.md"
   cp "$WORKTREE_DIR/scripts/starter.sh" "$release_root/scripts/starter.sh"
