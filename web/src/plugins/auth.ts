@@ -5,6 +5,7 @@ import {
   createInvocationUcan,
   createUcanSession,
   clearUcanSession,
+  focusPendingApproval,
   getAccounts,
   getCapabilityAction,
   getCapabilityResource,
@@ -34,6 +35,9 @@ const UCAN_WEBDAV_TOKEN_KEY = 'webdavToken';
 const AUTH_TOKEN_KEY = 'authToken';
 const AUTH_MANUAL_LOGOUT_KEY = 'authManualLogout';
 const TOKEN_SKEW_MS = 5000;
+const LOGIN_COMPLETION_WAIT_MS = 60000;
+const LOGIN_COMPLETION_POLL_MS = 300;
+const LOGIN_ROUTE_READY_WAIT_MS = 3000;
 
 let cachedProvider: Eip1193Provider | null = null;
 let providerWatcherReady = false;
@@ -59,6 +63,52 @@ async function resolveProvider(timeoutMs = 5000, options: { refresh?: boolean } 
 
 function normalizeAccountKey(account?: string | null) {
   return String(account || '').trim().toLowerCase();
+}
+
+async function focusPendingWalletApproval(provider?: Eip1193Provider | null) {
+  try {
+    const result = await focusPendingApproval(provider || undefined);
+    return Boolean(result.focused);
+  } catch {
+    return false;
+  }
+}
+
+function delay(ms: number) {
+  return new Promise((resolve) => window.setTimeout(resolve, ms));
+}
+
+async function waitForLoginCompletion(timeoutMs = LOGIN_COMPLETION_WAIT_MS) {
+  if (loginInFlight) {
+    return await loginInFlight.promise;
+  }
+  const startedAt = Date.now();
+  while (Date.now() - startedAt < timeoutMs) {
+    if (getCurrentAccount() && hasValidApiToken()) {
+      return true;
+    }
+    await delay(LOGIN_COMPLETION_POLL_MS);
+  }
+  return false;
+}
+
+async function goMarketAfterLogin(router: any) {
+  if (!(await waitForLoginCompletion(LOGIN_ROUTE_READY_WAIT_MS))) {
+    return false;
+  }
+  if (router) {
+    await router.push('/market').catch(() => undefined);
+    if (String(router.currentRoute?.value?.path || '').startsWith('/market')) {
+      return true;
+    }
+    await delay(LOGIN_COMPLETION_POLL_MS);
+    if (await waitForLoginCompletion(LOGIN_ROUTE_READY_WAIT_MS)) {
+      await router.push('/market').catch(() => undefined);
+    }
+    return String(router.currentRoute?.value?.path || '').startsWith('/market');
+  }
+  window.location.href = `${getHomeUrl()}market`;
+  return true;
 }
 
 function removeWalletListeners() {
@@ -620,6 +670,15 @@ export async function connectWallet(router: any, route: any) {
     getWalletDataStore().setWalletReady(true);
     void setupWalletListeners({ provider });
     try {
+      if (await focusPendingWalletApproval(provider)) {
+        const ok = await waitForLoginCompletion();
+        if (ok) {
+          if (!(await goMarketAfterLogin(router))) {
+            notifyError('❌登录成功，但跳转应用商店失败，请重试');
+          }
+        }
+        return;
+      }
       const accounts = await requestAccounts({ provider });
       if (Array.isArray(accounts) && accounts.length > 0) {
         const currentAccount = accounts[0];
@@ -628,10 +687,8 @@ export async function connectWallet(router: any, route: any) {
           notifyError('❌登录失败，未获取到 token');
           return;
         }
-        if (router) {
-          await router.push('/market');
-        } else {
-          window.location.href = `${getHomeUrl()}market`;
+        if (!(await goMarketAfterLogin(router))) {
+          notifyError('❌登录成功，但跳转应用商店失败，请重试');
         }
       } else {
         notifyError('❌未获取到账户');
@@ -847,6 +904,7 @@ export async function loginWithUcan(
   accountOverride?: string
 ): Promise<boolean> {
   if (loginInFlight) {
+    void focusPendingWalletApproval(providerOverride || cachedProvider);
     const requestedKey = normalizeAccountKey(accountOverride);
     if (!requestedKey || requestedKey === loginInFlight.accountKey) {
       return await loginInFlight.promise;
