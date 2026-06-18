@@ -5,14 +5,17 @@ import {
   createInvocationUcan,
   createUcanSession,
   clearUcanSession,
+  DEFAULT_UCAN_TOKEN_SKEW_MS,
   focusPendingApproval,
   getAccounts,
   getCapabilityAction,
   getCapabilityResource,
+  getUcanTokenTiming,
   getBalance as web3GetBalance,
   getChainId as web3GetChainId,
   getOrCreateUcanRoot,
   getProvider,
+  isUcanTokenFresh,
   normalizeUcanCapabilities,
   onAccountsChanged,
   onChainChanged,
@@ -26,15 +29,12 @@ import {
 
 type CachedToken = {
   token: string;
-  exp: number;
-  nbf?: number;
 };
 
 const UCAN_API_TOKEN_KEY = 'ucanToken';
 const UCAN_WEBDAV_TOKEN_KEY = 'webdavToken';
 const AUTH_TOKEN_KEY = 'authToken';
 const AUTH_MANUAL_LOGOUT_KEY = 'authManualLogout';
-const TOKEN_SKEW_MS = 5000;
 const LOGIN_COMPLETION_WAIT_MS = 60000;
 const LOGIN_COMPLETION_POLL_MS = 300;
 const LOGIN_ROUTE_READY_WAIT_MS = 3000;
@@ -231,42 +231,6 @@ function redirectHome() {
   }
 }
 
-function decodeBase64Url(input: string): string | null {
-  if (!input) return null;
-  const base64 = input.replace(/-/g, '+').replace(/_/g, '/');
-  const padded = base64.padEnd(Math.ceil(base64.length / 4) * 4, '=');
-  try {
-    if (typeof atob === 'function') {
-      return atob(padded);
-    }
-  } catch {
-    // ignore
-  }
-  try {
-    const nodeBuffer = (globalThis as {
-      Buffer?: { from: (value: string, encoding: string) => { toString: (encoding: string) => string } };
-    }).Buffer;
-    if (nodeBuffer) {
-      return nodeBuffer.from(padded, 'base64').toString('utf8');
-    }
-  } catch {
-    return null;
-  }
-  return null;
-}
-
-function decodeUcanPayload(token: string): { exp?: number; nbf?: number } | null {
-  const parts = token.split('.');
-  if (parts.length < 2) return null;
-  const decoded = decodeBase64Url(parts[1]);
-  if (!decoded) return null;
-  try {
-    return JSON.parse(decoded) as { exp?: number; nbf?: number };
-  } catch {
-    return null;
-  }
-}
-
 function toDidWeb(value: string): string {
   if (!value) return 'did:web:localhost';
   try {
@@ -434,16 +398,15 @@ function buildUcanRootStatement(audience: string, capabilities: UcanCapability[]
 }
 
 function parseCachedToken(token: string): CachedToken | null {
-  const payload = decodeUcanPayload(token);
-  if (!payload || typeof payload.exp !== 'number') return null;
-  return { token, exp: payload.exp, nbf: payload.nbf };
+  const timing = getUcanTokenTiming(token);
+  if (!timing.payload || timing.exp === null) return null;
+  return { token };
 }
 
 function isTokenValid(entry: CachedToken | null): boolean {
-  if (!entry || !entry.exp) return false;
-  const nowMs = Date.now();
-  if (entry.nbf && nowMs < entry.nbf) return false;
-  return entry.exp - TOKEN_SKEW_MS > nowMs;
+  return Boolean(entry && isUcanTokenFresh(entry.token, {
+    skewMs: DEFAULT_UCAN_TOKEN_SKEW_MS,
+  }));
 }
 
 function readStoredToken(key: string): CachedToken | null {
@@ -514,19 +477,30 @@ function hasValidApiToken(): boolean {
   return Boolean(readStoredToken(UCAN_API_TOKEN_KEY));
 }
 
-function clearAuthSession() {
+function clearUcanSessionQuietly() {
+  return clearUcanSession().catch((error) => {
+    console.error('Failed to clear UCAN session:', error);
+  });
+}
+
+function clearAuthSession(options: { waitForUcanSession?: boolean } = {}) {
   clearTokenStores();
   if (typeof localStorage !== 'undefined') {
     localStorage.removeItem('currentAccount');
   }
   resetTokenCaches();
-  void clearUcanSession();
+  const clearPromise = clearUcanSessionQuietly();
+  if (options.waitForUcanSession) {
+    return clearPromise;
+  }
+  void clearPromise;
+  return Promise.resolve();
 }
 
 function handleAccountChange(nextAccount: string) {
   clearTokenStores();
   resetTokenCaches();
-  void clearUcanSession();
+  void clearUcanSessionQuietly();
   if (typeof localStorage !== 'undefined') {
     localStorage.setItem('currentAccount', nextAccount);
   }
@@ -670,7 +644,7 @@ export async function connectWallet(router: any, route: any) {
     getWalletDataStore().setWalletReady(true);
     void setupWalletListeners({ provider });
     try {
-      if (await focusPendingWalletApproval(provider)) {
+      if (loginInFlight && await focusPendingWalletApproval(provider)) {
         const ok = await waitForLoginCompletion();
         if (ok) {
           if (!(await goMarketAfterLogin(router))) {
@@ -724,10 +698,10 @@ export function getStoredAuthToken() {
   return String(localStorage.getItem(AUTH_TOKEN_KEY) || '').trim();
 }
 
-export function logoutWithUcan(options: { redirect?: boolean } = {}) {
+export async function logoutWithUcan(options: { redirect?: boolean } = {}) {
   const redirect = options.redirect !== false;
   markManualLogout();
-  clearAuthSession();
+  await clearAuthSession({ waitForUcanSession: true });
   emitAccountChange(null);
   if (redirect) {
     redirectHome();

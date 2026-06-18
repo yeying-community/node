@@ -203,7 +203,7 @@ const totpDialogVisible = ref(false)
 const totpProvisionLoading = ref(false)
 const totpProvision = ref<TotpProvision | null>(null)
 const totpQrDataUrl = ref('')
-let notificationStream: { close: () => void } | null = null
+let notificationStream: { close: () => Promise<void> } | null = null
 let notificationErrorShown = false
 let copiedTimer: number | null = null
 
@@ -408,10 +408,11 @@ function ensureNotificationStream() {
     })
 }
 
-function closeNotificationStream() {
+async function closeNotificationStream() {
     if (notificationStream) {
-        notificationStream.close()
+        const stream = notificationStream
         notificationStream = null
+        await stream.close()
     }
 }
 
@@ -532,8 +533,8 @@ const handleAccountCommand = async (command: string | number | object) => {
     if (action !== 'logout') {
         return
     }
-    closeNotificationStream()
-    logoutWithUcan({ redirect: false })
+    await closeNotificationStream()
+    await logoutWithUcan({ redirect: false })
     currentAccount.value = null
     notifications.value = []
     unreadCount.value = 0
@@ -564,7 +565,7 @@ const handleAccountChanged = (event: Event) => {
     const detail = (event as CustomEvent).detail
     currentAccount.value = detail?.account ?? getCurrentAccount()
     notificationErrorShown = false
-    closeNotificationStream()
+    void closeNotificationStream()
     if (currentAccount.value) {
         notificationListDirty.value = true
         void loadUnreadCount()
@@ -602,7 +603,7 @@ watch(
 
 onBeforeUnmount(() => {
     window.removeEventListener('wallet:accountChanged', handleAccountChanged)
-    closeNotificationStream()
+    void closeNotificationStream()
     if (copiedTimer !== null) {
         window.clearTimeout(copiedTimer)
         copiedTimer = null

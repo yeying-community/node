@@ -134,12 +134,13 @@ function parseSseBlock(block: string): { id: string; event: string; data: string
 function isAbortLikeError(error: unknown): boolean {
   if (!error) return false
   const message = error instanceof Error ? error.message : String(error)
+  const normalizedMessage = message.toLowerCase()
   const name = error instanceof Error ? error.name : ''
   return (
     name === 'AbortError' ||
     message.includes('BodyStreamBuffer was aborted') ||
     message.includes('The operation was aborted') ||
-    message.includes('aborted')
+    normalizedMessage.includes('aborted')
   )
 }
 
@@ -211,6 +212,8 @@ class NotificationClient {
   openStream(handlers: NotificationStreamHandlers = {}) {
     const controller = new AbortController()
     let closed = false
+    let reader: ReadableStreamDefaultReader<Uint8Array> | null = null
+    let closePromise: Promise<void> | null = null
 
     const run = async () => {
       try {
@@ -228,7 +231,7 @@ class NotificationClient {
         if (!response.ok || !response.body) {
           throw new Error(`通知流连接失败: ${response.status}`)
         }
-        const reader = response.body.getReader()
+        reader = response.body.getReader()
         const decoder = new TextDecoder('utf-8')
         let buffer = ''
         while (!closed) {
@@ -260,15 +263,32 @@ class NotificationClient {
           return
         }
         handlers.onError?.(error instanceof Error ? error : new Error(String(error)))
+      } finally {
+        try {
+          reader?.releaseLock()
+        } catch {
+          // ignore stream cleanup errors
+        }
+        reader = null
       }
     }
 
-    void run()
+    const runPromise = run()
 
     return {
-      close() {
+      close(): Promise<void> {
+        if (closePromise) {
+          return closePromise
+        }
         closed = true
         controller.abort()
+        const cancelPromise = reader?.cancel().catch((error) => {
+          if (!isAbortLikeError(error)) {
+            console.error('通知流关闭失败', error)
+          }
+        }) ?? Promise.resolve()
+        closePromise = Promise.all([cancelPromise, runPromise]).then(() => undefined)
+        return closePromise
       },
     }
   }
