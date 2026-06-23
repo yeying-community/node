@@ -1,34 +1,34 @@
 <template>
     <el-dialog
         v-model="props.applroveShow"
-        :title="props.title || '审批'"
+        :title="props.title || $t('approval_modal_title')"
         width="860px"
         :close-on-click-modal="false"
         @close="props.closeClick()"
     >
         <div class="approval-modal">
             <div class="preview">
-                <div class="block-title">申请预览</div>
+                <div class="block-title">{{ $t('approval_modal_preview') }}</div>
                 <el-skeleton v-if="loading" :rows="6" animated />
                 <AuditSummaryPanel v-else-if="auditDetail" :audit="auditDetail" embedded />
-                <el-empty v-else description="未加载到申请详情" :image-size="72" />
+                <el-empty v-else :description="$t('approval_modal_empty')" :image-size="72" />
             </div>
 
             <div class="editor">
-                <div class="block-title">审批操作</div>
+                <div class="block-title">{{ $t('approval_modal_action') }}</div>
                 <el-form label-position="top" :model="form" :rules="rules" ref="formRef" label-width="100px">
-                    <el-form-item label="审批结果" prop="result">
+                    <el-form-item :label="$t('approval_modal_result')" prop="result">
                         <el-radio-group v-model="form.result" class="ml-4">
-                            <el-radio label="passed" size="large">通过</el-radio>
-                            <el-radio label="reject" size="large">驳回</el-radio>
+                            <el-radio label="passed" size="large">{{ $t('approval_modal_passed') }}</el-radio>
+                            <el-radio label="reject" size="large">{{ $t('approval_modal_rejected') }}</el-radio>
                         </el-radio-group>
                     </el-form-item>
-                    <el-form-item label="审批意见" prop="opinion">
+                    <el-form-item :label="$t('approval_modal_opinion')" prop="opinion">
                         <el-input
                             type="textarea"
                             :rows="6"
                             v-model="form.opinion"
-                            placeholder="请填写审批意见，申请人会在审批轨迹中看到这条记录"
+                            :placeholder="$t('approval_modal_opinion_placeholder')"
                         />
                     </el-form-item>
                 </el-form>
@@ -37,8 +37,8 @@
 
         <template #footer>
             <span class="dialog-footer">
-                <el-button @click="props.closeClick()">取消</el-button>
-                <el-button type="primary" @click="submitForm"> 确定 </el-button>
+                <el-button @click="props.closeClick()">{{ $t('btn_cancel') }}</el-button>
+                <el-button type="primary" @click="submitForm"> {{ $t('btn_ok') }} </el-button>
             </span>
         </template>
     </el-dialog>
@@ -49,10 +49,11 @@ import $audit, { AuditCommentStatusEnum } from '@/plugins/audit'
 import type { AuditAuditDetail } from '@/plugins/audit'
 import AuditSummaryPanel from './AuditSummaryPanel.vue'
 import { ElForm } from 'element-plus';
-import { ElMessage } from 'element-plus';
-import { ref, reactive, watch } from 'vue'
-import { notifyError } from '@/utils/message';
+import { getCurrentInstance, ref, reactive, watch } from 'vue'
+import { notifyError, notifySuccess } from '@/utils/message';
 const formRef = ref<InstanceType<typeof ElForm> | null>(null);
+const { proxy } = getCurrentInstance()!
+const { $t } = proxy
 const loading = ref(false)
 const auditDetail = ref<AuditAuditDetail | null>(null)
 const form = reactive({
@@ -61,7 +62,7 @@ const form = reactive({
 })
 
 const rules = reactive({
-    result: [{ required: true, message: '请选择审批结果', trigger: 'blur' }]
+    result: [{ required: true, message: String($t('approval_modal_result_required')), trigger: 'blur' }]
 })
 const props = defineProps({
     applroveShow: Boolean,
@@ -92,7 +93,7 @@ const loadDetail = async () => {
         auditDetail.value = await $audit.detail(uid)
     } catch (error) {
         auditDetail.value = null
-        notifyError(`获取申请详情失败: ${error instanceof Error ? error.message : String(error)}`)
+        notifyError(`${$t('approval_modal_load_failed')}：${error instanceof Error ? error.message : String(error)}`)
     } finally {
         loading.value = false
     }
@@ -115,11 +116,11 @@ watch(
  */
 const submitForm = () => {
     if (formRef.value === undefined || formRef.value === null) {
-        ElMessage.error('请先选择审批结果')
+        notifyError(String($t('approval_modal_result_required')))
         return false
     }
     if (!auditDetail.value) {
-        notifyError('申请详情尚未加载完成')
+        notifyError(String($t('approval_modal_not_ready')))
         return false
     }
     formRef.value.validate(async (valid: boolean) => {
@@ -133,9 +134,9 @@ const submitForm = () => {
                         text: applyOpinion,
                         status: AuditCommentStatusEnum.COMMENTSTATUSAGREE
                     })
-                    ElMessage.success('审批通过')
+                    notifySuccess(String($t('approval_modal_pass_success')))
                 } catch (e) {
-                    notifyError(`审批失败: ${e}`)
+                    notifyError(`${$t('approval_modal_submit_failed')}：${e}`)
                     return
                 }
             } else if (applyResult === 'reject') {
@@ -145,9 +146,9 @@ const submitForm = () => {
                         text: applyOpinion,
                         status: AuditCommentStatusEnum.COMMENTSTATUSREJECT
                     })
-                    ElMessage.success('已驳回')
+                    notifySuccess(String($t('approval_modal_reject_success')))
                 } catch (e) {
-                    notifyError(`审批失败: ${e}`)
+                    notifyError(`${$t('approval_modal_submit_failed')}：${e}`)
                     return
                 }
             }
@@ -156,7 +157,7 @@ const submitForm = () => {
                 decision: applyResult
             })
         } else {
-            notifyError('请先选择审批结果')
+            notifyError(String($t('approval_modal_result_required')))
         }
     })
 }

@@ -69,6 +69,52 @@ export class TotpSubjectSecretDO {
     boundAt!: string
 }
 
+@Entity('passkey_subject_credentials')
+@Index('idx_passkey_subject_credentials_subject', ['subjectType', 'subjectId'])
+export class PasskeySubjectCredentialDO {
+    @PrimaryGeneratedColumn('uuid')
+    id!: string
+
+    @Column({ length: 64, name: 'subject_type', default: 'wallet_address' })
+    subjectType!: string
+
+    @Column({ length: 128, name: 'subject_id' })
+    subjectId!: string
+
+    @Column({ type: 'text', name: 'credential_id', unique: true })
+    credentialId!: string
+
+    @Column({ type: 'text', name: 'public_key' })
+    publicKey!: string
+
+    @Column({ type: 'bigint', name: 'sign_count', default: 0 })
+    signCount!: string
+
+    @Column({ length: 128, name: 'aaguid', default: '' })
+    aaguid!: string
+
+    @Column({ type: 'text', name: 'transports', default: '' })
+    transports!: string
+
+    @Column({ length: 255, name: 'device_name', default: '' })
+    deviceName!: string
+
+    @Column({ length: 255, name: 'rp_id' })
+    rpId!: string
+
+    @Column({ type: 'text', name: 'user_handle', default: '' })
+    userHandle!: string
+
+    @Column({ length: 64, name: 'created_at' })
+    createdAt!: string
+
+    @Column({ length: 64, name: 'last_used_at', default: '' })
+    lastUsedAt!: string
+
+    @Column({ length: 64, name: 'revoked_at', default: '' })
+    revokedAt!: string
+}
+
 @Entity('notifications')
 @Index('idx_notification_type_created_at', ['type', 'createdAt'])
 export class NotificationDO {

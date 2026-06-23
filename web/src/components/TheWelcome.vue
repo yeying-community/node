@@ -1,10 +1,13 @@
 <script lang="ts" setup>
+import { getCurrentInstance } from 'vue'
 
+const { proxy } = getCurrentInstance()!
+const { $t } = proxy
 </script>
 
 <template>
   <div class="welcome">
-    Hello world!
+    {{ $t('welcome_title') }}
   </div>
 </template>
 

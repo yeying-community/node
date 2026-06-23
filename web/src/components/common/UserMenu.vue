@@ -4,7 +4,7 @@
         <MenuButton>
             <div class="h-7 flex items-center lang"  aria-hidden="true">
                 <img class="mr-1 w-7 h-7 rounded-full" src="../../assets/img/default.jpg">
-                <span class="text-sm font-normal opacity-85">User1</span>
+                <span class="text-sm font-normal opacity-85">{{ $t('user_menu_center') }}</span>
             </div>
           <!-- <div
             aria-hidden="true"
@@ -25,7 +25,7 @@
         >
           <div class="py-1">
             <MenuItem
-              @click="changeLang(item.code)"
+              @click="handleMenuAction(item.code)"
               v-slot="{ active }"
               v-for="item in menuList"
               :key="item.code"
@@ -46,20 +46,21 @@
   </template>
   
 <script lang="ts" setup>
-  import { ref } from "vue";
+  import { computed, getCurrentInstance } from "vue";
   import { Menu, MenuButton, MenuItem, MenuItems } from "@headlessui/vue";
-  import { setLanguage } from "@yeying-community/yeying-i18n";
-  
-  const changeLang = async (code) => {
-    await setLanguage(code);
-    location.reload();
-  };
-  const menuList = ref([
-    { title: "Account", url: "en-US" },
-    { title: "Message", url: "zh-CN" },
-    { title: "Sign Out", code: "zh-CN" },
+  const { proxy } = getCurrentInstance()!
+  const { $t } = proxy
+
+  const menuList = computed(() => [
+    { title: String($t('user_menu_profile')), code: "profile" },
+    { title: String($t('user_menu_messages')), code: "messages" },
+    { title: String($t('user_menu_logout')), code: "logout" },
   ]);
-  
+
+  const handleMenuAction = async () => {
+    return;
+  };
+
   //   import { ChevronDownIcon } from '@heroicons/vue/20/solid'
   </script>
 <style scoped>

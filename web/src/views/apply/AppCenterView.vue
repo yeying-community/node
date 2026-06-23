@@ -9,7 +9,7 @@
 </template>
 
 <script lang="ts" setup>
-import { computed, ref, watch } from 'vue'
+import { computed, getCurrentInstance, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import $application, { type ApplicationMetadata } from '@/plugins/application'
 import MarketBlock from '@/views/components/MarketBlock.vue'
@@ -19,12 +19,14 @@ import { getCurrentAccount } from '@/plugins/auth'
 const route = useRoute()
 const applicationList = ref<ApplicationMetadata[]>([])
 const keyword = computed(() => String(route.query.keyword || '').trim())
+const { proxy } = getCurrentInstance()!
+const { $t } = proxy
 
 const search = async () => {
     try {
         const account = getCurrentAccount()
         if (!account) {
-            notifyError('❌未查询到当前账户，请登录')
+            notifyError(String($t('market_missing_account')))
             return
         }
         const result = await $application.search(
@@ -37,7 +39,7 @@ const search = async () => {
         )
         applicationList.value = Array.isArray(result) ? result : []
     } catch (error) {
-        notifyError(`❌获取应用列表失败 ${error}`)
+        notifyError(`${$t('market_load_apps_failed')}：${error}`)
     }
 }
 

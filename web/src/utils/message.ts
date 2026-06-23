@@ -1,8 +1,9 @@
 import { ElNotification } from 'element-plus'
+import { translate } from '@/lang/messages'
 
 export const notifyError = (msg: string) => {
     ElNotification({
-        title: '错误',
+        title: translate('message_error_title'),
         message: msg,
         type: 'error',
         position: 'top-right',
@@ -13,7 +14,7 @@ export const notifyError = (msg: string) => {
 
 export const notifyInfo = (msg: string) => {
     ElNotification({
-        title: '消息',
+        title: translate('message_info_title'),
         message: msg,
         type: 'info',
         position: 'top-right',
@@ -24,7 +25,7 @@ export const notifyInfo = (msg: string) => {
 
 export const notifySuccess = (msg: string) => {
     ElNotification({
-        title: '成功',
+        title: translate('message_success_title'),
         message: msg,
         type: 'success',
         position: 'top-right',

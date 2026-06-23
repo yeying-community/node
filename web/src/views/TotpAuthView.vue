@@ -1,8 +1,8 @@
 <template>
   <div class="totp-auth-page">
     <div class="totp-auth-card">
-      <h1>授权验证</h1>
-      <p class="subtitle">输入 6 位验证码完成授权。</p>
+      <h1>{{ $t('totp_auth_title') }}</h1>
+      <p class="subtitle">{{ $t('totp_auth_subtitle') }}</p>
 
       <div class="meta-row">
         <span class="app-name">{{ requestAppName }}</span>
@@ -11,22 +11,22 @@
         </span>
       </div>
 
-      <p v-if="requestSubjectHint" class="subject-hint">地址：{{ requestSubjectHint }}</p>
+      <p v-if="requestSubjectHint" class="subject-hint">{{ $t('totp_auth_address') }}{{ requestSubjectHint }}</p>
 
       <div v-if="requestExpired" class="expired-panel">
-        <p class="expired-title">授权已过期</p>
-        <p class="expired-desc">请返回应用重新发起授权。</p>
+        <p class="expired-title">{{ $t('totp_auth_expired_title') }}</p>
+        <p class="expired-desc">{{ $t('totp_auth_expired_desc') }}</p>
         <div class="expired-actions">
           <el-button type="primary" :disabled="!hasReturnTarget" @click="goBackToApp(false)">
-            返回应用
+            {{ $t('totp_auth_back_app') }}
           </el-button>
-          <el-button :disabled="!hasReturnTarget" @click="goBackToApp(true)">重新发起</el-button>
+          <el-button :disabled="!hasReturnTarget" @click="goBackToApp(true)">{{ $t('totp_auth_retry') }}</el-button>
         </div>
       </div>
 
       <template v-else>
         <div class="totp-timer">
-          本次授权剩余
+          {{ $t('totp_auth_remaining') }}
           <strong>{{ requestCountdownText }}</strong>
         </div>
 
@@ -56,21 +56,21 @@
           :disabled="!canApprove"
           @click="approveRequest({ auto: false })"
         >
-          确认
+          {{ $t('totp_auth_confirm') }}
         </el-button>
 
         <p v-if="redirecting" class="redirect-tip">
-          验证成功，{{ redirectCountdown }} 秒后返回应用…
+          {{ String($t('totp_auth_redirecting')).replace('{count}', String(redirectCountdown)) }}
         </p>
       </template>
 
-      <p v-if="loadingRequest" class="loading-tip">加载请求中…</p>
+      <p v-if="loadingRequest" class="loading-tip">{{ $t('totp_auth_loading') }}</p>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import { computed, getCurrentInstance, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useRoute } from 'vue-router';
 import { apiUrl } from '@/plugins/api';
 import { notifyInfo } from '@/utils/message';
@@ -140,11 +140,13 @@ type ApproveResultView = {
 };
 
 const route = useRoute();
+const { proxy } = getCurrentInstance()!
+const { $t } = proxy
 const DIGIT_COUNT = 6;
-const AUTO_VERIFY_HINT = '输入 6 位后自动验证';
-const REQUEST_INVALID_HINT = '请求无效，请返回应用重试';
-const REQUEST_EXPIRED_HINT = '请求已失效，请返回应用重试';
-const REQUEST_READ_FAILED_HINT = '请求读取失败，请返回应用重试';
+const AUTO_VERIFY_HINT = String($t('totp_auth_auto_verify'));
+const REQUEST_INVALID_HINT = String($t('totp_auth_invalid'));
+const REQUEST_EXPIRED_HINT = String($t('totp_auth_expired_hint'));
+const REQUEST_READ_FAILED_HINT = String($t('totp_auth_read_failed'));
 
 const requestId = ref('');
 const requestMode = ref<'authorize' | 'bind' | ''>('');
@@ -221,7 +223,7 @@ async function parseEnvelope<T>(response: Response, fallbackMessage: string): Pr
   }
 
   if (!response.ok) {
-    throw new Error(payload?.message || `${fallbackMessage}: ${response.status}`);
+    throw new Error(payload?.message || `${fallbackMessage}：${response.status}`);
   }
   if (!payload || payload.code !== 0) {
     throw new Error(payload?.message || fallbackMessage);
@@ -246,7 +248,7 @@ async function loadRequestInfo() {
     if (authorizeResponse.status !== 404) {
       requestInfo.value = await parseEnvelope<AuthorizeRequestInfo>(
         authorizeResponse,
-        '查询授权请求失败'
+        String($t('totp_auth_query_authorize_failed'))
       );
       requestMode.value = 'authorize';
       if (requestInfo.value.status === 'pending') {
@@ -264,7 +266,7 @@ async function loadRequestInfo() {
         credentials: 'include',
       }
     );
-    requestInfo.value = await parseEnvelope<BindRequestInfo>(bindResponse, '查询绑定请求失败');
+    requestInfo.value = await parseEnvelope<BindRequestInfo>(bindResponse, String($t('totp_auth_query_bind_failed')));
     requestMode.value = 'bind';
     if (requestInfo.value.status === 'pending') {
       setHint('info', AUTO_VERIFY_HINT);
@@ -273,7 +275,7 @@ async function loadRequestInfo() {
     }
   } catch (error) {
     setHint('error', REQUEST_READ_FAILED_HINT);
-    notifyInfo('请求读取失败，请重试');
+    notifyInfo(String($t('totp_auth_read_retry')));
   } finally {
     loadingRequest.value = false;
   }
@@ -353,7 +355,7 @@ function resolveExpiredRedirectTarget(retry: boolean) {
 function goBackToApp(retry: boolean) {
   const target = resolveExpiredRedirectTarget(retry);
   if (!target) {
-    notifyInfo('缺少返回地址，请回到应用重试');
+    notifyInfo(String($t('totp_auth_missing_return')));
     return;
   }
   window.location.href = target;
@@ -446,7 +448,7 @@ function onDigitKeydown(event: KeyboardEvent, index: number) {
 
 function normalizeErrorMessage(error: unknown): string {
   const raw = String(error || '').replace(/^Error:\s*/i, '').trim();
-  if (!raw) return '验证失败，请稍后重试';
+  if (!raw) return String($t('totp_auth_verify_failed'));
   return raw;
 }
 
@@ -457,16 +459,16 @@ function resolveApproveHint(error: unknown): string {
     normalized.includes('code') &&
     (normalized.includes('invalid') || normalized.includes('mismatch') || normalized.includes('wrong'))
   ) {
-    return '验证码错误';
+    return String($t('totp_auth_code_invalid'));
   }
   if (normalized.includes('expired')) {
-    return '请求已过期，请返回应用重试';
+    return String($t('totp_auth_request_expired'));
   }
   if (normalized.includes('used') || normalized.includes('processed')) {
-    return '请求已处理，请返回应用查看';
+    return String($t('totp_auth_request_used'));
   }
   if (normalized.includes('request') && normalized.includes('not found')) {
-    return '请求不存在，请返回应用重试';
+    return String($t('totp_auth_request_not_found'));
   }
   return message;
 }
@@ -477,7 +479,7 @@ async function approveRequest(options: { auto: boolean }) {
     return;
   }
   if (!requestMode.value) {
-    setHint('error', '流程无效，请返回应用重试');
+    setHint('error', String($t('totp_auth_flow_invalid')));
     return;
   }
   if (requestExpired.value) {
@@ -491,7 +493,7 @@ async function approveRequest(options: { auto: boolean }) {
   const code = totpCode.value;
   if (code.length !== DIGIT_COUNT) {
     if (!options.auto) {
-      notifyInfo('请输入 6 位验证码');
+      notifyInfo(String($t('totp_auth_enter_code')));
     }
     return;
   }
@@ -512,16 +514,16 @@ async function approveRequest(options: { auto: boolean }) {
           code,
         }),
       });
-      const result = await parseEnvelope<BindApproveResult>(response, '授权失败');
+      const result = await parseEnvelope<BindApproveResult>(response, String($t('totp_auth_approve_failed')));
       approveResult.value = {
         mode: 'bind',
         redirectTo: result.redirectUri || '',
       };
       if (result.redirectUri) {
-        setHint('success', '验证成功，正在返回…');
+        setHint('success', String($t('totp_auth_success_redirect')));
         startRedirect(result.redirectUri);
       } else {
-        setHint('success', '验证成功，请返回应用继续');
+        setHint('success', String($t('totp_auth_success_continue')));
       }
     } else {
       const response = await fetch(apiUrl('/api/v1/public/auth/totp/authorize/approve'), {
@@ -533,12 +535,12 @@ async function approveRequest(options: { auto: boolean }) {
           code,
         }),
       });
-      const result = await parseEnvelope<AuthorizeApproveResult>(response, '授权失败');
+      const result = await parseEnvelope<AuthorizeApproveResult>(response, String($t('totp_auth_approve_failed')));
       approveResult.value = {
         mode: 'authorize',
         redirectTo: result.redirectTo,
       };
-      setHint('success', '验证成功，正在返回…');
+      setHint('success', String($t('totp_auth_success_redirect')));
       startRedirect(result.redirectTo);
     }
   } catch (error) {
@@ -611,14 +613,16 @@ const requestCountdownText = computed(() => {
   const minute = Math.floor(remain / 60);
   const second = remain % 60;
   if (minute > 0) {
-    return `${minute}分${String(second).padStart(2, '0')}秒`;
+    return String($t('totp_auth_minute_second'))
+      .replace('{minute}', String(minute))
+      .replace('{second}', String(second).padStart(2, '0'));
   }
-  return `${second}秒`;
+  return String($t('totp_auth_second')).replace('{second}', String(second));
 });
 
 const requestAppName = computed(() => {
   const name = String(requestInfo.value?.appName || '').trim();
-  return name || '应用';
+  return name || String($t('totp_auth_app_fallback'));
 });
 
 const requestSubjectHint = computed(() => {
@@ -627,13 +631,13 @@ const requestSubjectHint = computed(() => {
 });
 
 const requestStatusText = computed(() => {
-  if (requestExpired.value) return '已过期';
+  if (requestExpired.value) return String($t('totp_auth_status_expired'));
   const status = requestInfo.value?.status || '';
-  if (status === 'pending') return '待处理';
-  if (status === 'used') return '已处理';
-  if (status === 'expired') return '已过期';
-  if (status === 'revoked') return '已撤销';
-  if (!status) return loadingRequest.value ? '加载中' : '无效请求';
+  if (status === 'pending') return String($t('totp_auth_status_pending'));
+  if (status === 'used') return String($t('totp_auth_status_used'));
+  if (status === 'expired') return String($t('totp_auth_status_expired'));
+  if (status === 'revoked') return String($t('totp_auth_status_revoked'));
+  if (!status) return loadingRequest.value ? String($t('totp_auth_status_loading')) : String($t('totp_auth_status_invalid'));
   return status;
 });
 
@@ -671,7 +675,7 @@ watch(
       !approving.value &&
       !redirecting.value
     ) {
-      approveRequest({ auto: true }).catch(() => {});
+      approveRequest({ auto: true }).catch(() => undefined);
       return;
     }
     if (oldValue !== value && hintType.value === 'error' && value.length > 0) {

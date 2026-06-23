@@ -1,25 +1,25 @@
 <template>
     <el-table :data="items" style="width: 100%" :row-class-name="resolveRowClassName">
-        <el-table-column prop="name" label="名称" min-width="300">
+        <el-table-column prop="name" :label="$t('approval_table_name')" min-width="300">
             <template #default="scope">
                 <div class="name-row">
                     <div class="name">{{ scope.row.name }}</div>
-                    <span v-if="isJustHandled(scope.row)" class="handled-tag">刚刚处理</span>
+                    <span v-if="isJustHandled(scope.row)" class="handled-tag">{{ $t('approval_table_just_handled') }}</span>
                 </div>
                 <el-tooltip class="box-item" effect="dark" :content="scope.row.desc" placement="top-start">
                     <el-text class="w-400px mb-2" truncated>{{ scope.row.desc }}</el-text>
                 </el-tooltip>
             </template>
         </el-table-column>
-        <el-table-column prop="typeLabel" label="类型" width="90" />
-        <el-table-column prop="applicantor" label="申请人" width="200">
+        <el-table-column prop="typeLabel" :label="$t('approval_table_type')" width="90" />
+        <el-table-column prop="applicantor" :label="$t('approval_table_applicant')" width="200">
             <template #default="scope">
                 <el-tooltip class="box-item" effect="dark" :content="extractApplicant(scope.row.applicantor)" placement="top-start">
                     <span class="address-cell">{{ shortAddress(scope.row.applicantor) }}</span>
                 </el-tooltip>
             </template>
         </el-table-column>
-        <el-table-column prop="state" label="状态" width="140" show-overflow-tooltip>
+        <el-table-column prop="state" :label="$t('approval_table_status')" width="140" show-overflow-tooltip>
             <template #default="scope">
                 <div class="state-cell">
                     <div class="state-main">
@@ -27,7 +27,7 @@
                             is-dot
                             :type="statusInfo[scope.row.state]"
                             style="margin-top: 10px; margin-right: 8px"
-                        />{{ scope.row.state }}
+                        />{{ formatStatus(scope.row.state) }}
                         <el-tooltip class="box-item" effect="dark" :content="scope.row.msg || '-'" placement="top-start">
                             <el-icon v-if="pageTabFrom === 'finishApproval'" style="margin-top: 15px"><Warning /></el-icon>
                         </el-tooltip>
@@ -35,18 +35,18 @@
                 </div>
             </template>
         </el-table-column>
-        <el-table-column prop="progress" label="同意进度" width="140">
+        <el-table-column prop="progress" :label="$t('approval_table_progress')" width="140">
             <template #default="scope">
                 <span class="state-progress">{{ scope.row.progress || '-' }}</span>
             </template>
         </el-table-column>
-        <el-table-column prop="date" label="申请时间" width="200">
+        <el-table-column prop="date" :label="$t('approval_table_time')" width="200">
             <template #default="scope">
                 {{ dayjs(scope.row.date).format('YYYY-MM-DD HH:mm:ss') }}
             </template>
         </el-table-column>
 
-        <el-table-column fixed="right" label="操作" width="110">
+        <el-table-column fixed="right" :label="$t('approval_table_actions')" width="110">
             <template #default="scope">
                 <el-button
                     v-if="pageTabFrom === 'waitApproval'"
@@ -54,7 +54,7 @@
                     type="primary"
                     size="small"
                     @click="handleClick(scope.row)"
-                    >去审批</el-button
+                    >{{ $t('approval_table_go_approve') }}</el-button
                 >
                 <el-button
                     v-else
@@ -62,7 +62,7 @@
                     type="primary"
                     size="small"
                     @click="handleDetail(scope.row)"
-                    >详情</el-button
+                    >{{ $t('approval_table_detail') }}</el-button
                 >
             </template>
         </el-table-column>
@@ -72,17 +72,25 @@
 <script lang="ts" setup>
 import dayjs from 'dayjs'
 import { Warning } from '@element-plus/icons-vue'
-import { ref } from 'vue'
+import { getCurrentInstance, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import type { AuditDetailBox } from '@/plugins/audit'
 
 const emit = defineEmits(['refresh', 'open-approve'])
 const router = useRouter()
+const { proxy } = getCurrentInstance()!
+const { $t } = proxy
 
 const statusInfo = {
     待审批: 'primary',
     审批通过: 'success',
-    审批驳回: ''
+    审批驳回: 'danger'
+}
+
+const statusLabelMap: Record<string, string> = {
+    待审批: String($t('approval_status_pending')),
+    审批通过: String($t('approval_status_passed')),
+    审批驳回: String($t('approval_status_rejected'))
 }
 
 const extractApplicant = (value?: string) => {
@@ -100,6 +108,11 @@ const shortAddress = (value?: string) => {
         return address
     }
     return `${address.slice(0, 6)}...${address.slice(-4)}`
+}
+
+const formatStatus = (value?: string) => {
+    const status = String(value || '').trim()
+    return statusLabelMap[status] || status || '-'
 }
 
 const handleClick = (row: any) => {
@@ -143,7 +156,7 @@ const isJustHandled = (row: AuditDetailBox) => {
 }
 
 const props = defineProps({
-    pageTabFrom: String, // finishApproval审批完成 / waitApproval待我审批
+    pageTabFrom: String,
     highlightAuditId: String,
     items: {
         type: Array as () => AuditDetailBox[],

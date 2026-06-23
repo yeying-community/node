@@ -6,11 +6,8 @@
 </template>
 
 <script lang="ts" setup>
-import {ref} from 'vue'
-import { RouterLink, RouterView } from 'vue-router'
 import ProHeader from '@/components/profile/ProHeader.vue'
 import Main from '@/components/profile/Main.vue'
-
 </script>
 <style scoped>
 .layout_bg{

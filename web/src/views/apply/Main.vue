@@ -2,8 +2,8 @@
   <div class="profile">
     <div class="left" :class="{ collapsed: isCollapsed }">
       <div class="sidebar-head">
-        <span v-show="!isCollapsed" class="sidebar-title">工具栏</span>
-        <el-tooltip :content="isCollapsed ? '展开工具栏' : '收起工具栏'" placement="right">
+        <span v-show="!isCollapsed" class="sidebar-title">{{ $t('sidebar_title') }}</span>
+        <el-tooltip :content="isCollapsed ? $t('sidebar_expand') : $t('sidebar_collapse')" placement="right">
           <button type="button" class="collapse-btn" @click="toggleCollapse">
             <el-icon>
               <component :is="isCollapsed ? Expand : Fold" />
@@ -39,7 +39,7 @@
 </template>
 
 <script lang="ts" setup>
-import { onMounted, ref, watch } from "vue";
+import { getCurrentInstance, onMounted, ref, watch } from "vue";
 import { useRouter, useRoute } from "vue-router";
 import { Tickets, Document, Setting, Expand, Fold } from "@element-plus/icons-vue";
 
@@ -47,19 +47,21 @@ const SIDEBAR_COLLAPSED_KEY = "market:sidebar:collapsed";
 
 const router = useRouter();
 const route = useRoute();
+const { proxy } = getCurrentInstance()!
+const { $t } = proxy
 const selectName = ref("");
 const isCollapsed = ref(false);
 
 const navigation = [
-  { title: "我的应用", to: "/market/dev/my-apps/", name: "apply", icon: Tickets },
+  { title: $t('sidebar_my_apps'), to: "/market/dev/my-apps/", name: "apply", icon: Tickets },
   {
-    title: "我的审批",
+    title: $t('sidebar_my_approval'),
     to: "/market/dev/approval/",
     name: "approval",
     icon: Document,
   },
   {
-    title: "我的配置",
+    title: $t('sidebar_my_config'),
     to: "/market/dev/my-config/",
     name: "myConfig",
     icon: Setting,

@@ -1,25 +1,30 @@
 <template>
-  <el-tag class="ml-2" :type="statusInfo[props.status]?.type">{{
-    statusInfo[props.status]?.text
+  <el-tag class="ml-2" :type="statusInfo[props.status]?.type || 'primary'">{{
+    statusInfo[props.status]?.text || '-'
   }}</el-tag>
 </template>
 <script lang="ts" setup>
+import { getCurrentInstance } from 'vue'
+
+const { proxy } = getCurrentInstance()!
+const { $t } = proxy
+
 const statusInfo = {
   success: {
     type: "success",
-    text: "申请通过",
+    text: String($t('apply_status_success')),
   },
   applying: {
-    type: "",
-    text: "申请中",
+    type: "primary",
+    text: String($t('apply_status_applying')),
   },
   reject: {
     type: "danger",
-    text: "申请驳回",
+    text: String($t('apply_status_reject')),
   },
   cancel: {
     type: "info",
-    text: "已取消",
+    text: String($t('apply_status_cancel')),
   },
 };
 

@@ -66,7 +66,7 @@
 </template>
 
 <script lang="ts" setup>
-import { ref,watch,toRefs } from 'vue'
+import { computed, ref,watch,toRefs, getCurrentInstance } from 'vue'
 import { RouterView,useRouter,useRoute } from 'vue-router'
 import {
   Dialog,
@@ -77,6 +77,8 @@ import {
 import {useProfileStore} from '@/stores/index'
 import Language from '@/components/common/Language.vue'
 import UserMenu from '@/components/common/UserMenu.vue'
+const { proxy } = getCurrentInstance()!
+const { $t } = proxy
 const profileStore = useProfileStore()
 const router = useRouter();
 const route = useRoute();
@@ -84,10 +86,10 @@ const selectName = ref("")
 const {sidebarOpen} = toRefs(profileStore)
 
 // const sidebarOpen = ref(false)
-const navigation = [
-  { title: "Account", to: '/profile/', name: 'user', icon:"icon-account" },
-  { title: "Message", to: '/profile/message', name: 'message', icon:"icon-bell-full" },
-]
+const navigation = computed(() => [
+  { title: String($t('user_menu_profile')), to: '/profile/', name: 'user', icon:"icon-account" },
+  { title: String($t('user_menu_messages')), to: '/profile/message', name: 'message', icon:"icon-bell-full" },
+])
 // 监听路由变化
 watch(
   () => route,

@@ -1,19 +1,19 @@
 <template>
     <el-dialog
         v-model="props.modelValue"
-        :title="title"
+        :title="dialogTitle"
         width="430px"
         :close-on-click-modal="false"
         @close="props.closeClick()"
-        :close-icon="props.closeIconHidden ? 'null' : null"
+        :show-close="!props.closeIconHidden"
     >
         <el-space size="24" direction="vertical" alignment="center" style="width: 100%">
             <div v-if="$slots.icon"><slot name="icon" /></div>
 
             <el-space size="8" direction="vertical" alignment="center" style="width: 100%; margin-bottom: 8px">
-                <div class="status-desc">{{ mainDesc }}</div>
+                <div class="status-desc">{{ dialogMainDesc }}</div>
                 <div class="waring-text">
-                    {{ subDesc }}
+                    {{ dialogSubDesc }}
                 </div>
             </el-space>
 
@@ -22,7 +22,7 @@
                     {{ leftBtnText }}
                 </el-button>
                 <el-button :type="rightBtnType || 'default'" @click="rightBtnClick">
-                    {{ rightBtnText }}
+                    {{ dialogRightBtnText }}
                 </el-button>
             </el-space>
         </el-space>
@@ -30,6 +30,9 @@
 </template>
 
 <script lang="ts" setup>
+import { computed, getCurrentInstance } from 'vue'
+const { proxy } = getCurrentInstance()!
+const { $t } = proxy
 const props = defineProps({
     modelValue: {
         type: Boolean,
@@ -37,7 +40,7 @@ const props = defineProps({
     },
     title: {
         type: String,
-        default: '提示'
+        default: ''
     },
     closeIconHidden: {
         type: Boolean,
@@ -45,11 +48,11 @@ const props = defineProps({
     },
     mainDesc: {
         type: String,
-        default: '应用申请中'
+        default: ''
     },
     subDesc: {
         type: String,
-        default: '正在等待服务所有人审批，请耐心等待'
+        default: ''
     },
     leftBtnType: {
         type: String,
@@ -65,7 +68,7 @@ const props = defineProps({
     },
     rightBtnText: {
         type: String,
-        default: '返回列表'
+        default: ''
     },
     leftBtnClick: {
         type: Function,
@@ -80,13 +83,10 @@ const props = defineProps({
         default: () => {}
     }
 })
-
-const emits = defineEmits(['update:modelValue'])
-
-// const closeDialog = () => {
-
-//   emits("update:modelValue", false);
-// };
+const dialogTitle = computed(() => props.title || String($t('result_modal_default_title')))
+const dialogMainDesc = computed(() => props.mainDesc || String($t('result_modal_default_main')))
+const dialogSubDesc = computed(() => props.subDesc || String($t('result_modal_default_sub')))
+const dialogRightBtnText = computed(() => props.rightBtnText || String($t('result_modal_default_right')))
 </script>
 
 <style scoped>

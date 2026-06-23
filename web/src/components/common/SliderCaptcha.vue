@@ -71,7 +71,7 @@
       sliderText: {
         // 滑块文字
         type: String,
-        default: "向右拖动滑块填充拼图",
+        default: "向右拖动滑块完成验证",
       },
       bigImg: {
         // 大图源
@@ -86,12 +86,12 @@
       okMsg: {
         // 小图图源
         type: String,
-        default: "验证成功",
+        default: "验证通过",
       },
       failMsg: {
         // 小图图源
         type: String,
-        default: "验证失败",
+        default: "验证失败，请重试",
       },
       accuracy: {
         // 拖动误差范围
@@ -171,7 +171,6 @@
         const y = e.clientY || e.touches[0].clientY
         origin.orginX = x;
         origin.originY = y;
-        console.log('down',x,y)
       };
   
       // 鼠标移动

@@ -26,7 +26,6 @@ const imgAjaxInfo = ref({
 const onJudge = (pos1,pos2) => {
   slideRef.value.onFail()
   // slideRef.value.reset()
-  console.log("judge", pos1,pos2)
 }
 
 </script>

@@ -1,7 +1,7 @@
 <template>
     <div class="list-wrap">
         <el-table :data="items" style="width: 100%" :row-class-name="resolveRowClassName" @row-click="handleRowClick">
-            <el-table-column label="名称" :min-width="nameColumnMinWidth">
+            <el-table-column :label="$t('app_list_name')" :min-width="nameColumnMinWidth">
                 <template #default="scope">
                     <div class="name-cell">
                         <el-avatar shape="square" :size="34" :src="resolveAvatarSrc(scope.row.avatar)">
@@ -21,19 +21,19 @@
                 </template>
             </el-table-column>
 
-            <el-table-column prop="code" label="分类" width="75">
+            <el-table-column prop="code" :label="$t('app_list_category')" width="75">
                 <template #default="scope">
                     {{ resolveApplicationCategoryLabel(scope.row.code) }}
                 </template>
             </el-table-column>
 
-            <el-table-column v-if="pageFrom === 'myCreate'" prop="version" label="版本" width="55">
+            <el-table-column v-if="pageFrom === 'myCreate'" prop="version" :label="$t('app_list_version')" width="55">
                 <template #default="scope">
                     {{ formatVersion(scope.row.version) }}
                 </template>
             </el-table-column>
 
-            <el-table-column prop="owner" label="作者" width="180">
+            <el-table-column prop="owner" :label="$t('app_list_author')" width="180">
                 <template #default="scope">
                     <el-tooltip class="box-item" effect="dark" :content="scope.row.owner || '-'" placement="top-start">
                         <span class="address-cell">{{ shortAddress(scope.row.owner) }}</span>
@@ -41,7 +41,7 @@
                 </template>
             </el-table-column>
 
-            <el-table-column v-if="pageFrom === 'myCreate'" label="状态" width="100">
+            <el-table-column v-if="pageFrom === 'myCreate'" :label="$t('app_list_status')" width="100">
                 <template #default="scope">
                     <span class="state-dot">
                         <el-badge is-dot :type="businessState(scope.row).type" />
@@ -50,25 +50,25 @@
                 </template>
             </el-table-column>
 
-            <el-table-column v-if="pageFrom === 'myApply'" label="申请状态" width="130">
+            <el-table-column v-if="pageFrom === 'myApply'" :label="$t('app_list_apply_status')" width="130">
                 <template #default="scope">
                     <ApplyStatus :status="resolveApplyStatus(scope.row)" />
                 </template>
             </el-table-column>
 
-            <el-table-column label="创建时间" width="170">
+            <el-table-column :label="$t('app_list_created_at')" width="170">
                 <template #default="scope">
                     {{ formatDate(scope.row.createdAt) }}
                 </template>
             </el-table-column>
 
-            <el-table-column label="更新时间" width="170">
+            <el-table-column :label="$t('app_list_updated_at')" width="170">
                 <template #default="scope">
                     {{ formatDate(scope.row.updatedAt) }}
                 </template>
             </el-table-column>
 
-            <el-table-column fixed="right" label="操作" min-width="260">
+            <el-table-column fixed="right" :label="$t('app_list_actions')" min-width="260">
                 <template #default="scope">
                     <div class="actions">
                         <el-button
@@ -78,12 +78,12 @@
                             size="small"
                             @click="toDetail(scope.row)"
                         >
-                            详情
+                            {{ $t('app_list_detail') }}
                         </el-button>
 
                         <template v-if="pageFrom === 'myCreate'">
                             <el-button link type="primary" size="small" @click="toEdit(scope.row)">
-                                编辑
+                                {{ $t('app_list_edit') }}
                             </el-button>
 
                             <el-button
@@ -93,20 +93,20 @@
                                 size="small"
                                 @click="handleOfflineConfirm(scope.row)"
                             >
-                                下架应用
+                                {{ $t('app_list_unpublish') }}
                             </el-button>
                             <el-button v-else link type="primary" size="small" @click="handleOnline(scope.row)">
-                                上架应用
+                                {{ $t('app_list_publish') }}
                             </el-button>
                             <el-popconfirm
                                 v-if="!isOnline(scope.row)"
-                                title="您确定要删除该应用吗？"
-                                confirm-button-text="确定"
-                                cancel-button-text="取消"
+                                :title="$t('app_list_delete_confirm')"
+                                :confirm-button-text="$t('btn_ok')"
+                                :cancel-button-text="$t('btn_cancel')"
                                 @confirm="toDelete(scope.row)"
                             >
                                 <template #reference>
-                                    <el-button link type="danger" size="small">删除</el-button>
+                                    <el-button link type="danger" size="small">{{ $t('app_list_delete') }}</el-button>
                                 </template>
                             </el-popconfirm>
                         </template>
@@ -114,13 +114,13 @@
                         <template v-if="pageFrom === 'myApply'">
                             <el-popconfirm
                                 v-if="resolveApplyStatus(scope.row) === 'applying'"
-                                title="您确定要取消当前应用的申请吗？"
-                                confirm-button-text="确定"
-                                cancel-button-text="取消"
+                                :title="$t('app_list_cancel_confirm')"
+                                :confirm-button-text="$t('btn_ok')"
+                                :cancel-button-text="$t('btn_cancel')"
                                 @confirm="cancelApply(scope.row)"
                             >
                                 <template #reference>
-                                    <el-button link type="danger" size="small">取消申请</el-button>
+                                    <el-button link type="danger" size="small">{{ $t('app_list_cancel_apply') }}</el-button>
                                 </template>
                             </el-popconfirm>
 
@@ -131,7 +131,7 @@
                                 size="small"
                                 @click="toConfigCapability(scope.row)"
                             >
-                                配置能力
+                                {{ $t('app_list_config_capability') }}
                             </el-button>
 
                             <el-button
@@ -141,12 +141,12 @@
                                 size="small"
                                 @click="reApply(scope.row)"
                             >
-                                重新申请
+                                {{ $t('app_list_reapply') }}
                             </el-button>
                         </template>
 
                         <el-button link type="primary" size="small" @click="exportIdentity(scope.row)">
-                            导出身份
+                            {{ $t('app_list_export_identity') }}
                         </el-button>
                     </div>
                 </template>
@@ -155,7 +155,7 @@
     </div>
 
     <ApplyUseModal
-        title="重新申请"
+        :title="$t('app_list_reapply')"
         :dialogVisible="dialogVisible"
         :detail="selectedRow"
         :afterSubmit="afterSubmit"
@@ -169,7 +169,7 @@
 </template>
 
 <script lang="ts" setup>
-import { computed, ref } from 'vue'
+import { computed, getCurrentInstance, ref } from 'vue'
 import dayjs from 'dayjs'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { useRouter } from 'vue-router'
@@ -202,6 +202,8 @@ const props = defineProps({
 })
 
 const router = useRouter()
+const { proxy } = getCurrentInstance()!
+const { $t } = proxy
 const dialogVisible = ref(false)
 const modalVisible = ref(false)
 const selectedRow = ref<ApplicationMetadata | null>(null)
@@ -296,37 +298,37 @@ const toDelete = async (row: ApplicationMetadata) => {
 }
 
 const handleOfflineConfirm = (row: ApplicationMetadata) => {
-    ElMessageBox.confirm('下架后当前应用将不在应用市场展示。', '确认下架', {
+    ElMessageBox.confirm(String($t('app_list_unpublish_confirm_desc')), String($t('app_list_unpublish_confirm_title')), {
         type: 'warning',
-        confirmButtonText: '确定',
-        cancelButtonText: '取消',
+        confirmButtonText: String($t('btn_ok')),
+        cancelButtonText: String($t('btn_cancel')),
         showClose: false
     })
         .then(() => handleOffline(row))
-        .catch(() => {})
+        .catch(() => undefined)
 }
 
 const handleOffline = async (row: ApplicationMetadata) => {
     const result = await $application.offline({ uid: row.uid, did: row.did, version: row.version })
     if (result?.unpublished) {
-        ElMessage.success('已下架')
+        ElMessage.success(String($t('app_list_unpublish_success')))
         refreshList()
         return
     }
-    ElMessage.error('下架失败')
+    ElMessage.error(String($t('app_list_unpublish_failed')))
 }
 
 const handleOnline = (row: ApplicationMetadata) => {
-    ElMessageBox.confirm('上架后仍可编辑，更新版本后可重新提交上架。', '确认上架申请', {
+    ElMessageBox.confirm(String($t('app_detail_publish_confirm_desc')), String($t('app_detail_publish_confirm_title')), {
         type: 'warning',
-        confirmButtonText: '确定',
-        cancelButtonText: '取消',
+        confirmButtonText: String($t('btn_ok')),
+        cancelButtonText: String($t('btn_cancel')),
         showClose: false
     })
         .then(async () => {
             const detail = await $application.myCreateDetailByUid(row.uid || '')
             if (!detail) {
-                notifyError('❌应用不存在')
+                notifyError(String($t('app_detail_app_missing')))
                 return
             }
             const created = await $audit.submitPublishRequest({
@@ -334,18 +336,18 @@ const handleOnline = (row: ApplicationMetadata) => {
                 resource: detail as Record<string, unknown>
             })
             if (created?.meta?.uid) {
-                ElMessage.success('已提交上架申请')
+                ElMessage.success(String($t('app_edit_submit_success')))
                 refreshList()
             }
         })
-        .catch(() => {})
+        .catch(() => undefined)
 }
 
 const exportIdentity = async (row: ApplicationMetadata) => {
     if (props.pageFrom === 'myCreate') {
         const detail = await $application.myCreateDetailByUid(row.uid || '')
         if (!detail) {
-            notifyError('❌应用不存在')
+            notifyError(String($t('app_detail_app_missing')))
             return
         }
         await exportIdentityInfo(detail.did, detail.name)
@@ -353,7 +355,7 @@ const exportIdentity = async (row: ApplicationMetadata) => {
     }
     const detail = await $application.queryByUid(row.uid || '')
     if (!detail) {
-        notifyError('❌应用不存在')
+        notifyError(String($t('app_detail_app_missing')))
         return
     }
     await exportIdentityInfo(detail.did, detail.name)
@@ -367,7 +369,7 @@ const cancelApply = async (row: ApplicationMetadata) => {
     }
     const account = getCurrentAccount()
     if (!account) {
-        notifyError('❌未查询到当前账户，请登录')
+        notifyError(String($t('market_missing_account')))
         return
     }
     const applicant = `${normalizeAddress(account)}::${normalizeAddress(account)}`
@@ -377,7 +379,7 @@ const cancelApply = async (row: ApplicationMetadata) => {
               .filter((audit) =>
                   isAuditForResource(audit, {
                       auditType: 'application',
-                      reason: '申请使用',
+                      reason: 'Request Access',
                       uid: row.uid,
                       did: row.did,
                       version: row.version,

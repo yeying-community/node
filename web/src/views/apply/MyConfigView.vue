@@ -1,182 +1,319 @@
 <template>
   <div class="my-config">
     <el-breadcrumb separator="/">
-      <el-breadcrumb-item>我的配置</el-breadcrumb-item>
+      <el-breadcrumb-item>{{ mt('breadcrumb') }}</el-breadcrumb-item>
     </el-breadcrumb>
 
     <div class="page-head">
       <div>
-        <div class="page-title">中心化 UCAN 配置</div>
+        <div class="page-title">{{ mt('pageTitle') }}</div>
       </div>
       <div class="head-actions">
-        <el-button @click="loadTotpStatus">刷新状态</el-button>
-        <el-button type="primary" @click="loadTotpProvision">加载认证器配置</el-button>
+        <el-button @click="loadTotpStatus">{{ mt('refreshStatus') }}</el-button>
+        <el-button type="primary" @click="loadTotpProvision">{{ mt('loadTotpProvision') }}</el-button>
       </div>
     </div>
 
     <div class="status-card">
-      <div class="status-title">Totp Auth 状态</div>
+      <div class="status-title">{{ mt('totpStatusTitle') }}</div>
       <div class="status-list">
         <div class="status-item">
-          <span class="status-label">服务开关</span>
+          <span class="status-label">{{ mt('serviceSwitch') }}</span>
           <el-tag :type="totpStatus?.enabled ? 'success' : 'info'" effect="light">
-            {{ totpStatus ? (totpStatus.enabled ? '已开启' : '未开启') : '-' }}
+            {{ totpStatus ? (totpStatus.enabled ? mt('enabled') : mt('disabled')) : '-' }}
           </el-tag>
         </div>
         <div class="status-item">
-          <span class="status-label">服务就绪</span>
+          <span class="status-label">{{ mt('serviceReady') }}</span>
           <el-tag :type="totpStatus?.ready ? 'success' : 'warning'" effect="light">
-            {{ totpStatus ? (totpStatus.ready ? '就绪' : '未就绪') : '-' }}
+            {{ totpStatus ? (totpStatus.ready ? mt('ready') : mt('notReady')) : '-' }}
           </el-tag>
         </div>
         <div class="status-item">
-          <span class="status-label">Issuer</span>
+          <span class="status-label">{{ mt('issuer') }}</span>
           <span class="status-value">{{ totpStatus?.issuerName || '-' }}</span>
         </div>
         <div class="status-item">
-          <span class="status-label">验证路径</span>
+          <span class="status-label">{{ mt('verifyPath') }}</span>
           <span class="status-value path-text">{{ totpStatus?.verifyPath || '-' }}</span>
         </div>
       </div>
-      <div v-if="totpStatus?.error" class="status-error">错误：{{ totpStatus.error }}</div>
+      <div v-if="totpStatus?.error" class="status-error">{{ mt('errorPrefix') }}{{ totpStatus.error }}</div>
+    </div>
+
+    <div class="status-card">
+      <div class="status-title">{{ mt('passkeyStatusTitle') }}</div>
+      <div class="status-list">
+        <div class="status-item">
+          <span class="status-label">{{ mt('serviceSwitch') }}</span>
+          <el-tag :type="passkeyStatus?.enabled ? 'success' : 'info'" effect="light">
+            {{ passkeyStatus ? (passkeyStatus.enabled ? mt('enabled') : mt('disabled')) : '-' }}
+          </el-tag>
+        </div>
+        <div class="status-item">
+          <span class="status-label">{{ mt('serviceReady') }}</span>
+          <el-tag :type="passkeyStatus?.ready ? 'success' : 'warning'" effect="light">
+            {{ passkeyStatus ? (passkeyStatus.ready ? mt('ready') : mt('notReady')) : '-' }}
+          </el-tag>
+        </div>
+        <div class="status-item">
+          <span class="status-label">{{ mt('rpId') }}</span>
+          <span class="status-value">{{ passkeyStatus?.rpId || '-' }}</span>
+        </div>
+        <div class="status-item">
+          <span class="status-label">{{ mt('origin') }}</span>
+          <span class="status-value path-text">{{ passkeyStatus?.origin || '-' }}</span>
+        </div>
+      </div>
+      <div v-if="passkeyStatus?.error" class="status-error">{{ mt('errorPrefix') }}{{ passkeyStatus.error }}</div>
     </div>
 
     <div v-if="totpProvision" class="totp-card">
       <div class="totp-head">
-        <div class="totp-title">认证器配置（TOTP）</div>
+        <div class="totp-title">{{ mt('totpProvisionTitle') }}</div>
       </div>
       <div class="totp-body">
         <div class="totp-meta">
           <div class="meta-item">
-            <span class="status-label">issuer</span>
+            <span class="status-label">{{ mt('issuer') }}</span>
             <span class="status-value">{{ totpProvision.issuer }}</span>
           </div>
           <div class="meta-item">
-            <span class="status-label">account</span>
+            <span class="status-label">{{ mt('accountName') }}</span>
             <span class="status-value">{{ totpProvision.accountName }}</span>
           </div>
           <div class="meta-item">
-            <span class="status-label">period / digits</span>
+            <span class="status-label">{{ mt('periodDigits') }}</span>
             <span class="status-value">{{ totpProvision.period }}s / {{ totpProvision.digits }}</span>
           </div>
           <div class="field-line">
-            <span class="label">secret</span>
+            <span class="label">{{ mt('secret') }}</span>
             <el-input :model-value="totpProvision.secret" readonly />
-            <el-button @click="copyText(totpProvision.secret, 'TOTP secret')">复制</el-button>
+            <el-button @click="copyText(totpProvision.secret, mt('totpSecretLabel'))">{{ mt('copy') }}</el-button>
           </div>
           <div class="field-line">
-            <span class="label">otpauthUri</span>
+            <span class="label">{{ mt('authenticatorLink') }}</span>
             <el-input :model-value="totpProvision.otpauthUri" readonly />
-            <el-button @click="copyText(totpProvision.otpauthUri, 'otpauthUri')">复制</el-button>
-            <el-button @click="openLink(totpProvision.otpauthUri)">打开</el-button>
+            <el-button @click="copyText(totpProvision.otpauthUri, mt('authenticatorUriLabel'))">{{ mt('copy') }}</el-button>
+            <el-button @click="openLink(totpProvision.otpauthUri)">{{ mt('open') }}</el-button>
           </div>
         </div>
         <div class="qr-box">
-          <div class="label">二维码</div>
+          <div class="label">{{ mt('qrCode') }}</div>
           <div class="qr-panel">
-            <img v-if="totpQrDataUrl" :src="totpQrDataUrl" alt="TOTP QR Code" />
-            <div v-else class="qr-placeholder">二维码生成中或不可用</div>
+            <img v-if="totpQrDataUrl" :src="totpQrDataUrl" :alt="mt('qrAlt')" />
+            <div v-else class="qr-placeholder">{{ mt('qrPlaceholder') }}</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="totp-card">
+      <div class="totp-head">
+        <div class="totp-title">{{ mt('passkeyConfigTitle') }}</div>
+      </div>
+      <div class="passkey-actions">
+        <div class="field-line">
+          <span class="label">{{ mt('deviceName') }}</span>
+          <el-input v-model="passkeyDeviceName" :placeholder="mt('devicePlaceholder')" />
+          <el-button :disabled="!passkeyStatus?.enabled || !passkeyStatus?.ready" @click="loadPasskeyCredentials">{{ mt('refreshCredentials') }}</el-button>
+          <el-button
+            :disabled="!passkeyStatus?.enabled || !passkeyStatus?.ready"
+            type="primary"
+            @click="registerPasskey"
+          >
+            {{ mt('registerPasskey') }}
+          </el-button>
+        </div>
+      </div>
+      <div class="passkey-list">
+        <div v-if="!passkeyCredentials.length" class="empty-text">{{ mt('noPasskeyCredentials') }}</div>
+        <div v-for="credential in passkeyCredentials" :key="credential.credentialId" class="flow-step">
+          <div class="credential-head">
+            <div class="credential-name">{{ credential.deviceName || mt('defaultCredential') }}</div>
+            <el-tag :type="credential.revokedAt ? 'info' : 'success'" effect="light">
+              {{ credential.revokedAt ? mt('revoked') : mt('valid') }}
+            </el-tag>
+          </div>
+          <div class="status-list compact-list">
+            <div class="status-item">
+              <span class="status-label">{{ mt('credentialId') }}</span>
+              <span class="status-value path-text">{{ credential.credentialId }}</span>
+            </div>
+            <div class="status-item">
+              <span class="status-label">{{ mt('transports') }}</span>
+              <span class="status-value">{{ credential.transports?.join(', ') || '-' }}</span>
+            </div>
+            <div class="status-item">
+              <span class="status-label">{{ mt('createdAt') }}</span>
+              <span class="status-value">{{ credential.createdAt || '-' }}</span>
+            </div>
+            <div v-if="credential.revokedAt" class="status-item">
+              <span class="status-label">{{ mt('revokedAt') }}</span>
+              <span class="status-value">{{ credential.revokedAt }}</span>
+            </div>
+          </div>
+          <div class="actions">
+            <el-button
+              :disabled="Boolean(credential.revokedAt)"
+              type="danger"
+              plain
+              @click="revokePasskeyCredentialAction(credential.credentialId)"
+            >
+              {{ mt('revoke') }}
+            </el-button>
+            <el-button @click="copyText(credential.credentialId, mt('credentialId'))">{{ mt('copyId') }}</el-button>
           </div>
         </div>
       </div>
     </div>
 
     <el-tabs v-model="activeTab" class="config-tabs">
-      <el-tab-pane label="配置" name="config">
+      <el-tab-pane :label="mt('configTab')" name="config">
         <div class="panel">
           <el-form label-position="top" class="config-form">
             <div class="grid-two">
-              <el-form-item label="区块链地址">
-                <el-input v-model="form.address" placeholder="0x..." />
+              <el-form-item :label="mt('address')">
+                <el-input v-model="form.address" :placeholder="mt('walletAddressPlaceholder')" />
               </el-form-item>
-              <el-form-item label="AppId">
-                <el-input v-model="form.appId" placeholder="应用发布后生成的 AppId（UUID）" />
+              <el-form-item :label="mt('appId')">
+                <el-input v-model="form.appId" :placeholder="mt('appIdPlaceholder')" />
               </el-form-item>
-              <el-form-item class="full" label="redirectUri">
+              <el-form-item class="full" :label="mt('redirectUri')">
                 <el-input
                   v-model="form.redirectUri"
-                  placeholder="必须命中应用发布中的授权回调地址，例如：https://app.example.com/callback"
+                  :placeholder="mt('redirectUriPlaceholder')"
                 />
               </el-form-item>
-              <el-form-item label="state">
-                <el-input v-model="form.state" placeholder="可选" />
+              <el-form-item :label="mt('state')">
+                <el-input v-model="form.state" :placeholder="mt('optional')" />
               </el-form-item>
-              <el-form-item label="requestTtlMs">
+              <el-form-item :label="mt('requestTtlMs')">
                 <el-input-number v-model="form.requestTtlMs" :min="60000" :step="30000" />
               </el-form-item>
             </div>
           </el-form>
           <div class="actions">
-            <el-button type="primary" @click="saveConfig">保存配置</el-button>
-            <el-button @click="restoreConfig">重载配置</el-button>
-            <el-button type="success" @click="createAuthorizeRequest">创建授权请求</el-button>
+            <el-button type="primary" @click="saveConfig">{{ mt('saveConfig') }}</el-button>
+            <el-button @click="restoreConfig">{{ mt('reloadConfig') }}</el-button>
+            <el-button type="success" @click="createAuthorizeRequest">{{ mt('createAuthorizeRequest') }}</el-button>
           </div>
         </div>
       </el-tab-pane>
 
-      <el-tab-pane label="流程" name="flow">
+      <el-tab-pane :label="mt('flowTab')" name="flow">
         <div class="panel">
           <div class="flow-step">
-            <div class="step-title"><span class="step-dot">1</span>查询授权请求</div>
+            <div class="step-title"><span class="step-dot">1</span>{{ mt('stepQueryRequest') }}</div>
             <div class="line">
-              <span class="label">requestId</span>
-              <el-input v-model="requestIdInput" placeholder="创建后自动填充，也可手动输入" />
-              <el-button @click="queryAuthorizeRequest">查询</el-button>
+              <span class="label">{{ mt('requestId') }}</span>
+              <el-input v-model="requestIdInput" :placeholder="mt('requestIdPlaceholder')" />
+              <el-button @click="queryAuthorizeRequest">{{ mt('query') }}</el-button>
             </div>
           </div>
 
           <div class="flow-step">
-            <div class="step-title"><span class="step-dot">2</span>TOTP 批准授权</div>
+            <div class="step-title"><span class="step-dot">2</span>{{ mt('stepApproveWithTotp') }}</div>
             <div class="line">
-              <span class="label">TOTP Code</span>
-              <el-input v-model="totpCode" placeholder="6位认证器验证码" />
-              <el-button type="success" @click="approveAuthorizeRequest">批准授权</el-button>
+              <span class="label">{{ mt('totpCode') }}</span>
+              <el-input v-model="totpCode" :placeholder="mt('totpCodePlaceholder')" />
+              <el-button type="success" @click="approveAuthorizeRequest">{{ mt('approveAuthorize') }}</el-button>
             </div>
           </div>
 
           <div class="flow-step">
-            <div class="step-title"><span class="step-dot">3</span>兑换授权码</div>
+            <div class="step-title"><span class="step-dot">3</span>{{ mt('stepExchangeCode') }}</div>
             <div class="line">
-              <span class="label">Auth Code</span>
-              <el-input v-model="authCodeInput" placeholder="approve 后自动填充" />
-              <el-button type="warning" @click="exchangeAuthorizeCode">兑换 Token</el-button>
+              <span class="label">{{ mt('authCode') }}</span>
+              <el-input v-model="authCodeInput" :placeholder="mt('authCodePlaceholder')" />
+              <el-button type="warning" @click="exchangeAuthorizeCode">{{ mt('exchangeToken') }}</el-button>
             </div>
           </div>
 
           <div class="flow-step">
-            <div class="step-title"><span class="step-dot">4</span>确认回调链接</div>
+            <div class="step-title"><span class="step-dot">4</span>{{ mt('stepConfirmLinks') }}</div>
             <div class="line">
-              <span class="label">verifyUrl</span>
+              <span class="label">{{ mt('verifyUrl') }}</span>
               <el-input :model-value="requestResult?.verifyUrl || ''" readonly />
-              <el-button @click="openVerifyUrl">打开</el-button>
-              <el-button @click="copyText(requestResult?.verifyUrl || '', 'verifyUrl')">复制</el-button>
+              <el-button @click="openVerifyUrl">{{ mt('open') }}</el-button>
+              <el-button @click="copyText(requestResult?.verifyUrl || '', mt('verifyUrl'))">{{ mt('copy') }}</el-button>
             </div>
             <div class="line">
-              <span class="label">redirectTo</span>
+              <span class="label">{{ mt('redirectTo') }}</span>
               <el-input :model-value="approveResult?.redirectTo || ''" readonly />
-              <el-button @click="openRedirectTo">打开</el-button>
-              <el-button @click="copyText(approveResult?.redirectTo || '', 'redirectTo')">复制</el-button>
+              <el-button @click="openRedirectTo">{{ mt('open') }}</el-button>
+              <el-button @click="copyText(approveResult?.redirectTo || '', mt('redirectTo'))">{{ mt('copy') }}</el-button>
+            </div>
+          </div>
+
+          <div class="flow-step">
+            <div class="step-title"><span class="step-dot">P1</span>{{ mt('stepPasskeyCreateRequest') }}</div>
+            <div class="line">
+              <span class="label">{{ mt('requestId') }}</span>
+              <el-input v-model="passkeyRequestIdInput" :placeholder="mt('requestIdPlaceholder')" />
+              <el-button :disabled="!passkeyStatus?.enabled || !passkeyStatus?.ready" @click="createPasskeyAuthorizeRequestAction">{{ mt('create') }}</el-button>
+              <el-button :disabled="!passkeyStatus?.enabled || !passkeyStatus?.ready" @click="queryPasskeyAuthorizeRequest">{{ mt('query') }}</el-button>
+            </div>
+          </div>
+
+          <div class="flow-step">
+            <div class="step-title"><span class="step-dot">P2</span>{{ mt('stepPasskeyApprove') }}</div>
+            <div class="line">
+              <span class="label">{{ mt('passkeyChallenge') }}</span>
+              <el-input :model-value="passkeyAuthChallenge?.passkeyRequest?.requestId || ''" readonly :placeholder="mt('passkeyChallengePlaceholder')" />
+              <el-button
+                :disabled="!passkeyStatus?.enabled || !passkeyStatus?.ready"
+                type="success"
+                @click="approveAuthorizeRequestWithPasskey"
+              >
+                {{ mt('triggerSignature') }}
+              </el-button>
+            </div>
+          </div>
+
+          <div class="flow-step">
+            <div class="step-title"><span class="step-dot">P3</span>{{ mt('stepPasskeyExchange') }}</div>
+            <div class="line">
+              <span class="label">{{ mt('authCode') }}</span>
+              <el-input v-model="passkeyAuthCodeInput" :placeholder="mt('authCodePlaceholder')" />
+              <el-button
+                :disabled="!passkeyStatus?.enabled || !passkeyStatus?.ready"
+                type="warning"
+                @click="exchangePasskeyAuthorizeCode"
+              >
+                {{ mt('exchangeToken') }}
+              </el-button>
+            </div>
+          </div>
+
+          <div class="flow-step">
+            <div class="step-title"><span class="step-dot">P4</span>{{ mt('stepPasskeyLinks') }}</div>
+            <div class="line">
+              <span class="label">{{ mt('redirectTo') }}</span>
+              <el-input :model-value="passkeyApproveResult?.redirectTo || ''" readonly />
+              <el-button @click="openLink(passkeyApproveResult?.redirectTo || '')">{{ mt('open') }}</el-button>
+              <el-button @click="copyText(passkeyApproveResult?.redirectTo || '', mt('redirectTo'))">{{ mt('copy') }}</el-button>
             </div>
           </div>
         </div>
       </el-tab-pane>
 
-      <el-tab-pane label="验证" name="result">
+      <el-tab-pane :label="mt('resultTab')" name="result">
         <div class="panel">
           <div class="flow-step">
             <div class="line">
-              <span class="label">JWT Token</span>
+              <span class="label">{{ mt('jwtToken') }}</span>
               <el-input :model-value="exchangeResult?.token || ''" readonly />
-              <el-button @click="copyText(exchangeResult?.token || '', 'JWT')">复制</el-button>
-              <el-button @click="verifyProfileWithJwt">验证</el-button>
+              <el-button @click="copyText(exchangeResult?.token || '', mt('jwtToken'))">{{ mt('copy') }}</el-button>
+              <el-button @click="verifyProfileWithJwt">{{ mt('verify') }}</el-button>
             </div>
           </div>
           <div class="flow-step">
             <div class="line">
-              <span class="label">UCAN Token</span>
+              <span class="label">{{ mt('ucanToken') }}</span>
               <el-input :model-value="exchangeResult?.ucan || ''" readonly />
-              <el-button @click="copyText(exchangeResult?.ucan || '', 'UCAN')">复制</el-button>
-              <el-button @click="verifyProfileWithUcan">验证</el-button>
+              <el-button @click="copyText(exchangeResult?.ucan || '', mt('ucanToken'))">{{ mt('copy') }}</el-button>
+              <el-button @click="verifyProfileWithUcan">{{ mt('verify') }}</el-button>
             </div>
           </div>
           <div class="result-json">
@@ -193,7 +330,9 @@ import { computed, onMounted, reactive, ref } from 'vue';
 import QRCode from 'qrcode';
 import { apiUrl } from '@/plugins/api';
 import { getAuthToken, getCurrentAccount } from '@/plugins/auth';
+import { getLocaleRef } from '@/lang/locale';
 import { notifyError, notifyInfo, notifySuccess } from '@/utils/message';
+import { getMyConfigMessage, type MyConfigMessageKey } from './myConfigI18n';
 
 type Envelope<T> = {
   code: number;
@@ -225,6 +364,72 @@ type TotpProvision = {
   digits: number;
   period: number;
   otpauthUri: string;
+};
+
+type PasskeyStatus = {
+  enabled: boolean;
+  ready: boolean;
+  rpId: string;
+  rpName: string;
+  origin: string;
+  timeoutMs: number;
+  challengeTtlMs: number;
+  error?: string;
+};
+
+type PasskeyCredentialRecord = {
+  credentialId: string;
+  subject: string;
+  deviceName?: string;
+  transports?: string[];
+  createdAt: string;
+  lastUsedAt?: string;
+  revokedAt?: string;
+};
+
+type PasskeyRegisterRequestResult = {
+  requestId: string;
+  challenge: string;
+  rp: {
+    id: string;
+    name: string;
+  };
+  user: {
+    id: string;
+    name: string;
+    displayName: string;
+  };
+  pubKeyCredParams: Array<{ type: 'public-key'; alg: number }>;
+  timeout: number;
+  attestation: 'none';
+  excludeCredentials: Array<{
+    id: string;
+    type: 'public-key';
+    transports?: string[];
+  }>;
+  authenticatorSelection?: {
+    residentKey?: 'discouraged' | 'preferred' | 'required';
+    userVerification?: 'discouraged' | 'preferred' | 'required';
+    authenticatorAttachment?: 'platform' | 'cross-platform';
+  };
+};
+
+type PasskeyAuthorizeChallengeRequest = {
+  requestId: string;
+  challenge: string;
+  timeout: number;
+  rpId: string;
+  allowCredentials: Array<{
+    id: string;
+    type: 'public-key';
+    transports?: string[];
+  }>;
+  userVerification?: 'discouraged' | 'preferred' | 'required';
+};
+
+type PasskeyAuthorizeChallengeResponse = {
+  authorizeRequest: AuthorizeRequestResult;
+  passkeyRequest: PasskeyAuthorizeChallengeRequest;
 };
 
 type UcanCapability = {
@@ -294,11 +499,26 @@ type ConfigForm = {
 };
 
 const STORAGE_KEY = 'node:web:my-config:totp-authorize';
+const locale = getLocaleRef();
+
+function mt(key: MyConfigMessageKey): string {
+  return getMyConfigMessage(locale.value, key);
+}
 
 const activeTab = ref('config');
 const totpStatus = ref<TotpStatus | null>(null);
 const totpProvision = ref<TotpProvision | null>(null);
 const totpQrDataUrl = ref('');
+const passkeyStatus = ref<PasskeyStatus | null>(null);
+const passkeyCredentials = ref<PasskeyCredentialRecord[]>([]);
+const passkeyDeviceName = ref('');
+const passkeyRequestResult = ref<AuthorizeRequestResult | null>(null);
+const passkeyApproveResult = ref<AuthorizeApproveResult | null>(null);
+const passkeyExchangeResult = ref<AuthorizeExchangeResult | null>(null);
+const passkeyProfileResult = ref<ProfileResult | null>(null);
+const passkeyAuthChallenge = ref<PasskeyAuthorizeChallengeResponse | null>(null);
+const passkeyRequestIdInput = ref('');
+const passkeyAuthCodeInput = ref('');
 const requestResult = ref<AuthorizeRequestResult | null>(null);
 const approveResult = ref<AuthorizeApproveResult | null>(null);
 const exchangeResult = ref<AuthorizeExchangeResult | null>(null);
@@ -322,11 +542,11 @@ async function parseEnvelope<T>(response: Response, fallbackMessage: string): Pr
     try {
       parsed = JSON.parse(text) as Envelope<T>;
     } catch {
-      throw new Error(`${fallbackMessage}: ${text}`);
+      throw new Error(`${fallbackMessage}：${text}`);
     }
   }
   if (!response.ok) {
-    throw new Error(parsed?.message || `${fallbackMessage}: ${response.status}`);
+    throw new Error(parsed?.message || `${fallbackMessage}：${response.status}`);
   }
   if (!parsed || parsed.code !== 0) {
     throw new Error(parsed?.message || fallbackMessage);
@@ -352,10 +572,87 @@ async function postJson<T>(path: string, body: unknown, fallbackMessage: string)
   return await parseEnvelope<T>(response, fallbackMessage);
 }
 
+async function getBearerToken(): Promise<string> {
+  const token = await getAuthToken();
+  if (!token) {
+    throw new Error(mt('missingLogin'));
+  }
+  return token;
+}
+
+async function getAuthJson<T>(path: string, fallbackMessage: string): Promise<T> {
+  const token = await getBearerToken();
+  const response = await fetch(apiUrl(path), {
+    method: 'GET',
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+    credentials: 'include',
+  });
+  return await parseEnvelope<T>(response, fallbackMessage);
+}
+
+async function postAuthJson<T>(path: string, body: unknown, fallbackMessage: string): Promise<T> {
+  const token = await getBearerToken();
+  const response = await fetch(apiUrl(path), {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    },
+    credentials: 'include',
+    body: JSON.stringify(body),
+  });
+  return await parseEnvelope<T>(response, fallbackMessage);
+}
+
+function base64UrlToUint8Array(value: string): Uint8Array {
+  const normalized = String(value || '').trim();
+  if (!normalized) {
+    return new Uint8Array();
+  }
+  const base64 = normalized.replace(/-/g, '+').replace(/_/g, '/');
+  const padding = '='.repeat((4 - (base64.length % 4 || 4)) % 4);
+  const raw = window.atob(base64 + padding);
+  const bytes = new Uint8Array(raw.length);
+  for (let index = 0; index < raw.length; index += 1) {
+    bytes[index] = raw.charCodeAt(index);
+  }
+  return bytes;
+}
+
+function arrayBufferToBase64Url(input: ArrayBufferLike): string {
+  const bytes = new Uint8Array(input);
+  let binary = '';
+  for (let index = 0; index < bytes.length; index += 1) {
+    binary += String.fromCharCode(bytes[index]);
+  }
+  return window.btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '');
+}
+
+function ensurePasskeySupported() {
+  if (
+    typeof window === 'undefined' ||
+    typeof window.PublicKeyCredential === 'undefined' ||
+    !navigator.credentials
+  ) {
+    throw new Error(mt('passkeyUnsupported'));
+  }
+}
+
+function ensurePasskeyReady() {
+  if (!passkeyStatus.value?.enabled) {
+    throw new Error(mt('passkeyDisabled'));
+  }
+  if (!passkeyStatus.value?.ready) {
+    throw new Error(mt('passkeyNotReady'));
+  }
+}
+
 function ensureAddress() {
   const address = String(form.address || '').trim();
   if (!address) {
-    throw new Error('请填写区块链地址');
+    throw new Error(mt('missingAddress'));
   }
   return address;
 }
@@ -364,7 +661,7 @@ function ensureAppConfig() {
   const appId = String(form.appId || '').trim();
   const redirectUri = String(form.redirectUri || '').trim();
   if (!appId || !redirectUri) {
-    throw new Error('请填写 AppId 和 redirectUri');
+    throw new Error(mt('missingAppConfig'));
   }
   return { appId, redirectUri };
 }
@@ -386,20 +683,31 @@ function restoreConfig() {
     form.state = String(parsed.state || '');
     form.requestTtlMs = Number(parsed.requestTtlMs || 120000);
   } catch {
-    notifyError('读取本地配置失败，已使用默认值');
+    notifyError(mt('restoreConfigFailed'));
   }
 }
 
 function saveConfig() {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(form));
-  notifySuccess('配置已保存到本地');
+  notifySuccess(mt('configSaved'));
 }
 
 async function loadTotpStatus() {
   try {
     totpStatus.value = await getJson<TotpStatus>(
       '/api/v1/public/auth/totp/status',
-      '查询 totp auth 状态失败'
+      mt('loadTotpStatusFailed')
+    );
+  } catch (error) {
+    notifyError(String(error));
+  }
+}
+
+async function loadPasskeyStatus() {
+  try {
+    passkeyStatus.value = await getJson<PasskeyStatus>(
+      '/api/v1/public/auth/passkey/status',
+      mt('loadPasskeyStatusFailed')
     );
   } catch (error) {
     notifyError(String(error));
@@ -420,17 +728,13 @@ async function renderTotpQrCode(uri: string) {
     });
   } catch {
     totpQrDataUrl.value = '';
-    notifyError('生成二维码失败，可改为复制 otpauthUri 手动导入');
+    notifyError(mt('generateQrFailed'));
   }
 }
 
 async function loadTotpProvision() {
   try {
-    const token = await getAuthToken();
-    if (!token) {
-      notifyError('缺少登录态，请先钱包登录');
-      return;
-    }
+    const token = await getBearerToken();
     const response = await fetch(apiUrl('/api/v1/public/auth/totp/totp/provision'), {
       method: 'GET',
       headers: {
@@ -440,12 +744,257 @@ async function loadTotpProvision() {
     });
     totpProvision.value = await parseEnvelope<TotpProvision>(
       response,
-      '获取认证器配置失败'
+      mt('loadTotpProvisionFailed')
     );
     await renderTotpQrCode(totpProvision.value.otpauthUri);
-    notifySuccess('认证器配置已加载，请绑定到你的认证器应用');
+    notifySuccess(mt('totpProvisionLoaded'));
   } catch (error) {
     totpQrDataUrl.value = '';
+    notifyError(String(error));
+  }
+}
+
+async function loadPasskeyCredentials() {
+  try {
+    ensurePasskeyReady();
+    passkeyCredentials.value = await getAuthJson<PasskeyCredentialRecord[]>(
+      '/api/v1/public/auth/passkey/credentials',
+      mt('loadPasskeyCredentialsFailed')
+    );
+  } catch (error) {
+    notifyError(String(error));
+  }
+}
+
+async function registerPasskey() {
+  try {
+    ensurePasskeyReady();
+    ensurePasskeySupported();
+    const request = await postAuthJson<PasskeyRegisterRequestResult>(
+      '/api/v1/public/auth/passkey/register/request',
+      {
+        deviceName: String(passkeyDeviceName.value || '').trim() || undefined,
+      },
+      mt('createPasskeyRegisterFailed')
+    );
+
+    const publicKey: PublicKeyCredentialCreationOptions = {
+      challenge: base64UrlToUint8Array(request.challenge),
+      rp: request.rp,
+      user: {
+        id: base64UrlToUint8Array(request.user.id),
+        name: request.user.name,
+        displayName: request.user.displayName,
+      },
+      pubKeyCredParams: request.pubKeyCredParams,
+      timeout: request.timeout,
+      attestation: request.attestation,
+      excludeCredentials: (request.excludeCredentials || []).map((item) => ({
+        id: base64UrlToUint8Array(item.id),
+        type: item.type,
+        transports: item.transports as AuthenticatorTransport[] | undefined,
+      })),
+      authenticatorSelection: request.authenticatorSelection,
+    };
+
+    const credential = (await navigator.credentials.create({
+      publicKey,
+    })) as PublicKeyCredential | null;
+
+    if (!credential) {
+      throw new Error(mt('passkeyRegisterCancelled'));
+    }
+
+    const response = credential.response;
+    if (!(response instanceof AuthenticatorAttestationResponse)) {
+      throw new Error(mt('passkeyRegisterResponseInvalid'));
+    }
+
+    const transports =
+      typeof response.getTransports === 'function' ? response.getTransports() : undefined;
+
+    await postAuthJson<PasskeyCredentialRecord>(
+      '/api/v1/public/auth/passkey/register/confirm',
+      {
+        requestId: request.requestId,
+        deviceName: String(passkeyDeviceName.value || '').trim() || undefined,
+        credential: {
+          id: credential.id,
+          rawId: arrayBufferToBase64Url(credential.rawId),
+          type: credential.type,
+          response: {
+            attestationObject: arrayBufferToBase64Url(response.attestationObject),
+            clientDataJSON: arrayBufferToBase64Url(response.clientDataJSON),
+            transports,
+          },
+          clientExtensionResults: credential.getClientExtensionResults(),
+        },
+      },
+      mt('confirmPasskeyRegisterFailed')
+    );
+
+    await loadPasskeyCredentials();
+    notifySuccess(mt('passkeyRegisterSuccess'));
+  } catch (error) {
+    notifyError(String(error));
+  }
+}
+
+async function createPasskeyAuthorizeRequestAction() {
+  try {
+    ensurePasskeyReady();
+    ensurePasskeySupported();
+    const address = ensureAddress();
+    const { appId, redirectUri } = ensureAppConfig();
+    const result = await postJson<AuthorizeRequestResult>(
+      '/api/v1/public/auth/passkey/authorize/request',
+      {
+        address,
+        appId,
+        redirectUri,
+        state: form.state || undefined,
+        requestTtlMs: form.requestTtlMs,
+      },
+      mt('createPasskeyAuthorizeRequestFailed')
+    );
+    passkeyRequestResult.value = result;
+    passkeyRequestIdInput.value = result.requestId;
+    passkeyApproveResult.value = null;
+    passkeyExchangeResult.value = null;
+    passkeyProfileResult.value = null;
+    passkeyAuthChallenge.value = null;
+    notifySuccess(mt('passkeyAuthorizeRequestCreated'));
+  } catch (error) {
+    notifyError(String(error));
+  }
+}
+
+async function queryPasskeyAuthorizeRequest() {
+  try {
+    ensurePasskeyReady();
+    const requestId = String(passkeyRequestIdInput.value || '').trim();
+    if (!requestId) {
+      notifyError(mt('enterPasskeyRequestIdFirst'));
+      return;
+    }
+    const result = await getJson<AuthorizeRequestResult>(
+      `/api/v1/public/auth/passkey/authorize/request/${encodeURIComponent(requestId)}`,
+      mt('queryPasskeyAuthorizeRequestFailed')
+    );
+    passkeyRequestResult.value = result;
+    notifySuccess(mt('passkeyAuthorizeRequestRefreshed'));
+  } catch (error) {
+    notifyError(String(error));
+  }
+}
+
+async function approveAuthorizeRequestWithPasskey() {
+  try {
+    ensurePasskeyReady();
+    ensurePasskeySupported();
+    const requestId = String(passkeyRequestIdInput.value || '').trim();
+    if (!requestId) {
+      notifyError(mt('createOrEnterPasskeyRequestFirst'));
+      return;
+    }
+
+    const challenge = await postJson<PasskeyAuthorizeChallengeResponse>(
+      '/api/v1/public/auth/passkey/authorize/challenge',
+      { requestId },
+      mt('createPasskeyChallengeFailed')
+    );
+    passkeyAuthChallenge.value = challenge;
+
+    const publicKey: PublicKeyCredentialRequestOptions = {
+      challenge: base64UrlToUint8Array(challenge.passkeyRequest.challenge),
+      rpId: challenge.passkeyRequest.rpId,
+      timeout: challenge.passkeyRequest.timeout,
+      allowCredentials: (challenge.passkeyRequest.allowCredentials || []).map((item) => ({
+        id: base64UrlToUint8Array(item.id),
+        type: item.type,
+        transports: item.transports as AuthenticatorTransport[] | undefined,
+      })),
+      userVerification: challenge.passkeyRequest.userVerification,
+    };
+
+    const credential = (await navigator.credentials.get({
+      publicKey,
+    })) as PublicKeyCredential | null;
+    if (!credential) {
+      throw new Error(mt('passkeyAuthorizeCancelled'));
+    }
+
+    const response = credential.response;
+    if (!(response instanceof AuthenticatorAssertionResponse)) {
+      throw new Error(mt('passkeyAuthorizeResponseInvalid'));
+    }
+
+    const result = await postJson<AuthorizeApproveResult>(
+      '/api/v1/public/auth/passkey/authorize/approve',
+      {
+        requestId,
+        passkeyRequestId: challenge.passkeyRequest.requestId,
+        credential: {
+          id: credential.id,
+          rawId: arrayBufferToBase64Url(credential.rawId),
+          type: credential.type,
+          response: {
+            authenticatorData: arrayBufferToBase64Url(response.authenticatorData),
+            clientDataJSON: arrayBufferToBase64Url(response.clientDataJSON),
+            signature: arrayBufferToBase64Url(response.signature),
+            userHandle: response.userHandle
+              ? arrayBufferToBase64Url(response.userHandle)
+              : undefined,
+          },
+          clientExtensionResults: credential.getClientExtensionResults(),
+        },
+      },
+      mt('passkeyAuthorizeFailed')
+    );
+
+    passkeyApproveResult.value = result;
+    passkeyAuthCodeInput.value = result.authorizationCode;
+    passkeyExchangeResult.value = null;
+    passkeyProfileResult.value = null;
+    notifySuccess(mt('passkeyAuthorizeApproved'));
+  } catch (error) {
+    notifyError(String(error));
+  }
+}
+
+async function exchangePasskeyAuthorizeCode() {
+  try {
+    ensurePasskeyReady();
+    const code = String(passkeyAuthCodeInput.value || '').trim();
+    const { appId, redirectUri } = ensureAppConfig();
+    if (!code) {
+      notifyError(mt('enterPasskeyAuthCode'));
+      return;
+    }
+    const result = await postJson<AuthorizeExchangeResult>(
+      '/api/v1/public/auth/passkey/authorize/exchange',
+      { code, appId, redirectUri },
+      mt('exchangePasskeyCodeFailed')
+    );
+    passkeyExchangeResult.value = result;
+    passkeyProfileResult.value = null;
+    notifySuccess(mt('passkeyCodeExchanged'));
+  } catch (error) {
+    notifyError(String(error));
+  }
+}
+
+async function revokePasskeyCredentialAction(credentialId: string) {
+  try {
+    ensurePasskeyReady();
+    await postAuthJson(
+      '/api/v1/public/auth/passkey/credentials/revoke',
+      { credentialId },
+      mt('revokePasskeyCredentialFailed')
+    );
+    await loadPasskeyCredentials();
+    notifySuccess(mt('passkeyCredentialRevoked'));
+  } catch (error) {
     notifyError(String(error));
   }
 }
@@ -464,7 +1013,7 @@ async function createAuthorizeRequest() {
     const result = await postJson<AuthorizeRequestResult>(
       '/api/v1/public/auth/totp/authorize/request',
       payload,
-      '创建授权请求失败'
+      mt('createAuthorizeRequestFailed')
     );
     requestResult.value = result;
     requestIdInput.value = result.requestId;
@@ -472,7 +1021,7 @@ async function createAuthorizeRequest() {
     exchangeResult.value = null;
     profileResult.value = null;
     activeTab.value = 'flow';
-    notifySuccess('授权请求已创建');
+    notifySuccess(mt('authorizeRequestCreated'));
   } catch (error) {
     notifyError(String(error));
   }
@@ -482,15 +1031,15 @@ async function queryAuthorizeRequest() {
   try {
     const requestId = String(requestIdInput.value || '').trim();
     if (!requestId) {
-      notifyError('请先输入 requestId');
+      notifyError(mt('enterRequestIdFirst'));
       return;
     }
     const result = await getJson<AuthorizeRequestResult>(
       `/api/v1/public/auth/totp/authorize/request/${encodeURIComponent(requestId)}`,
-      '查询授权请求失败'
+      mt('queryAuthorizeRequestFailed')
     );
     requestResult.value = result;
-    notifySuccess('授权请求状态已刷新');
+    notifySuccess(mt('authorizeRequestRefreshed'));
   } catch (error) {
     notifyError(String(error));
   }
@@ -501,19 +1050,19 @@ async function approveAuthorizeRequest() {
     const requestId = String(requestIdInput.value || '').trim();
     const code = String(totpCode.value || '').trim();
     if (!requestId || !code) {
-      notifyError('请填写 requestId 和 TOTP code');
+      notifyError(mt('fillRequestIdAndTotpCode'));
       return;
     }
     const result = await postJson<AuthorizeApproveResult>(
       '/api/v1/public/auth/totp/authorize/approve',
       { requestId, code },
-      'TOTP 授权失败'
+      mt('totpAuthorizeFailed')
     );
     approveResult.value = result;
     authCodeInput.value = result.authorizationCode;
     exchangeResult.value = null;
     profileResult.value = null;
-    notifySuccess('授权已通过，请继续兑换 code');
+    notifySuccess(mt('authorizeApproved'));
   } catch (error) {
     notifyError(String(error));
   }
@@ -524,18 +1073,18 @@ async function exchangeAuthorizeCode() {
     const code = String(authCodeInput.value || '').trim();
     const { appId, redirectUri } = ensureAppConfig();
     if (!code) {
-      notifyError('请填写 authorization code');
+      notifyError(mt('enterAuthorizationCode'));
       return;
     }
     const result = await postJson<AuthorizeExchangeResult>(
       '/api/v1/public/auth/totp/authorize/exchange',
       { code, appId, redirectUri },
-      '兑换授权码失败'
+      mt('exchangeAuthorizeCodeFailed')
     );
     exchangeResult.value = result;
     profileResult.value = null;
     activeTab.value = 'result';
-    notifySuccess('授权码已兑换，拿到 JWT + UCAN');
+    notifySuccess(mt('authorizeCodeExchanged'));
   } catch (error) {
     notifyError(String(error));
   }
@@ -545,7 +1094,7 @@ async function verifyProfileWithJwt() {
   try {
     const token = exchangeResult.value?.token;
     if (!token) {
-      notifyError('没有可用 JWT token');
+      notifyError(mt('missingJwtToken'));
       return;
     }
     const response = await fetch(apiUrl('/api/v1/public/profile/me'), {
@@ -555,8 +1104,8 @@ async function verifyProfileWithJwt() {
       },
       credentials: 'include',
     });
-    profileResult.value = await parseEnvelope<ProfileResult>(response, 'JWT 验证失败');
-    notifySuccess('JWT 验证成功');
+    profileResult.value = await parseEnvelope<ProfileResult>(response, mt('verifyJwtFailed'));
+    notifySuccess(mt('verifyJwtSuccess'));
   } catch (error) {
     notifyError(String(error));
   }
@@ -566,7 +1115,7 @@ async function verifyProfileWithUcan() {
   try {
     const token = exchangeResult.value?.ucan;
     if (!token) {
-      notifyError('没有可用 UCAN token');
+      notifyError(mt('missingUcanToken'));
       return;
     }
     const response = await fetch(apiUrl('/api/v1/public/profile/me'), {
@@ -576,8 +1125,8 @@ async function verifyProfileWithUcan() {
       },
       credentials: 'include',
     });
-    profileResult.value = await parseEnvelope<ProfileResult>(response, 'UCAN 验证失败');
-    notifySuccess('UCAN 验证成功');
+    profileResult.value = await parseEnvelope<ProfileResult>(response, mt('verifyUcanFailed'));
+    notifySuccess(mt('verifyUcanSuccess'));
   } catch (error) {
     notifyError(String(error));
   }
@@ -585,7 +1134,7 @@ async function verifyProfileWithUcan() {
 
 function openLink(url: string) {
   if (!url) {
-    notifyInfo('当前没有可打开的链接');
+    notifyInfo(mt('nothingToOpen'));
     return;
   }
   window.open(url, '_blank');
@@ -599,16 +1148,43 @@ function openRedirectTo() {
   openLink(approveResult.value?.redirectTo || '');
 }
 
+async function writeClipboardText(value: string) {
+  const normalized = String(value || '').trim();
+  if (!normalized) {
+    return false;
+  }
+  if (navigator?.clipboard?.writeText) {
+    await navigator.clipboard.writeText(normalized);
+    return true;
+  }
+  const textarea = document.createElement('textarea');
+  textarea.value = normalized;
+  textarea.setAttribute('readonly', 'readonly');
+  textarea.style.position = 'fixed';
+  textarea.style.left = '-9999px';
+  document.body.appendChild(textarea);
+  textarea.select();
+  const copied = document.execCommand('copy');
+  document.body.removeChild(textarea);
+  return copied;
+}
+
 async function copyText(value: string, label: string) {
   if (!value) {
-    notifyInfo(`没有可复制的 ${label}`);
+    notifyInfo(`${mt('nothingToCopy')} ${label}`);
     return;
   }
   try {
-    await navigator.clipboard.writeText(value);
-    notifySuccess(`${label} 已复制`);
+    const copied = await writeClipboardText(value);
+    if (!copied) {
+      const suffix = mt('copyFailedSuffix');
+      notifyError(`${mt('copyFailedPrefix')} ${label}${suffix ? ` ${suffix}` : ''}`);
+      return;
+    }
+    notifySuccess(`${label} ${mt('copiedSuffix')}`);
   } catch {
-    notifyError(`复制 ${label} 失败`);
+    const suffix = mt('copyFailedSuffix');
+    notifyError(`${mt('copyFailedPrefix')} ${label}${suffix ? ` ${suffix}` : ''}`);
   }
 }
 
@@ -618,6 +1194,13 @@ const prettyResult = computed(() => {
     approve: approveResult.value,
     exchange: exchangeResult.value,
     profile: profileResult.value,
+    passkeyStatus: passkeyStatus.value,
+    passkeyCredentials: passkeyCredentials.value,
+    passkeyRequest: passkeyRequestResult.value,
+    passkeyChallenge: passkeyAuthChallenge.value,
+    passkeyApprove: passkeyApproveResult.value,
+    passkeyExchange: passkeyExchangeResult.value,
+    passkeyProfile: passkeyProfileResult.value,
   };
   return JSON.stringify(payload, null, 2);
 });
@@ -625,6 +1208,7 @@ const prettyResult = computed(() => {
 onMounted(async () => {
   restoreConfig();
   await loadTotpStatus();
+  await loadPasskeyStatus();
 });
 </script>
 
@@ -791,6 +1375,42 @@ onMounted(async () => {
     padding: 12px 14px;
     border-radius: 10px;
     border: 1px solid #e8edf4;
+  }
+
+  .passkey-actions {
+    display: grid;
+    gap: 12px;
+  }
+
+  .passkey-list {
+    margin-top: 14px;
+    display: grid;
+    gap: 12px;
+  }
+
+  .credential-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 10px;
+  }
+
+  .credential-name {
+    font-size: 14px;
+    line-height: 1.45;
+    font-weight: 500;
+    color: rgba(0, 0, 0, 0.82);
+  }
+
+  .compact-list {
+    gap: 8px;
+  }
+
+  .empty-text {
+    font-size: 14px;
+    line-height: 1.5;
+    color: rgba(0, 0, 0, 0.45);
   }
 
   .panel {

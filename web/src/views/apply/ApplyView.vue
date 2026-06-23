@@ -5,7 +5,7 @@
                 <el-input
                     v-model="searchVal"
                     size="large"
-                    placeholder="支持输入应用名称/应用所有者名称搜索"
+                    :placeholder="$t('market_search_placeholder')"
                     @keyup.enter="search"
                 >
                     <template #suffix>
@@ -15,7 +15,7 @@
                     </template>
                 </el-input>
                 <el-button v-if="activeService === 'myCreate'" type="primary" size="large" @click="changeRouter('/market/dev/apply-edit')">
-                    创建应用
+                    {{ $t('market_create_app') }}
                 </el-button>
             </div>
         </div>
@@ -46,7 +46,7 @@
 </template>
 
 <script lang="ts" setup>
-import { onMounted, ref, watch } from 'vue'
+import { getCurrentInstance, ref, watch } from 'vue'
 import { Search } from '@element-plus/icons-vue'
 import $application, { ApplicationMetadata } from '@/plugins/application'
 import ApplicationListTable from '@/views/components/ApplicationListTable.vue'
@@ -58,6 +58,8 @@ const searchVal = ref<string>('')
 const activeService = ref<string>('myCreate')
 const applicationList = ref<ApplicationMetadata[]>([])
 const router = useRouter()
+const { proxy } = getCurrentInstance()!
+const { $t } = proxy
 
 interface Tab {
   name: string;
@@ -67,11 +69,11 @@ interface Tab {
 const tabs: Tab[] = [
   {
     name: 'myCreate',
-    title: '我创建的',
+    title: $t('market_my_created'),
   },
   {
     name: 'myApply',
-    title: '我申请的',
+    title: $t('market_my_applied'),
   },
 ];
 
@@ -90,20 +92,27 @@ const search = async () => {
     try {
         const account = getCurrentAccount()
         if (account === undefined || account === null) {
-            notifyError("❌未查询到当前账户，请登录")
+            notifyError(String($t('market_missing_account')))
             return
         }
         applicationList.value = []
         if (activeService.value === 'myCreate') {
             const res = await $application.myCreateList(account)
-            if (Array.isArray(res)) {
-                applicationList.value = res
+            const list = Array.isArray(res) ? res : []
+            if (searchVal.value) {
+                const keyword = searchVal.value.toLowerCase()
+                applicationList.value = list.filter((item) => {
+                    return (
+                        String(item.name || '').toLowerCase().includes(keyword) ||
+                        String(item.owner || '').toLowerCase().includes(keyword) ||
+                        String(item.ownerName || '').toLowerCase().includes(keyword)
+                    )
+                })
             } else {
-                console.warn('Expected array, but got:', res)
-                applicationList.value = []
+                applicationList.value = list
             }
             pagination.value.total = 0
-            return;
+            return
         }
         if (activeService.value === 'myApply') {
             let res = await $application.myApplyList(account)
@@ -117,18 +126,12 @@ const search = async () => {
                     )
                 })
             }
-            if (Array.isArray(res)) {
-                applicationList.value = res
-            } else {
-                console.warn('Expected array, but got:', res)
-                applicationList.value = []
-            }
+            applicationList.value = Array.isArray(res) ? res : []
             pagination.value.total = 0
-            return;
+            return
         }
     } catch (error) {
-        console.error('❌获取应用列表失败', error)
-        notifyError(`❌获取应用列表失败 ${error}`)
+        notifyError(`${$t('market_load_apps_failed')}：${error}`)
     }
 }
 
@@ -162,13 +165,10 @@ watch(
     { immediate: true }
 )
 
-onMounted(() => {
-    const tab = String(router.currentRoute.value.query.tab || '').trim()
-    if (tab === 'myApply' || tab === 'myCreate') {
-        activeService.value = tab
-    }
-    search()
-})
+const initialTab = String(router.currentRoute.value.query.tab || '').trim()
+if (initialTab === 'myApply' || initialTab === 'myCreate') {
+    activeService.value = initialTab
+}
 </script>
 <style scoped lang="less">
 :deep(.el-tabs__nav-scroll) {

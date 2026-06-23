@@ -9,16 +9,16 @@
             <div v-if="pageFrom === 'market'">
                 <div v-if="isOnline">
                     <el-popconfirm
-                        confirm-button-text="确定"
-                        cancel-button-text="取消"
+                        :confirm-button-text="$t('btn_ok')"
+                        :cancel-button-text="$t('btn_cancel')"
                         :icon="WarningFilled"
                         icon-color="#FB9A0E"
-                        title="您确定要删除该应用吗？"
+                        :title="$t('app_detail_delete_confirm')"
                         width="220px"
                         @confirm="toDelete"
                     >
                         <template #reference>
-                            <el-button type="danger" plain>下架应用</el-button>
+                            <el-button type="danger" plain>{{ $t('app_detail_unpublish') }}</el-button>
                         </template>
                     </el-popconfirm>
                 </div>
@@ -29,49 +29,49 @@
                 <div>
                     <el-popconfirm
                         v-if="!isOnline"
-                        confirm-button-text="确定"
-                        cancel-button-text="取消"
+                        :confirm-button-text="$t('btn_ok')"
+                        :cancel-button-text="$t('btn_cancel')"
                         :icon="WarningFilled"
                         icon-color="#FB9A0E"
-                        title="您确定要删除该应用吗？"
+                        :title="$t('app_detail_delete_confirm')"
                         width="220px"
                         @confirm="toDelete"
                     >
                         <template #reference>
-                            <el-button type="danger" plain>删除</el-button>
+                            <el-button type="danger" plain>{{ $t('app_detail_delete') }}</el-button>
                         </template>
                     </el-popconfirm>
-                    <el-button plain @click="toEdit">编辑</el-button>
-                    <el-button plain @click="exportIdentity">导出身份</el-button>
-                    <el-button v-if="isOnline" plain @click="handleOfflineConfirm">下架应用</el-button>
-                    <el-button v-if="!isOnline" plain @click="handleOnline">上架应用</el-button>
+                    <el-button plain @click="toEdit">{{ $t('app_detail_edit') }}</el-button>
+                    <el-button plain @click="exportIdentity">{{ $t('app_detail_export_identity') }}</el-button>
+                    <el-button v-if="isOnline" plain @click="handleOfflineConfirm">{{ $t('app_detail_unpublish') }}</el-button>
+                    <el-button v-if="!isOnline" plain @click="handleOnline">{{ $t('app_detail_publish') }}</el-button>
                 </div>
             </div>
             <!-- 应用中心-我的申请的详情 -->
             <div v-if="pageFrom === 'myApply'">
                 <div v-if="applyStatus === 'success'">
-                    <el-button plain @click="toConfigCapability">配置能力</el-button>
+                    <el-button plain @click="toConfigCapability">{{ $t('app_detail_config_capability') }}</el-button>
                 </div>
                 <div v-if="applyStatus === 'applying'">
-                    <el-button plain @click="cancelApply">取消申请</el-button>
+                    <el-button plain @click="cancelApply">{{ $t('app_detail_cancel_apply') }}</el-button>
                 </div>
                 <div v-if="applyStatus === 'reject'">
-                    <el-button plain @click="dialogVisible = true">重新申请</el-button>
+                    <el-button plain @click="dialogVisible = true">{{ $t('app_detail_reapply') }}</el-button>
                 </div>
             </div>
         </div>
         <div class="part">
-            <div class="title">基本信息</div>
+            <div class="title">{{ $t('app_detail_basic') }}</div>
             <el-row class="part-row">
-                <el-col :span="8" :xs="24">应用名称: {{ detailInfo.name }}</el-col>
-                <el-col :span="8" :xs="24">创建人: {{ detailInfo.owner }}</el-col>
-                <el-col :span="8" :xs="24">应用状态: {{ businessStatusText }}</el-col>
+                <el-col :span="8" :xs="24">{{ $t('app_detail_name') }}: {{ detailInfo.name }}</el-col>
+                <el-col :span="8" :xs="24">{{ $t('app_detail_owner') }}: {{ detailInfo.owner }}</el-col>
+                <el-col :span="8" :xs="24">{{ $t('app_detail_status') }}: {{ businessStatusText }}</el-col>
             </el-row>
             <el-row class="part-row">
                 <el-col :span="24" :xs="24" class="app-id-cell">
-                    应用标识:
+                    {{ $t('app_detail_id') }}:
                     <span class="app-id-text">{{ appIdText }}</span>
-                    <el-tooltip v-if="appIdText !== '-'" content="复制应用标识" placement="top">
+                    <el-tooltip v-if="appIdText !== '-'" :content="$t('app_detail_copy_id')" placement="top">
                         <el-icon class="app-id-copy-icon" @click="copyAppId">
                             <CopyDocument />
                         </el-icon>
@@ -79,22 +79,22 @@
                 </el-col>
             </el-row>
             <el-row class="part-row">
-                <el-col :span="24">应用描述: {{ detailInfo.description }}</el-col>
+                <el-col :span="24">{{ $t('app_detail_description') }}: {{ detailInfo.description }}</el-col>
             </el-row>
         </div>
         <div class="part">
-            <div class="title">应用信息</div>
+            <div class="title">{{ $t('app_detail_info') }}</div>
             <el-row class="part-row">
-                <el-col :span="8" :xs="24">应用分类: {{ applicationCodeText }}</el-col>
+                <el-col :span="8" :xs="24">{{ $t('app_detail_category') }}: {{ applicationCodeText }}</el-col>
                 <el-col :span="8" :xs="24"
-                    >依赖应用:
+                    >{{ $t('app_detail_dependencies') }}:
                     {{ dependencyText }}
                 </el-col>
-                <el-col :span="8" :xs="24">访问地址(URL): {{ detailInfo.location }} </el-col>
+                <el-col :span="8" :xs="24">{{ $t('app_detail_location') }}: {{ detailInfo.location }} </el-col>
             </el-row>
             <el-row class="part-row">
                 <el-col :span="8" :xs="24"
-                    >源码路径:
+                    >{{ $t('app_detail_source') }}:
                     <template v-if="detailInfo.codePackagePath && isCodePackageUrl">
                         <a
                             class="link-url"
@@ -110,7 +110,7 @@
                         {{ detailInfo.codePackagePath || '-' }}
                     </template>
                 </el-col>
-                <el-col :span="16" :xs="24">授权回调地址: {{ redirectUriText }}</el-col>
+                <el-col :span="16" :xs="24">{{ $t('app_detail_redirect_uri') }}: {{ redirectUriText }}</el-col>
             </el-row>
         </div>
 
@@ -119,10 +119,10 @@
 
     <ResultChooseModal
         v-model="innerVisible"
-        title="应用上架成功"
-        mainDesc="应用上架成功"
-        subDesc="应用已成功上架至应用市场"
-        rightBtnText="返回列表"
+        :title="$t('app_detail_publish_success_title')"
+        :mainDesc="$t('app_detail_publish_success_main')"
+        :subDesc="$t('app_detail_publish_success_sub')"
+        :rightBtnText="$t('app_detail_back_to_list')"
         :rightBtnClick="toList"
         :closeClick="closeInnerModal"
     >
@@ -134,7 +134,7 @@
     <ConfigCapabilityModal :modalVisible="modalVisible" :cancelModal="cancelModal" :detail="detailInfo" />
 
     <ApplyUseModal
-        title="重新申请"
+        :title="$t('app_detail_reapply')"
         :dialogVisible="dialogVisible"
         :detail="detailInfo"
         :afterSubmit="afterSubmit"
@@ -143,7 +143,7 @@
 </template>
 
 <script lang="ts" setup>
-import { computed, onMounted, ref } from 'vue'
+import { computed, getCurrentInstance, onMounted, ref } from 'vue'
 import BreadcrumbHeader from '@/views/components/BreadcrumbHeader.vue'
 import ApplyStatus from '@/views/components/ApplyStatus.vue'
 import { WarningFilled, SuccessFilled, Link, CopyDocument } from '@element-plus/icons-vue'
@@ -173,6 +173,8 @@ import $audit, {
 } from '@/plugins/audit'
 const route = useRoute()
 const router = useRouter()
+const { proxy } = getCurrentInstance()!
+const { $t } = proxy
 const detailInfo = ref<ApplicationMetadata>({
     name: '',
     description: '',
@@ -305,7 +307,7 @@ const sortAuditsByCreatedAtDesc = (left: AuditAuditDetail, right: AuditAuditDeta
 const fillDetailFromAudit = async (audit: AuditAuditDetail) => {
     const parsed = parseAuditTargetMetadata(audit.meta?.appOrServiceMetadata)
     if (!parsed) {
-        throw new Error('审批单缺少应用信息')
+        throw new Error(String($t('app_detail_missing_audit_target')))
     }
     let remote: ApplicationMetadata | null | undefined = null
     try {
@@ -339,32 +341,41 @@ const fillDetailFromAudit = async (audit: AuditAuditDetail) => {
 }
 
 const writeClipboardText = async (value: string) => {
+    const normalized = String(value || '').trim()
+    if (!normalized) {
+        return false
+    }
     if (navigator?.clipboard?.writeText) {
-        await navigator.clipboard.writeText(value)
-        return
+        await navigator.clipboard.writeText(normalized)
+        return true
     }
     const textarea = document.createElement('textarea')
-    textarea.value = value
+    textarea.value = normalized
     textarea.setAttribute('readonly', 'readonly')
     textarea.style.position = 'fixed'
     textarea.style.left = '-9999px'
     document.body.appendChild(textarea)
     textarea.select()
-    document.execCommand('copy')
+    const copied = document.execCommand('copy')
     document.body.removeChild(textarea)
+    return copied
 }
 
 const copyAppId = async () => {
     const appId = String(detailInfo.value?.uid || applyUid || '').trim()
     if (!appId) {
-        notifyError('当前应用缺少应用标识')
+        notifyError(String($t('app_detail_missing_app_id')))
         return
     }
     try {
-        await writeClipboardText(appId)
-        notifySuccess('应用标识已复制')
+        const copied = await writeClipboardText(appId)
+        if (!copied) {
+            notifyError(String($t('app_detail_copy_id_failed')))
+            return
+        }
+        notifySuccess(String($t('app_detail_copy_id_success')))
     } catch {
-        notifyError('复制应用标识失败')
+        notifyError(String($t('app_detail_copy_id_failed')))
     }
 }
 
@@ -384,12 +395,12 @@ const resolveCurrentAuditId = async () => {
     const latest = Array.isArray(audits)
         ? audits
               .filter((audit) =>
-                  isAuditForResource(audit, {
-                      auditType: 'application',
-                      reason: '申请使用',
-                      uid: applyUid || detailInfo.value?.uid,
-                      did: routeDid || detailInfo.value?.did,
-                      version: routeVersion ?? detailInfo.value?.version,
+                      isAuditForResource(audit, {
+                          auditType: 'application',
+                          reason: 'Request Access',
+                          uid: applyUid || detailInfo.value?.uid,
+                          did: routeDid || detailInfo.value?.did,
+                          version: routeVersion ?? detailInfo.value?.version,
                       name: detailInfo.value?.name
                   })
               )
@@ -413,11 +424,11 @@ const detail = async () => {
     if (pageFrom === 'myApply') {
         const auditId = await resolveCurrentAuditId()
         if (!auditId) {
-            throw new Error('未找到申请记录')
+            throw new Error(String($t('app_detail_apply_record_missing')))
         }
         const audit = await $audit.detail(auditId)
         if (!audit) {
-            throw new Error('申请记录不存在')
+            throw new Error(String($t('app_detail_apply_record_not_found')))
         }
         await fillDetailFromAudit(audit)
         return
@@ -444,7 +455,7 @@ const exportIdentity = async () => {
 const cancelApply = async () => {
     const auditId = await resolveCurrentAuditId()
     if (!auditId) {
-        notifyError('❌未找到申请记录')
+        notifyError(String($t('app_detail_apply_record_missing')))
         return
     }
     await $audit.cancel(auditId)
@@ -457,14 +468,14 @@ const cancelApply = async () => {
 const toDelete = async () => {
     if (pageFrom === 'myCreate') {
         if (isOnline.value) {
-            notifyError('❌请先下架应用后再删除')
+            notifyError(String($t('app_detail_delete_offline_first')))
             return
         }
         await $application.myCreateDelete(applyUid)
     } else if (pageFrom === 'market') {
         const app = detailInfo.value?.uid ? detailInfo.value : await $application.queryByUid(applyUid)
         if (!app) {
-            notifyError('❌应用不存在')
+            notifyError(String($t('app_detail_app_missing')))
             return
         }
         await $application.offline({ uid: app.uid, did: app.did, version: app.version })
@@ -517,7 +528,7 @@ const afterSubmit = () => {
     auditDetail.value = null
     if (pageFrom === 'myApply') {
         void detail().catch((error) => {
-            notifyError(`❌获取应用详情失败: ${error instanceof Error ? error.message : String(error)}`)
+            notifyError(`${$t('app_detail_load_failed')}：${error instanceof Error ? error.message : String(error)}`)
         })
     }
 }
@@ -528,39 +539,39 @@ const afterSubmit = () => {
 const handleOnline = () => {
     ElMessageBox.confirm('', {
         message: h('p', null, [
-            h('div', { style: 'font-size:18px;color:rgba(0,0,0,0.85)' }, '你确定要上架当前应用吗？'),
+            h('div', { style: 'font-size:18px;color:rgba(0,0,0,0.85)' }, String($t('app_detail_publish_confirm_title'))),
             h(
                 'div',
                 { style: 'font-size:14px;font-weight:400;color:rgba(0,0,0,0.85)' },
-                '上架后仍可编辑，更新版本后可重新提交上架。'
+                String($t('app_detail_publish_confirm_desc'))
             )
         ]),
         type: 'warning',
-        confirmButtonText: '确定',
-        cancelButtonText: '取消',
+        confirmButtonText: String($t('btn_ok')),
+        cancelButtonText: String($t('btn_cancel')),
         showClose: false,
         customClass: 'messageBox-wrap'
     })
         .then(async () => {
             try {
-            const detailRst = await $application.myCreateDetailByUid(applyUid)
-            if (!detailRst) {
-                notifyError("❌应用不存在")
-                return
-            }
-            const created = await $audit.submitPublishRequest({
-                auditType: 'application',
-                resource: detailRst as Record<string, unknown>
-            })
-            if (!created?.meta?.uid) {
-                return
-            }
-            innerVisible.value = true
+                const detailRst = await $application.myCreateDetailByUid(applyUid)
+                if (!detailRst) {
+                    notifyError(String($t('app_detail_app_missing')))
+                    return
+                }
+                const created = await $audit.submitPublishRequest({
+                    auditType: 'application',
+                    resource: detailRst as Record<string, unknown>
+                })
+                if (!created?.meta?.uid) {
+                    return
+                }
+                innerVisible.value = true
             } catch (error) {
-                notifyError(`❌申请失败: ${error}`)
+                notifyError(`${$t('app_detail_apply_failed')}：${error}`)
             }
         })
-        .catch(() => {})
+        .catch(() => undefined)
 }
 
 /**
@@ -572,36 +583,36 @@ const handleOffline = async () => {
         : { uid: applyUid }
     const result = await $application.offline(target)
     if (!result?.unpublished) {
-        notifyError('❌下架失败')
+        notifyError(String($t('app_detail_unpublish_failed')))
         return
     }
-    notifySuccess('已下架')
+    notifySuccess(String($t('app_detail_unpublish_success')))
     await detail()
 }
 
 const handleOfflineConfirm = () => {
     ElMessageBox.confirm('', {
         message: h('p', null, [
-            h('div', { style: 'font-size:18px;color:rgba(0,0,0,0.85)' }, '你确定要下架当前应用吗？'),
+            h('div', { style: 'font-size:18px;color:rgba(0,0,0,0.85)' }, String($t('app_detail_unpublish_confirm_title'))),
             h(
                 'div',
                 { style: 'font-size:14px;font-weight:400;color:rgba(0,0,0,0.85)' },
-                '下架后当前应用将不在应用市场展示。'
+                String($t('app_detail_unpublish_confirm_desc'))
             )
         ]),
         type: 'warning',
-        confirmButtonText: '确定',
-        cancelButtonText: '取消',
+        confirmButtonText: String($t('btn_ok')),
+        cancelButtonText: String($t('btn_cancel')),
         showClose: false,
         customClass: 'messageBox-wrap'
     })
         .then(() => handleOffline())
-        .catch(() => {})
+        .catch(() => undefined)
 }
 
 onMounted(() => {
     void detail().catch((error) => {
-        notifyError(`❌获取应用详情失败: ${error instanceof Error ? error.message : String(error)}`)
+        notifyError(`${$t('app_detail_load_failed')}：${error instanceof Error ? error.message : String(error)}`)
     })
 })
 </script>

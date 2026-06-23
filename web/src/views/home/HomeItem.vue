@@ -1,6 +1,6 @@
 <template>
   <div class="mx-auto max-w-5xl pt-20 lg:pt-80">
-    <div class="text-center text-3xl font-display font-semibold tracking-tight text-black-900 sm:text-5xl">Our advantage</div>
+    <div class="text-center text-3xl font-display font-semibold tracking-tight text-black-900 sm:text-5xl">{{ $t('home_advantages_title') }}</div>
     <dl class="grid px-5 mt-8 sm:mt-11 grid-cols-1 gap-x-6 gap-y-6 lg:max-w-none lg:grid-cols-2">
       <div v-for="feature in itemList" :key="feature.title"
            class="flex flex-col rounded-[calc(theme(borderRadius.xl)+theme(spacing.2))] shadow-sm ring-1 ring-black/5 p-6">
@@ -18,25 +18,28 @@
   </div>
 </template>
 <script lang="ts" setup>
+import { getCurrentInstance } from 'vue'
+const { proxy } = getCurrentInstance()!
+const { $t } = proxy
 const itemList = [
   {
-    title: 'Self-Controllable',
-    desc: 'The user\'s own number is the sum of the numbers and the amount is completely controlled and owned.',
+    title: $t('home_advantage_control_title'),
+    desc: $t('home_advantage_control_desc'),
     icon: 'vertical'
   },
   {
-    title: 'Privacy Protection',
-    desc: 'In order to protect the number of exchanges, it is necessary to maintain public safety and to protect the private security of non-public numbers.',
+    title: $t('home_advantage_privacy_title'),
+    desc: $t('home_advantage_privacy_desc'),
     icon: 'qa'
   },
   {
-    title: 'individual',
-    desc: 'You can use it based on your own academic needs, work methods, and lifestyle preferences.',
+    title: $t('home_advantage_custom_title'),
+    desc: $t('home_advantage_custom_desc'),
     icon: 'crown'
   },
   {
-    title: 'Productivity Tools',
-    desc: 'Established personal knowledge, used AI technology, constructed numbers worldwide, high production, work efficiency.',
+    title: $t('home_advantage_productivity_title'),
+    desc: $t('home_advantage_productivity_desc'),
     icon: 'set'
   },
 ]

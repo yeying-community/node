@@ -1,70 +1,70 @@
 <template>
     <div v-if="audit" class="audit-panel" :class="{ embedded: props.embedded }">
-        <div class="title">审批进度</div>
+        <div class="title">{{ $t('audit_summary_title') }}</div>
 
         <div class="summary-grid">
             <div class="summary-card">
-                <div class="summary-label">当前状态</div>
-                <el-tag :type="stateTagType" effect="light">{{ summary?.state || '待审批' }}</el-tag>
+                <div class="summary-label">{{ $t('audit_summary_state') }}</div>
+                <el-tag :type="stateTagType" effect="light">{{ stateLabel }}</el-tag>
             </div>
             <div class="summary-card">
-                <div class="summary-label">同意进度</div>
+                <div class="summary-label">{{ $t('audit_summary_progress') }}</div>
                 <div class="summary-value">{{ approvalProgress }}</div>
             </div>
             <div class="summary-card">
-                <div class="summary-label">驳回数量</div>
+                <div class="summary-label">{{ $t('audit_summary_rejection_count') }}</div>
                 <div class="summary-value">{{ summary?.rejectionCount ?? 0 }}</div>
             </div>
             <div class="summary-card">
-                <div class="summary-label">申请时间</div>
+                <div class="summary-label">{{ $t('audit_summary_apply_time') }}</div>
                 <div class="summary-value">{{ formatTime(audit.meta?.createdAt) }}</div>
             </div>
         </div>
 
         <div class="info-grid">
             <div class="info-item">
-                <div class="info-label">申请单号</div>
+                <div class="info-label">{{ $t('audit_summary_request_id') }}</div>
                 <div class="info-value mono">{{ audit.meta?.uid || '-' }}</div>
             </div>
             <div class="info-item">
-                <div class="info-label">申请原因</div>
+                <div class="info-label">{{ $t('audit_summary_reason') }}</div>
                 <div class="info-value">{{ audit.meta?.reason || '-' }}</div>
             </div>
         </div>
 
         <div class="group">
-            <div class="group-title">待处理审批人</div>
+            <div class="group-title">{{ $t('audit_summary_pending_approvers') }}</div>
             <div v-if="summary?.pendingApprovers?.length" class="tag-list">
                 <el-tag v-for="item in summary.pendingApprovers" :key="item" effect="plain" type="info">
                     {{ item }}
                 </el-tag>
             </div>
-            <div v-else class="empty-text">暂无待处理审批人</div>
+            <div v-else class="empty-text">{{ $t('audit_summary_no_pending_approvers') }}</div>
         </div>
 
         <div class="group split-group">
             <div class="group-block">
-                <div class="group-title">已同意</div>
+                <div class="group-title">{{ $t('audit_summary_approved') }}</div>
                 <div v-if="summary?.approvedBy?.length" class="tag-list">
                     <el-tag v-for="item in summary.approvedBy" :key="item" effect="plain" type="success">
                         {{ item }}
                     </el-tag>
                 </div>
-                <div v-else class="empty-text">暂无同意记录</div>
+                <div v-else class="empty-text">{{ $t('audit_summary_no_approved') }}</div>
             </div>
             <div class="group-block">
-                <div class="group-title">已驳回</div>
+                <div class="group-title">{{ $t('audit_summary_rejected') }}</div>
                 <div v-if="summary?.rejectedBy?.length" class="tag-list">
                     <el-tag v-for="item in summary.rejectedBy" :key="item" effect="plain" type="danger">
                         {{ item }}
                     </el-tag>
                 </div>
-                <div v-else class="empty-text">暂无驳回记录</div>
+                <div v-else class="empty-text">{{ $t('audit_summary_no_rejected') }}</div>
             </div>
         </div>
 
         <div class="group">
-            <div class="group-title">审批轨迹</div>
+            <div class="group-title">{{ $t('audit_summary_timeline') }}</div>
             <el-timeline v-if="sortedComments.length" class="timeline">
                 <el-timeline-item
                     v-for="comment in sortedComments"
@@ -79,16 +79,16 @@
                         </el-tag>
                         <span class="timeline-actor">{{ displayActor(comment.signature) }}</span>
                     </div>
-                    <div class="timeline-text">{{ comment.text || '未填写审批意见' }}</div>
+                    <div class="timeline-text">{{ comment.text || $t('audit_summary_no_comment') }}</div>
                 </el-timeline-item>
             </el-timeline>
-            <el-empty v-else description="暂无审批记录" :image-size="72" />
+            <el-empty v-else :description="$t('audit_summary_empty')" :image-size="72" />
         </div>
     </div>
 </template>
 
 <script lang="ts" setup>
-import { computed } from 'vue'
+import { computed, getCurrentInstance } from 'vue'
 import dayjs from 'dayjs'
 import type { AuditAuditDetail, AuditCommentMetadata } from '@/plugins/audit'
 
@@ -96,6 +96,8 @@ const props = defineProps<{
     audit?: AuditAuditDetail | null
     embedded?: boolean
 }>()
+const { proxy } = getCurrentInstance()!
+const { $t } = proxy
 
 const summary = computed(() => props.audit?.summary)
 
@@ -116,6 +118,17 @@ const stateTagType = computed(() => {
         return 'danger'
     }
     return 'primary'
+})
+
+const stateLabel = computed(() => {
+    const state = String(summary.value?.state || '').trim()
+    if (state === '审批通过') {
+        return String($t('approval_status_passed'))
+    }
+    if (state === '审批驳回') {
+        return String($t('approval_status_rejected'))
+    }
+    return state || String($t('approval_status_pending'))
 })
 
 const sortedComments = computed(() =>
@@ -140,13 +153,13 @@ function formatTime(value?: string) {
 function displayActor(value?: string) {
     const text = String(value || '').trim()
     if (!text) {
-        return '未知审批人'
+        return String($t('audit_summary_unknown_approver'))
     }
     return text.split('::')[0] || text
 }
 
 function decisionText(status?: AuditCommentMetadata['status']) {
-    return status === 'COMMENT_STATUS_REJECT' ? '已驳回' : '已同意'
+    return status === 'COMMENT_STATUS_REJECT' ? String($t('audit_summary_rejected')) : String($t('audit_summary_agreed'))
 }
 
 function commentTagType(status?: AuditCommentMetadata['status']) {
