@@ -1,0 +1,4 @@
+- [帮助首页](/)
+- [发布应用](/quickstart)
+- [使用通行证登录 Web3 应用](/auth)
+- [常见问题与排查](/troubleshooting)

@@ -46,12 +46,12 @@
   </template>
   
 <script lang="ts" setup>
-  import { getCurrentInstance, ref } from "vue";
+  import { computed, getCurrentInstance } from "vue";
   import { Menu, MenuButton, MenuItem, MenuItems } from "@headlessui/vue";
   const { proxy } = getCurrentInstance()!
   const { $t } = proxy
 
-  const menuList = ref([
+  const menuList = computed(() => [
     { title: String($t('user_menu_profile')), code: "profile" },
     { title: String($t('user_menu_messages')), code: "messages" },
     { title: String($t('user_menu_logout')), code: "logout" },

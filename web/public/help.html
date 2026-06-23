@@ -2,490 +2,142 @@
 <html lang="zh-CN">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Node 帮助文档</title>
+    <meta
+      name="description"
+      content="Node 帮助文档，支持 Markdown、图片、流程图、时序图。"
+    />
+    <link rel="stylesheet" href="//cdn.jsdelivr.net/npm/docsify@4/lib/themes/vue.css" />
     <style>
       :root {
-        --bg: #f6f9ff;
-        --card: #ffffff;
-        --text: #1f2937;
-        --muted: #5b6473;
-        --line: #e6ebf3;
-        --accent: #1677ff;
-        --accent-soft: #eef5ff;
-      }
-
-      * {
-        box-sizing: border-box;
+        --theme-color: #1677ff;
       }
 
       body {
-        margin: 0;
         font-family:
-          'PingFang SC',
-          'Noto Sans CJK SC',
-          'Source Han Sans SC',
-          'Microsoft YaHei',
+          "PingFang SC",
+          "Noto Sans CJK SC",
+          "Source Han Sans SC",
+          "Microsoft YaHei",
           sans-serif;
-        background:
-          radial-gradient(circle at 0% 0%, #ecf5ff 0, transparent 46%),
-          radial-gradient(circle at 100% 0%, #f4f8ff 0, transparent 52%),
-          var(--bg);
-        color: var(--text);
       }
 
-      .page {
-        max-width: 1120px;
-        margin: 0 auto;
-        padding: 32px 18px 48px;
-      }
-
-      .hero {
-        margin-bottom: 12px;
-      }
-
-      h1 {
-        margin: 0;
-        font-size: 24px;
-        line-height: 1.3;
-        font-weight: 600;
-      }
-
-      .subtitle {
-        margin-top: 8px;
-        color: var(--muted);
-        font-size: 14px;
-        line-height: 1.65;
-      }
-
-      .layout {
-        display: grid;
-        grid-template-columns: 250px minmax(0, 1fr);
-        gap: 14px;
-        align-items: start;
-      }
-
-      .card {
-        background: var(--card);
-        border: 1px solid var(--line);
-        border-radius: 12px;
-      }
-
-      .sidebar {
-        position: sticky;
-        top: 18px;
-        padding: 12px;
-      }
-
-      .toc-title {
-        margin: 2px 0 10px;
-        font-size: 14px;
-        font-weight: 600;
-        color: #3a4558;
-      }
-
-      .toc-node {
-        border: 1px solid var(--line);
-        border-radius: 9px;
-        margin-bottom: 8px;
-        background: linear-gradient(180deg, #ffffff 0%, #f9fbff 100%);
-        overflow: hidden;
-      }
-
-      .toc-node-summary {
-        list-style: none;
-        cursor: pointer;
-        padding: 9px 10px;
-        font-size: 13px;
-        line-height: 1.4;
-        color: #2a3a55;
-        font-weight: 600;
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-      }
-
-      .toc-node-summary::-webkit-details-marker {
+      .app-name-link img {
         display: none;
       }
 
-      .toc-node-summary::after {
-        content: '▾';
-        color: #6a7485;
-        font-size: 12px;
-        line-height: 1;
-        transition: transform 0.15s ease;
-      }
-
-      .toc-node:not([open]) .toc-node-summary::after {
-        transform: rotate(-90deg);
-      }
-
-      .toc-children {
-        padding: 0 8px 8px;
-      }
-
-      .toc-children .toc-link {
-        margin-bottom: 6px;
-      }
-
-      .toc-link {
-        display: block;
-        margin-bottom: 0;
-        padding: 9px 10px;
-        border: 1px solid var(--line);
-        border-radius: 9px;
-        color: #2a3a55;
-        background: linear-gradient(180deg, #ffffff 0%, #f8fbff 100%);
-        font-size: 13px;
-        line-height: 1.5;
-        text-decoration: none;
-      }
-
-      .toc-link:hover {
-        border-color: #c8dafd;
-        background: #f4f8ff;
-        color: #0f4fa5;
-      }
-
-      .toc-link strong {
-        display: block;
-        font-size: 12px;
-        color: #6a7485;
-        font-weight: 500;
-      }
-
-      .toc-link span {
-        display: block;
-        margin-top: 2px;
-        font-size: 14px;
+      .sidebar-nav > ul > li > p,
+      .sidebar-nav > ul > li > a {
         font-weight: 600;
       }
 
-      .content {
-        min-width: 0;
+      .markdown-section {
+        max-width: 980px;
       }
 
-      .section {
-        margin-bottom: 12px;
-        scroll-margin-top: 16px;
-        overflow: hidden;
-      }
-
-      .section-summary {
-        list-style: none;
-        cursor: pointer;
-        padding: 14px 16px;
-        font-size: 16px;
-        line-height: 1.4;
-        font-weight: 600;
-        color: #1f2f47;
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-      }
-
-      .section-summary::-webkit-details-marker {
-        display: none;
-      }
-
-      .section-summary::after {
-        content: '▾';
-        color: #6a7485;
-        font-size: 14px;
-        line-height: 1;
-        transition: transform 0.15s ease;
-      }
-
-      .section:not([open]) .section-summary::after {
-        transform: rotate(-90deg);
-      }
-
-      .section-body {
-        padding: 0 18px 16px;
-      }
-
-      .flow {
-        margin-top: 2px;
-      }
-
-      .flow-step {
-        margin-bottom: 9px;
-        font-size: 14px;
-        line-height: 1.7;
-        color: #263347;
-      }
-
-      .flow-step b {
-        color: #0f4fa5;
-      }
-
-      .list {
-        margin: 0;
-        padding-left: 18px;
-      }
-
-      .list li {
-        margin-bottom: 8px;
-        color: #253045;
-        font-size: 14px;
-        line-height: 1.65;
-      }
-
-      .tip {
-        border: 1px dashed #cad6ea;
-        background: #f7faff;
-        border-radius: 10px;
-        padding: 10px 12px;
-        margin-top: 10px;
-        font-size: 13px;
-        line-height: 1.65;
-        color: #364255;
-      }
-
-      .tip strong {
-        color: #0d4eb2;
-      }
-
-      code {
-        padding: 1px 6px;
-        border-radius: 6px;
-        font-family: ui-monospace, Menlo, Consolas, monospace;
-        font-size: 12px;
+      .markdown-section code {
         color: #1356b6;
-        background: var(--accent-soft);
       }
 
-      .meta {
-        margin-top: 10px;
-        color: var(--muted);
-        font-size: 13px;
-        line-height: 1.7;
+      .markdown-section pre > code {
+        color: inherit;
       }
 
-      @media (max-width: 980px) {
-        .layout {
-          grid-template-columns: 1fr;
-        }
+      .markdown-section img {
+        max-width: 100%;
+        border: 1px solid #e5e7eb;
+        border-radius: 8px;
+      }
 
-        .sidebar {
-          position: static;
-        }
+      .mermaid {
+        overflow-x: auto;
+        text-align: center;
+        margin: 16px 0;
+        padding: 12px;
+        border: 1px solid #e5e7eb;
+        border-radius: 8px;
+        background: #fff;
       }
     </style>
   </head>
   <body>
-    <main class="page">
-      <section class="hero">
-        <h1>Node 使用帮助</h1>
-        <div class="subtitle">
-          帮助页支持折叠章节。可通过左侧目录定位章节，并按需展开阅读。
-        </div>
-      </section>
-
-      <div class="layout">
-        <aside class="card sidebar">
-          <div class="toc-title">目录</div>
-          <details class="toc-node" open>
-            <summary class="toc-node-summary">1. 核心流程</summary>
-            <div class="toc-children">
-              <a class="toc-link" href="#onboarding">
-                <strong>01</strong>
-                <span>应用入驻流程</span>
-              </a>
-              <a class="toc-link" href="#ucan">
-                <strong>02</strong>
-                <span>UCAN 授权流程</span>
-              </a>
-              <a class="toc-link" href="#quickstart">
-                <strong>06</strong>
-                <span>快速开始</span>
-              </a>
-            </div>
-          </details>
-          <details class="toc-node" open>
-            <summary class="toc-node-summary">2. 接入规范</summary>
-            <div class="toc-children">
-              <a class="toc-link" href="#params">
-                <strong>03</strong>
-                <span>参数与约束</span>
-              </a>
-              <a class="toc-link" href="#faq">
-                <strong>04</strong>
-                <span>常见报错处理</span>
-              </a>
-            </div>
-          </details>
-          <details class="toc-node" open>
-            <summary class="toc-node-summary">3. 文档与排查</summary>
-            <div class="toc-children">
-              <a class="toc-link" href="#references">
-                <strong>05</strong>
-                <span>深度文档入口</span>
-              </a>
-              <a class="toc-link" href="#troubleshoot">
-                <strong>07</strong>
-                <span>排查建议</span>
-              </a>
-            </div>
-          </details>
-        </aside>
-
-        <section class="content">
-          <details class="card section" id="onboarding" open>
-            <summary class="section-summary">01. 应用入驻流程</summary>
-            <div class="section-body">
-              <div class="flow">
-                <div class="flow-step"><b>Step 1:</b> 钱包登录 Node 应用，进入“应用中心”。</div>
-                <div class="flow-step"><b>Step 2:</b> 在“发布应用”填写信息并保存，系统会创建应用记录。</div>
-                <div class="flow-step">
-                  <b>Step 2.1:</b> 如需中心化 UCAN，仅需配置
-                  <code>redirectUri(单值)</code>；<code>audience/capability</code> 由 Node 自动推导。
-                </div>
-                <div class="flow-step">
-                  <b>Step 3:</b> 创建成功后会得到应用 <code>AppId</code>（即 <code>applications.uid</code>）。
-                </div>
-                <div class="flow-step"><b>Step 4:</b> 提交上架申请并完成审批。</div>
-                <div class="flow-step"><b>Step 5:</b> 上架成功后 <code>is_online=true</code>，应用进入可用状态。</div>
-                <div class="flow-step">
-                  <b>Step 6:</b> 第三方应用把 <code>AppId</code> 作为 <code>appId</code> 接入中心化 UCAN。
-                </div>
-              </div>
-              <div class="tip">
-                <strong>关键点：</strong>
-                <code>appId</code> 不在发布时新生成，使用的是创建应用时的
-                <code>AppId(uid)</code>。应用必须已上架，且需在发布页配置
-                <code>redirectUri</code> 回调地址。签发策略由服务端按“依赖应用/访问地址”自动协调。
-              </div>
-            </div>
-          </details>
-
-          <details class="card section" id="ucan" open>
-            <summary class="section-summary">02. UCAN 授权流程（中心化 Issuer）</summary>
-            <div class="section-body">
-              <div class="flow">
-                <div class="flow-step">
-                  <b>1)</b> 业务端发起授权请求：提交 <code>address + appId + redirectUri</code>。
-                </div>
-                <div class="flow-step">
-                  <b>2)</b> Node 校验 <code>appId + redirectUri</code>：仅接受已上架应用 AppId，且
-                  <code>redirectUri</code> 必须命中应用发布字段 <code>redirectUris</code>（单值）。
-                </div>
-                <div class="flow-step">
-                  <b>3)</b> 用户在 Node 验证页输入 TOTP，授权通过后拿到一次性 <code>code</code>。
-                </div>
-                <div class="flow-step">
-                  <b>4)</b> 业务端用 <code>code + appId + redirectUri</code> 兑换 <code>JWT + 初始 UCAN</code>。
-                </div>
-                <div class="flow-step">
-                  <b>5)</b> 如需多后端访问，业务端用 <code>JWT</code> 调
-                  <code>/auth/central/session</code>，再按目标后端调用
-                  <code>/auth/central/issue</code> 分别签发 UCAN。
-                </div>
-                <div class="flow-step">
-                  <b>6)</b> 业务端携带对应后端的 Bearer UCAN 调用受保护接口，服务端按统一 UCAN 规则验证。
-                </div>
-              </div>
-              <div class="tip">
-                <strong>推荐实践：</strong>
-                无钱包插件时优先走此流程；有钱包插件时可继续钱包直连，两者服务端验证逻辑一致。
-              </div>
-            </div>
-          </details>
-
-          <details class="card section" id="params" open>
-            <summary class="section-summary">03. 参数与约束</summary>
-            <div class="section-body">
-              <ul class="list">
-                <li><code>appId</code>：必须使用应用市场 AppId（<code>applications.uid</code>）。</li>
-                <li><code>redirectUri</code>：必须命中该应用发布字段 <code>redirectUris</code>（仅一个）。</li>
-                <li><code>audience</code>：由 Node 基于应用依赖与目标地址自动推导。</li>
-                <li><code>capabilities</code>：由 Node 自动生成（默认 <code>can=invoke</code>）。</li>
-                <li><code>audience / capability / appName</code>：由服务端按应用策略决定，不接受客户端覆写。</li>
-                <li><code>address</code>：需先在 Node 完成 TOTP 扫码配置，否则无法发起授权。</li>
-                <li>多后端访问：在 <code>exchange</code> 后使用 <code>central/session + central/issue</code> 按后端分别签发 UCAN。</li>
-              </ul>
-            </div>
-          </details>
-
-          <details class="card section" id="faq" open>
-            <summary class="section-summary">04. 常见报错处理</summary>
-            <div class="section-body">
-              <ul class="list">
-                <li><code>redirectUri is not allowed</code>：回调地址未进入允许列表。</li>
-                <li><code>Unauthorized appId</code>：appId 不存在或应用未上架。</li>
-                <li><code>TOTP_AUTH_APP_POLICY_AUTO_RESOLVE_FAILED</code>：应用访问地址无效且依赖应用不可解析。</li>
-                <li><code>TOTP authenticator is not configured for this address</code>：该地址尚未完成 TOTP 扫码配置。</li>
-                <li>
-                  <code>column ApplicationDO.redirect_uris does not exist</code>：数据库未执行最新迁移，需重启服务触发迁移或手动补列。
-                </li>
-                <li><code>UCAN audience mismatch</code>：Token 的 aud 与服务端期望不一致。</li>
-                <li><code>UCAN capability denied</code>：签发能力不足，需调整能力并重签。</li>
-                <li><code>missing UCAN proof chain</code>：传错 token 类型（JWT 当 UCAN）或请求链路丢失 Authorization。</li>
-                <li><code>USER_ROLE_DENIED</code>：账号角色不满足发布/审批权限。</li>
-              </ul>
-            </div>
-          </details>
-
-          <details class="card section" id="references" open>
-            <summary class="section-summary">05. 深度文档入口</summary>
-            <div class="section-body">
-              <ul class="list">
-                <li><strong>当前页面 /help.html</strong>：产品使用手册（唯一维护版本）。</li>
-                <li><strong>docs/登录授权.md</strong>：登录与 UCAN 授权规范。</li>
-                <li><strong>docs/UCAN签发模式.md</strong>：中心化签发模式设计与实践。</li>
-                <li><strong>docs/运行配置.md</strong>：配置项说明与最小配置建议。</li>
-              </ul>
-            </div>
-          </details>
-
-          <details class="card section" id="quickstart" open>
-            <summary class="section-summary">06. 快速开始（5 分钟）</summary>
-            <div class="section-body">
-              <ol class="list">
-                <li>钱包登录并进入“我的配置”。</li>
-                <li>刷新 TOTP 状态，确认服务已就绪。</li>
-                <li>加载认证器配置并扫码绑定 TOTP。</li>
-                <li>填写 <code>address/appId/redirectUri</code> 并创建授权请求。</li>
-                <li>批准授权并兑换 code，验证 JWT/UCAN 可用性。</li>
-              </ol>
-            </div>
-          </details>
-
-          <details class="card section" id="troubleshoot" open>
-            <summary class="section-summary">07. 排查建议</summary>
-            <div class="section-body">
-              <ul class="list">
-                <li>先查服务端 <code>logs/</code>，再看浏览器控制台与 Network 面板。</li>
-                <li>优先核对三元组：<code>address</code>、<code>appId</code>、<code>redirectUri</code>。</li>
-                <li>涉及 UCAN 校验时，同时核对 <code>audience</code> 和 <code>capability</code>。</li>
-                <li>出现频繁 429 时，检查是否触发了授权接口限流（request/approve/exchange）。</li>
-              </ul>
-            </div>
-          </details>
-        </section>
-      </div>
-
-      <div class="meta">
-        页面地址：<code>/help.html</code>（由 Header 右上角帮助图标打开）。<br />
-        最近更新：2026-04-24
-      </div>
-    </main>
+    <div id="app"></div>
     <script>
-      (function () {
-        function openHashTarget() {
-          const hash = String(window.location.hash || '').replace(/^#/, '');
-          if (!hash) return;
-          const target = document.getElementById(hash);
-          if (!target) return;
-          if (target.tagName.toLowerCase() === 'details') {
-            target.open = true;
-          }
-        }
+      window.$docsify = {
+        name: "Node 帮助文档",
+        repo: "",
+        basePath: "/help/",
+        homepage: "README.md",
+        loadSidebar: "_sidebar.md",
+        subMaxLevel: 2,
+        auto2top: true,
+        relativePath: false,
+        maxLevel: 3,
+        search: {
+          placeholder: "搜索帮助内容",
+          noData: "没有找到相关内容",
+          depth: 4,
+        },
+        pagination: {
+          previousText: "上一页",
+          nextText: "下一页",
+          crossChapter: true,
+          crossChapterText: true,
+        },
+        copyCode: {
+          buttonText: "复制",
+          errorText: "复制失败",
+          successText: "已复制",
+        },
+        plugins: [
+          function (hook, vm) {
+            hook.beforeEach(function (content) {
+              return content;
+            });
 
-        window.addEventListener('hashchange', openHashTarget);
-        openHashTarget();
-      })();
+            hook.afterEach(function (html) {
+              return html.replace(
+                /<pre v-pre data-lang="mermaid"><code class="lang-mermaid">([\s\S]*?)<\/code><\/pre>/g,
+                function (_, code) {
+                  const decoded = code
+                    .replace(/&lt;/g, "<")
+                    .replace(/&gt;/g, ">")
+                    .replace(/&amp;/g, "&")
+                    .replace(/&#39;/g, "'")
+                    .replace(/&quot;/g, '"');
+                  return '<div class="mermaid">' + decoded + "</div>";
+                }
+              );
+            });
+
+            hook.doneEach(function () {
+              if (!window.mermaid) return;
+              const container = document.querySelector("#main");
+              if (!container) return;
+              const nodes = container.querySelectorAll(".mermaid");
+              if (!nodes.length) return;
+              window.mermaid
+                .run({ nodes: Array.from(nodes) })
+                .catch(function (error) {
+                  console.error("Mermaid render failed:", error);
+                });
+            });
+          },
+        ],
+      };
+    </script>
+    <script src="//cdn.jsdelivr.net/npm/docsify@4"></script>
+    <script src="//cdn.jsdelivr.net/npm/docsify/lib/plugins/search.min.js"></script>
+    <script src="//cdn.jsdelivr.net/npm/docsify-copy-code/dist/docsify-copy-code.min.js"></script>
+    <script src="//cdn.jsdelivr.net/npm/docsify-pagination/dist/docsify-pagination.min.js"></script>
+    <script src="//cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+    <script>
+      mermaid.initialize({
+        startOnLoad: false,
+        theme: "default",
+        securityLevel: "loose",
+      });
     </script>
   </body>
 </html>
