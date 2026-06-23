@@ -1,6 +1,5 @@
 import '@/assets/style.css'
 import 'element-plus/dist/index.css'
-import { t } from '@yeying-community/yeying-i18n'
 import { createApp } from 'vue'
 import { createPinia } from 'pinia'
 import App from '@/App.vue'
@@ -9,17 +8,18 @@ import { createRouter, createWebHistory, Router } from 'vue-router'
 import { initializeProviders } from '@/plugins/account'
 import { setupWalletListeners } from '@/plugins/auth'
 import ElementPlus from 'element-plus'
-import zhCn from 'element-plus/dist/locale/zh-cn.mjs'
-import { notifyError, notifySuccess } from './utils/message'
+import { notifyError } from './utils/message'
+import { ensureDefaultLocale } from './lang/locale'
+import { translate } from './lang/messages'
+
+ensureDefaultLocale()
 
 const app = createApp(App)
 
 app.use(createPinia())
-app.use(ElementPlus, {
-    locale: zhCn
-})
+app.use(ElementPlus)
 
-app.config.globalProperties.$t = t
+app.config.globalProperties.$t = translate
 
 // 合并路由
 const router: Router = createRouter({
@@ -33,12 +33,11 @@ app.use(router)
 initializeProviders()
   .then(() => {
     setupWalletListeners().catch((error) => {
-      console.error('Failed to setup wallet listeners:', error)
+      notifyError(`钱包监听初始化失败：${error instanceof Error ? error.message : String(error)}`)
     })
     app.mount('#app')
   })
   .catch((error) => {
-    console.error('Failed to initialize providers:', error)
-    // 可以显示错误页面或提示
-    app.mount('#app') // 即使失败也挂载，避免白屏
+    app.mount('#app')
+    notifyError(`钱包环境初始化失败：${error instanceof Error ? error.message : String(error)}`)
   })

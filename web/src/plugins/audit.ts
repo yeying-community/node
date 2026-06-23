@@ -277,7 +277,7 @@ async function requireReadToken() {
   }
   const token = await getAuthToken()
   if (!token) {
-    notifyError('❌未获取到访问令牌')
+    notifyError('未获取到访问令牌')
     return null
   }
   return token
@@ -290,7 +290,7 @@ async function requireWriteSession() {
   }
   const account = getCurrentAccount()
   if (!account) {
-    notifyError('❌未查询到当前账户，请登录')
+    notifyError('未查询到当前账户，请先登录')
     return null
   }
   return { token, actor: normalizeAddress(account) }
@@ -298,7 +298,7 @@ async function requireWriteSession() {
 
 async function parseEnvelope<T>(response: Response, fallbackMessage: string): Promise<T> {
   if (!response.ok) {
-    throw new Error(`${fallbackMessage}: ${response.status} error: ${await response.text()}`)
+    throw new Error(`${fallbackMessage}：${response.status}，${await response.text()}`)
   }
   const result = await response.json()
   if (result.code !== 0) {
@@ -314,7 +314,7 @@ function normalizeMetadataString(metadata: unknown): string {
   if (metadata && typeof metadata === 'object') {
     return JSON.stringify(metadata)
   }
-  throw new Error('Invalid audit metadata')
+  throw new Error('审批元数据无效')
 }
 
 function buildAuditSubmitPayload(meta: AuditAuditMetadata, metadataJson: string) {
@@ -322,13 +322,13 @@ function buildAuditSubmitPayload(meta: AuditAuditMetadata, metadataJson: string)
   try {
     parsed = JSON.parse(metadataJson) as Record<string, unknown>
   } catch {
-    throw new Error('Invalid audit metadata')
+    throw new Error('审批元数据无效')
   }
   const targetType = String(parsed.operateType || meta.auditType || '').trim()
   const targetDid = String(parsed.did || '').trim()
   const targetVersion = Number(parsed.version)
   if (!targetType || !targetDid || !Number.isFinite(targetVersion)) {
-    throw new Error('Missing audit target fields')
+    throw new Error('缺少审批目标字段')
   }
   return {
     auditType: String(meta.auditType || ''),
@@ -374,13 +374,13 @@ class AuditClient {
       },
       body: JSON.stringify(signedBody)
     })
-    return parseEnvelope<AuditAuditDetail>(response, 'Create audit failed')
+    return parseEnvelope<AuditAuditDetail>(response, '创建审批单失败')
   }
 
   async submitPublishRequest(input: { auditType: AuditTargetType; resource: Record<string, unknown> }) {
     const account = getCurrentAccount()
     if (!account) {
-      notifyError('❌未查询到当前账户，请登录')
+      notifyError('未查询到当前账户，请先登录')
       return
     }
     const actor = normalizeAddress(account)
@@ -402,7 +402,7 @@ class AuditClient {
   }) {
     const account = getCurrentAccount()
     if (!account) {
-      notifyError('❌未查询到当前账户，请登录')
+      notifyError('未查询到当前账户，请先登录')
       return
     }
     const actor = normalizeAddress(account)
@@ -410,7 +410,7 @@ class AuditClient {
       auditType: input.auditType,
       applicant: `${actor}::${actor}`,
       approver: input.approver,
-      reason: '申请使用',
+      reason: 'Request Access',
       appOrServiceMetadata: JSON.stringify({
         ...input.resource,
         operateType: input.auditType
@@ -448,7 +448,7 @@ class AuditClient {
     const data = await parseEnvelope<{
       items?: AuditAuditDetail[]
       page?: AuditSearchPage
-    }>(response, 'Search audits failed')
+    }>(response, '查询审批列表失败')
     return {
       items: data.items || [],
       page: data.page || {
@@ -469,7 +469,7 @@ class AuditClient {
     }
     const auditId = String(metadata.auditId || '').trim()
     if (!auditId) {
-      throw new Error('Missing audit id')
+      throw new Error('缺少审批单 ID')
     }
     const body = {
       ...(metadata.uid ? { uid: metadata.uid } : {}),
@@ -501,7 +501,7 @@ class AuditClient {
     )
     return parseEnvelope<AuditCommentMetadata>(
       response,
-      decision === 'approve' ? 'Approve failed' : 'Reject failed'
+      decision === 'approve' ? '审批通过失败' : '审批驳回失败'
     )
   }
 
@@ -526,7 +526,7 @@ class AuditClient {
         accept: 'application/json'
       }
     })
-    return parseEnvelope<AuditAuditDetail>(response, 'Fetch audit failed')
+    return parseEnvelope<AuditAuditDetail>(response, '获取审批详情失败')
   }
 
   async cancel(uid: string) {
@@ -552,7 +552,7 @@ class AuditClient {
       },
       body: JSON.stringify(signedBody)
     })
-    return parseEnvelope<{ uid?: string }>(response, 'Cancel audit failed')
+    return parseEnvelope<{ uid?: string }>(response, '取消审批失败')
   }
 }
 

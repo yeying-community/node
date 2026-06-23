@@ -283,7 +283,7 @@ async function requireReadToken() {
   }
   const token = await getAuthToken()
   if (!token) {
-    notifyError('❌未获取到访问令牌')
+    notifyError('未获取到访问令牌')
     return null
   }
   return token
@@ -296,7 +296,7 @@ async function requireWriteSession() {
   }
   const account = getCurrentAccount()
   if (!account) {
-    notifyError('❌未查询到当前账户，请登录')
+    notifyError('未查询到当前账户，请先登录')
     return null
   }
   return { token, actor: normalizeAddress(account) }
@@ -304,7 +304,7 @@ async function requireWriteSession() {
 
 async function parseEnvelope<T>(response: Response, fallbackMessage: string): Promise<T> {
   if (!response.ok) {
-    throw new Error(`${fallbackMessage}: ${response.status} error: ${await response.text()}`)
+    throw new Error(`${fallbackMessage}：${response.status}，${await response.text()}`)
   }
   const result = await response.json()
   if (result.code !== 0) {
@@ -428,7 +428,7 @@ class ApplicationClient {
       },
       body: JSON.stringify(signedBody)
     })
-    const data = await parseEnvelope<ApplicationMetadata>(response, 'Sync application failed')
+    const data = await parseEnvelope<ApplicationMetadata>(response, '同步应用失败')
     return normalizeApplication(data)
   }
 
@@ -454,7 +454,7 @@ class ApplicationClient {
   async myCreateUpdate(params: Partial<ApplicationMetadata> & { uid?: string }) {
     const uid = String(params.uid || '').trim()
     if (!uid) {
-      throw new Error('Missing application uid')
+      throw new Error('缺少应用 UID')
     }
     return this.updateByUid(uid, params)
   }
@@ -494,7 +494,7 @@ class ApplicationClient {
     })
     const data = await parseEnvelope<{ items?: ApplicationMetadata[] }>(
       response,
-      'Search applications failed'
+      '查询应用失败'
     )
     const items = data.items || []
     return items.map((item) => normalizeApplication(item))
@@ -506,7 +506,7 @@ class ApplicationClient {
     const audits = await $audit.search({ applicant })
     const latestAudits = pickLatestAuditsByResource(audits || [], {
       auditType: 'application',
-      reason: '申请使用'
+      reason: 'Request Access'
     })
     const items = await Promise.all(
       latestAudits.map(async (audit) => {
@@ -576,7 +576,7 @@ class ApplicationClient {
       },
       body: JSON.stringify(signedBody)
     })
-    const data = await parseEnvelope<ApplicationMetadata>(response, 'Update application failed')
+    const data = await parseEnvelope<ApplicationMetadata>(response, '更新应用失败')
     return normalizeApplication(data)
   }
 
@@ -603,7 +603,7 @@ class ApplicationClient {
       },
       body: JSON.stringify(signedBody)
     })
-    return parseEnvelope<{ deleted?: boolean }>(response, 'Delete application failed')
+    return parseEnvelope<{ deleted?: boolean }>(response, '删除应用失败')
   }
 
   async detail(did: string, version: number) {
@@ -622,7 +622,7 @@ class ApplicationClient {
         accept: 'application/json'
       }
     })
-    const data = await parseEnvelope<ApplicationMetadata>(response, 'Fetch application failed')
+    const data = await parseEnvelope<ApplicationMetadata>(response, '获取应用详情失败')
     return normalizeApplication(data)
   }
 
@@ -639,7 +639,7 @@ class ApplicationClient {
         accept: 'application/json'
       }
     })
-    const data = await parseEnvelope<ApplicationMetadata>(response, 'Fetch application failed')
+    const data = await parseEnvelope<ApplicationMetadata>(response, '获取应用详情失败')
     return normalizeApplication(data)
   }
 
@@ -658,7 +658,7 @@ class ApplicationClient {
     })
     const data = await parseEnvelope<{ config?: ApplicationConfigItem[] }>(
       response,
-      'Fetch application config failed'
+      '获取应用配置失败'
     )
     return data.config || []
   }
@@ -698,7 +698,7 @@ class ApplicationClient {
       },
       body: JSON.stringify(signedBody)
     })
-    return parseEnvelope<Record<string, unknown>>(response, 'Save application config failed')
+    return parseEnvelope<Record<string, unknown>>(response, '保存应用配置失败')
   }
 
   async offline(
@@ -711,7 +711,7 @@ class ApplicationClient {
     }
     const uid = await fetchApplicationUid(target, version)
     if (!uid) {
-      notifyError('❌未找到应用 UID')
+      notifyError('未找到应用 UID')
       return
     }
     const signedBody = await createSignedActionBody({
@@ -732,7 +732,7 @@ class ApplicationClient {
       },
       body: JSON.stringify(signedBody)
     })
-    return parseEnvelope<{ unpublished?: boolean }>(response, 'Unpublish application failed')
+    return parseEnvelope<{ unpublished?: boolean }>(response, '下架应用失败')
   }
 
   async online(
@@ -745,7 +745,7 @@ class ApplicationClient {
     }
     const uid = await fetchApplicationUid(target, version)
     if (!uid) {
-      notifyError('❌未找到应用 UID')
+      notifyError('未找到应用 UID')
       return
     }
     const signedBody = await createSignedActionBody({
@@ -766,7 +766,7 @@ class ApplicationClient {
       },
       body: JSON.stringify(signedBody)
     })
-    return parseEnvelope<{ published?: boolean }>(response, 'Publish application failed')
+    return parseEnvelope<{ published?: boolean }>(response, '上架应用失败')
   }
 }
 

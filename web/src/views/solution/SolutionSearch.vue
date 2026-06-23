@@ -19,7 +19,7 @@ const search = () => {
       <el-input
         v-model="searchVal"
         size="large"
-        :placeholder="$t('common.pleaseSearch')"
+        :placeholder="$t('ph_search')"
         @keyup.enter="search"
       >
         <template #suffix>

@@ -2,7 +2,7 @@
   <header class="inset-x-0 top-0 z-10 flex justify-center header">
     <nav
       class="flex items-center justify-between py-4 w-full px-5 lg:px-2 xl:w-5/6"
-      aria-label="Global"
+      aria-label="全局导航"
     >
       <div class="flex lg:flex-1 items-center cursor-pointer" @click="changeRouter('/')">
         <img class="w-28 h-8 mr-2" src="../../assets/img/logo.svg" />
@@ -13,7 +13,7 @@
           class="-m-2.5 inline-flex items-center justify-center rounded-md p-2.5 text-gray-700"
           @click="menuDrawerOpen = true"
         >
-          <span class="sr-only">Open main menu</span>
+          <span class="sr-only">打开主菜单</span>
           <span class="iconfont icon-horizon scale-125" />
         </button>
       </div>
@@ -38,7 +38,7 @@
       >
         <div class="flex items-center justify-between">
           <a href="#" class="-m-1.5 p-1.5">
-            <span class="sr-only">Your Company</span>
+            <span class="sr-only">YeYing</span>
             <img class="h-8 w-auto" src="../../assets/img/logo.svg" alt="" />
           </a>
           <button
@@ -94,10 +94,10 @@ watch(
   { deep: true, immediate: true }
 );
 const navigation = [
-  { title: $t("portal.solution"), to: "/solution", name: "solution" },
-  { title: $t("portal.document"), to: "" },
-  { title: $t("portal.blog"), to: "" },
-  { title: $t("portal.aboutUs"), to: "" },
+  { title: $t("h_solution"), to: "/solution", name: "solution" },
+  { title: $t("h_doc"), to: "" },
+  { title: $t("h_blog"), to: "" },
+  { title: $t("h_about"), to: "" },
 ];
 const menuDrawerOpen = ref(false);
 

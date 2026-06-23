@@ -188,7 +188,7 @@ async function bindWalletProvider(provider: Eip1193Provider) {
       try {
         const ok = await loginWithUcan(provider, nextAccount);
         if (!ok) {
-          throw new Error('Login failed');
+          throw new Error('登录失败');
         }
       } catch {
         clearAuthSession();
@@ -364,7 +364,7 @@ function resolveWebDavAudience(): string {
   if (envAud) return envAud;
   const baseUrl = import.meta.env.VITE_WEBDAV_BASE_URL;
   if (!baseUrl) {
-    throw new Error('Missing VITE_WEBDAV_BASE_URL');
+    throw new Error('缺少 WebDAV 服务地址配置 VITE_WEBDAV_BASE_URL');
   }
   return toDidWeb(baseUrl);
 }
@@ -478,9 +478,7 @@ function hasValidApiToken(): boolean {
 }
 
 function clearUcanSessionQuietly() {
-  return clearUcanSession().catch((error) => {
-    console.error('Failed to clear UCAN session:', error);
-  });
+  return clearUcanSession().catch(() => undefined);
 }
 
 function clearAuthSession(options: { waitForUcanSession?: boolean } = {}) {
@@ -564,7 +562,7 @@ async function issueInvocationToken(options: {
   cache: 'api' | 'webdav';
 }): Promise<string> {
   if (isManualLogout()) {
-    throw new Error('User logged out');
+    throw new Error('用户已退出登录');
   }
 
   const cache = options.cache === 'api' ? cachedApiToken : cachedWebDavToken;
@@ -585,7 +583,7 @@ async function issueInvocationToken(options: {
 
   const provider = options.provider || (await resolveProvider());
   if (!provider) {
-    throw new Error('No wallet provider');
+    throw new Error('未检测到钱包提供方');
   }
   const session = await ensureUcanSession(provider);
   const root = await ensureUcanRoot(provider, options.address);
@@ -627,7 +625,7 @@ export async function getWebDavToken(providerOverride?: Eip1193Provider): Promis
 export async function waitForWallet() {
   const provider = await resolveProvider(5000);
   if (!provider) {
-    throw new Error('❌未检测到钱包');
+    throw new Error('未检测到钱包');
   }
   return provider;
 }
@@ -645,12 +643,12 @@ export async function connectWallet(router: any, route: any) {
     void setupWalletListeners({ provider });
     try {
       if (loginInFlight && await focusPendingWalletApproval(provider)) {
-        const ok = await waitForLoginCompletion();
-        if (ok) {
-          if (!(await goMarketAfterLogin(router))) {
-            notifyError('❌登录成功，但跳转应用商店失败，请重试');
+          const ok = await waitForLoginCompletion();
+          if (ok) {
+            if (!(await goMarketAfterLogin(router))) {
+              notifyError('登录成功，但跳转应用商店失败，请重试');
+            }
           }
-        }
         return;
       }
       const accounts = await requestAccounts({ provider });
@@ -658,32 +656,30 @@ export async function connectWallet(router: any, route: any) {
         const currentAccount = accounts[0];
         const ok = await loginWithUcan(provider, currentAccount);
         if (!ok) {
-          notifyError('❌登录失败，未获取到 token');
+          notifyError('登录失败，未获取到令牌');
           return;
         }
         if (!(await goMarketAfterLogin(router))) {
-          notifyError('❌登录成功，但跳转应用商店失败，请重试');
+          notifyError('登录成功，但跳转应用商店失败，请重试');
         }
       } else {
-        notifyError('❌未获取到账户');
+        notifyError('未获取到账户');
       }
     } catch (error) {
       const walletError = classifyWalletError(error);
       if (walletError.message.includes('Session expired')) {
-        notifyError(`❌会话已过期，请打开钱包插件输入密码激活钱包状态 ${walletError.message}`);
+        notifyError(`会话已过期，请打开钱包插件输入密码激活钱包状态。${walletError.message}`);
       } else if (walletError.type === 'userRejected') {
-        notifyError(`❌用户拒绝了连接请求 ${walletError.message}`);
+        notifyError(`用户拒绝了连接请求。${walletError.message}`);
       } else if (walletError.type === 'disconnected' || walletError.type === 'timeout') {
-        notifyError(`❌钱包连接已断开，请恢复钱包后重试 ${walletError.message}`);
+        notifyError(`钱包连接已断开，请恢复钱包后重试。${walletError.message}`);
       } else {
-        console.error('❌未知连接错误:', error);
-        notifyError(`❌连接失败，请检查钱包状态 ${walletError.message}`);
+        notifyError(`连接失败，请检查钱包状态。${walletError.message}`);
       }
       return;
     }
   } catch (error) {
-    console.error('❌连接失败:', error);
-    notifyError(`❌连接失败: ${error}`);
+    notifyError(`连接失败：${error}`);
   }
 }
 
@@ -711,7 +707,7 @@ export async function logoutWithUcan(options: { redirect?: boolean } = {}) {
 export async function signWithWallet(message: string): Promise<string> {
   const provider = await resolveProvider();
   if (!provider) {
-    throw new Error('No wallet provider');
+    throw new Error('未检测到钱包提供方');
   }
   let account = getCurrentAccount();
   if (!account) {
@@ -731,7 +727,7 @@ export async function signWithWallet(message: string): Promise<string> {
     }
   }
   if (!account) {
-    throw new Error('No wallet account');
+    throw new Error('未获取到钱包账户');
   }
   const payload = typeof message === 'string' ? message : JSON.stringify(message);
   return (await provider.request({
@@ -795,7 +791,7 @@ export async function ensureWalletSession(options: { redirect?: boolean } = {}) 
   try {
     const ok = await loginWithUcan(provider, activeAccount);
     if (!ok) {
-      throw new Error('Login failed');
+      throw new Error('登录失败');
     }
   } catch (error) {
     clearAuthSession();
@@ -831,7 +827,7 @@ export async function getChainId() {
     }
     const chainId = await web3GetChainId(provider);
     if (!chainId) {
-      notifyError('❌未获取到链 ID');
+      notifyError('未获取到链 ID');
       return;
     }
 
@@ -845,8 +841,7 @@ export async function getChainId() {
     const chainName = chainNames[chainId as keyof typeof chainNames] || '未知网络';
     return `链 ID: ${chainId}\n网络: ${chainName}`;
   } catch (error) {
-    console.error('❌获取链 ID 失败:', error);
-    notifyError(`❌获取链 ID 失败: ${error}`);
+    notifyError(`获取链 ID 失败：${error}`);
   }
 }
 
@@ -854,7 +849,7 @@ export async function getChainId() {
 export async function getBalance() {
   const currentAccount = getCurrentAccount();
   if (!currentAccount) {
-    notifyError('❌请先连接钱包');
+    notifyError('请先连接钱包');
     return;
   }
   try {
@@ -867,8 +862,7 @@ export async function getBalance() {
     const ethBalance = parseInt(balance, 16) / 1e18;
     return `余额: ${ethBalance.toFixed(6)} ETH\n原始值: ${balance}`;
   } catch (error) {
-    console.error('❌获取余额失败:', error);
-    notifyError(`❌获取余额失败: ${error}`);
+    notifyError(`获取余额失败：${error}`);
   }
 }
 
@@ -899,7 +893,7 @@ export async function loginWithUcan(
         : await requestAccounts({ provider });
       const currentAccount = accountOverride || accounts?.[0];
       if (!currentAccount) {
-        notifyError('❌未获取到账户');
+        notifyError('未获取到账户');
         return false;
       }
       handleAccountChange(currentAccount);
@@ -913,8 +907,7 @@ export async function loginWithUcan(
       }
       return true;
     } catch (error) {
-      console.error('❌登录失败:', error);
-      notifyError(`❌登录失败: ${error}`);
+      notifyError(`登录失败：${error}`);
       return false;
     }
   })();

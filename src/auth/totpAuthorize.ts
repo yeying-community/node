@@ -84,6 +84,19 @@ export type TotpAuthorizeCodeExchangeResult = {
   issuedAt: number;
 };
 
+export type TotpAuthorizePendingApproval = {
+  requestId: string;
+  subject: string;
+  appId: string;
+  redirectUri: string;
+  state?: string;
+  audience: string;
+  capabilities: UcanCapability[];
+  appName: string;
+  sessionTtlMs?: number;
+  tokenTtlMs?: number;
+};
+
 type TotpAuthorizeRuntimeState = {
   exchangeCodeTtlMs: number;
 };
@@ -570,6 +583,25 @@ function toPublicResult(record: TotpAuthorizeRequestRecord): TotpAuthorizeReques
   };
 }
 
+function toApprovalResult(
+  record: TotpAuthorizeRequestRecord,
+  approvedAt: number
+): TotpAuthorizeRequestConsumeResult {
+  return {
+    requestId: record.requestId,
+    subject: record.subject,
+    appId: record.appId,
+    redirectUri: record.redirectUri,
+    state: record.state,
+    audience: record.audience,
+    capabilities: [...record.capabilities],
+    appName: record.appName,
+    sessionTtlMs: record.sessionTtlMs,
+    tokenTtlMs: record.tokenTtlMs,
+    approvedAt,
+  };
+}
+
 function appendQuery(baseUrl: string, query: Record<string, string>): string {
   const parsed = new URL(baseUrl);
   Object.entries(query).forEach(([key, value]) => {
@@ -664,6 +696,65 @@ export function getTotpAuthorizeRequest(
   return toPublicResult(record);
 }
 
+export function getTotpAuthorizePendingApproval(
+  requestIdInput: string
+): TotpAuthorizePendingApproval | null {
+  assertTotpAuthReady();
+  cleanupAuthorizeRecords();
+  const requestId = normalizeRequestId(requestIdInput);
+  if (!requestId) return null;
+  const record = AUTHORIZE_REQUESTS.get(requestId);
+  if (!record) return null;
+  const pending = requirePendingRequest(record, Date.now());
+  return {
+    requestId: pending.requestId,
+    subject: pending.subject,
+    appId: pending.appId,
+    redirectUri: pending.redirectUri,
+    state: pending.state,
+    audience: pending.audience,
+    capabilities: [...pending.capabilities],
+    appName: pending.appName,
+    sessionTtlMs: pending.sessionTtlMs,
+    tokenTtlMs: pending.tokenTtlMs,
+  };
+}
+
+export async function approveTotpAuthorizeRequestBySubject(input: {
+  requestId: string;
+  expectedSubject: string;
+}): Promise<TotpAuthorizeRequestConsumeResult> {
+  assertTotpAuthReady();
+  cleanupAuthorizeRecords();
+
+  const requestId = normalizeRequestId(input.requestId);
+  if (!requestId) {
+    throw new TotpAuthError(400, 'TOTP_AUTH_REQUEST_REQUIRED', 'Missing requestId');
+  }
+  const record = AUTHORIZE_REQUESTS.get(requestId);
+  if (!record) {
+    throw new TotpAuthError(404, 'TOTP_AUTH_REQUEST_NOT_FOUND', 'totp authorize request not found');
+  }
+
+  const nowMs = Date.now();
+  const pending = requirePendingRequest(record, nowMs);
+  const expectedSubject = requireWalletAddress(input.expectedSubject);
+  if (pending.subject !== expectedSubject) {
+    throw new TotpAuthError(403, 'TOTP_AUTH_SUBJECT_MISMATCH', 'authorize request subject mismatch');
+  }
+
+  pending.status = 'used';
+  pending.updatedAt = nowMs;
+  AUTHORIZE_REQUESTS.set(requestId, pending);
+  notifyAuthorizeApproved({
+    requestId: pending.requestId,
+    subject: pending.subject,
+    appId: pending.appId,
+    appName: pending.appName,
+  });
+  return toApprovalResult(pending, nowMs);
+}
+
 export async function consumeTotpAuthorizeRequest(input: {
   requestId: string;
   code: string;
@@ -696,30 +787,11 @@ export async function consumeTotpAuthorizeRequest(input: {
     throw new TotpAuthError(401, 'TOTP_AUTH_CODE_INVALID', 'Invalid TOTP code');
   }
 
-  pending.status = 'used';
-  pending.updatedAt = nowMs;
-  AUTHORIZE_REQUESTS.set(requestId, pending);
   await markTotpEnrollmentBoundForSubject(pending.subject);
-  notifyAuthorizeApproved({
-    requestId: pending.requestId,
-    subject: pending.subject,
-    appId: pending.appId,
-    appName: pending.appName,
+  return await approveTotpAuthorizeRequestBySubject({
+    requestId,
+    expectedSubject: pending.subject,
   });
-
-  return {
-    requestId: pending.requestId,
-    subject: pending.subject,
-    appId: pending.appId,
-    redirectUri: pending.redirectUri,
-    state: pending.state,
-    audience: pending.audience,
-    capabilities: [...pending.capabilities],
-    appName: pending.appName,
-    sessionTtlMs: pending.sessionTtlMs,
-    tokenTtlMs: pending.tokenTtlMs,
-    approvedAt: nowMs,
-  };
 }
 
 export async function createTotpAuthorizeCode(input: {

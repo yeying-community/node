@@ -1,7 +1,7 @@
 <template>
   <el-dialog
     v-model="props.dialogVisible"
-    :title="props.title || '申请使用'"
+    :title="props.title || $t('apply_use_title')"
     width="430px"
     :close-on-click-modal="false"
     @close="props.closeClick()"
@@ -14,14 +14,14 @@
       label-width="100px"
     >
       <el-space direction="vertical" alignment="flex-start">
-        <div>申请{{ resourceLabel }}：{{ detail?.name }}</div>
-        <div>{{ resourceLabel }}创建人：{{ detail?.owner }}</div>
-        <el-form-item label="申请原因" prop="reason">
+        <div>{{ $t('apply_use_resource') }}{{ detail?.name }}</div>
+        <div>{{ $t('apply_use_owner') }}{{ detail?.owner }}</div>
+        <el-form-item :label="$t('apply_use_reason')" prop="reason">
           <el-input
             type="textarea"
             style="width: 400px"
             v-model="form.reason"
-            placeholder="请填写申请原因，以便所有者知悉增加通过概率"
+            :placeholder="$t('apply_use_reason_placeholder')"
           ></el-input>
         </el-form-item>
       </el-space>
@@ -29,19 +29,19 @@
 
     <template #footer>
       <span class="dialog-footer">
-        <el-button @click="props.closeClick()">取消</el-button>
-        <el-button type="primary" @click="submitForm"> 确定 </el-button>
+        <el-button @click="props.closeClick()">{{ $t('btn_cancel') }}</el-button>
+        <el-button type="primary" @click="submitForm"> {{ $t('btn_ok') }} </el-button>
       </span>
     </template>
   </el-dialog>
 
   <ResultChooseModal
     v-model="innerVisible"
-    title="申请使用"
-    :mainDesc="`${resourceLabel}申请中，请联系${resourceLabel} owner 审批`"
-    :subDesc="`正在等待${resourceLabel}所有人审批，请耐心等待`"
-    leftBtnText="查看详情"
-    rightBtnText="返回列表"
+    :title="$t('apply_use_title')"
+    :mainDesc="$t('apply_use_result_main')"
+    :subDesc="$t('apply_use_result_sub')"
+    :leftBtnText="$t('apply_use_view_detail')"
+    :rightBtnText="$t('apply_use_back_list')"
     :leftBtnClick="toDetail"
     :rightBtnClick="toList"
     :closeClick="toList"
@@ -59,7 +59,7 @@ import $audit, {
 } from '@/plugins/audit'
 import $application from '@/plugins/application'
 import ResultChooseModal from './ResultChooseModal.vue'
-import { computed, ref, reactive } from 'vue'
+import { computed, getCurrentInstance, ref, reactive } from 'vue'
 import { useRouter } from 'vue-router'
 import { SuccessFilled } from '@element-plus/icons-vue'
 import { notifyError } from '@/utils/message'
@@ -72,11 +72,13 @@ const form = reactive({
   reason: '',
 })
 const router = useRouter()
+const { proxy } = getCurrentInstance()!
+const { $t } = proxy
 const submittedAuditId = ref('')
 const submittedResourceUid = ref('')
 
 const rules = reactive({
-  reason: [{ required: true, message: '请输入申请原因', trigger: 'blur' }],
+  reason: [{ required: true, message: String($t('apply_use_reason')), trigger: 'blur' }],
 })
 const props = defineProps({
   dialogVisible: Boolean,
@@ -85,7 +87,7 @@ const props = defineProps({
   title: String,
   closeClick: Function
 })
-const resourceLabel = computed(() => '应用')
+const resourceLabel = computed(() => String($t('approval_type_application')))
 
 /**
  * 表单提交
@@ -93,7 +95,7 @@ const resourceLabel = computed(() => '应用')
 const submitForm = () => {
   const account = getCurrentAccount()
   if (account === undefined || account === null) {
-      notifyError("❌未查询到当前账户，请登录")
+      notifyError(String($t('market_missing_account')))
       return
   }
   if (formRef.value === undefined || formRef.value === null) {
@@ -103,7 +105,7 @@ const submitForm = () => {
     if (valid) {
         const detailRst = await $application.detail(props.detail?.did, props.detail?.version)
         if (detailRst === undefined || detailRst === null) {
-            notifyError("应用不存在")
+            notifyError(String($t('app_detail_app_missing')))
             return
         }
         const applicant = `${normalizeAddress(account)}::${normalizeAddress(account)}`
@@ -113,7 +115,7 @@ const submitForm = () => {
               .filter((audit) =>
                 isAuditForResource(audit, {
                   auditType: 'application',
-                  reason: '申请使用',
+                  reason: 'Request Access',
                   uid: detailRst.uid,
                   did: detailRst.did,
                   version: detailRst.version,
@@ -129,14 +131,14 @@ const submitForm = () => {
         if (latestAudit) {
           const latestStatus = resolveUsageAuditStatus(latestAudit)
           if (latestStatus === 'applying' || latestStatus === 'success') {
-            notifyError("❌申请使用已经提交，请勿重复操作")
+            notifyError(String($t('apply_use_duplicate')))
             return
           }
         }
         detailRst.operateType = 'application'
         const approverActor = normalizeAddress(String(props.detail?.owner || ''))
         if (!approverActor) {
-          notifyError('❌缺少审批人')
+          notifyError(String($t('apply_use_missing_approver')))
           return
         }
         const auditR = await $audit.submitUsageRequest({
@@ -152,7 +154,7 @@ const submitForm = () => {
         props.closeClick?.()
         innerVisible.value = true
     } else {
-      notifyError('❌请先填写申请原因')
+      notifyError(String($t('apply_use_reason_required')))
     }
   })
 }

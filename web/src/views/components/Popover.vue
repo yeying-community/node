@@ -1,5 +1,5 @@
 <template>
-  <el-popover :visible="visible" placement="top" :width="300" trigger="click">
+  <el-popover v-model:visible="visible" placement="top" :width="300" trigger="click">
     <div class="custom-popover-content">
       <el-space :size="8" alignment="flex-start">
         <el-icon :size="16" class="text-warning">
@@ -13,10 +13,10 @@
 
       <div class="flex justify-end mt-4">
         <el-button size="small" @click="handleCancel">{{
-          cancelText || "取消"
+          cancelText || $t('popover_default_cancel')
         }}</el-button>
         <el-button size="small" type="primary" @click="handleOk">{{
-          okText || "确定"
+          okText || $t('popover_default_ok')
         }}</el-button>
       </div>
     </div>
@@ -32,8 +32,10 @@
 </template>
 
 <script lang="ts" setup>
-import { ref } from "vue";
+import { getCurrentInstance, ref } from "vue";
 import { WarningFilled } from "@element-plus/icons-vue";
+const { proxy } = getCurrentInstance()!
+const { $t } = proxy
 const props = defineProps({
   show: Boolean,
   title: String,

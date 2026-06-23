@@ -14,7 +14,7 @@
                         </span>
                         <template #dropdown>
                             <el-dropdown-menu>
-                                <el-dropdown-item @click="toDetail">详情</el-dropdown-item>
+                                <el-dropdown-item @click="toDetail">{{ $t('market_card_detail') }}</el-dropdown-item>
                             </el-dropdown-menu>
                         </template>
                     </el-dropdown>
@@ -26,34 +26,34 @@
                 <div class="headline">
                     <div class="name">{{ detail.name }}</div>
                     <div class="title" v-if="pageFrom === 'market'">
-                        <el-tag type="primary" size="small">社区</el-tag>
+                        <el-tag type="primary" size="small">{{ $t('market_card_community') }}</el-tag>
                         <span class="market-title-time">{{ marketPublishedDateText }}</span>
                     </div>
                     <div class="title" v-else-if="pageFrom === 'myCreate' || !ownerAddress">
                         <span v-if="pageFrom === 'myCreate' || !ownerAddress">
-                            <el-tag type="primary" size="small">社区</el-tag>
+                            <el-tag type="primary" size="small">{{ $t('market_card_community') }}</el-tag>
                         </span>
                         <span>
-                            {{ pageFrom === 'myCreate' || !isOnline ? '创建于' : '上架于' }}
+                            {{ pageFrom === 'myCreate' || !isOnline ? $t('market_card_created_at') : $t('market_card_published_at') }}
                             {{ dayjs(detail.createdAt).format('YYYY-MM-DD') }}
                         </span>
                     </div>
                 </div>
                 <div v-if="ownerAddress" class="meta owner-meta-line">
                     <span class="owner-meta">
-                        作者：{{ ownerShortAddress }}
+                        {{ $t('market_card_author') }}{{ ownerShortAddress }}
                     </span>
-                    <el-tooltip content="复制" placement="top">
+                    <el-tooltip :content="$t('market_card_copy')" placement="top">
                         <el-icon class="copy-owner-icon" @click.stop="copyOwnerAddress">
                             <CopyDocument />
                         </el-icon>
                     </el-tooltip>
                 </div>
                 <div class="meta">
-                    <span>分类：{{ applicationCodeText }}</span>
+                    <span>{{ $t('market_card_category') }}{{ applicationCodeText }}</span>
                 </div>
                 <div class="meta meta-version">
-                    <span>版本：{{ versionText }}</span>
+                    <span>{{ $t('market_card_version') }}{{ versionText }}</span>
                 </div>
                 <el-tooltip :content="descriptionText" placement="top" :disabled="!isDescOverflow">
                     <div ref="descRef" class="desc">
@@ -66,38 +66,38 @@
         <!-- 应用市场 -->
         <div v-if="pageFrom === 'market' && !isOwner">
             <div class="bottom owner">
-                <div @click.stop="applyUse()" class="cursor">申请使用</div>
+                <div @click.stop="applyUse()" class="cursor">{{ $t('market_card_apply_use') }}</div>
             </div>
         </div>
         <!-- 我的创建 -->
         <div v-if="pageFrom === 'myCreate'">
             <div class="bottom owner">
-                <div @click="toDetail" class="cursor">详情</div>
+                <div @click="toDetail" class="cursor">{{ $t('app_list_detail') }}</div>
                 <el-divider direction="vertical" />
-                <div v-if="isOnline" @click="handleOfflineConfirm" class="cursor">下架应用</div>
-                <div v-else @click="handleOnline" class="cursor">上架应用</div>
+                <div v-if="isOnline" @click="handleOfflineConfirm" class="cursor">{{ $t('app_list_unpublish') }}</div>
+                <div v-else @click="handleOnline" class="cursor">{{ $t('app_list_publish') }}</div>
                 <el-divider direction="vertical" />
                 <div class="bottom-more">
                     <el-dropdown placement="top-start">
-                        <div>更多</div>
+                        <div>{{ $t('market_card_more') }}</div>
                         <template #dropdown>
                             <el-dropdown-menu>
                                 <el-dropdown-item v-if="!isOnline">
                                     <el-popconfirm
-                                        confirm-button-text="确定"
-                                        cancel-button-text="取消"
+                                        :confirm-button-text="$t('btn_ok')"
+                                        :cancel-button-text="$t('btn_cancel')"
                                         :icon="WarningFilled"
                                         icon-color="#FB9A0E"
-                                        title="您确定要删除该应用吗？"
+                                        :title="$t('app_list_delete_confirm')"
                                         width="220px"
                                         @confirm="toDelete"
                                     >
-                                        <template #reference> 删除 </template>
+                                        <template #reference> {{ $t('app_list_delete') }} </template>
                                     </el-popconfirm>
                                 </el-dropdown-item>
 
-                                <el-dropdown-item @click="toEdit">编辑</el-dropdown-item>
-                                <el-dropdown-item @click="exportIdentity">导出身份</el-dropdown-item>
+                                <el-dropdown-item @click="toEdit">{{ $t('app_list_edit') }}</el-dropdown-item>
+                                <el-dropdown-item @click="exportIdentity">{{ $t('app_list_export_identity') }}</el-dropdown-item>
                             </el-dropdown-menu>
                         </template>
                     </el-dropdown>
@@ -108,32 +108,32 @@
         <!-- 我的申请 -->
         <div v-if="pageFrom === 'myApply'">
             <div class="bottom owner">
-                <div @click="toDetail" class="cursor">详情</div>
+                <div @click="toDetail" class="cursor">{{ $t('app_list_detail') }}</div>
                 <el-divider direction="vertical" />
 
                 <el-popconfirm
-                    confirm-button-text="确定"
-                    cancel-button-text="取消"
+                    :confirm-button-text="$t('btn_ok')"
+                    :cancel-button-text="$t('btn_cancel')"
                     :icon="WarningFilled"
                     icon-color="#FB9A0E"
-                    title="您确定要取消当前应用的申请吗？"
+                    :title="$t('app_list_cancel_confirm')"
                     width="220px"
                     @confirm="cancelApply"
                 >
                     <template #reference>
-                        <div v-if="applyStatus === 'applying'" class="cursor">取消申请</div>
+                        <div v-if="applyStatus === 'applying'" class="cursor">{{ $t('app_list_cancel_apply') }}</div>
                     </template>
                 </el-popconfirm>
 
-                <div v-if="applyStatus === 'success'" @click="toConfigCapability" class="cursor">配置能力</div>
+                <div v-if="applyStatus === 'success'" @click="toConfigCapability" class="cursor">{{ $t('app_list_config_capability') }}</div>
 
                 <el-divider v-if="applyStatus === 'success' || applyStatus === 'reject'" direction="vertical" />
                 <div v-if="applyStatus === 'reject'" class="bottom-more">
                     <el-dropdown placement="top-start">
-                        <div>更多</div>
+                        <div>{{ $t('market_card_more') }}</div>
                         <template #dropdown>
                             <el-dropdown-menu>
-                                <el-dropdown-item @click="dialogVisible = true">重新申请</el-dropdown-item>
+                                <el-dropdown-item @click="dialogVisible = true">{{ $t('app_list_reapply') }}</el-dropdown-item>
                             </el-dropdown-menu>
                         </template>
                     </el-dropdown>
@@ -142,7 +142,7 @@
         </div>
     </div>
     <ApplyUseModal
-        :title="pageFrom === 'market' ? '申请使用' : '重新申请'"
+        :title="pageFrom === 'market' ? $t('apply_use_title') : $t('app_list_reapply')"
         :dialogVisible="dialogVisible"
         :detail="detail"
         :afterSubmit="afterSubmit"
@@ -151,11 +151,11 @@
     <ConfigCapabilityModal :modalVisible="modalVisible" :cancelModal="cancelModal" :detail="detail" />
     <ResultChooseModal
         v-model="innerVisible"
-        title="应用上架申请"
-        mainDesc="应用上架申请中，联系管理员审批"
-        subDesc="应用申请上架"
-        leftBtnText="查看详情"
-        rightBtnText="返回列表"
+        :title="$t('market_card_publish_request_title')"
+        :mainDesc="$t('market_card_publish_request_main')"
+        :subDesc="$t('market_card_publish_request_sub')"
+        :leftBtnText="$t('market_card_view_detail')"
+        :rightBtnText="$t('market_card_back_list')"
         :leftBtnClick="toDetail"
         :rightBtnClick="toList"
         :closeClick="toList"
@@ -166,7 +166,7 @@
     </ResultChooseModal>
 </template>
 <script lang="ts" setup>
-import { ref, computed, nextTick, onBeforeUnmount, onMounted, watch } from 'vue'
+import { ref, computed, getCurrentInstance, nextTick, onBeforeUnmount, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import $audit, { isAuditForResource, resolveUsageAuditStatus } from '@/plugins/audit'
 import { CopyDocument, MoreFilled, SuccessFilled, WarningFilled } from '@element-plus/icons-vue'
@@ -189,6 +189,8 @@ import { normalizeAddress } from '@/utils/actionSignature'
 import defaultAppAvatar from '@/assets/img/default.jpg'
 
 const router = useRouter()
+const { proxy } = getCurrentInstance()!
+const { $t } = proxy
 const props = defineProps({
     detail: Object as () => ApplicationMetadata,
     selectId: Number,
@@ -256,19 +258,24 @@ const descriptionText = computed(() => {
     return raw || '-'
 })
 const writeClipboardText = async (value: string) => {
+    const normalized = String(value || '').trim()
+    if (!normalized) {
+        return false
+    }
     if (navigator?.clipboard?.writeText) {
-        await navigator.clipboard.writeText(value)
-        return
+        await navigator.clipboard.writeText(normalized)
+        return true
     }
     const textarea = document.createElement('textarea')
-    textarea.value = value
+    textarea.value = normalized
     textarea.setAttribute('readonly', 'readonly')
     textarea.style.position = 'fixed'
     textarea.style.left = '-9999px'
     document.body.appendChild(textarea)
     textarea.select()
-    document.execCommand('copy')
+    const copied = document.execCommand('copy')
     document.body.removeChild(textarea)
+    return copied
 }
 
 const copyOwnerAddress = async () => {
@@ -277,10 +284,14 @@ const copyOwnerAddress = async () => {
         return
     }
     try {
-        await writeClipboardText(value)
-        notifySuccess('已复制')
+        const copied = await writeClipboardText(value)
+        if (!copied) {
+            notifyError(String($t('market_card_copy_failed')))
+            return
+        }
+        notifySuccess(String($t('market_card_copy_success')))
     } catch {
-        notifyError('复制失败')
+        notifyError(String($t('market_card_copy_failed')))
     }
 }
 
@@ -343,7 +354,7 @@ const getApplyStatus = async () => {
         ? detail.filter((audit) =>
               isAuditForResource(audit, {
                   auditType: 'application',
-                  reason: '申请使用',
+                  reason: 'Request Access',
                   uid: props.detail?.uid,
                   did: props.detail?.did,
                   version: props.detail?.version,
@@ -374,7 +385,7 @@ const cancelApply = async () => {
     } else {
         const account = getCurrentAccount()
         if (!account) {
-            notifyError('❌未查询到当前账户，请登录')
+            notifyError(String($t('market_missing_account')))
             return
         }
         const applicant = `${account}::${account}`
@@ -384,7 +395,7 @@ const cancelApply = async () => {
                   .filter((audit) =>
                       isAuditForResource(audit, {
                           auditType: 'application',
-                          reason: '申请使用',
+                          reason: 'Request Access',
                           uid: props.detail?.uid,
                           did: props.detail?.did,
                           version: props.detail?.version,
@@ -476,7 +487,7 @@ const normalizeLocationUrl = (value: unknown) => {
 const goUse = () => {
     const target = normalizeLocationUrl(props.detail?.location)
     if (!target) {
-        notifyError('❌应用未配置可访问地址')
+        notifyError(String($t('market_card_location_missing')))
         return
     }
     window.location.href = target
@@ -511,13 +522,13 @@ const handleOffline = async () => {
 
     if (offlinelRst?.unpublished) {
         ElMessage({
-            message: '已下架',
+            message: String($t('app_list_unpublish_success')),
             type: 'success'
         })
         props.refreshCardList()
     } else {
         ElMessage({
-            message: '下架失败',
+            message: String($t('app_list_unpublish_failed')),
             type: 'error'
         })
     }    
@@ -526,30 +537,25 @@ const handleOffline = async () => {
 const handleOfflineConfirm = () => {
     ElMessageBox.confirm('', {
         message: h('p', null, [
-            h('div', { style: 'font-size:18px;color:rgba(0,0,0,0.85)' }, '你确定要下架当前应用吗？'),
+            h('div', { style: 'font-size:18px;color:rgba(0,0,0,0.85)' }, String($t('app_detail_unpublish_confirm_title'))),
             h(
                 'div',
                 { style: 'font-size:14px;font-weight:400;color:rgba(0,0,0,0.85)' },
-                '下架后当前应用将不在应用市场展示。'
+                String($t('app_detail_unpublish_confirm_desc'))
             )
         ]),
         type: 'warning',
-        confirmButtonText: '确定',
-        cancelButtonText: '取消',
+        confirmButtonText: String($t('btn_ok')),
+        cancelButtonText: String($t('btn_cancel')),
         showClose: false,
         customClass: 'messageBox-wrap'
     })
         .then(() => {
             handleOffline()
         })
-        .catch(() => {
-            console.log(`下架异常`)
-        })
+        .catch(() => undefined)
 }
 
-/**
- * 申请使用
- */
 const applyUse = async () => {
     dialogVisible.value = true
 }
@@ -558,39 +564,39 @@ const applyUse = async () => {
 const handleOnline = () => {
     ElMessageBox.confirm('', {
         message: h('p', null, [
-            h('div', { style: 'font-size:18px;color:rgba(0,0,0,0.85)' }, '你确定要上架当前应用吗？'),
+            h('div', { style: 'font-size:18px;color:rgba(0,0,0,0.85)' }, String($t('app_detail_publish_confirm_title'))),
             h(
                 'div',
                 { style: 'font-size:14px;font-weight:400;color:rgba(0,0,0,0.85)' },
-                '上架后仍可编辑，更新版本后可重新提交上架。'
+                String($t('app_detail_publish_confirm_desc'))
             )
         ]),
         type: 'warning',
-        confirmButtonText: '确定',
-        cancelButtonText: '取消',
+        confirmButtonText: String($t('btn_ok')),
+        cancelButtonText: String($t('btn_cancel')),
         showClose: false,
         customClass: 'messageBox-wrap'
     })
         .then(async () => {
             try {
-            const detailRst = await $application.myCreateDetailByUid(props.detail.uid)
-            if (!detailRst) {
-                notifyError("❌应用不存在")
-                return
-            }
-            const created = await $audit.submitPublishRequest({
-                auditType: 'application',
-                resource: detailRst as Record<string, unknown>
-            })
-            if (!created?.meta?.uid) {
-                return
-            }
-            innerVisible.value = true
+                const detailRst = await $application.myCreateDetailByUid(props.detail.uid)
+                if (!detailRst) {
+                    notifyError(String($t('app_detail_app_missing')))
+                    return
+                }
+                const created = await $audit.submitPublishRequest({
+                    auditType: 'application',
+                    resource: detailRst as Record<string, unknown>
+                })
+                if (!created?.meta?.uid) {
+                    return
+                }
+                innerVisible.value = true
             } catch (error) {
-                notifyError(`❌申请失败: ${error}`)
+                notifyError(`${$t('app_detail_apply_failed')}：${error}`)
             }
         })
-        .catch(() => {})
+        .catch(() => undefined)
 }
 
 const afterSubmit = () => {

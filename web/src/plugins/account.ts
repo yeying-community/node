@@ -110,7 +110,7 @@ class IndexedCache {
 
     private getStore(storeName: string, mode: IDBTransactionMode) {
         if (!this.db) {
-            throw new Error('IndexedCache is not initialized')
+            throw new Error('本地缓存尚未初始化')
         }
         return this.db.transaction(storeName, mode).objectStore(storeName)
     }
@@ -211,7 +211,7 @@ export class LocalCache {
 export async function generateIdentity(code: string, serviceCodes: unknown, location: string, hash: string, name: string, description: string, avatar: string) {
     const account = getCurrentAccount()
     if (!account) {
-        throw new Error('No wallet account')
+        throw new Error('未获取到钱包账户')
     }
     const now = new Date().toISOString()
     const serviceCodesValue = Array.isArray(serviceCodes) ? serviceCodes.join(',') : `${serviceCodes || ''}`
@@ -258,13 +258,13 @@ export async function generateIdentity(code: string, serviceCodes: unknown, loca
 
 export async function exportIdentityInfo(did: string, name: string) {
     if (!did) {
-        notifyError('❌未找到身份信息');
+        notifyError('未找到身份信息');
         return;
     }
     const identityCache = new LocalCache();
     const identity = identityCache.get(did);
     if (!identity) {
-        notifyError('❌身份信息不存在，请先创建或导入');
+        notifyError('身份信息不存在，请先创建或导入');
         return;
     }
     const fileName = `${name}.id`;

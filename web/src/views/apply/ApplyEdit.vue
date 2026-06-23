@@ -1,11 +1,11 @@
 <template>
     <div class="publish-page">
-        <BreadcrumbHeader :pageName="isEdit ? '编辑应用' : '创建应用'" />
+        <BreadcrumbHeader :pageName="pageTitle" />
 
         <div class="publish-panel">
             <el-form ref="formRef" label-position="top" :model="detailInfo" :rules="rules">
                 <div class="section">
-                    <div class="section-title">1. 选择应用模版</div>
+                    <div class="section-title">{{ $t('app_edit_section_template') }}</div>
                     <el-form-item>
                         <el-radio-group v-model="selectedPreset" @change="handlePresetChange">
                             <el-radio
@@ -23,19 +23,19 @@
                 </div>
 
                 <div class="section">
-                    <div class="section-title">2. 发布信息</div>
+                    <div class="section-title">{{ $t('app_edit_section_publish') }}</div>
                     <el-row :gutter="20">
                         <el-col :span="12" :xs="24">
-                            <el-form-item label="应用名称" prop="name">
+                            <el-form-item :label="$t('app_edit_name')" prop="name">
                                 <el-input
                                     v-model="detailInfo.name"
-                                    placeholder="例如：Chat / Router / Warehouse"
+                                    :placeholder="$t('app_edit_name_placeholder')"
                                 />
                             </el-form-item>
                         </el-col>
                         <el-col :span="12" :xs="24">
-                            <el-form-item label="应用分类" prop="code">
-                                <el-select v-model="detailInfo.code" placeholder="请选择应用分类">
+                            <el-form-item :label="$t('app_edit_category')" prop="code">
+                                <el-select v-model="detailInfo.code" :placeholder="$t('app_edit_category_placeholder')">
                                     <el-option
                                         v-for="(label, code) in codeMap"
                                         :key="String(code)"
@@ -47,40 +47,40 @@
                         </el-col>
                     </el-row>
 
-                    <el-form-item label="应用描述" prop="description">
+                    <el-form-item :label="$t('app_edit_description')" prop="description">
                         <el-input
                             v-model="detailInfo.description"
                             type="textarea"
                             :rows="3"
                             maxlength="200"
                             show-word-limit
-                            placeholder="面向谁、解决什么问题、主要能力是什么"
+                            :placeholder="$t('app_edit_description_placeholder')"
                         />
                     </el-form-item>
 
                     <el-row :gutter="20">
                         <el-col :span="12" :xs="24">
-                            <el-form-item label="访问地址（URL）" prop="location">
+                            <el-form-item :label="$t('app_edit_location')" prop="location">
                                 <el-input
                                     v-model="detailInfo.location"
-                                    placeholder="例如：http://localhost:3020"
+                                    :placeholder="$t('app_edit_location_placeholder')"
                                 />
                             </el-form-item>
                         </el-col>
                         <el-col :span="12" :xs="24">
-                            <el-form-item label="源码路径或仓库地址" prop="codePackagePath">
+                            <el-form-item :label="$t('app_edit_source')" prop="codePackagePath">
                                 <el-input
                                     v-model="detailInfo.codePackagePath"
-                                    placeholder="例如：../chat 或 https://github.com/xxx/xxx"
+                                    :placeholder="$t('app_edit_source_placeholder')"
                                 />
                             </el-form-item>
                         </el-col>
                     </el-row>
 
-                    <el-form-item label="依赖应用（可选）">
+                    <el-form-item :label="$t('app_edit_dependencies')">
                         <el-select
                             v-model="detailInfo.serviceCodes"
-                            placeholder="可选：按实际依赖选择应用"
+                            :placeholder="$t('app_edit_dependencies_placeholder')"
                             multiple
                         >
                             <el-option
@@ -92,19 +92,17 @@
                         </el-select>
                     </el-form-item>
 
-                    <el-form-item label="授权回调地址（redirectUri，可选）">
+                    <el-form-item :label="$t('app_edit_redirect_uri')">
                         <el-input
                             v-model="redirectUriInput"
-                            placeholder="例如：http://localhost:3020/central-ucan-callback.html"
+                            :placeholder="$t('app_edit_redirect_uri_placeholder')"
                         />
                         <div class="field-hint">
-                            使用中心化 UCAN 时，第三方应用需传入 <code>appId</code>，且
-                            <code>redirectUri</code> 必须与这里配置完全一致。<code>audience/capability</code>
-                            由服务端自动推导，无需手填。
+                            {{ $t('app_edit_redirect_hint') }}
                         </div>
                     </el-form-item>
 
-                    <el-form-item label="应用图标（可选）">
+                    <el-form-item :label="$t('app_edit_icon')">
                         <div class="icon-uploader">
                             <div class="icon-preview-wrap">
                                 <img
@@ -121,16 +119,16 @@
                                     accept=".png,.jpg,.jpeg,.svg"
                                     @change="changeFileAvatar"
                                 >
-                                    <el-button :icon="Upload" plain>更换图标</el-button>
+                                    <el-button :icon="Upload" plain>{{ $t('app_edit_change_icon') }}</el-button>
                                 </Uploader>
-                                <span class="upload-text">建议 1:1，支持 PNG/JPG/SVG</span>
+                                <span class="upload-text">{{ $t('app_edit_icon_hint') }}</span>
                             </div>
                         </div>
                     </el-form-item>
                 </div>
 
                 <div class="actions">
-                    <el-button @click="cancelForm">取消</el-button>
+                    <el-button @click="cancelForm">{{ $t('app_edit_cancel') }}</el-button>
                     <el-button @click="submitForm(false)">
                         {{ saveButtonText }}
                     </el-button>
@@ -144,7 +142,7 @@
 </template>
 
 <script lang="ts" setup>
-import { computed, onMounted, reactive, ref } from 'vue'
+import { computed, getCurrentInstance, onMounted, reactive, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus'
 import { Upload } from '@element-plus/icons-vue'
@@ -182,10 +180,10 @@ type DependencyOption = {
 const presets: ApplicationPreset[] = [
     {
         key: 'chat',
-        label: 'Chat',
+        label: '聊天应用',
         note: '应用默认地址 http://localhost:3020',
         defaults: {
-            name: 'Chat',
+            name: '聊天应用',
             description: '集成多模型对话和云同步的智能聊天应用，可在桌面和手机浏览器中使用。',
             code: 'APPLICATION_CODE_CHAT',
             location: 'http://localhost:3020',
@@ -194,10 +192,10 @@ const presets: ApplicationPreset[] = [
     },
     {
         key: 'router',
-        label: 'Router',
+        label: '网关应用',
         note: '应用默认地址 http://localhost:3011',
         defaults: {
-            name: 'Router',
+            name: '网关应用',
             description: '统一模型网关与管理后台，提供标准 API 路由与鉴权能力。',
             code: 'APPLICATION_CODE_ROUTER',
             location: 'http://localhost:3011',
@@ -206,10 +204,10 @@ const presets: ApplicationPreset[] = [
     },
     {
         key: 'warehouse',
-        label: 'Warehouse',
+        label: '仓储应用',
         note: '应用默认地址 http://localhost:6065',
         defaults: {
-            name: 'Warehouse',
+            name: '仓储应用',
             description: 'Web3 数据与文件仓储服务，提供存储能力与身份认证能力。',
             code: 'APPLICATION_CODE_WAREHOUSE',
             location: 'http://localhost:6065',
@@ -232,6 +230,8 @@ const presets: ApplicationPreset[] = [
 
 const route = useRoute()
 const router = useRouter()
+const { proxy } = getCurrentInstance()!
+const { $t } = proxy
 
 const isEdit = ref(false)
 const selectedPreset = ref<PresetKey>('chat')
@@ -260,15 +260,16 @@ const currentPreset = computed(() =>
     presets.find((item) => item.key === selectedPreset.value) || null
 )
 
-const saveButtonText = computed(() => (isEdit.value ? '保存修改' : '保存草稿'))
-const publishButtonText = computed(() => (isEdit.value ? '提交上架申请' : '提交上架'))
+const pageTitle = computed(() => String($t(isEdit.value ? 'app_edit_title_edit' : 'app_edit_title_create')))
+const saveButtonText = computed(() => String($t(isEdit.value ? 'app_edit_save_edit' : 'app_edit_save_create')))
+const publishButtonText = computed(() => String($t(isEdit.value ? 'app_edit_publish_edit' : 'app_edit_publish_create')))
 
 const rules = reactive<FormRules>({
-    name: [{ required: true, message: '请输入应用名称', trigger: 'blur' }],
-    description: [{ required: true, message: '请输入应用描述', trigger: 'blur' }],
-    location: [{ required: true, message: '请输入访问地址', trigger: 'blur' }],
-    codePackagePath: [{ required: true, message: '请输入源码路径或仓库地址', trigger: 'blur' }],
-    code: [{ required: true, message: '请选择应用分类', trigger: 'change' }]
+    name: [{ required: true, message: String($t('app_edit_rule_name')), trigger: 'blur' }],
+    description: [{ required: true, message: String($t('app_edit_rule_description')), trigger: 'blur' }],
+    location: [{ required: true, message: String($t('app_edit_rule_location')), trigger: 'blur' }],
+    codePackagePath: [{ required: true, message: String($t('app_edit_rule_source')), trigger: 'blur' }],
+    code: [{ required: true, message: String($t('app_edit_rule_category')), trigger: 'change' }]
 })
 
 function toServiceCodeArray(value: unknown): string[] {
@@ -330,7 +331,7 @@ function toSingleRedirectUri(value: unknown): string {
         return ''
     }
     if (values.length > 1) {
-        throw new Error('仅支持配置一个 redirectUri')
+        throw new Error(String($t('app_edit_redirect_single')))
     }
     return values[0]
 }
@@ -374,10 +375,10 @@ function handlePresetChange(value: string | number | boolean) {
 function resolveSubmitError(error: unknown): string {
     const message = error instanceof Error ? error.message : String(error || '未知错误')
     if (message.includes('USER_ROLE_DENIED')) {
-        return '当前账号暂无发布权限（USER_ROLE_DENIED）。请重新登录后重试，或联系管理员确认角色为 NORMAL/OWNER。'
+        return String($t('app_edit_role_denied'))
     }
     if (message.includes('USER_BLOCKED')) {
-        return '当前账号已被禁用或冻结，无法创建应用。'
+        return String($t('app_edit_user_blocked'))
     }
     return message
 }
@@ -468,7 +469,7 @@ async function submitPublishRequest(application: ApplicationMetadata) {
         resource: application as Record<string, unknown>
     })
     if (created?.meta?.uid) {
-        ElMessage.success('已提交上架申请')
+        ElMessage.success(String($t('app_edit_submit_success')))
     }
 }
 
@@ -477,22 +478,22 @@ function toList() {
 }
 
 function cancelForm() {
-    ElMessageBox.confirm('取消后当前页面未保存的信息会丢失，确定要返回吗？', '取消发布', {
+    ElMessageBox.confirm(String($t('app_edit_cancel_confirm_message')), String($t('app_edit_cancel_confirm_title')), {
         type: 'warning',
-        confirmButtonText: '确定',
-        cancelButtonText: '继续编辑',
+        confirmButtonText: String($t('btn_ok')),
+        cancelButtonText: String($t('app_edit_cancel_confirm_continue')),
         showClose: false
     })
         .then(() => {
             toList()
         })
-        .catch(() => {})
+        .catch(() => undefined)
 }
 
 async function submitForm(andPublish: boolean) {
     const account = getCurrentAccount()
     if (!account) {
-        notifyError('❌未查询到当前账户，请登录')
+        notifyError(String($t('market_missing_account')))
         return
     }
     if (!formRef.value) {
@@ -513,7 +514,7 @@ async function submitForm(andPublish: boolean) {
             if (Array.isArray(existsList)) {
                 const duplicated = existsList.find((item) => item.name === params.name)
                 if (duplicated) {
-                    notifyError(`❌应用 [${params.name}] 已存在，请勿重复创建`)
+                    notifyError(String($t('app_edit_duplicate')).replace('{name}', params.name))
                     return
                 }
             }
@@ -542,7 +543,7 @@ async function submitForm(andPublish: boolean) {
                 toList()
                 return
             }
-            ElMessage.success('应用修改已保存')
+            ElMessage.success(String($t('app_edit_save_updated')))
             return
         }
 
@@ -566,24 +567,23 @@ async function submitForm(andPublish: boolean) {
             toList()
             return
         }
-        ElMessage.success('应用已保存，可在“我创建的”中继续管理')
+        ElMessage.success(String($t('app_edit_save_created')))
         toList()
     } catch (error) {
-        console.error('❌应用保存失败', error)
-        notifyError(`❌${resolveSubmitError(error)}`)
+        notifyError(resolveSubmitError(error))
     }
 }
 
 async function changeFileAvatar(uploadFile: Record<string, unknown>) {
     const blobCandidate = uploadFile.raw instanceof Blob ? uploadFile.raw : uploadFile
     if (!(blobCandidate instanceof Blob)) {
-        notifyError('上传文件格式无效')
+        notifyError(String($t('app_edit_invalid_upload')))
         return
     }
     const nameCandidate = String(uploadFile.name || 'upload.bin')
     const publicUrl = await $storage.uploadFile(blobCandidate, nameCandidate)
     if (!publicUrl) {
-        notifyError('上传失败')
+        notifyError(String($t('app_edit_upload_failed')))
         return
     }
     avatarValue.value = publicUrl

@@ -14,6 +14,7 @@ import {
     CommentDO,
     ApplicationConfigDO,
     TotpSubjectSecretDO,
+    PasskeySubjectCredentialDO,
     NotificationDO,
     NotificationInboxDO,
     MpcSessionDO,
@@ -30,6 +31,7 @@ import { requireAdmin } from './middleware/accessControl';
 import { registerPublicAuthRoutes } from './routes/publicAuth';
 import { registerPublicAuthCentralRoutes } from './routes/publicAuthCentral';
 import { registerPublicAuthTotpRoutes } from './routes/publicAuthTotp';
+import { registerPublicAuthPasskeyRoutes } from './routes/publicAuthPasskey';
 import { registerPublicProfileRoute } from './routes/privateProfile';
 import { registerPublicApplicationRoutes } from './routes/public/applications';
 import { registerPublicAuditRoutes } from './routes/public/audits';
@@ -46,6 +48,7 @@ import { AddActionRequestDedup20260402170000 } from './migrations/20260402170000
 import { DropServiceTables20260423103000 } from './migrations/20260423103000-drop-service-tables';
 import { AddApplicationRedirectUris20260423121000 } from './migrations/20260423121000-add-application-redirect-uris';
 import { AddTotpSubjectSecrets20260423182000 } from './migrations/20260423182000-add-totp-subject-secrets';
+import { AddPasskeyAuth20260622100000 } from './migrations/20260622100000-add-passkey-auth';
 import { AddApplicationUcanPolicy20260423193000 } from './migrations/20260423193000-add-application-ucan-policy';
 import { BackfillApplicationUcanPolicy20260424110000 } from './migrations/20260424110000-backfill-application-ucan-policy';
 import { FixApplicationUcanPolicyRouterPriority20260424123000 } from './migrations/20260424123000-fix-application-ucan-policy-router-priority';
@@ -57,6 +60,7 @@ import { initMpcEventBus } from './domain/service/mpcEvents';
 import { SingletonLogger } from './domain/facade/logger';
 import { getCentralIssuerStatus } from './auth/ucanIssuer';
 import { getTotpAuthStatus } from './auth/totpAuth';
+import { getPasskeyAuthStatus } from './auth/passkeyAuth';
 import { initializeRuntimeSecrets } from './security/secretVault';
 import { assertJwtSecretReady } from './auth/siwe';
 
@@ -158,6 +162,12 @@ function assertSecurityPreflight(): void {
             `TOTP 授权未就绪: ${totpStatus.error || '缺少有效 TOTP_AUTH_TOTP_MASTER_KEY'}`
         )
     }
+    const passkeyStatus = getPasskeyAuthStatus()
+    if (passkeyStatus.enabled && !passkeyStatus.ready) {
+        errors.push(
+            `Passkey 授权未就绪: ${passkeyStatus.error || '缺少有效 passkeyAuth.rpId/origin 配置'}`
+        )
+    }
 
     if (errors.length > 0) {
         throw new Error(`安全启动检查失败:\n- ${errors.join('\n- ')}`)
@@ -198,6 +208,7 @@ builder.entities([
     CommentDO,
     ApplicationConfigDO,
     TotpSubjectSecretDO,
+    PasskeySubjectCredentialDO,
     NotificationDO,
     NotificationInboxDO,
     MpcSessionDO,
@@ -215,6 +226,7 @@ builder.migrations([
     DropServiceTables20260423103000,
     AddApplicationRedirectUris20260423121000,
     AddTotpSubjectSecrets20260423182000,
+    AddPasskeyAuth20260622100000,
     AddApplicationUcanPolicy20260423193000,
     BackfillApplicationUcanPolicy20260424110000,
     FixApplicationUcanPolicyRouterPriority20260424123000,
@@ -270,6 +282,7 @@ builder.build().initialize().then(async (conn) => {
     registerPublicAuthRoutes(app);
     registerPublicAuthCentralRoutes(app);
     registerPublicAuthTotpRoutes(app);
+    registerPublicAuthPasskeyRoutes(app);
     registerPublicHealthRoute(app);
     registerPublicProfileRoute(app);
     registerPublicApplicationRoutes(app);

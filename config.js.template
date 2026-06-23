@@ -121,6 +121,20 @@ module.exports = {
     // 推荐通过加密密钥文件或环境变量 TOTP_AUTH_TOTP_MASTER_KEY 注入。
     totpMasterKey: ''
   },
+  passkeyAuth: {
+    // Enable passkey registration and authorization confirmation.
+    enabled: false,
+    // Relying Party ID. For local development use 'localhost'.
+    rpId: 'localhost',
+    // Relying Party display name.
+    rpName: 'YeYing Node',
+    // Browser origin that serves the passkey page.
+    origin: 'http://localhost:8100',
+    // WebAuthn operation timeout.
+    timeoutMs: 60 * 1000,
+    // Registration challenge TTL.
+    challengeTtlMs: 2 * 60 * 1000
+  },
   audit: {
     // List of approver wallet addresses.
     approvers: [''],

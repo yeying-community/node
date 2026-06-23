@@ -1,23 +1,23 @@
 <template>
     <div class="approval">
         <el-breadcrumb separator="/">
-            <el-breadcrumb-item>我的审批</el-breadcrumb-item>
+            <el-breadcrumb-item>{{ $t('approval_breadcrumb') }}</el-breadcrumb-item>
         </el-breadcrumb>
         <div class="content">
             <div class="header">
-                <div :class="{ active: tabIndex == 0 }" @click="changeTab(0)" style="cursor: pointer">待我审批</div>
-                <div :class="{ active: tabIndex == 1 }" @click="changeTab(1)" style="cursor: pointer">审批完成</div>
+                <div :class="{ active: tabIndex == 0 }" @click="changeTab(0)" style="cursor: pointer">{{ $t('approval_pending') }}</div>
+                <div :class="{ active: tabIndex == 1 }" @click="changeTab(1)" style="cursor: pointer">{{ $t('approval_finished') }}</div>
             </div>
             <el-divider />
 
             <div class="filter">
                 <el-form :inline="true" :model="formInline" ref="formRef" class="demo-form-inline">
                     <div v-if="tabIndex === 0">
-                        <el-form-item label="名称：" prop="appName">
-                            <el-input v-model="formInline.appName" placeholder="请输入应用名称搜索" clearable />
+                        <el-form-item :label="$t('approval_name')" prop="appName">
+                            <el-input v-model="formInline.appName" :placeholder="$t('approval_name_placeholder')" clearable />
                         </el-form-item>
-                        <el-form-item label="类型：" prop="auditType">
-                            <el-select v-model="formInline.auditType" placeholder="请选择" class="input-style" clearable>
+                        <el-form-item :label="$t('approval_type')" prop="auditType">
+                            <el-select v-model="formInline.auditType" :placeholder="$t('ph_select')" class="input-style" clearable>
                                 <el-option
                                     v-for="item in auditTypeOptions"
                                     :key="item.value"
@@ -26,27 +26,27 @@
                                 />
                             </el-select>
                         </el-form-item>
-                        <el-form-item label="申请人：" prop="people">
-                            <el-input v-model="formInline.people" placeholder="请输入申请人地址" clearable />
+                        <el-form-item :label="$t('approval_applicant')" prop="people">
+                            <el-input v-model="formInline.people" :placeholder="$t('approval_applicant_placeholder')" clearable />
                         </el-form-item>
-                        <el-form-item label="申请时间：" prop="time">
+                        <el-form-item :label="$t('approval_time')" prop="time">
                             <el-date-picker
                                 v-model="formInline.time"
                                 type="daterange"
                                 value-format="YYYY-MM-DD"
                                 range-separator=" "
-                                start-placeholder="开始时间"
-                                end-placeholder="结束时间"
+                                :start-placeholder="$t('approval_start_time')"
+                                :end-placeholder="$t('approval_end_time')"
                                 size="default"
                             />
                         </el-form-item>
                     </div>
                     <div v-else>
-                        <el-form-item label="名称：" prop="appName">
-                            <el-input v-model="formInline.appName" placeholder="请输入应用名称搜索" clearable />
+                        <el-form-item :label="$t('approval_name')" prop="appName">
+                            <el-input v-model="formInline.appName" :placeholder="$t('approval_name_placeholder')" clearable />
                         </el-form-item>
-                        <el-form-item label="类型：" prop="auditType">
-                            <el-select v-model="formInline.auditType" placeholder="请选择" class="input-style" clearable>
+                        <el-form-item :label="$t('approval_type')" prop="auditType">
+                            <el-select v-model="formInline.auditType" :placeholder="$t('ph_select')" class="input-style" clearable>
                                 <el-option
                                     v-for="item in auditTypeOptions"
                                     :key="item.value"
@@ -55,11 +55,11 @@
                                 />
                             </el-select>
                         </el-form-item>
-                        <el-form-item label="申请人：" prop="people">
-                            <el-input v-model="formInline.people" placeholder="请输入申请人地址" clearable />
+                        <el-form-item :label="$t('approval_applicant')" prop="people">
+                            <el-input v-model="formInline.people" :placeholder="$t('approval_applicant_placeholder')" clearable />
                         </el-form-item>
-                        <el-form-item label="审批状态：" prop="status">
-                            <el-select v-model="formInline.status" placeholder="请选择" class="input-style" clearable>
+                        <el-form-item :label="$t('approval_status')" prop="status">
+                            <el-select v-model="formInline.status" :placeholder="$t('ph_select')" class="input-style" clearable>
                                 <el-option
                                     v-for="item in approvalStatusOptions"
                                     :key="item.value"
@@ -68,22 +68,22 @@
                                 />
                             </el-select>
                         </el-form-item>
-                        <el-form-item label="申请时间：" prop="time">
+                        <el-form-item :label="$t('approval_time')" prop="time">
                             <el-date-picker
                                 v-model="formInline.time"
                                 type="daterange"
                                 value-format="YYYY-MM-DD"
                                 range-separator=" "
-                                start-placeholder="开始时间"
-                                end-placeholder="结束时间"
+                                :start-placeholder="$t('approval_start_time')"
+                                :end-placeholder="$t('approval_end_time')"
                                 size="default"
                             />
                         </el-form-item>
                     </div>
 
                     <el-form-item>
-                        <el-button @click="onReset(formRef)">重置</el-button>
-                        <el-button type="primary" @click="onSubmit()">查询</el-button>
+                        <el-button @click="onReset(formRef)">{{ $t('approval_reset') }}</el-button>
+                        <el-button type="primary" @click="onSubmit()">{{ $t('approval_search') }}</el-button>
                     </el-form-item>
                 </el-form>
             </div>
@@ -120,7 +120,7 @@
 </template>
 
 <script lang="ts" setup>
-import { ref, reactive, onBeforeUnmount, onMounted, watch } from 'vue'
+import { getCurrentInstance, ref, reactive, onBeforeUnmount, onMounted, watch } from 'vue'
 import dayjs from 'dayjs'
 import ApprovalTable from '@/views/components/ApprovalTable.vue'
 import $audit, { AuditDetailBox, convertAuditMetadata } from '@/plugins/audit'
@@ -131,6 +131,8 @@ import ApplRoveModal from '@/views/components/ApplRoveModal.vue'
 
 const route = useRoute()
 const router = useRouter()
+const { proxy } = getCurrentInstance()!
+const { $t } = proxy
 const formRef = ref(null)
 const tabIndex = ref(0)
 const approveDialogVisible = ref(false)
@@ -146,12 +148,12 @@ const formInline = reactive({
     time: [] as string[]
 })
 const auditTypeOptions = [
-    { label: '应用', value: 'application' },
-    { label: '合约（预留）', value: 'contract' }
+    { label: $t('approval_type_application'), value: 'application' },
+    { label: $t('approval_type_contract_reserved'), value: 'contract' }
 ]
 const approvalStatusOptions = [
-    { label: '审批通过', value: '审批通过' },
-    { label: '审批驳回', value: '审批驳回' }
+    { label: $t('approval_status_passed'), value: '审批通过' },
+    { label: $t('approval_status_rejected'), value: '审批驳回' }
 ]
 
 const pagination = ref({
@@ -252,7 +254,7 @@ const search = async () => {
     try {
         const account = getCurrentAccount()
         if (account === undefined || account === null) {
-            notifyError("❌未查询到当前账户，请登录")
+            notifyError(String($t('market_missing_account')))
             return
         }
         const approver = `${account}::${account}`
@@ -285,8 +287,7 @@ const search = async () => {
         pagination.value.pageSize = Number(result.page?.pageSize || pagination.value.pageSize)
         tryAutoOpenApproveModal()
     } catch (error) {
-        console.error('获取审批列表失败', error)
-        notifyError(`❌ 获取审批列表失败 ${error}`)
+        notifyError(`${$t('approval_load_failed')}：${error}`)
     }
 }
 

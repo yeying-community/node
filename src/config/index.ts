@@ -75,6 +75,15 @@ export interface TotpAuthRuntimeConfig {
     totpMasterKey?: string
 }
 
+export interface PasskeyAuthRuntimeConfig {
+    enabled?: boolean
+    rpId?: string
+    rpName?: string
+    origin?: string
+    timeoutMs?: number
+    challengeTtlMs?: number
+}
+
 export interface AuditRuntimeConfig {
     approvers?: string[]
     requiredApprovals?: number

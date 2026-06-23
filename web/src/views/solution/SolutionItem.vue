@@ -31,23 +31,11 @@
 </template>
 
 <script lang="ts" setup>
-import {onMounted, ref, toRefs} from 'vue'
+import {onMounted, toRefs} from 'vue'
 import {useSolutionStore} from '@/stores/index'
 
-const open = ref(false)
-const RefContact = ref()
 const solutionStore = useSolutionStore()
 const {solutionList} = toRefs(solutionStore)
-const openContact = () => {
-  open.value = true
-  RefContact.value.openModal()
-}
-const close = () => {
-  open.value = false
-}
-const changeShow = (item) => {
-  item.isShow = !item.isShow
-}
 onMounted(() => {
   solutionStore.getSolutionList()
 })

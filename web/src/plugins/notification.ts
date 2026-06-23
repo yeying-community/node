@@ -282,11 +282,7 @@ class NotificationClient {
         }
         closed = true
         controller.abort()
-        const cancelPromise = reader?.cancel().catch((error) => {
-          if (!isAbortLikeError(error)) {
-            console.error('通知流关闭失败', error)
-          }
-        }) ?? Promise.resolve()
+        const cancelPromise = reader?.cancel().catch(() => undefined) ?? Promise.resolve()
         closePromise = Promise.all([cancelPromise, runPromise]).then(() => undefined)
         return closePromise
       },

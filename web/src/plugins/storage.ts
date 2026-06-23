@@ -21,7 +21,7 @@ class StorageClient {
     if (!this.client) {
       const baseUrl = this.normalizeBase(import.meta.env.VITE_WEBDAV_BASE_URL);
       if (!baseUrl) {
-        throw new Error("Missing VITE_WEBDAV_BASE_URL");
+        throw new Error("缺少 WebDAV 服务地址配置 VITE_WEBDAV_BASE_URL");
       }
       const prefix = this.normalizePrefix(import.meta.env.VITE_WEBDAV_PREFIX);
       this.client = createWebDavClient({ baseUrl, prefix });
@@ -47,8 +47,7 @@ class StorageClient {
       await client.upload(`/${filename}`, file, file.type || "application/octet-stream");
       return this.getPublicUrl(filename);
     } catch (error) {
-      console.error("WebDAV upload failed:", error);
-      notifyError(`❌上传失败: ${error}`);
+      notifyError(`上传失败：${error}`);
     }
   }
 }

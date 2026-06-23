@@ -5,7 +5,7 @@
         <img class="w-28 h-8 mr-2" src="../../assets/img/logo.svg" />
         <div class="block sm:flex items-center">
           <div class="flex my-5 sm:my-0">
-            <span class="text-sm font-display font-semibold">{{ $t("common.contactUs") }}：</span>
+            <span class="text-sm font-display font-semibold">{{ $t("btn_contact") }}：</span>
             <span class="text-sm text-black-400 font-body"
               >yeying.community@gmail.com</span
             >
@@ -21,9 +21,6 @@
       </div>
       <hr class="my-10 bg-gray-500" />
       <div class="text-sm font-body text-black flex justify-between">
-        <!-- <a href="https://beian.miit.gov.cn" target="_blank">
-                    浙ICP备2024126729号-2
-                </a> -->
         <div>
           <a
             href="https://beian.mps.gov.cn/#/query/webSearch?code=33010902004112"
@@ -31,7 +28,7 @@
             target="_blank"
             class="record-link"
           >
-            <span style="margin-right: 10px;">浙公网安备33010902004112号</span>
+            <span style="margin-right: 10px;">{{ $t('footer_public_security_record') }}</span>
           </a>
       
           <a
@@ -39,10 +36,10 @@
             rel="noreferrer"
             target="_blank"
             >
-            <span>浙ICP备2024126729号-2</span></a
+            <span>{{ $t('footer_icp_record') }}</span></a
           >
         </div>
-        <span>Copyright © 2024</span>
+        <span>{{ $t('footer_copyright') }}</span>
       </div>
     </div>
   </div>

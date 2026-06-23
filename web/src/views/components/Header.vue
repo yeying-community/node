@@ -9,7 +9,7 @@
                 v-model="marketKeyword"
                 size="large"
                 class="market-search"
-                placeholder="搜索应用名称/作者地址"
+                :placeholder="$t('header_market_search_placeholder')"
                 @keyup.enter="submitMarketSearch"
             >
                 <template #suffix>
@@ -20,6 +20,7 @@
             </el-input>
         </div>
         <div class="account">
+            <Language />
             <button
                 v-if="showDevEntry"
                 type="button"
@@ -28,18 +29,18 @@
             >
                 {{ devEntryText }}
             </button>
-            <el-tooltip content="帮助文档" placement="bottom" :show-after="250">
+            <el-tooltip :content="$t('header_help_doc')" placement="bottom" :show-after="250">
                 <button
                     type="button"
                     class="help-link-btn"
-                    aria-label="打开帮助文档"
+                    :aria-label="$t('header_open_help_doc')"
                     @click="openHelpDoc"
                 >
                     <el-icon><QuestionFilled /></el-icon>
                 </button>
             </el-tooltip>
             <el-popover
-                v-model:visible="notificationVisible"
+                v-model="notificationVisible"
                 placement="bottom-end"
                 :width="360"
                 trigger="click"
@@ -50,7 +51,7 @@
                     <button
                         type="button"
                         class="notification-btn"
-                        aria-label="打开通知中心"
+                        :aria-label="$t('header_notification_center')"
                     >
                         <el-badge :hidden="unreadCount <= 0" :value="unreadBadgeText" :max="99">
                             <el-icon><BellFilled /></el-icon>
@@ -59,21 +60,21 @@
                 </template>
                 <div class="notification-panel">
                     <div class="notification-panel-head">
-                        <span class="notification-title">通知</span>
+                        <span class="notification-title">{{ $t('header_notification_title') }}</span>
                         <div class="notification-head-actions">
-                            <span class="notification-summary">{{ unreadCount > 0 ? `${unreadCount} 条未读` : '全部已读' }}</span>
+                            <span class="notification-summary">{{ unreadCount > 0 ? `${unreadCount} ${$t('header_notification_unread_suffix')}` : $t('header_notification_summary_done') }}</span>
                             <button
                                 v-if="unreadCount > 0"
                                 type="button"
                                 class="notification-read-all-btn"
                                 @click.stop="handleMarkAllRead"
                             >
-                                全部已读
+                                {{ $t('header_notification_all_read') }}
                             </button>
                         </div>
                     </div>
-                    <div v-if="notificationLoading" class="notification-empty">加载中...</div>
-                    <div v-else-if="notifications.length === 0" class="notification-empty">暂无通知</div>
+                    <div v-if="notificationLoading" class="notification-empty">{{ $t('header_notification_loading') }}</div>
+                    <div v-else-if="notifications.length === 0" class="notification-empty">{{ $t('header_notification_empty') }}</div>
                     <button
                         v-for="item in notifications"
                         :key="item.notificationUid"
@@ -117,10 +118,10 @@
                     </span>
                 </span>
                 <template #dropdown>
-                    <el-dropdown-menu>
-                        <el-dropdown-item command="totpProvision">认证器配置</el-dropdown-item>
-                        <el-dropdown-item command="logout">退出登录</el-dropdown-item>
-                    </el-dropdown-menu>
+                        <el-dropdown-menu>
+                            <el-dropdown-item command="totpProvision">{{ $t('header_totp_config') }}</el-dropdown-item>
+                            <el-dropdown-item command="logout">{{ $t('header_logout') }}</el-dropdown-item>
+                        </el-dropdown-menu>
                 </template>
             </el-dropdown>
             <span v-else>--</span>
@@ -128,7 +129,7 @@
     </div>
     <el-dialog
         v-model="totpDialogVisible"
-        title="认证器配置"
+        :title="$t('header_totp_config')"
         width="420px"
         class="totp-provision-dialog"
         destroy-on-close
@@ -136,35 +137,35 @@
         <div v-loading="totpProvisionLoading" class="totp-dialog-body">
             <template v-if="totpProvision">
                 <div class="totp-dialog-qr">
-                    <img v-if="totpQrDataUrl" :src="totpQrDataUrl" alt="认证器二维码" />
-                    <div v-else class="totp-dialog-qr-empty">二维码不可用</div>
+                    <img v-if="totpQrDataUrl" :src="totpQrDataUrl" :alt="$t('header_totp_qr_alt')" />
+                    <div v-else class="totp-dialog-qr-empty">{{ $t('header_totp_qr_unavailable') }}</div>
                 </div>
-                <div class="totp-dialog-hint">使用认证器扫码绑定当前登录地址</div>
+                <div class="totp-dialog-hint">{{ $t('header_totp_scan_hint') }}</div>
                 <div class="totp-dialog-meta">
                     <div class="totp-meta-row">
-                        <span class="totp-meta-label">Issuer</span>
+                        <span class="totp-meta-label">{{ $t('header_totp_issuer') }}</span>
                         <span class="totp-meta-value">{{ totpProvision.issuer }}</span>
                     </div>
                     <div class="totp-meta-row">
-                        <span class="totp-meta-label">账户</span>
+                        <span class="totp-meta-label">{{ $t('header_totp_account') }}</span>
                         <span class="totp-meta-value">{{ totpProvision.accountName }}</span>
                     </div>
                     <div class="totp-meta-row">
-                        <span class="totp-meta-label">周期</span>
+                        <span class="totp-meta-label">{{ $t('header_totp_period') }}</span>
                         <span class="totp-meta-value">{{ totpProvision.period }}s / {{ totpProvision.digits }} 位</span>
                     </div>
                 </div>
                 <div class="totp-dialog-actions">
-                    <el-button @click="copyText(totpProvision.secret, 'TOTP secret')">复制 Secret</el-button>
-                    <el-button @click="copyText(totpProvision.otpauthUri, 'otpauthUri')">复制链接</el-button>
+                    <el-button @click="copyText(totpProvision.secret, String($t('header_totp_secret_label')))">{{ $t('header_totp_copy_secret') }}</el-button>
+                    <el-button @click="copyText(totpProvision.otpauthUri, String($t('header_totp_link_label')))">{{ $t('header_totp_copy_link') }}</el-button>
                 </div>
             </template>
-            <div v-else class="totp-dialog-empty">未获取到认证器配置</div>
+            <div v-else class="totp-dialog-empty">{{ $t('header_totp_empty') }}</div>
         </div>
     </el-dialog>
 </template>
 <script lang="ts" setup>
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, getCurrentInstance, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import dayjs from 'dayjs'
 import QRCode from 'qrcode'
@@ -173,6 +174,7 @@ import { apiUrl } from '@/plugins/api'
 import { getAuthToken, getCurrentAccount, getStoredAuthToken, logoutWithUcan } from '@/plugins/auth'
 import $notification, { type NotificationListItem, type NotificationStreamPayload } from '@/plugins/notification'
 import { notifyError, notifySuccess } from '@/utils/message'
+import Language from '@/components/common/Language.vue'
 
 type Envelope<T> = {
     code?: number
@@ -191,6 +193,8 @@ type TotpProvision = {
 
 const router = useRouter();
 const route = useRoute()
+const { proxy } = getCurrentInstance()!
+const { $t } = proxy
 const currentAccount = ref<string | null>(null)
 const isAddressCopied = ref(false)
 const marketKeyword = ref('')
@@ -207,13 +211,34 @@ let notificationStream: { close: () => Promise<void> } | null = null
 let notificationErrorShown = false
 let copiedTimer: number | null = null
 
+async function writeClipboardText(value: string) {
+    const normalized = String(value || '').trim()
+    if (!normalized) {
+        return false
+    }
+    if (navigator?.clipboard?.writeText) {
+        await navigator.clipboard.writeText(normalized)
+        return true
+    }
+    const textarea = document.createElement('textarea')
+    textarea.value = normalized
+    textarea.setAttribute('readonly', 'readonly')
+    textarea.style.position = 'fixed'
+    textarea.style.left = '-9999px'
+    document.body.appendChild(textarea)
+    textarea.select()
+    const copied = document.execCommand('copy')
+    document.body.removeChild(textarea)
+    return copied
+}
+
 const go = async (url: string) => {
     router.push(url)
 }
 
 const showDevEntry = computed(() => String(route.path || '').startsWith('/market'))
 const showMarketSearch = computed(() => route.name === 'appCenter')
-const devEntryText = computed(() => (showMarketSearch.value ? '开发者入口' : '返回应用中心'))
+const devEntryText = computed(() => String($t(showMarketSearch.value ? 'header_dev_center' : 'header_back_app_center')))
 
 const submitMarketSearch = () => {
     if (!showMarketSearch.value) {
@@ -246,17 +271,17 @@ function notificationTypeLabel(type: string) {
     const normalized = String(type || '').trim()
     switch (normalized) {
         case 'audit.approved':
-            return '审批已通过'
+            return String($t('header_notification_audit_approved'))
         case 'audit.created':
-            return '有新的审批待处理'
+            return String($t('header_notification_audit_created'))
         case 'audit.rejected':
-            return '审批未通过'
+            return String($t('header_notification_audit_rejected'))
         case 'totp.request_approved':
-            return '授权已确认'
+            return String($t('header_notification_totp_approved'))
         case 'totp.request_expired':
-            return '授权已过期'
+            return String($t('header_notification_totp_expired'))
         default:
-            return '系统通知'
+            return String($t('header_notification_system'))
     }
 }
 
@@ -339,7 +364,7 @@ async function handleNotificationItemClick(item: NotificationListItem) {
             item.readAt = dayjs().toISOString()
             unreadCount.value = Math.max(0, unreadCount.value - 1)
         } catch (error) {
-            notifyError(`❌更新通知状态失败 ${error}`)
+            notifyError(`${$t('header_notification_mark_failed')}：${error}`)
         }
     }
     notificationVisible.value = false
@@ -352,7 +377,7 @@ async function handleNotificationOpen() {
         try {
             await loadNotifications()
         } catch (error) {
-            notifyError(`❌获取通知失败 ${error}`)
+            notifyError(`${$t('header_notification_load_failed')}：${error}`)
         }
     }
 }
@@ -370,7 +395,7 @@ async function handleMarkAllRead() {
             readAt: item.readAt || dayjs().toISOString()
         }))
     } catch (error) {
-        notifyError(`❌批量已读失败 ${error}`)
+        notifyError(`${$t('header_notification_read_all_failed')}：${error}`)
     }
 }
 
@@ -403,7 +428,7 @@ function ensureNotificationStream() {
                 return
             }
             notificationErrorShown = true
-            console.error('通知流连接失败', error)
+            notifyError(`${$t('header_notification_stream_failed')}：${error instanceof Error ? error.message : String(error)}`)
         }
     })
 }
@@ -422,18 +447,10 @@ async function copyCurrentAddress() {
         return
     }
     try {
-        if (navigator?.clipboard?.writeText) {
-            await navigator.clipboard.writeText(address)
-        } else {
-            const textarea = document.createElement('textarea')
-            textarea.value = address
-            textarea.setAttribute('readonly', 'readonly')
-            textarea.style.position = 'fixed'
-            textarea.style.left = '-9999px'
-            document.body.appendChild(textarea)
-            textarea.select()
-            document.execCommand('copy')
-            document.body.removeChild(textarea)
+        const copied = await writeClipboardText(address)
+        if (!copied) {
+            notifyError(String($t('header_copy_address_failed')))
+            return
         }
         isAddressCopied.value = true
         if (copiedTimer !== null) {
@@ -444,7 +461,7 @@ async function copyCurrentAddress() {
             copiedTimer = null
         }, 1200)
     } catch (error) {
-        console.error('复制地址失败', error)
+        notifyError(`${$t('header_copy_address_failed')}：${error instanceof Error ? error.message : String(error)}`)
     }
 }
 
@@ -455,11 +472,11 @@ async function parseEnvelope<T>(response: Response, fallbackMessage: string): Pr
         try {
             parsed = JSON.parse(text) as Envelope<T>
         } catch {
-            throw new Error(`${fallbackMessage}: ${text}`)
+            throw new Error(`${fallbackMessage}：${text}`)
         }
     }
     if (!response.ok) {
-        throw new Error(parsed?.message || `${fallbackMessage}: ${response.status}`)
+        throw new Error(parsed?.message || `${fallbackMessage}：${response.status}`)
     }
     if (!parsed || parsed.code !== 0) {
         throw new Error(parsed?.message || fallbackMessage)
@@ -481,7 +498,7 @@ async function renderTotpQrCode(uri: string) {
         })
     } catch {
         totpQrDataUrl.value = ''
-        notifyError('生成二维码失败，可改为复制链接手动导入')
+        notifyError(String($t('header_qr_failed')))
     }
 }
 
@@ -490,15 +507,19 @@ async function copyText(value: string, label: string) {
     if (!normalized) {
         return
     }
-    await navigator.clipboard.writeText(normalized)
-    notifySuccess(`${label} 已复制`)
+    const copied = await writeClipboardText(normalized)
+    if (!copied) {
+        notifyError(`${label} ${$t('header_copy_failed_suffix')}`)
+        return
+    }
+    notifySuccess(`${label} ${$t('header_copy_suffix')}`)
 }
 
 async function openTotpProvisionDialog() {
     try {
         const token = await getAuthToken()
         if (!token) {
-            notifyError('缺少登录态，请先登录')
+            notifyError(String($t('header_missing_login')))
             return
         }
         totpDialogVisible.value = true
@@ -512,7 +533,7 @@ async function openTotpProvisionDialog() {
             },
             credentials: 'include'
         })
-        totpProvision.value = await parseEnvelope<TotpProvision>(response, '获取认证器配置失败')
+        totpProvision.value = await parseEnvelope<TotpProvision>(response, String($t('header_totp_load_failed')))
         await renderTotpQrCode(totpProvision.value.otpauthUri)
     } catch (error) {
         totpDialogVisible.value = false
@@ -553,7 +574,7 @@ const shortAddress = computed(() => {
 })
 
 const fullAddress = computed(() => String(currentAccount.value || '').trim())
-const copyIconLabel = computed(() => (isAddressCopied.value ? '地址已复制' : '复制完整地址'))
+const copyIconLabel = computed(() => String($t(isAddressCopied.value ? 'header_address_copied' : 'header_copy_full_address')))
 const unreadBadgeText = computed(() => {
     if (unreadCount.value <= 0) {
         return ''
