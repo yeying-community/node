@@ -26,34 +26,24 @@
                 <div class="headline">
                     <div class="name">{{ detail.name }}</div>
                     <div class="title" v-if="pageFrom === 'market'">
-                        <el-tag type="primary" size="small">{{ $t('market_card_community') }}</el-tag>
+                        <div class="title-chips">
+                            <el-tag type="primary" size="small">{{ $t('market_card_community') }}</el-tag>
+                            <el-tag size="small" effect="plain">{{ applicationCodeText }}</el-tag>
+                            <el-tag size="small" effect="plain">{{ versionText }}</el-tag>
+                        </div>
                         <span class="market-title-time">{{ marketPublishedDateText }}</span>
                     </div>
                     <div class="title" v-else-if="pageFrom === 'myCreate' || !ownerAddress">
-                        <span v-if="pageFrom === 'myCreate' || !ownerAddress">
+                        <div class="title-chips" v-if="pageFrom === 'myCreate' || !ownerAddress">
                             <el-tag type="primary" size="small">{{ $t('market_card_community') }}</el-tag>
-                        </span>
+                            <el-tag size="small" effect="plain">{{ applicationCodeText }}</el-tag>
+                            <el-tag size="small" effect="plain">{{ versionText }}</el-tag>
+                        </div>
                         <span>
                             {{ pageFrom === 'myCreate' || !isOnline ? $t('market_card_created_at') : $t('market_card_published_at') }}
                             {{ dayjs(detail.createdAt).format('YYYY-MM-DD') }}
                         </span>
                     </div>
-                </div>
-                <div v-if="ownerAddress" class="meta owner-meta-line">
-                    <span class="owner-meta">
-                        {{ $t('market_card_author') }}{{ ownerShortAddress }}
-                    </span>
-                    <el-tooltip :content="$t('market_card_copy')" placement="top">
-                        <el-icon class="copy-owner-icon" @click.stop="copyOwnerAddress">
-                            <CopyDocument />
-                        </el-icon>
-                    </el-tooltip>
-                </div>
-                <div class="meta">
-                    <span>{{ $t('market_card_category') }}{{ applicationCodeText }}</span>
-                </div>
-                <div class="meta meta-version">
-                    <span>{{ $t('market_card_version') }}{{ versionText }}</span>
                 </div>
                 <el-tooltip :content="descriptionText" placement="top" :disabled="!isDescOverflow">
                     <div ref="descRef" class="desc">
@@ -169,7 +159,7 @@
 import { ref, computed, getCurrentInstance, nextTick, onBeforeUnmount, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import $audit, { isAuditForResource, resolveUsageAuditStatus } from '@/plugins/audit'
-import { CopyDocument, MoreFilled, SuccessFilled, WarningFilled } from '@element-plus/icons-vue'
+import { MoreFilled, SuccessFilled, WarningFilled } from '@element-plus/icons-vue'
 import dayjs from 'dayjs'
 import { exportIdentityInfo } from '@/plugins/account'
 import { ElMessage, ElMessageBox } from 'element-plus'
@@ -220,17 +210,6 @@ const resolveAvatarSrc = (value: unknown) => {
     const src = String(value || '').trim()
     return src || defaultAppAvatar
 }
-const ownerAddress = computed(() => String(props.detail?.owner || '').trim())
-const ownerShortAddress = computed(() => {
-    const value = ownerAddress.value
-    if (!value) {
-        return ''
-    }
-    if (value.length <= 12) {
-        return value
-    }
-    return `${value.slice(0, 6)}...${value.slice(-4)}`
-})
 const marketPublishedDateText = computed(() => {
     const raw = String(props.detail?.createdAt || '').trim()
     if (!raw) {
@@ -276,23 +255,6 @@ const writeClipboardText = async (value: string) => {
     const copied = document.execCommand('copy')
     document.body.removeChild(textarea)
     return copied
-}
-
-const copyOwnerAddress = async () => {
-    const value = ownerAddress.value
-    if (!value) {
-        return
-    }
-    try {
-        const copied = await writeClipboardText(value)
-        if (!copied) {
-            notifyError(String($t('market_card_copy_failed')))
-            return
-        }
-        notifySuccess(String($t('market_card_copy_success')))
-    } catch {
-        notifyError(String($t('market_card_copy_failed')))
-    }
 }
 
 const updateDescriptionOverflow = async () => {
@@ -708,7 +670,9 @@ onBeforeUnmount(() => {
             }
             .title {
                 display: flex;
+                flex-wrap: wrap;
                 align-items: center;
+                justify-content: space-between;
                 color: rgba(0, 0, 0, 0.45);
                 font-size: 14px;
                 font-weight: 400;
@@ -716,6 +680,13 @@ onBeforeUnmount(() => {
                 .el-tag {
                     margin-top: 0;
                 }
+            }
+            .title-chips {
+                display: inline-flex;
+                flex-wrap: wrap;
+                align-items: center;
+                gap: 6px;
+                min-width: 0;
             }
             .market-title-time {
                 color: rgba(0, 0, 0, 0.45);
@@ -738,12 +709,6 @@ onBeforeUnmount(() => {
                     color: rgba(22, 119, 255, 1);
                     cursor: pointer;
                 }
-            }
-            .meta-version {
-                margin-top: -4px;
-            }
-            .owner-meta-line {
-                align-items: center;
             }
             .desc {
                 color: rgba(0, 0, 0, 0.45);
