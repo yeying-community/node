@@ -7,202 +7,335 @@
     <div class="page-head">
       <div>
         <div class="page-title">{{ mt('pageTitle') }}</div>
+        <div class="page-subtitle">{{ mt('pageSubtitle') }}</div>
       </div>
       <div class="head-actions">
-        <el-button @click="loadTotpStatus">{{ mt('refreshStatus') }}</el-button>
-        <el-button type="primary" @click="loadTotpProvision">{{ mt('loadTotpProvision') }}</el-button>
+        <el-button @click="refreshStatuses">{{ mt('refreshStatus') }}</el-button>
       </div>
     </div>
 
-    <div class="status-card">
-      <div class="status-title">{{ mt('totpStatusTitle') }}</div>
-      <div class="status-list">
-        <div class="status-item">
-          <span class="status-label">{{ mt('serviceSwitch') }}</span>
-          <el-tag :type="totpStatus?.enabled ? 'success' : 'info'" effect="light">
-            {{ totpStatus ? (totpStatus.enabled ? mt('enabled') : mt('disabled')) : '-' }}
-          </el-tag>
-        </div>
-        <div class="status-item">
-          <span class="status-label">{{ mt('serviceReady') }}</span>
-          <el-tag :type="totpStatus?.ready ? 'success' : 'warning'" effect="light">
-            {{ totpStatus ? (totpStatus.ready ? mt('ready') : mt('notReady')) : '-' }}
-          </el-tag>
-        </div>
-        <div class="status-item">
-          <span class="status-label">{{ mt('issuer') }}</span>
-          <span class="status-value">{{ totpStatus?.issuerName || '-' }}</span>
-        </div>
-        <div class="status-item">
-          <span class="status-label">{{ mt('verifyPath') }}</span>
-          <span class="status-value path-text">{{ totpStatus?.verifyPath || '-' }}</span>
-        </div>
-      </div>
-      <div v-if="totpStatus?.error" class="status-error">{{ mt('errorPrefix') }}{{ totpStatus.error }}</div>
-    </div>
+    <el-tabs v-model="authTab" class="page-tabs">
+      <el-tab-pane :label="mt('passkeyTab')" name="passkey">
+        <div class="method-section">
+          <div class="section-heading">{{ mt('configSection') }}</div>
+          <div class="summary-grid single-grid">
+            <div class="status-card">
+              <div class="status-title">{{ mt('passkeyStatusTitle') }}</div>
+              <div class="status-hint">{{ mt('passkeyStatusHint') }}</div>
+              <div class="status-list">
+                <div class="status-item">
+                  <span class="status-label">{{ mt('serviceSwitch') }}</span>
+                  <el-tag :type="passkeyStatus?.enabled ? 'success' : 'info'" effect="light">
+                    {{ passkeyStatus ? (passkeyStatus.enabled ? mt('enabled') : mt('disabled')) : '-' }}
+                  </el-tag>
+                </div>
+                <div class="status-item">
+                  <span class="status-label">{{ mt('serviceReady') }}</span>
+                  <el-tag :type="passkeyStatus?.ready ? 'success' : 'warning'" effect="light">
+                    {{ passkeyStatus ? (passkeyStatus.ready ? mt('ready') : mt('notReady')) : '-' }}
+                  </el-tag>
+                </div>
+              </div>
+              <div v-if="passkeyStatus?.error" class="status-error">{{ mt('errorPrefix') }}{{ passkeyStatus.error }}</div>
+            </div>
+          </div>
 
-    <div class="status-card">
-      <div class="status-title">{{ mt('passkeyStatusTitle') }}</div>
-      <div class="status-list">
-        <div class="status-item">
-          <span class="status-label">{{ mt('serviceSwitch') }}</span>
-          <el-tag :type="passkeyStatus?.enabled ? 'success' : 'info'" effect="light">
-            {{ passkeyStatus ? (passkeyStatus.enabled ? mt('enabled') : mt('disabled')) : '-' }}
-          </el-tag>
-        </div>
-        <div class="status-item">
-          <span class="status-label">{{ mt('serviceReady') }}</span>
-          <el-tag :type="passkeyStatus?.ready ? 'success' : 'warning'" effect="light">
-            {{ passkeyStatus ? (passkeyStatus.ready ? mt('ready') : mt('notReady')) : '-' }}
-          </el-tag>
-        </div>
-        <div class="status-item">
-          <span class="status-label">{{ mt('rpId') }}</span>
-          <span class="status-value">{{ passkeyStatus?.rpId || '-' }}</span>
-        </div>
-        <div class="status-item">
-          <span class="status-label">{{ mt('origin') }}</span>
-          <span class="status-value path-text">{{ passkeyStatus?.origin || '-' }}</span>
-        </div>
-      </div>
-      <div v-if="passkeyStatus?.error" class="status-error">{{ mt('errorPrefix') }}{{ passkeyStatus.error }}</div>
-    </div>
+          <div class="primary-grid">
+            <div class="totp-card passkey-card">
+              <div class="totp-head">
+                <div>
+                  <div class="totp-title">{{ mt('passkeyConfigTitle') }}</div>
+                  <div class="section-hint">{{ mt('passkeyManageHint') }}</div>
+                </div>
+              </div>
+              <div class="passkey-actions">
+                <div class="field-line">
+                  <span class="label">{{ mt('deviceName') }}</span>
+                  <el-input v-model="passkeyDeviceName" :placeholder="mt('devicePlaceholder')" />
+                  <el-button :disabled="!passkeyStatus?.enabled || !passkeyStatus?.ready" @click="loadPasskeyCredentials">{{ mt('refreshCredentials') }}</el-button>
+                  <el-button
+                    :disabled="!passkeyStatus?.enabled || !passkeyStatus?.ready"
+                    type="primary"
+                    @click="registerPasskey"
+                  >
+                    {{ mt('registerPasskey') }}
+                  </el-button>
+                </div>
+              </div>
+              <div class="passkey-list">
+                <div v-if="!passkeyCredentials.length" class="empty-text">{{ mt('noPasskeyCredentials') }}</div>
+                <div v-for="credential in passkeyCredentials" :key="credential.credentialId" class="flow-step">
+                  <div class="credential-head">
+                    <div class="credential-name">{{ credential.deviceName || mt('defaultCredential') }}</div>
+                    <el-tag :type="credential.revokedAt ? 'info' : 'success'" effect="light">
+                      {{ credential.revokedAt ? mt('revoked') : mt('valid') }}
+                    </el-tag>
+                  </div>
+                  <div class="status-list compact-list">
+                    <div class="status-item">
+                      <span class="status-label">{{ mt('credentialId') }}</span>
+                      <span class="status-value path-text">{{ credential.credentialId }}</span>
+                    </div>
+                    <div class="status-item">
+                      <span class="status-label">{{ mt('transports') }}</span>
+                      <span class="status-value">{{ credential.transports?.join(', ') || '-' }}</span>
+                    </div>
+                    <div class="status-item">
+                      <span class="status-label">{{ mt('createdAt') }}</span>
+                      <span class="status-value">{{ credential.createdAt || '-' }}</span>
+                    </div>
+                    <div v-if="credential.revokedAt" class="status-item">
+                      <span class="status-label">{{ mt('revokedAt') }}</span>
+                      <span class="status-value">{{ credential.revokedAt }}</span>
+                    </div>
+                  </div>
+                  <div class="actions">
+                    <el-button
+                      :disabled="Boolean(credential.revokedAt)"
+                      type="danger"
+                      plain
+                      @click="revokePasskeyCredentialAction(credential.credentialId)"
+                    >
+                      {{ mt('revoke') }}
+                    </el-button>
+                    <el-button @click="copyText(credential.credentialId, mt('credentialId'))">{{ mt('copyId') }}</el-button>
+                  </div>
+                </div>
+              </div>
+            </div>
 
-    <div v-if="totpProvision" class="totp-card">
-      <div class="totp-head">
-        <div class="totp-title">{{ mt('totpProvisionTitle') }}</div>
-      </div>
-      <div class="totp-body">
-        <div class="totp-meta">
-          <div class="meta-item">
-            <span class="status-label">{{ mt('issuer') }}</span>
-            <span class="status-value">{{ totpProvision.issuer }}</span>
-          </div>
-          <div class="meta-item">
-            <span class="status-label">{{ mt('accountName') }}</span>
-            <span class="status-value">{{ totpProvision.accountName }}</span>
-          </div>
-          <div class="meta-item">
-            <span class="status-label">{{ mt('periodDigits') }}</span>
-            <span class="status-value">{{ totpProvision.period }}s / {{ totpProvision.digits }}</span>
-          </div>
-          <div class="field-line">
-            <span class="label">{{ mt('secret') }}</span>
-            <el-input :model-value="totpProvision.secret" readonly />
-            <el-button @click="copyText(totpProvision.secret, mt('totpSecretLabel'))">{{ mt('copy') }}</el-button>
-          </div>
-          <div class="field-line">
-            <span class="label">{{ mt('authenticatorLink') }}</span>
-            <el-input :model-value="totpProvision.otpauthUri" readonly />
-            <el-button @click="copyText(totpProvision.otpauthUri, mt('authenticatorUriLabel'))">{{ mt('copy') }}</el-button>
-            <el-button @click="openLink(totpProvision.otpauthUri)">{{ mt('open') }}</el-button>
+            <div class="totp-card">
+              <div class="totp-head">
+                <div class="totp-title">{{ mt('appConfigTitle') }}</div>
+                <div class="section-hint">{{ mt('appConfigHint') }}</div>
+              </div>
+              <div class="panel">
+                <el-form label-position="top" class="config-form">
+                  <div class="grid-two">
+                    <el-form-item :label="mt('address')">
+                      <el-input v-model="form.address" :placeholder="mt('walletAddressPlaceholder')" />
+                    </el-form-item>
+                    <el-form-item :label="mt('appId')">
+                      <el-input v-model="form.appId" :placeholder="mt('appIdPlaceholder')" />
+                    </el-form-item>
+                    <el-form-item class="full" :label="mt('redirectUri')">
+                      <el-input
+                        v-model="form.redirectUri"
+                        :placeholder="mt('redirectUriPlaceholder')"
+                      />
+                    </el-form-item>
+                    <el-form-item :label="mt('state')">
+                      <el-input v-model="form.state" :placeholder="mt('optional')" />
+                    </el-form-item>
+                    <el-form-item :label="mt('requestTtlMs')">
+                      <el-input-number v-model="form.requestTtlMs" :min="60000" :step="30000" />
+                    </el-form-item>
+                  </div>
+                </el-form>
+                <div class="actions">
+                  <el-button type="primary" @click="saveConfig">{{ mt('saveConfig') }}</el-button>
+                  <el-button @click="restoreConfig">{{ mt('reloadConfig') }}</el-button>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
-        <div class="qr-box">
-          <div class="label">{{ mt('qrCode') }}</div>
-          <div class="qr-panel">
-            <img v-if="totpQrDataUrl" :src="totpQrDataUrl" :alt="mt('qrAlt')" />
-            <div v-else class="qr-placeholder">{{ mt('qrPlaceholder') }}</div>
-          </div>
-        </div>
-      </div>
-    </div>
 
-    <div class="totp-card">
-      <div class="totp-head">
-        <div class="totp-title">{{ mt('passkeyConfigTitle') }}</div>
-      </div>
-      <div class="passkey-actions">
-        <div class="field-line">
-          <span class="label">{{ mt('deviceName') }}</span>
-          <el-input v-model="passkeyDeviceName" :placeholder="mt('devicePlaceholder')" />
-          <el-button :disabled="!passkeyStatus?.enabled || !passkeyStatus?.ready" @click="loadPasskeyCredentials">{{ mt('refreshCredentials') }}</el-button>
-          <el-button
-            :disabled="!passkeyStatus?.enabled || !passkeyStatus?.ready"
-            type="primary"
-            @click="registerPasskey"
-          >
-            {{ mt('registerPasskey') }}
-          </el-button>
-        </div>
-      </div>
-      <div class="passkey-list">
-        <div v-if="!passkeyCredentials.length" class="empty-text">{{ mt('noPasskeyCredentials') }}</div>
-        <div v-for="credential in passkeyCredentials" :key="credential.credentialId" class="flow-step">
-          <div class="credential-head">
-            <div class="credential-name">{{ credential.deviceName || mt('defaultCredential') }}</div>
-            <el-tag :type="credential.revokedAt ? 'info' : 'success'" effect="light">
-              {{ credential.revokedAt ? mt('revoked') : mt('valid') }}
-            </el-tag>
-          </div>
-          <div class="status-list compact-list">
-            <div class="status-item">
-              <span class="status-label">{{ mt('credentialId') }}</span>
-              <span class="status-value path-text">{{ credential.credentialId }}</span>
+        <div class="method-section">
+          <div class="section-heading">{{ mt('testSection') }}</div>
+          <div class="debug-hint">{{ mt('passkeyTestHint') }}</div>
+          <div class="panel-card">
+            <div class="flow-step">
+              <div class="step-title"><span class="step-dot">P1</span>{{ mt('stepPasskeyCreateRequest') }}</div>
+              <div class="line">
+                <span class="label">{{ mt('requestId') }}</span>
+                <el-input v-model="passkeyRequestIdInput" :placeholder="mt('requestIdPlaceholder')" />
+                <el-button :disabled="!passkeyStatus?.enabled || !passkeyStatus?.ready" @click="createPasskeyAuthorizeRequestAction">{{ mt('create') }}</el-button>
+                <el-button :disabled="!passkeyStatus?.enabled || !passkeyStatus?.ready" @click="queryPasskeyAuthorizeRequest">{{ mt('query') }}</el-button>
+              </div>
             </div>
-            <div class="status-item">
-              <span class="status-label">{{ mt('transports') }}</span>
-              <span class="status-value">{{ credential.transports?.join(', ') || '-' }}</span>
-            </div>
-            <div class="status-item">
-              <span class="status-label">{{ mt('createdAt') }}</span>
-              <span class="status-value">{{ credential.createdAt || '-' }}</span>
-            </div>
-            <div v-if="credential.revokedAt" class="status-item">
-              <span class="status-label">{{ mt('revokedAt') }}</span>
-              <span class="status-value">{{ credential.revokedAt }}</span>
-            </div>
-          </div>
-          <div class="actions">
-            <el-button
-              :disabled="Boolean(credential.revokedAt)"
-              type="danger"
-              plain
-              @click="revokePasskeyCredentialAction(credential.credentialId)"
-            >
-              {{ mt('revoke') }}
-            </el-button>
-            <el-button @click="copyText(credential.credentialId, mt('credentialId'))">{{ mt('copyId') }}</el-button>
-          </div>
-        </div>
-      </div>
-    </div>
 
-    <el-tabs v-model="activeTab" class="config-tabs">
-      <el-tab-pane :label="mt('configTab')" name="config">
-        <div class="panel">
-          <el-form label-position="top" class="config-form">
-            <div class="grid-two">
-              <el-form-item :label="mt('address')">
-                <el-input v-model="form.address" :placeholder="mt('walletAddressPlaceholder')" />
-              </el-form-item>
-              <el-form-item :label="mt('appId')">
-                <el-input v-model="form.appId" :placeholder="mt('appIdPlaceholder')" />
-              </el-form-item>
-              <el-form-item class="full" :label="mt('redirectUri')">
-                <el-input
-                  v-model="form.redirectUri"
-                  :placeholder="mt('redirectUriPlaceholder')"
-                />
-              </el-form-item>
-              <el-form-item :label="mt('state')">
-                <el-input v-model="form.state" :placeholder="mt('optional')" />
-              </el-form-item>
-              <el-form-item :label="mt('requestTtlMs')">
-                <el-input-number v-model="form.requestTtlMs" :min="60000" :step="30000" />
-              </el-form-item>
+            <div class="flow-step">
+              <div class="step-title"><span class="step-dot">P2</span>{{ mt('stepPasskeyApprove') }}</div>
+              <div class="line">
+                <span class="label">{{ mt('passkeyChallenge') }}</span>
+                <el-input :model-value="passkeyAuthChallenge?.passkeyRequest?.requestId || ''" readonly :placeholder="mt('passkeyChallengePlaceholder')" />
+                <el-button
+                  :disabled="!passkeyStatus?.enabled || !passkeyStatus?.ready"
+                  type="success"
+                  @click="approveAuthorizeRequestWithPasskey"
+                >
+                  {{ mt('triggerSignature') }}
+                </el-button>
+              </div>
             </div>
-          </el-form>
-          <div class="actions">
-            <el-button type="primary" @click="saveConfig">{{ mt('saveConfig') }}</el-button>
-            <el-button @click="restoreConfig">{{ mt('reloadConfig') }}</el-button>
-            <el-button type="success" @click="createAuthorizeRequest">{{ mt('createAuthorizeRequest') }}</el-button>
+
+            <div class="flow-step">
+              <div class="step-title"><span class="step-dot">P3</span>{{ mt('stepPasskeyExchange') }}</div>
+              <div class="line">
+                <span class="label">{{ mt('authCode') }}</span>
+                <el-input v-model="passkeyAuthCodeInput" :placeholder="mt('authCodePlaceholder')" />
+                <el-button
+                  :disabled="!passkeyStatus?.enabled || !passkeyStatus?.ready"
+                  type="warning"
+                  @click="exchangePasskeyAuthorizeCode"
+                >
+                  {{ mt('exchangeToken') }}
+                </el-button>
+              </div>
+            </div>
+
+            <div class="flow-step">
+              <div class="step-title"><span class="step-dot">P4</span>{{ mt('stepPasskeyLinks') }}</div>
+              <div class="line">
+                <span class="label">{{ mt('redirectTo') }}</span>
+                <el-input :model-value="passkeyApproveResult?.redirectTo || ''" readonly />
+                <el-button @click="openLink(passkeyApproveResult?.redirectTo || '')">{{ mt('open') }}</el-button>
+                <el-button @click="copyText(passkeyApproveResult?.redirectTo || '', mt('redirectTo'))">{{ mt('copy') }}</el-button>
+              </div>
+            </div>
+          </div>
+
+          <div class="panel-card">
+            <div class="totp-head">
+              <div class="totp-title">{{ mt('testResultTitle') }}</div>
+            </div>
+            <div class="flow-step">
+              <div class="line">
+                <span class="label">{{ mt('jwtToken') }}</span>
+                <el-input :model-value="passkeyExchangeResult?.token || ''" readonly />
+                <el-button @click="copyText(passkeyExchangeResult?.token || '', mt('jwtToken'))">{{ mt('copy') }}</el-button>
+                <el-button @click="verifyPasskeyProfileWithJwt">{{ mt('verify') }}</el-button>
+              </div>
+            </div>
+            <div class="flow-step">
+              <div class="line">
+                <span class="label">{{ mt('ucanToken') }}</span>
+                <el-input :model-value="passkeyExchangeResult?.ucan || ''" readonly />
+                <el-button @click="copyText(passkeyExchangeResult?.ucan || '', mt('ucanToken'))">{{ mt('copy') }}</el-button>
+                <el-button @click="verifyPasskeyProfileWithUcan">{{ mt('verify') }}</el-button>
+              </div>
+            </div>
+            <div class="result-json">
+              <pre>{{ prettyPasskeyResult }}</pre>
+            </div>
           </div>
         </div>
       </el-tab-pane>
 
-      <el-tab-pane :label="mt('flowTab')" name="flow">
-        <div class="panel">
+      <el-tab-pane :label="mt('totpTab')" name="totp">
+        <div class="method-section">
+          <div class="section-heading">{{ mt('configSection') }}</div>
+          <div class="summary-grid single-grid">
+            <div class="status-card">
+              <div class="status-title">{{ mt('totpStatusTitle') }}</div>
+              <div class="status-hint">{{ mt('totpStatusHint') }}</div>
+              <div class="status-list">
+                <div class="status-item">
+                  <span class="status-label">{{ mt('serviceSwitch') }}</span>
+                  <el-tag :type="totpStatus?.enabled ? 'success' : 'info'" effect="light">
+                    {{ totpStatus ? (totpStatus.enabled ? mt('enabled') : mt('disabled')) : '-' }}
+                  </el-tag>
+                </div>
+                <div class="status-item">
+                  <span class="status-label">{{ mt('serviceReady') }}</span>
+                  <el-tag :type="totpStatus?.ready ? 'success' : 'warning'" effect="light">
+                    {{ totpStatus ? (totpStatus.ready ? mt('ready') : mt('notReady')) : '-' }}
+                  </el-tag>
+                </div>
+              </div>
+              <div v-if="totpStatus?.error" class="status-error">{{ mt('errorPrefix') }}{{ totpStatus.error }}</div>
+            </div>
+          </div>
+
+          <div class="primary-grid">
+            <div class="totp-card">
+              <div class="totp-head">
+                <div>
+                  <div class="totp-title">{{ mt('totpProvisionTitle') }}</div>
+                  <div class="section-hint">{{ mt('totpManageHint') }}</div>
+                </div>
+                <el-button size="small" @click="loadTotpProvision">{{ mt('loadTotpProvision') }}</el-button>
+              </div>
+              <div v-if="totpProvision" class="totp-body">
+                <div class="totp-meta">
+                  <div class="meta-item">
+                    <span class="status-label">{{ mt('issuer') }}</span>
+                    <span class="status-value">{{ totpProvision.issuer }}</span>
+                  </div>
+                  <div class="meta-item">
+                    <span class="status-label">{{ mt('accountName') }}</span>
+                    <span class="status-value">{{ totpProvision.accountName }}</span>
+                  </div>
+                  <div class="meta-item">
+                    <span class="status-label">{{ mt('periodDigits') }}</span>
+                    <span class="status-value">{{ totpProvision.period }}s / {{ totpProvision.digits }}</span>
+                  </div>
+                  <div class="field-line">
+                    <span class="label">{{ mt('secret') }}</span>
+                    <el-input :model-value="totpProvision.secret" readonly />
+                    <el-button @click="copyText(totpProvision.secret, mt('totpSecretLabel'))">{{ mt('copy') }}</el-button>
+                  </div>
+                  <div class="field-line">
+                    <span class="label">{{ mt('authenticatorLink') }}</span>
+                    <el-input :model-value="totpProvision.otpauthUri" readonly />
+                    <el-button @click="copyText(totpProvision.otpauthUri, mt('authenticatorUriLabel'))">{{ mt('copy') }}</el-button>
+                    <el-button @click="openLink(totpProvision.otpauthUri)">{{ mt('open') }}</el-button>
+                  </div>
+                </div>
+                <div class="qr-box">
+                  <div class="label">{{ mt('qrCode') }}</div>
+                  <div class="qr-panel">
+                    <img v-if="totpQrDataUrl" :src="totpQrDataUrl" :alt="mt('qrAlt')" />
+                    <div v-else class="qr-placeholder">{{ mt('qrPlaceholder') }}</div>
+                  </div>
+                </div>
+              </div>
+              <div v-else class="empty-text">{{ mt('totpEmptyHint') }}</div>
+            </div>
+
+            <div class="totp-card">
+              <div class="totp-head">
+                <div class="totp-title">{{ mt('appConfigTitle') }}</div>
+                <div class="section-hint">{{ mt('appConfigHint') }}</div>
+              </div>
+              <div class="panel">
+                <el-form label-position="top" class="config-form">
+                  <div class="grid-two">
+                    <el-form-item :label="mt('address')">
+                      <el-input v-model="form.address" :placeholder="mt('walletAddressPlaceholder')" />
+                    </el-form-item>
+                    <el-form-item :label="mt('appId')">
+                      <el-input v-model="form.appId" :placeholder="mt('appIdPlaceholder')" />
+                    </el-form-item>
+                    <el-form-item class="full" :label="mt('redirectUri')">
+                      <el-input
+                        v-model="form.redirectUri"
+                        :placeholder="mt('redirectUriPlaceholder')"
+                      />
+                    </el-form-item>
+                    <el-form-item :label="mt('state')">
+                      <el-input v-model="form.state" :placeholder="mt('optional')" />
+                    </el-form-item>
+                    <el-form-item :label="mt('requestTtlMs')">
+                      <el-input-number v-model="form.requestTtlMs" :min="60000" :step="30000" />
+                    </el-form-item>
+                  </div>
+                </el-form>
+                <div class="actions">
+                  <el-button type="primary" @click="saveConfig">{{ mt('saveConfig') }}</el-button>
+                  <el-button @click="restoreConfig">{{ mt('reloadConfig') }}</el-button>
+                  <el-button type="success" @click="createAuthorizeRequest">{{ mt('createAuthorizeRequest') }}</el-button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="method-section">
+          <div class="section-heading">{{ mt('testSection') }}</div>
+          <div class="debug-hint">{{ mt('totpTestHint') }}</div>
+          <div class="panel-card">
           <div class="flow-step">
             <div class="step-title"><span class="step-dot">1</span>{{ mt('stepQueryRequest') }}</div>
             <div class="line">
@@ -245,61 +378,12 @@
               <el-button @click="copyText(approveResult?.redirectTo || '', mt('redirectTo'))">{{ mt('copy') }}</el-button>
             </div>
           </div>
-
-          <div class="flow-step">
-            <div class="step-title"><span class="step-dot">P1</span>{{ mt('stepPasskeyCreateRequest') }}</div>
-            <div class="line">
-              <span class="label">{{ mt('requestId') }}</span>
-              <el-input v-model="passkeyRequestIdInput" :placeholder="mt('requestIdPlaceholder')" />
-              <el-button :disabled="!passkeyStatus?.enabled || !passkeyStatus?.ready" @click="createPasskeyAuthorizeRequestAction">{{ mt('create') }}</el-button>
-              <el-button :disabled="!passkeyStatus?.enabled || !passkeyStatus?.ready" @click="queryPasskeyAuthorizeRequest">{{ mt('query') }}</el-button>
-            </div>
           </div>
 
-          <div class="flow-step">
-            <div class="step-title"><span class="step-dot">P2</span>{{ mt('stepPasskeyApprove') }}</div>
-            <div class="line">
-              <span class="label">{{ mt('passkeyChallenge') }}</span>
-              <el-input :model-value="passkeyAuthChallenge?.passkeyRequest?.requestId || ''" readonly :placeholder="mt('passkeyChallengePlaceholder')" />
-              <el-button
-                :disabled="!passkeyStatus?.enabled || !passkeyStatus?.ready"
-                type="success"
-                @click="approveAuthorizeRequestWithPasskey"
-              >
-                {{ mt('triggerSignature') }}
-              </el-button>
+          <div class="panel-card">
+            <div class="totp-head">
+              <div class="totp-title">{{ mt('testResultTitle') }}</div>
             </div>
-          </div>
-
-          <div class="flow-step">
-            <div class="step-title"><span class="step-dot">P3</span>{{ mt('stepPasskeyExchange') }}</div>
-            <div class="line">
-              <span class="label">{{ mt('authCode') }}</span>
-              <el-input v-model="passkeyAuthCodeInput" :placeholder="mt('authCodePlaceholder')" />
-              <el-button
-                :disabled="!passkeyStatus?.enabled || !passkeyStatus?.ready"
-                type="warning"
-                @click="exchangePasskeyAuthorizeCode"
-              >
-                {{ mt('exchangeToken') }}
-              </el-button>
-            </div>
-          </div>
-
-          <div class="flow-step">
-            <div class="step-title"><span class="step-dot">P4</span>{{ mt('stepPasskeyLinks') }}</div>
-            <div class="line">
-              <span class="label">{{ mt('redirectTo') }}</span>
-              <el-input :model-value="passkeyApproveResult?.redirectTo || ''" readonly />
-              <el-button @click="openLink(passkeyApproveResult?.redirectTo || '')">{{ mt('open') }}</el-button>
-              <el-button @click="copyText(passkeyApproveResult?.redirectTo || '', mt('redirectTo'))">{{ mt('copy') }}</el-button>
-            </div>
-          </div>
-        </div>
-      </el-tab-pane>
-
-      <el-tab-pane :label="mt('resultTab')" name="result">
-        <div class="panel">
           <div class="flow-step">
             <div class="line">
               <span class="label">{{ mt('jwtToken') }}</span>
@@ -317,7 +401,8 @@
             </div>
           </div>
           <div class="result-json">
-            <pre>{{ prettyResult }}</pre>
+            <pre>{{ prettyTotpResult }}</pre>
+          </div>
           </div>
         </div>
       </el-tab-pane>
@@ -505,7 +590,7 @@ function mt(key: MyConfigMessageKey): string {
   return getMyConfigMessage(locale.value, key);
 }
 
-const activeTab = ref('config');
+const authTab = ref('passkey');
 const totpStatus = ref<TotpStatus | null>(null);
 const totpProvision = ref<TotpProvision | null>(null);
 const totpQrDataUrl = ref('');
@@ -712,6 +797,10 @@ async function loadPasskeyStatus() {
   } catch (error) {
     notifyError(String(error));
   }
+}
+
+async function refreshStatuses() {
+  await Promise.all([loadTotpStatus(), loadPasskeyStatus()]);
 }
 
 async function renderTotpQrCode(uri: string) {
@@ -1020,7 +1109,6 @@ async function createAuthorizeRequest() {
     approveResult.value = null;
     exchangeResult.value = null;
     profileResult.value = null;
-    activeTab.value = 'flow';
     notifySuccess(mt('authorizeRequestCreated'));
   } catch (error) {
     notifyError(String(error));
@@ -1083,7 +1171,6 @@ async function exchangeAuthorizeCode() {
     );
     exchangeResult.value = result;
     profileResult.value = null;
-    activeTab.value = 'result';
     notifySuccess(mt('authorizeCodeExchanged'));
   } catch (error) {
     notifyError(String(error));
@@ -1126,6 +1213,48 @@ async function verifyProfileWithUcan() {
       credentials: 'include',
     });
     profileResult.value = await parseEnvelope<ProfileResult>(response, mt('verifyUcanFailed'));
+    notifySuccess(mt('verifyUcanSuccess'));
+  } catch (error) {
+    notifyError(String(error));
+  }
+}
+
+async function verifyPasskeyProfileWithJwt() {
+  try {
+    const token = passkeyExchangeResult.value?.token;
+    if (!token) {
+      notifyError(mt('missingJwtToken'));
+      return;
+    }
+    const response = await fetch(apiUrl('/api/v1/public/profile/me'), {
+      method: 'GET',
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+      credentials: 'include',
+    });
+    passkeyProfileResult.value = await parseEnvelope<ProfileResult>(response, mt('verifyJwtFailed'));
+    notifySuccess(mt('verifyJwtSuccess'));
+  } catch (error) {
+    notifyError(String(error));
+  }
+}
+
+async function verifyPasskeyProfileWithUcan() {
+  try {
+    const token = passkeyExchangeResult.value?.ucan;
+    if (!token) {
+      notifyError(mt('missingUcanToken'));
+      return;
+    }
+    const response = await fetch(apiUrl('/api/v1/public/profile/me'), {
+      method: 'GET',
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+      credentials: 'include',
+    });
+    passkeyProfileResult.value = await parseEnvelope<ProfileResult>(response, mt('verifyUcanFailed'));
     notifySuccess(mt('verifyUcanSuccess'));
   } catch (error) {
     notifyError(String(error));
@@ -1188,12 +1317,18 @@ async function copyText(value: string, label: string) {
   }
 }
 
-const prettyResult = computed(() => {
+const prettyTotpResult = computed(() => {
   const payload = {
     request: requestResult.value,
     approve: approveResult.value,
     exchange: exchangeResult.value,
     profile: profileResult.value,
+  };
+  return JSON.stringify(payload, null, 2);
+});
+
+const prettyPasskeyResult = computed(() => {
+  const payload = {
     passkeyStatus: passkeyStatus.value,
     passkeyCredentials: passkeyCredentials.value,
     passkeyRequest: passkeyRequestResult.value,
@@ -1207,8 +1342,7 @@ const prettyResult = computed(() => {
 
 onMounted(async () => {
   restoreConfig();
-  await loadTotpStatus();
-  await loadPasskeyStatus();
+  await refreshStatuses();
 });
 </script>
 
@@ -1235,14 +1369,27 @@ onMounted(async () => {
     color: rgba(0, 0, 0, 0.88);
   }
 
+  .page-subtitle {
+    margin-top: 6px;
+    font-size: 13px;
+    line-height: 1.5;
+    color: rgba(0, 0, 0, 0.5);
+  }
+
   .head-actions {
     display: flex;
     gap: 10px;
     flex-wrap: wrap;
   }
 
-  .status-card {
+  .summary-grid {
     margin-top: 14px;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 14px;
+  }
+
+  .status-card {
     padding: 16px;
     background: #fff;
     border: 1px solid #e8edf4;
@@ -1252,8 +1399,15 @@ onMounted(async () => {
   .status-title {
     font-size: 15px;
     font-weight: 500;
-    margin-bottom: 12px;
+    margin-bottom: 6px;
     color: rgba(0, 0, 0, 0.86);
+  }
+
+  .status-hint {
+    margin-bottom: 12px;
+    font-size: 13px;
+    line-height: 1.5;
+    color: rgba(0, 0, 0, 0.5);
   }
 
   .status-list {
@@ -1302,11 +1456,22 @@ onMounted(async () => {
   }
 
   .totp-card {
-    margin-top: 14px;
     padding: 16px;
     border: 1px solid #e8edf4;
     border-radius: 10px;
     background: #fff;
+  }
+
+  .primary-grid {
+    margin-top: 14px;
+    display: grid;
+    grid-template-columns: minmax(0, 1.05fr) minmax(0, 1.25fr);
+    gap: 14px;
+    align-items: start;
+  }
+
+  .passkey-card {
+    min-height: 100%;
   }
 
   .totp-head {
@@ -1369,12 +1534,69 @@ onMounted(async () => {
     padding: 0 12px;
   }
 
-  .config-tabs {
-    margin-top: 16px;
-    background: #fff;
-    padding: 12px 14px;
-    border-radius: 10px;
+  .page-tabs {
+    margin-top: 14px;
     border: 1px solid #e8edf4;
+    border-radius: 10px;
+    background: #fff;
+    padding: 0 16px 16px;
+  }
+
+  .page-tabs :deep(.el-tabs__header) {
+    margin-bottom: 0;
+  }
+
+  .page-tabs :deep(.el-tabs__nav-wrap::after) {
+    background-color: #eef2f7;
+  }
+
+  .page-tabs :deep(.el-tabs__item) {
+    height: 48px;
+    line-height: 48px;
+  }
+
+  .method-section {
+    padding-top: 14px;
+  }
+
+  .method-section + .method-section {
+    margin-top: 10px;
+  }
+
+  .section-heading {
+    margin-bottom: 12px;
+    font-size: 15px;
+    line-height: 1.4;
+    font-weight: 500;
+    color: rgba(0, 0, 0, 0.84);
+  }
+
+  .section-hint {
+    margin-top: 6px;
+    font-size: 13px;
+    line-height: 1.5;
+    color: rgba(0, 0, 0, 0.5);
+  }
+
+  .single-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .config-tabs {
+    background: #fff;
+    padding: 4px 2px 0;
+  }
+
+  .debug-panel {
+    padding-top: 12px;
+  }
+
+  .debug-hint {
+    margin-top: 12px;
+    margin-bottom: 6px;
+    font-size: 13px;
+    line-height: 1.5;
+    color: rgba(0, 0, 0, 0.5);
   }
 
   .passkey-actions {
@@ -1415,6 +1637,17 @@ onMounted(async () => {
 
   .panel {
     padding: 8px 2px 12px;
+  }
+
+  .panel-card {
+    padding: 16px;
+    border: 1px solid #e8edf4;
+    border-radius: 10px;
+    background: #fff;
+  }
+
+  .panel-card + .panel-card {
+    margin-top: 14px;
   }
 
   .config-form .grid-two {
@@ -1510,6 +1743,10 @@ onMounted(async () => {
 
 @media (max-width: 1200px) {
   .my-config {
+    .primary-grid {
+      grid-template-columns: 1fr;
+    }
+
     .totp-body {
       grid-template-columns: 1fr;
     }
@@ -1529,6 +1766,10 @@ onMounted(async () => {
 
     .head-actions {
       margin-top: 2px;
+    }
+
+    .summary-grid {
+      grid-template-columns: 1fr;
     }
 
     .config-form .grid-two {
