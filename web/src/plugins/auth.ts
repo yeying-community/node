@@ -92,22 +92,39 @@ async function waitForLoginCompletion(timeoutMs = LOGIN_COMPLETION_WAIT_MS) {
   return false;
 }
 
+async function waitForRoutePath(router: any, expectedPath: string, timeoutMs = LOGIN_ROUTE_READY_WAIT_MS) {
+  const startedAt = Date.now();
+  while (Date.now() - startedAt < timeoutMs) {
+    const currentPath = String(router?.currentRoute?.value?.path || '');
+    if (currentPath === expectedPath || currentPath.startsWith(`${expectedPath}/`)) {
+      return true;
+    }
+    await delay(LOGIN_COMPLETION_POLL_MS);
+  }
+  return false;
+}
+
 async function goMarketAfterLogin(router: any) {
   if (!(await waitForLoginCompletion(LOGIN_ROUTE_READY_WAIT_MS))) {
     return false;
   }
   if (router) {
-    await router.push('/market').catch(() => undefined);
-    if (String(router.currentRoute?.value?.path || '').startsWith('/market')) {
+    try {
+      await router.isReady?.();
+    } catch {
+      // ignore router readiness errors and continue with fallback checks
+    }
+    const target = { path: '/market' };
+    await router.replace?.(target).catch(() => undefined);
+    if (await waitForRoutePath(router, '/market', LOGIN_ROUTE_READY_WAIT_MS)) {
       return true;
     }
-    await delay(LOGIN_COMPLETION_POLL_MS);
-    if (await waitForLoginCompletion(LOGIN_ROUTE_READY_WAIT_MS)) {
-      await router.push('/market').catch(() => undefined);
+    await router.push?.(target).catch(() => undefined);
+    if (await waitForRoutePath(router, '/market', LOGIN_ROUTE_READY_WAIT_MS)) {
+      return true;
     }
-    return String(router.currentRoute?.value?.path || '').startsWith('/market');
   }
-  window.location.href = `${getHomeUrl()}market`;
+  window.location.assign(`${getHomeUrl()}market`);
   return true;
 }
 
@@ -227,7 +244,7 @@ function redirectHome() {
   }
   const target = getHomeUrl();
   if (window.location.href !== target) {
-    window.location.href = target;
+    window.location.assign(target);
   }
 }
 

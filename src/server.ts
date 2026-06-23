@@ -66,6 +66,7 @@ import { assertJwtSecretReady } from './auth/siwe';
 
 // 初始化日志
 new LoggerService(getConfig<LoggerConfig>('logger')).initialize()
+const logger = SingletonLogger.get()
 
 function resolveWebDistDir() {
     const candidates: string[] = []
@@ -242,9 +243,9 @@ builder.build().initialize().then(async (conn) => {
         await conn.query(`CREATE SCHEMA IF NOT EXISTS ${schemaRef}`)
         await conn.runMigrations()
     } else {
-        console.log('MySQL mode enabled, using synchronize schema initialization (no postgres migrations).')
+        logger.info('mysql mode enabled, using synchronize schema initialization (no postgres migrations)')
     }
-    console.log('The database has been initialized.')
+    logger.info('database initialized')
     initMpcEventBus()
     startActionRequestCleanupJobs()
     startMpcCleanupJobs()
@@ -296,9 +297,17 @@ builder.build().initialize().then(async (conn) => {
     // 启动服务器
     app.listen(port, '0.0.0.0', () => {
         if (webDistDir) {
-            console.log(`📦 Serving frontend assets from ${webDistDir}`)
+            logger.info('serving frontend assets', { webDistDir })
         }
-        console.log(`🚀 Server is running on http://localhost:${port}`);
+        logger.info('server started', {
+            host: '0.0.0.0',
+            port,
+            url: `http://localhost:${port}`,
+        })
     });
 
-}).catch(error => console.log("Database connection failed", error))
+}).catch(error => {
+    logger.error('database connection failed', {
+        error: error instanceof Error ? error.message : String(error),
+    })
+})

@@ -14,40 +14,80 @@
       </div>
     </div>
 
+    <div class="shared-test-panel">
+      <div class="section-heading">{{ mt('testAppTitle') }}</div>
+      <div class="panel-card">
+        <div class="totp-head">
+          <div>
+            <div class="totp-title">{{ mt('testAppTitle') }}</div>
+            <div class="section-hint">{{ mt('testAppHint') }}</div>
+          </div>
+          <div class="status-actions">
+            <el-button @click="loadOwnedApplications">{{ mt('refreshApps') }}</el-button>
+            <el-button v-if="!ownedApplications.length" type="primary" plain @click="goPublishApp">
+              {{ mt('goPublishApp') }}
+            </el-button>
+          </div>
+        </div>
+        <el-form label-position="top" class="config-form">
+          <div class="grid-two">
+            <el-form-item class="full" :label="mt('selectApp')">
+              <el-select v-model="form.selectedAppUid" class="full-select" :placeholder="mt('selectAppPlaceholder')">
+                <el-option
+                  v-for="app in ownedApplications"
+                  :key="app.uid"
+                  :label="`${app.name || app.uid} (${app.uid})`"
+                  :value="String(app.uid || '')"
+                />
+              </el-select>
+              <div v-if="selectedApplication" class="selected-app-meta">
+                <div class="meta-chip">{{ selectedApplication.name || selectedApplication.uid }}</div>
+                <div class="meta-chip mono-chip">{{ selectedRedirectUri }}</div>
+              </div>
+              <div v-if="!ownedApplications.length" class="empty-text inline-empty">{{ mt('noPublishedApps') }}</div>
+            </el-form-item>
+            <el-form-item :label="mt('address')">
+              <el-input :model-value="currentAccount || '-'" readonly />
+            </el-form-item>
+            <el-form-item :label="mt('redirectUri')">
+              <el-input :model-value="selectedRedirectUri || '-'" readonly />
+            </el-form-item>
+            <el-form-item :label="mt('state')">
+              <el-input v-model="form.state" :placeholder="mt('optional')" />
+            </el-form-item>
+            <el-form-item :label="mt('requestTtlMs')">
+              <el-input-number v-model="form.requestTtlMs" :min="60000" :step="30000" />
+            </el-form-item>
+          </div>
+        </el-form>
+      </div>
+    </div>
+
     <el-tabs v-model="authTab" class="page-tabs">
       <el-tab-pane :label="mt('passkeyTab')" name="passkey">
         <div class="method-section">
           <div class="section-heading">{{ mt('configSection') }}</div>
-          <div class="summary-grid single-grid">
-            <div class="status-card">
-              <div class="status-title">{{ mt('passkeyStatusTitle') }}</div>
-              <div class="status-hint">{{ mt('passkeyStatusHint') }}</div>
-              <div class="status-list">
-                <div class="status-item">
-                  <span class="status-label">{{ mt('serviceSwitch') }}</span>
-                  <el-tag :type="passkeyStatus?.enabled ? 'success' : 'info'" effect="light">
-                    {{ passkeyStatus ? (passkeyStatus.enabled ? mt('enabled') : mt('disabled')) : '-' }}
-                  </el-tag>
-                </div>
-                <div class="status-item">
-                  <span class="status-label">{{ mt('serviceReady') }}</span>
-                  <el-tag :type="passkeyStatus?.ready ? 'success' : 'warning'" effect="light">
-                    {{ passkeyStatus ? (passkeyStatus.ready ? mt('ready') : mt('notReady')) : '-' }}
-                  </el-tag>
-                </div>
-              </div>
-              <div v-if="passkeyStatus?.error" class="status-error">{{ mt('errorPrefix') }}{{ passkeyStatus.error }}</div>
-            </div>
-          </div>
-
-          <div class="primary-grid">
+          <div class="primary-grid single-column-grid">
             <div class="totp-card passkey-card">
               <div class="totp-head">
                 <div>
                   <div class="totp-title">{{ mt('passkeyConfigTitle') }}</div>
                   <div class="section-hint">{{ mt('passkeyManageHint') }}</div>
                 </div>
+                <div class="status-badges">
+                  <div class="status-badge">
+                    <el-tag :type="passkeyStatus?.enabled ? 'success' : 'info'" effect="light">
+                      {{ passkeyStatus ? (passkeyStatus.enabled ? mt('enabled') : mt('disabled')) : '-' }}
+                    </el-tag>
+                  </div>
+                  <div class="status-badge">
+                    <el-tag :type="passkeyStatus?.ready ? 'success' : 'warning'" effect="light">
+                      {{ passkeyStatus ? (passkeyStatus.ready ? mt('ready') : mt('notReady')) : '-' }}
+                    </el-tag>
+                  </div>
+                </div>
               </div>
+              <div v-if="passkeyStatus?.error" class="status-error compact-error">{{ mt('errorPrefix') }}{{ passkeyStatus.error }}</div>
               <div class="passkey-actions">
                 <div class="field-line">
                   <span class="label">{{ mt('deviceName') }}</span>
@@ -103,41 +143,6 @@
                 </div>
               </div>
             </div>
-
-            <div class="totp-card">
-              <div class="totp-head">
-                <div class="totp-title">{{ mt('appConfigTitle') }}</div>
-                <div class="section-hint">{{ mt('appConfigHint') }}</div>
-              </div>
-              <div class="panel">
-                <el-form label-position="top" class="config-form">
-                  <div class="grid-two">
-                    <el-form-item :label="mt('address')">
-                      <el-input v-model="form.address" :placeholder="mt('walletAddressPlaceholder')" />
-                    </el-form-item>
-                    <el-form-item :label="mt('appId')">
-                      <el-input v-model="form.appId" :placeholder="mt('appIdPlaceholder')" />
-                    </el-form-item>
-                    <el-form-item class="full" :label="mt('redirectUri')">
-                      <el-input
-                        v-model="form.redirectUri"
-                        :placeholder="mt('redirectUriPlaceholder')"
-                      />
-                    </el-form-item>
-                    <el-form-item :label="mt('state')">
-                      <el-input v-model="form.state" :placeholder="mt('optional')" />
-                    </el-form-item>
-                    <el-form-item :label="mt('requestTtlMs')">
-                      <el-input-number v-model="form.requestTtlMs" :min="60000" :step="30000" />
-                    </el-form-item>
-                  </div>
-                </el-form>
-                <div class="actions">
-                  <el-button type="primary" @click="saveConfig">{{ mt('saveConfig') }}</el-button>
-                  <el-button @click="restoreConfig">{{ mt('reloadConfig') }}</el-button>
-                </div>
-              </div>
-            </div>
           </div>
         </div>
 
@@ -150,7 +155,7 @@
               <div class="line">
                 <span class="label">{{ mt('requestId') }}</span>
                 <el-input v-model="passkeyRequestIdInput" :placeholder="mt('requestIdPlaceholder')" />
-                <el-button :disabled="!passkeyStatus?.enabled || !passkeyStatus?.ready" @click="createPasskeyAuthorizeRequestAction">{{ mt('create') }}</el-button>
+                <el-button :disabled="!passkeyStatus?.enabled || !passkeyStatus?.ready || !selectedApplication" @click="createPasskeyAuthorizeRequestAction">{{ mt('create') }}</el-button>
                 <el-button :disabled="!passkeyStatus?.enabled || !passkeyStatus?.ready" @click="queryPasskeyAuthorizeRequest">{{ mt('query') }}</el-button>
               </div>
             </div>
@@ -226,37 +231,30 @@
       <el-tab-pane :label="mt('totpTab')" name="totp">
         <div class="method-section">
           <div class="section-heading">{{ mt('configSection') }}</div>
-          <div class="summary-grid single-grid">
-            <div class="status-card">
-              <div class="status-title">{{ mt('totpStatusTitle') }}</div>
-              <div class="status-hint">{{ mt('totpStatusHint') }}</div>
-              <div class="status-list">
-                <div class="status-item">
-                  <span class="status-label">{{ mt('serviceSwitch') }}</span>
-                  <el-tag :type="totpStatus?.enabled ? 'success' : 'info'" effect="light">
-                    {{ totpStatus ? (totpStatus.enabled ? mt('enabled') : mt('disabled')) : '-' }}
-                  </el-tag>
-                </div>
-                <div class="status-item">
-                  <span class="status-label">{{ mt('serviceReady') }}</span>
-                  <el-tag :type="totpStatus?.ready ? 'success' : 'warning'" effect="light">
-                    {{ totpStatus ? (totpStatus.ready ? mt('ready') : mt('notReady')) : '-' }}
-                  </el-tag>
-                </div>
-              </div>
-              <div v-if="totpStatus?.error" class="status-error">{{ mt('errorPrefix') }}{{ totpStatus.error }}</div>
-            </div>
-          </div>
-
-          <div class="primary-grid">
+          <div class="primary-grid single-column-grid">
             <div class="totp-card">
               <div class="totp-head">
                 <div>
                   <div class="totp-title">{{ mt('totpProvisionTitle') }}</div>
                   <div class="section-hint">{{ mt('totpManageHint') }}</div>
                 </div>
-                <el-button size="small" @click="loadTotpProvision">{{ mt('loadTotpProvision') }}</el-button>
+                <div class="status-actions">
+                  <div class="status-badges">
+                    <div class="status-badge">
+                      <el-tag :type="totpStatus?.enabled ? 'success' : 'info'" effect="light">
+                        {{ totpStatus ? (totpStatus.enabled ? mt('enabled') : mt('disabled')) : '-' }}
+                      </el-tag>
+                    </div>
+                    <div class="status-badge">
+                      <el-tag :type="totpStatus?.ready ? 'success' : 'warning'" effect="light">
+                        {{ totpStatus ? (totpStatus.ready ? mt('ready') : mt('notReady')) : '-' }}
+                      </el-tag>
+                    </div>
+                  </div>
+                  <el-button size="small" @click="loadTotpProvision">{{ mt('loadTotpProvision') }}</el-button>
+                </div>
               </div>
+              <div v-if="totpStatus?.error" class="status-error compact-error">{{ mt('errorPrefix') }}{{ totpStatus.error }}</div>
               <div v-if="totpProvision" class="totp-body">
                 <div class="totp-meta">
                   <div class="meta-item">
@@ -293,42 +291,6 @@
               </div>
               <div v-else class="empty-text">{{ mt('totpEmptyHint') }}</div>
             </div>
-
-            <div class="totp-card">
-              <div class="totp-head">
-                <div class="totp-title">{{ mt('appConfigTitle') }}</div>
-                <div class="section-hint">{{ mt('appConfigHint') }}</div>
-              </div>
-              <div class="panel">
-                <el-form label-position="top" class="config-form">
-                  <div class="grid-two">
-                    <el-form-item :label="mt('address')">
-                      <el-input v-model="form.address" :placeholder="mt('walletAddressPlaceholder')" />
-                    </el-form-item>
-                    <el-form-item :label="mt('appId')">
-                      <el-input v-model="form.appId" :placeholder="mt('appIdPlaceholder')" />
-                    </el-form-item>
-                    <el-form-item class="full" :label="mt('redirectUri')">
-                      <el-input
-                        v-model="form.redirectUri"
-                        :placeholder="mt('redirectUriPlaceholder')"
-                      />
-                    </el-form-item>
-                    <el-form-item :label="mt('state')">
-                      <el-input v-model="form.state" :placeholder="mt('optional')" />
-                    </el-form-item>
-                    <el-form-item :label="mt('requestTtlMs')">
-                      <el-input-number v-model="form.requestTtlMs" :min="60000" :step="30000" />
-                    </el-form-item>
-                  </div>
-                </el-form>
-                <div class="actions">
-                  <el-button type="primary" @click="saveConfig">{{ mt('saveConfig') }}</el-button>
-                  <el-button @click="restoreConfig">{{ mt('reloadConfig') }}</el-button>
-                  <el-button type="success" @click="createAuthorizeRequest">{{ mt('createAuthorizeRequest') }}</el-button>
-                </div>
-              </div>
-            </div>
           </div>
         </div>
 
@@ -341,6 +303,7 @@
             <div class="line">
               <span class="label">{{ mt('requestId') }}</span>
               <el-input v-model="requestIdInput" :placeholder="mt('requestIdPlaceholder')" />
+              <el-button :disabled="!selectedApplication" type="primary" @click="createAuthorizeRequest">{{ mt('create') }}</el-button>
               <el-button @click="queryAuthorizeRequest">{{ mt('query') }}</el-button>
             </div>
           </div>
@@ -413,8 +376,10 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue';
 import QRCode from 'qrcode';
+import { useRouter } from 'vue-router';
 import { apiUrl } from '@/plugins/api';
 import { getAuthToken, getCurrentAccount } from '@/plugins/auth';
+import $application, { type ApplicationMetadata } from '@/plugins/application';
 import { getLocaleRef } from '@/lang/locale';
 import { notifyError, notifyInfo, notifySuccess } from '@/utils/message';
 import { getMyConfigMessage, type MyConfigMessageKey } from './myConfigI18n';
@@ -576,21 +541,20 @@ type ProfileResult = {
 };
 
 type ConfigForm = {
-  address: string;
-  appId: string;
-  redirectUri: string;
+  selectedAppUid: string;
   state: string;
   requestTtlMs: number;
 };
-
-const STORAGE_KEY = 'node:web:my-config:totp-authorize';
 const locale = getLocaleRef();
+const router = useRouter();
 
 function mt(key: MyConfigMessageKey): string {
   return getMyConfigMessage(locale.value, key);
 }
 
 const authTab = ref('passkey');
+const currentAccount = ref('');
+const ownedApplications = ref<ApplicationMetadata[]>([]);
 const totpStatus = ref<TotpStatus | null>(null);
 const totpProvision = ref<TotpProvision | null>(null);
 const totpQrDataUrl = ref('');
@@ -613,11 +577,22 @@ const totpCode = ref('');
 const authCodeInput = ref('');
 
 const form = reactive<ConfigForm>({
-  address: '',
-  appId: '',
-  redirectUri: '',
+  selectedAppUid: '',
   state: '',
   requestTtlMs: 120000,
+});
+
+const selectedApplication = computed(() => {
+  const uid = String(form.selectedAppUid || '').trim();
+  if (!uid) {
+    return null;
+  }
+  return ownedApplications.value.find((item) => String(item.uid || '').trim() === uid) || null;
+});
+
+const selectedRedirectUri = computed(() => {
+  const redirectUris = selectedApplication.value?.redirectUris || [];
+  return String(redirectUris[0] || '').trim();
 });
 
 async function parseEnvelope<T>(response: Response, fallbackMessage: string): Promise<T> {
@@ -735,7 +710,7 @@ function ensurePasskeyReady() {
 }
 
 function ensureAddress() {
-  const address = String(form.address || '').trim();
+  const address = String(currentAccount.value || getCurrentAccount() || '').trim();
   if (!address) {
     throw new Error(mt('missingAddress'));
   }
@@ -743,38 +718,39 @@ function ensureAddress() {
 }
 
 function ensureAppConfig() {
-  const appId = String(form.appId || '').trim();
-  const redirectUri = String(form.redirectUri || '').trim();
+  const appId = String(selectedApplication.value?.uid || '').trim();
+  const redirectUri = String(selectedRedirectUri.value || '').trim();
   if (!appId || !redirectUri) {
     throw new Error(mt('missingAppConfig'));
   }
   return { appId, redirectUri };
 }
 
-function restoreConfig() {
-  const raw = localStorage.getItem(STORAGE_KEY);
-  if (!raw) {
-    const account = getCurrentAccount();
-    if (account) {
-      form.address = account;
-    }
-    return;
-  }
+async function loadOwnedApplications() {
   try {
-    const parsed = JSON.parse(raw) as Partial<ConfigForm>;
-    form.address = String(parsed.address || getCurrentAccount() || '');
-    form.appId = String(parsed.appId || '');
-    form.redirectUri = String(parsed.redirectUri || '');
-    form.state = String(parsed.state || '');
-    form.requestTtlMs = Number(parsed.requestTtlMs || 120000);
-  } catch {
-    notifyError(mt('restoreConfigFailed'));
+    const account = String(getCurrentAccount() || '').trim();
+    currentAccount.value = account;
+    if (!account) {
+      ownedApplications.value = [];
+      return;
+    }
+    const result = await $application.myCreateList(account);
+    const list = Array.isArray(result) ? result : [];
+    ownedApplications.value = list.filter((item) => {
+      const uid = String(item.uid || '').trim();
+      const redirectUri = String(item.redirectUris?.[0] || '').trim();
+      return Boolean(uid && redirectUri && item.isOnline !== false);
+    });
+    if (
+      !form.selectedAppUid ||
+      !ownedApplications.value.some((item) => String(item.uid || '').trim() === form.selectedAppUid)
+    ) {
+      form.selectedAppUid = String(ownedApplications.value[0]?.uid || '');
+    }
+  } catch (error) {
+    ownedApplications.value = [];
+    notifyError(`${mt('loadAppsFailed')}：${error}`);
   }
-}
-
-function saveConfig() {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(form));
-  notifySuccess(mt('configSaved'));
 }
 
 async function loadTotpStatus() {
@@ -1317,6 +1293,10 @@ async function copyText(value: string, label: string) {
   }
 }
 
+function goPublishApp() {
+  router.push('/market/dev/apply-edit').catch(() => undefined);
+}
+
 const prettyTotpResult = computed(() => {
   const payload = {
     request: requestResult.value,
@@ -1341,7 +1321,8 @@ const prettyPasskeyResult = computed(() => {
 });
 
 onMounted(async () => {
-  restoreConfig();
+  currentAccount.value = String(getCurrentAccount() || '').trim();
+  await loadOwnedApplications();
   await refreshStatuses();
 });
 </script>
@@ -1382,32 +1363,8 @@ onMounted(async () => {
     flex-wrap: wrap;
   }
 
-  .summary-grid {
+  .shared-test-panel {
     margin-top: 14px;
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 14px;
-  }
-
-  .status-card {
-    padding: 16px;
-    background: #fff;
-    border: 1px solid #e8edf4;
-    border-radius: 10px;
-  }
-
-  .status-title {
-    font-size: 15px;
-    font-weight: 500;
-    margin-bottom: 6px;
-    color: rgba(0, 0, 0, 0.86);
-  }
-
-  .status-hint {
-    margin-bottom: 12px;
-    font-size: 13px;
-    line-height: 1.5;
-    color: rgba(0, 0, 0, 0.5);
   }
 
   .status-list {
@@ -1474,8 +1431,16 @@ onMounted(async () => {
     min-height: 100%;
   }
 
+  .single-column-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
   .totp-head {
     margin-bottom: 12px;
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 16px;
   }
 
   .totp-title {
@@ -1555,6 +1520,27 @@ onMounted(async () => {
     line-height: 48px;
   }
 
+  .status-actions {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+  }
+
+  .status-badges {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 8px 12px;
+  }
+
+  .status-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+  }
+
   .method-section {
     padding-top: 14px;
   }
@@ -1576,10 +1562,6 @@ onMounted(async () => {
     font-size: 13px;
     line-height: 1.5;
     color: rgba(0, 0, 0, 0.5);
-  }
-
-  .single-grid {
-    grid-template-columns: 1fr;
   }
 
   .config-tabs {
@@ -1648,6 +1630,44 @@ onMounted(async () => {
 
   .panel-card + .panel-card {
     margin-top: 14px;
+  }
+
+  .full-select {
+    width: 100%;
+  }
+
+  .inline-empty {
+    margin-top: 8px;
+  }
+
+  .selected-app-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 10px;
+  }
+
+  .meta-chip {
+    display: inline-flex;
+    align-items: center;
+    min-height: 28px;
+    padding: 0 10px;
+    border-radius: 6px;
+    background: #f5f7fb;
+    border: 1px solid #e5eaf3;
+    font-size: 13px;
+    line-height: 1.4;
+    color: rgba(0, 0, 0, 0.72);
+  }
+
+  .mono-chip {
+    font-family: var(--app-font-mono);
+    word-break: break-all;
+  }
+
+  .compact-error {
+    margin-top: -2px;
+    margin-bottom: 12px;
   }
 
   .config-form .grid-two {
@@ -1768,10 +1788,6 @@ onMounted(async () => {
       margin-top: 2px;
     }
 
-    .summary-grid {
-      grid-template-columns: 1fr;
-    }
-
     .config-form .grid-two {
       grid-template-columns: 1fr;
     }
@@ -1779,6 +1795,13 @@ onMounted(async () => {
     .line,
     .field-line {
       grid-template-columns: 1fr;
+    }
+
+    .totp-head,
+    .status-actions,
+    .status-badges {
+      flex-direction: column;
+      align-items: flex-start;
     }
 
     .status-item,
