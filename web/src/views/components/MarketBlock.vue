@@ -45,13 +45,13 @@
                         </span>
                     </div>
                 </div>
-                <el-tooltip :content="descriptionText" placement="top" :disabled="!isDescOverflow">
-                    <div ref="descRef" class="desc">
-                        {{ displayDescription }}
-                    </div>
-                </el-tooltip>
             </div>
         </div>
+        <el-tooltip :content="descriptionText" placement="top" :disabled="!isDescOverflow">
+            <div ref="descRef" class="desc">
+                {{ displayDescription }}
+            </div>
+        </el-tooltip>
 
         <!-- 应用市场 -->
         <div v-if="pageFrom === 'market' && !isOwner">
@@ -710,16 +710,6 @@ onBeforeUnmount(() => {
                     cursor: pointer;
                 }
             }
-            .desc {
-                color: rgba(0, 0, 0, 0.45);
-                font-size: 14px;
-                font-weight: 400;
-                line-height: 22px;
-                height: 33px;
-                overflow: hidden;
-                word-break: break-word;
-            }
-
             .badge-info {
                 position: absolute;
                 right: 0;
@@ -739,6 +729,16 @@ onBeforeUnmount(() => {
                 line-height: 1.2;
             }
         }
+    }
+    .desc {
+        margin-top: 10px;
+        color: rgba(0, 0, 0, 0.45);
+        font-size: 14px;
+        font-weight: 400;
+        line-height: 22px;
+        height: 33px;
+        overflow: hidden;
+        word-break: break-word;
     }
     .bottom {
         padding-top: 10px;
