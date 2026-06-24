@@ -202,6 +202,81 @@ export class NotificationInboxDO {
     updatedAt!: string
 }
 
+@Entity('notification_webhooks')
+@Index('idx_notification_webhook_owner_application', ['owner', 'applicationUid'])
+export class NotificationWebhookDO {
+    @PrimaryGeneratedColumn('uuid')
+    uid!: string
+
+    @Column({ length: 128, name: 'owner' })
+    owner!: string
+
+    @Column({ length: 64, name: 'application_uid', default: '' })
+    applicationUid!: string
+
+    @Column({ type: 'text', name: 'events_json', default: '[]' })
+    eventsJson!: string
+
+    @Column({ type: 'text', name: 'target_url' })
+    targetUrl!: string
+
+    @Column({ length: 128, name: 'secret_masked', default: '' })
+    secretMasked!: string
+
+    @Column({ type: 'text', name: 'secret_ciphertext', default: '' })
+    secretCiphertext!: string
+
+    @Column({ type: 'boolean', default: true })
+    enabled!: boolean
+
+    @Column({ length: 64, name: 'last_triggered_at', default: '' })
+    lastTriggeredAt!: string
+
+    @Column({ length: 64, name: 'created_at', default: '' })
+    createdAt!: string
+
+    @Column({ length: 64, name: 'updated_at', default: '' })
+    updatedAt!: string
+}
+
+@Entity('notification_deliveries')
+@Index('idx_notification_delivery_notification_uid', ['notificationUid'])
+@Index('idx_notification_delivery_channel_status', ['channel', 'status'])
+export class NotificationDeliveryDO {
+    @PrimaryGeneratedColumn('uuid')
+    uid!: string
+
+    @Column({ length: 64, name: 'notification_uid' })
+    notificationUid!: string
+
+    @Column({ length: 64, default: 'inbox' })
+    channel!: string
+
+    @Column({ type: 'text', default: '' })
+    target!: string
+
+    @Column({ length: 32, default: 'pending' })
+    status!: string
+
+    @Column({ type: 'int', name: 'attempt_count', default: 0 })
+    attemptCount!: number
+
+    @Column({ type: 'text', name: 'last_error', default: '' })
+    lastError!: string
+
+    @Column({ length: 64, name: 'delivered_at', default: '' })
+    deliveredAt!: string
+
+    @Column({ length: 64, name: 'next_retry_at', default: '' })
+    nextRetryAt!: string
+
+    @Column({ length: 64, name: 'created_at', default: '' })
+    createdAt!: string
+
+    @Column({ length: 64, name: 'updated_at', default: '' })
+    updatedAt!: string
+}
+
 @Entity('action_requests')
 @Index('idx_action_request_dedup', ['actor', 'requestId'], { unique: true })
 export class ActionRequestDO {

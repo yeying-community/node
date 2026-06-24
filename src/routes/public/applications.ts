@@ -15,6 +15,7 @@ import { AuditManager } from '../../domain/manager/audit';
 import { CommentManager } from '../../domain/manager/comments';
 import { ApplicationManager } from '../../domain/manager/application';
 import { ApplicationConfigService } from '../../domain/service/applicationConfig';
+import { NotificationService } from '../../domain/service/notification';
 import {
   ApplicationUcanPolicyError,
   resolveApplicationUcanPolicy,
@@ -226,6 +227,8 @@ function mapApplicationReadError(error: unknown, fallback: string) {
 }
 
 export function registerPublicApplicationRoutes(app: Express) {
+  const notificationService = new NotificationService();
+
   app.post('/api/v1/public/applications', async (req: Request, res: Response) => {
     try {
       const user = getRequestUser();
@@ -316,6 +319,14 @@ export function registerPublicApplicationRoutes(app: Express) {
           };
           const service = new ApplicationService();
           await service.save(application);
+          await notificationService.notifyApplicationCreated({
+            applicationUid: application.uid,
+            owner: application.owner,
+            actor: user.address,
+            name: application.name,
+            did: application.did,
+            version: application.version,
+          });
           return { status: 200, body: ok(application) };
         },
         onError: (error) => {
@@ -409,6 +420,14 @@ export function registerPublicApplicationRoutes(app: Express) {
           };
           const service = new ApplicationService();
           await service.save(updated);
+          await notificationService.notifyApplicationUpdated({
+            applicationUid: updated.uid,
+            owner: updated.owner,
+            actor: user.address,
+            name: updated.name,
+            did: updated.did,
+            version: updated.version,
+          });
           return { status: 200, body: ok(updated) };
         },
         onError: (error) => {
@@ -518,6 +537,15 @@ export function registerPublicApplicationRoutes(app: Express) {
             createdAt: body.createdAt || now,
             updatedAt: now,
           });
+          await notificationService.notifyApplicationConfigUpdated({
+            applicationUid: appRecord.uid,
+            owner: user.address.toLowerCase(),
+            actor: user.address,
+            name: appRecord.name,
+            did: appRecord.did,
+            version: appRecord.version,
+            configCount: configItems.length,
+          });
           return { status: 200, body: ok(saved) };
         },
         onError: (error) => {
@@ -609,6 +637,14 @@ export function registerPublicApplicationRoutes(app: Express) {
             return { status: 403, body: fail(403, 'Owner mismatch') };
           }
           const service = new ApplicationService();
+          await notificationService.notifyApplicationDeleted({
+            applicationUid: existing.uid,
+            owner: existing.owner,
+            actor: user.address,
+            name: existing.name,
+            did: existing.did,
+            version: existing.version,
+          });
           await service.delete(existing.did, existing.version);
           return { status: 200, body: ok({ deleted: true }) };
         },
@@ -657,6 +693,14 @@ export function registerPublicApplicationRoutes(app: Express) {
           }
           const manager = new ApplicationManager();
           await manager.updatePublishState(existing.did, existing.version, 'BUSINESS_STATUS_ONLINE', true);
+          await notificationService.notifyApplicationPublished({
+            applicationUid: existing.uid,
+            owner: existing.owner,
+            actor: user.address,
+            name: existing.name,
+            did: existing.did,
+            version: existing.version,
+          });
           return { status: 200, body: ok({ published: true }) };
         },
         onError: (error) => {
@@ -700,6 +744,14 @@ export function registerPublicApplicationRoutes(app: Express) {
           }
           const manager = new ApplicationManager();
           await manager.updatePublishState(existing.did, existing.version, 'BUSINESS_STATUS_OFFLINE', false);
+          await notificationService.notifyApplicationUnpublished({
+            applicationUid: existing.uid,
+            owner: existing.owner,
+            actor: user.address,
+            name: existing.name,
+            did: existing.did,
+            version: existing.version,
+          });
           return { status: 200, body: ok({ unpublished: true }) };
         },
         onError: (error) => {

@@ -17,6 +17,8 @@ import {
     PasskeySubjectCredentialDO,
     NotificationDO,
     NotificationInboxDO,
+    NotificationWebhookDO,
+    NotificationDeliveryDO,
     MpcSessionDO,
     MpcSessionParticipantDO,
     MpcMessageDO,
@@ -53,6 +55,7 @@ import { AddApplicationUcanPolicy20260423193000 } from './migrations/20260423193
 import { BackfillApplicationUcanPolicy20260424110000 } from './migrations/20260424110000-backfill-application-ucan-policy';
 import { FixApplicationUcanPolicyRouterPriority20260424123000 } from './migrations/20260424123000-fix-application-ucan-policy-router-priority';
 import { AddNotifications20260429110000 } from './migrations/20260429110000-add-notifications';
+import { AddNotificationWebhooksAndDeliveries20260624090000 } from './migrations/20260624090000-add-notification-webhooks-and-deliveries';
 import { getConfig } from './config/runtime';
 import { startActionRequestCleanupJobs } from './domain/service/actionRequestCleanup';
 import { startMpcCleanupJobs } from './domain/service/mpcCleanup';
@@ -212,6 +215,8 @@ builder.entities([
     PasskeySubjectCredentialDO,
     NotificationDO,
     NotificationInboxDO,
+    NotificationWebhookDO,
+    NotificationDeliveryDO,
     MpcSessionDO,
     MpcSessionParticipantDO,
     MpcMessageDO,
@@ -231,7 +236,8 @@ builder.migrations([
     AddApplicationUcanPolicy20260423193000,
     BackfillApplicationUcanPolicy20260424110000,
     FixApplicationUcanPolicyRouterPriority20260424123000,
-    AddNotifications20260429110000
+    AddNotifications20260429110000,
+    AddNotificationWebhooksAndDeliveries20260624090000
 ])
 
 builder.build().initialize().then(async (conn) => {

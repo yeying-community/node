@@ -11,6 +11,11 @@ const serviceMocks = {
   markAllRead: vi.fn(),
   listCreatedAfterCursor: vi.fn(),
   buildEventId: vi.fn(),
+  listWebhooks: vi.fn(),
+  createWebhook: vi.fn(),
+  updateWebhook: vi.fn(),
+  deleteWebhook: vi.fn(),
+  listDeliveriesByNotificationUid: vi.fn(),
 }
 
 vi.doMock('../src/common/permission', () => ({
@@ -91,6 +96,8 @@ describe('public notification routes', () => {
     serviceMocks.getUnreadCount.mockResolvedValue(0)
     serviceMocks.listCreatedAfterCursor.mockResolvedValue([])
     serviceMocks.buildEventId.mockImplementation((item) => `${item.createdAt}|${item.notificationUid}`)
+    serviceMocks.listWebhooks.mockResolvedValue([])
+    serviceMocks.listDeliveriesByNotificationUid.mockResolvedValue([])
   })
 
   it('passes list filters to the notification service', async () => {
@@ -98,7 +105,7 @@ describe('public notification routes', () => {
 
     await withServer(app, async (baseUrl) => {
       const response = await fetch(
-        `${baseUrl}/api/v1/public/notifications?page=2&pageSize=5&unreadOnly=true&source=audit&level=warning`
+        `${baseUrl}/api/v1/public/notifications?page=2&pageSize=5&unreadOnly=true&source=audit&level=warning&applicationUid=app-1`
       )
       expect(response.status).toBe(200)
     })
@@ -108,6 +115,7 @@ describe('public notification routes', () => {
       unreadOnly: true,
       source: 'audit',
       level: 'warning',
+      applicationUid: 'app-1',
       page: 2,
       pageSize: 5,
     })
@@ -158,5 +166,66 @@ describe('public notification routes', () => {
       '2026-05-12T00:00:00.000Z|notification-1',
       200
     )
+  })
+
+  it('creates and lists webhook subscriptions for the current user', async () => {
+    serviceMocks.createWebhook.mockResolvedValue({
+      uid: 'webhook-1',
+      owner: actor,
+      applicationUid: 'app-1',
+      events: ['application.created'],
+      targetUrl: 'https://example.com/webhook',
+      secretMasked: 'sec***12',
+      enabled: true,
+      lastTriggeredAt: '',
+      createdAt: '2026-06-24T00:00:00.000Z',
+      updatedAt: '2026-06-24T00:00:00.000Z',
+    })
+    serviceMocks.listWebhooks.mockResolvedValue([
+      {
+        uid: 'webhook-1',
+        owner: actor,
+        applicationUid: 'app-1',
+        events: ['application.created'],
+        targetUrl: 'https://example.com/webhook',
+        secretMasked: 'sec***12',
+        enabled: true,
+        lastTriggeredAt: '',
+        createdAt: '2026-06-24T00:00:00.000Z',
+        updatedAt: '2026-06-24T00:00:00.000Z',
+      },
+    ])
+
+    const app = createTestApp()
+    await withServer(app, async (baseUrl) => {
+      const createResponse = await fetch(`${baseUrl}/api/v1/public/notifications/webhooks`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          applicationUid: 'app-1',
+          events: ['application.created'],
+          targetUrl: 'https://example.com/webhook',
+          secret: 'secret-12',
+          enabled: true,
+        }),
+      })
+      expect(createResponse.status).toBe(200)
+
+      const listResponse = await fetch(`${baseUrl}/api/v1/public/notifications/webhooks`)
+      const listJson = await listResponse.json()
+      expect(listResponse.status).toBe(200)
+      expect(Array.isArray(listJson.data.items)).toBe(true)
+      expect(listJson.data.items[0].uid).toBe('webhook-1')
+    })
+
+    expect(serviceMocks.createWebhook).toHaveBeenCalledWith({
+      owner: actor,
+      applicationUid: 'app-1',
+      events: ['application.created'],
+      targetUrl: 'https://example.com/webhook',
+      secret: 'secret-12',
+      enabled: true,
+    })
+    expect(serviceMocks.listWebhooks).toHaveBeenCalledWith(actor)
   })
 })

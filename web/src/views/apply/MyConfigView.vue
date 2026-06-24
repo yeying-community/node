@@ -374,9 +374,9 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from 'vue';
+import { computed, onMounted, reactive, ref, watch } from 'vue';
 import QRCode from 'qrcode';
-import { useRouter } from 'vue-router';
+import { useRoute, useRouter } from 'vue-router';
 import { apiUrl } from '@/plugins/api';
 import { getAuthToken, getCurrentAccount } from '@/plugins/auth';
 import $application, { type ApplicationMetadata } from '@/plugins/application';
@@ -547,6 +547,7 @@ type ConfigForm = {
 };
 const locale = getLocaleRef();
 const router = useRouter();
+const route = useRoute();
 
 function mt(key: MyConfigMessageKey): string {
   return getMyConfigMessage(locale.value, key);
@@ -1322,9 +1323,37 @@ const prettyPasskeyResult = computed(() => {
 
 onMounted(async () => {
   currentAccount.value = String(getCurrentAccount() || '').trim();
+  const routeAuthTab = String(route.query.authTab || '').trim();
+  if (routeAuthTab === 'passkey' || routeAuthTab === 'totp') {
+    authTab.value = routeAuthTab;
+  }
+  const routeSelectedAppUid = String(route.query.selectedAppUid || '').trim();
+  if (routeSelectedAppUid) {
+    form.selectedAppUid = routeSelectedAppUid;
+  }
   await loadOwnedApplications();
   await refreshStatuses();
 });
+
+watch(
+  () => route.query.authTab,
+  (value) => {
+    const normalized = String(value || '').trim();
+    if (normalized === 'passkey' || normalized === 'totp') {
+      authTab.value = normalized;
+    }
+  }
+);
+
+watch(
+  () => route.query.selectedAppUid,
+  (value) => {
+    const normalized = String(value || '').trim();
+    if (normalized) {
+      form.selectedAppUid = normalized;
+    }
+  }
+);
 </script>
 
 <style scoped lang="less">
