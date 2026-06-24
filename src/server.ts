@@ -60,6 +60,7 @@ import { getConfig } from './config/runtime';
 import { startActionRequestCleanupJobs } from './domain/service/actionRequestCleanup';
 import { startMpcCleanupJobs } from './domain/service/mpcCleanup';
 import { initMpcEventBus } from './domain/service/mpcEvents';
+import { startNotificationDeliveryJobs } from './domain/service/notificationDelivery';
 import { SingletonLogger } from './domain/facade/logger';
 import { getCentralIssuerStatus } from './auth/ucanIssuer';
 import { getTotpAuthStatus } from './auth/totpAuth';
@@ -255,6 +256,7 @@ builder.build().initialize().then(async (conn) => {
     initMpcEventBus()
     startActionRequestCleanupJobs()
     startMpcCleanupJobs()
+    startNotificationDeliveryJobs()
     // 创建 Express 应用
     const app = express();
     const webDistDir = resolveWebDistDir()

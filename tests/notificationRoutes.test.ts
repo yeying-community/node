@@ -16,6 +16,9 @@ const serviceMocks = {
   updateWebhook: vi.fn(),
   deleteWebhook: vi.fn(),
   listDeliveriesByNotificationUid: vi.fn(),
+  listDeliveriesByWebhook: vi.fn(),
+  retryWebhookDelivery: vi.fn(),
+  replayWebhookDelivery: vi.fn(),
 }
 
 vi.doMock('../src/common/permission', () => ({
@@ -98,6 +101,9 @@ describe('public notification routes', () => {
     serviceMocks.buildEventId.mockImplementation((item) => `${item.createdAt}|${item.notificationUid}`)
     serviceMocks.listWebhooks.mockResolvedValue([])
     serviceMocks.listDeliveriesByNotificationUid.mockResolvedValue([])
+    serviceMocks.listDeliveriesByWebhook.mockResolvedValue([])
+    serviceMocks.retryWebhookDelivery.mockResolvedValue(null)
+    serviceMocks.replayWebhookDelivery.mockResolvedValue(null)
   })
 
   it('passes list filters to the notification service', async () => {
@@ -227,5 +233,86 @@ describe('public notification routes', () => {
       enabled: true,
     })
     expect(serviceMocks.listWebhooks).toHaveBeenCalledWith(actor)
+  })
+
+  it('lists webhook deliveries scoped to the current user', async () => {
+    serviceMocks.listDeliveriesByWebhook.mockResolvedValue([
+      {
+        uid: 'delivery-1',
+        webhookUid: 'webhook-1',
+        notificationUid: 'notification-1',
+        channel: 'webhook',
+        target: 'https://example.com/webhook',
+        status: 'failed',
+        attemptCount: 2,
+        lastError: 'timeout',
+        deliveredAt: '',
+        nextRetryAt: '2026-06-24T09:00:00.000Z',
+        createdAt: '2026-06-24T08:59:00.000Z',
+        updatedAt: '2026-06-24T08:59:00.000Z',
+      },
+    ])
+    const app = createTestApp()
+    await withServer(app, async (baseUrl) => {
+      const response = await fetch(`${baseUrl}/api/v1/public/notifications/webhooks/webhook-1/deliveries?limit=10`)
+      const json = await response.json()
+      expect(response.status).toBe(200)
+      expect(json.data.items[0].uid).toBe('delivery-1')
+    })
+    expect(serviceMocks.listDeliveriesByWebhook).toHaveBeenCalledWith('webhook-1', actor, 10)
+  })
+
+  it('retries one webhook delivery for the current user', async () => {
+    serviceMocks.retryWebhookDelivery.mockResolvedValue({
+      uid: 'delivery-1',
+      webhookUid: 'webhook-1',
+      notificationUid: 'notification-1',
+      channel: 'webhook',
+      target: 'https://example.com/webhook',
+      status: 'delivered',
+      attemptCount: 3,
+      lastError: '',
+      deliveredAt: '2026-06-24T09:01:00.000Z',
+      nextRetryAt: '',
+      createdAt: '2026-06-24T08:59:00.000Z',
+      updatedAt: '2026-06-24T09:01:00.000Z',
+    })
+    const app = createTestApp()
+    await withServer(app, async (baseUrl) => {
+      const response = await fetch(`${baseUrl}/api/v1/public/notifications/webhooks/webhook-1/deliveries/delivery-1/retry`, {
+        method: 'POST',
+      })
+      const json = await response.json()
+      expect(response.status).toBe(200)
+      expect(json.data.status).toBe('delivered')
+    })
+    expect(serviceMocks.retryWebhookDelivery).toHaveBeenCalledWith('webhook-1', 'delivery-1', actor)
+  })
+
+  it('replays one notification to webhook for the current user', async () => {
+    serviceMocks.replayWebhookDelivery.mockResolvedValue({
+      uid: 'delivery-2',
+      webhookUid: 'webhook-1',
+      notificationUid: 'notification-1',
+      channel: 'webhook',
+      target: 'https://example.com/webhook',
+      status: 'delivered',
+      attemptCount: 1,
+      lastError: '',
+      deliveredAt: '2026-06-24T09:02:00.000Z',
+      nextRetryAt: '',
+      createdAt: '2026-06-24T09:02:00.000Z',
+      updatedAt: '2026-06-24T09:02:00.000Z',
+    })
+    const app = createTestApp()
+    await withServer(app, async (baseUrl) => {
+      const response = await fetch(`${baseUrl}/api/v1/public/notifications/webhooks/webhook-1/replay/notification-1`, {
+        method: 'POST',
+      })
+      const json = await response.json()
+      expect(response.status).toBe(200)
+      expect(json.data.uid).toBe('delivery-2')
+    })
+    expect(serviceMocks.replayWebhookDelivery).toHaveBeenCalledWith('webhook-1', 'notification-1', actor)
   })
 })

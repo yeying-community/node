@@ -152,6 +152,27 @@ module.exports = {
     ucanWith: 'mpc',
     ucanCan: 'coordinate'
   },
+  notification: {
+    // Enable background webhook delivery worker.
+    webhookDeliveryEnabled: true,
+    // Poll interval for pending webhook deliveries.
+    webhookDeliveryIntervalMs: 15 * 1000,
+    // Maximum deliveries processed per poll.
+    webhookDeliveryBatchSize: 20,
+    // HTTP timeout for one webhook request.
+    webhookDeliveryTimeoutMs: 10 * 1000,
+    // Delivery claim lease timeout for multi-instance workers.
+    webhookClaimTimeoutMs: 60 * 1000,
+    // Max retry count before giving up.
+    webhookMaxAttempts: 5,
+    // Exponential retry base delay.
+    webhookRetryBaseDelayMs: 15 * 1000,
+    // Retry delay ceiling.
+    webhookRetryMaxDelayMs: 10 * 60 * 1000,
+    // Optional secret master key for encrypting webhook signing secrets.
+    // 推荐通过加密密钥文件或环境变量 NOTIFICATION_WEBHOOK_MASTER_KEY 注入。
+    webhookMasterKey: ''
+  },
   redis: {
     // Enable redis pub/sub for MPC events
     enabled: false,

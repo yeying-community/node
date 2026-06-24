@@ -8,6 +8,11 @@ import {
   publishNotificationEvent,
   type NotificationStreamEvent,
 } from './notificationEvents'
+import {
+  encryptNotificationWebhookSecret,
+  replayNotificationWebhookDeliveryNow,
+  retryNotificationWebhookDeliveryNow,
+} from './notificationDelivery'
 
 export type NotificationCreateInput = {
   type: string
@@ -73,6 +78,7 @@ export type NotificationWebhookRecord = {
 
 export type NotificationDeliveryRecord = {
   uid: string
+  webhookUid: string
   notificationUid: string
   channel: string
   target: string
@@ -274,9 +280,12 @@ export class NotificationService {
     const deliveryRecords = recipients.map((recipient) =>
       this.deliveryRepository.create({
         notificationUid: notification.uid,
+        webhookUid: '',
         channel: 'inbox',
         target: recipient,
         status: 'delivered',
+        lockToken: '',
+        lockedAt: '',
         attemptCount: 1,
         lastError: '',
         deliveredAt: now,
@@ -711,7 +720,7 @@ export class NotificationService {
       eventsJson: JSON.stringify(this.normalizeEventList(input.events)),
       targetUrl,
       secretMasked: this.maskSecret(secret),
-      secretCiphertext: secret,
+      secretCiphertext: secret ? encryptNotificationWebhookSecret(secret) : '',
       enabled: input.enabled !== false,
       lastTriggeredAt: '',
       createdAt: now,
@@ -752,7 +761,7 @@ export class NotificationService {
     }
     if (input.secret !== undefined) {
       const secret = String(input.secret || '').trim()
-      existing.secretCiphertext = secret
+      existing.secretCiphertext = secret ? encryptNotificationWebhookSecret(secret) : ''
       existing.secretMasked = this.maskSecret(secret)
     }
     if (input.enabled !== undefined) {
@@ -788,6 +797,7 @@ export class NotificationService {
     })
     return rows.map((row) => ({
       uid: row.uid,
+      webhookUid: row.webhookUid,
       notificationUid: row.notificationUid,
       channel: row.channel,
       target: row.target,
@@ -799,6 +809,114 @@ export class NotificationService {
       createdAt: row.createdAt,
       updatedAt: row.updatedAt,
     }))
+  }
+
+  async listDeliveriesByWebhook(uidInput: string, ownerInput: string, limitInput = 20): Promise<NotificationDeliveryRecord[]> {
+    const uid = String(uidInput || '').trim()
+    const owner = normalizeRecipient(ownerInput)
+    if (!uid || !owner) {
+      return []
+    }
+    const webhook = await this.webhookRepository.findOneBy({ uid, owner })
+    if (!webhook) {
+      return []
+    }
+    const limit = Number.isFinite(limitInput) && limitInput > 0 ? Math.min(Math.trunc(limitInput), 100) : 20
+    const rows = await this.deliveryRepository.find({
+      where: { webhookUid: uid },
+      order: { createdAt: 'DESC' },
+      take: limit,
+    })
+    return rows.map((row) => ({
+      uid: row.uid,
+      webhookUid: row.webhookUid,
+      notificationUid: row.notificationUid,
+      channel: row.channel,
+      target: row.target,
+      status: row.status,
+      attemptCount: row.attemptCount,
+      lastError: row.lastError,
+      deliveredAt: row.deliveredAt,
+      nextRetryAt: row.nextRetryAt,
+      createdAt: row.createdAt,
+      updatedAt: row.updatedAt,
+    }))
+  }
+
+  async retryWebhookDelivery(uidInput: string, deliveryUidInput: string, ownerInput: string): Promise<NotificationDeliveryRecord | null> {
+    const uid = String(uidInput || '').trim()
+    const owner = normalizeRecipient(ownerInput)
+    const deliveryUid = String(deliveryUidInput || '').trim()
+    if (!uid || !owner || !deliveryUid) {
+      return null
+    }
+    const webhook = await this.webhookRepository.findOneBy({ uid, owner })
+    if (!webhook) {
+      return null
+    }
+    const delivery = await this.deliveryRepository.findOneBy({ uid: deliveryUid, webhookUid: uid })
+    if (!delivery) {
+      return null
+    }
+    const updated = await retryNotificationWebhookDeliveryNow(deliveryUid)
+    if (!updated) {
+      return null
+    }
+    return {
+      uid: updated.uid,
+      webhookUid: updated.webhookUid,
+      notificationUid: updated.notificationUid,
+      channel: updated.channel,
+      target: updated.target,
+      status: updated.status,
+      attemptCount: updated.attemptCount,
+      lastError: updated.lastError,
+      deliveredAt: updated.deliveredAt,
+      nextRetryAt: updated.nextRetryAt,
+      createdAt: updated.createdAt,
+      updatedAt: updated.updatedAt,
+    }
+  }
+
+  async replayWebhookDelivery(uidInput: string, notificationUidInput: string, ownerInput: string): Promise<NotificationDeliveryRecord | null> {
+    const uid = String(uidInput || '').trim()
+    const owner = normalizeRecipient(ownerInput)
+    const notificationUid = String(notificationUidInput || '').trim()
+    if (!uid || !owner || !notificationUid) {
+      return null
+    }
+    const webhook = await this.webhookRepository.findOneBy({ uid, owner })
+    if (!webhook) {
+      return null
+    }
+    const notification = await this.notificationRepository.findOneBy({ uid: notificationUid })
+    if (!notification) {
+      return null
+    }
+    const latestDelivery = await this.deliveryRepository.findOne({
+      where: { webhookUid: uid, notificationUid },
+      order: { createdAt: 'DESC' },
+    })
+    const updated = await replayNotificationWebhookDeliveryNow({
+      webhookUid: uid,
+      notificationUid,
+      target: webhook.targetUrl,
+      sourceStatus: latestDelivery?.status,
+    })
+    return {
+      uid: updated.uid,
+      webhookUid: updated.webhookUid,
+      notificationUid: updated.notificationUid,
+      channel: updated.channel,
+      target: updated.target,
+      status: updated.status,
+      attemptCount: updated.attemptCount,
+      lastError: updated.lastError,
+      deliveredAt: updated.deliveredAt,
+      nextRetryAt: updated.nextRetryAt,
+      createdAt: updated.createdAt,
+      updatedAt: updated.updatedAt,
+    }
   }
 
   async notifyAuditApproved(input: {
@@ -1239,9 +1357,12 @@ export class NotificationService {
       deliveries.push(
         this.deliveryRepository.create({
           notificationUid: notification.uid,
+          webhookUid: row.uid,
           channel: 'webhook',
           target: row.targetUrl,
           status: 'pending',
+          lockToken: '',
+          lockedAt: '',
           attemptCount: 0,
           lastError: '',
           deliveredAt: '',

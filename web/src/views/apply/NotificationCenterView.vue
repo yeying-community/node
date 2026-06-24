@@ -226,13 +226,74 @@
               </div>
               <div class="webhook-actions">
                 <span class="webhook-time">{{ $t('notification_webhook_last_triggered') }}：{{ formatFullTime(item.lastTriggeredAt) }}</span>
-                <el-button text type="danger" @click="removeWebhook(item.uid)">{{ $t('notification_webhook_delete') }}</el-button>
+                <div class="webhook-action-buttons">
+                  <el-button text @click="openDeliveryDialog(item)">{{ $t('notification_webhook_deliveries') }}</el-button>
+                  <el-button text type="danger" @click="removeWebhook(item.uid)">{{ $t('notification_webhook_delete') }}</el-button>
+                </div>
               </div>
             </div>
           </div>
         </section>
       </div>
     </template>
+
+    <el-dialog
+      v-model="deliveryDialogVisible"
+      :title="$t('notification_webhook_delivery_history')"
+      width="760px"
+      destroy-on-close
+    >
+      <div class="delivery-dialog-head">
+        <div class="delivery-dialog-target">{{ selectedWebhookForDeliveries?.targetUrl || '-' }}</div>
+        <div class="delivery-dialog-meta">
+          <span>{{ $t('notification_webhook_app_id') }}：{{ selectedWebhookForDeliveries?.applicationUid || '-' }}</span>
+        </div>
+      </div>
+      <div v-if="deliveryLoading" class="panel-empty">{{ $t('header_notification_loading') }}</div>
+      <div v-else-if="deliveryItems.length === 0" class="panel-empty">{{ $t('notification_webhook_delivery_empty') }}</div>
+          <div v-else class="delivery-list">
+            <div v-for="item in deliveryItems" :key="item.uid" class="delivery-item">
+              <div class="delivery-item-head">
+                <div class="delivery-item-tags">
+              <el-tag size="small" :type="deliveryStatusType(item.status)">{{ deliveryStatusLabel(item.status) }}</el-tag>
+              <el-tag size="small" effect="plain">#{{ item.attemptCount }}</el-tag>
+                </div>
+                <div class="delivery-item-head-actions">
+                  <span class="delivery-item-time">{{ formatFullTime(item.createdAt) }}</span>
+                  <el-button text :loading="deliveryActionUid === item.uid" @click="handleRetryDelivery(item)">
+                    {{ $t('notification_webhook_retry_now') }}
+                  </el-button>
+                  <el-button
+                    text
+                    :loading="deliveryReplayUid === item.uid"
+                    @click="handleReplayDelivery(item)"
+                  >
+                    {{ $t('notification_webhook_replay_now') }}
+                  </el-button>
+                </div>
+              </div>
+          <div class="delivery-item-grid">
+            <div class="meta-item">
+              <span class="meta-label">{{ $t('notification_webhook_delivery_notification') }}</span>
+              <span class="meta-value">{{ item.notificationUid }}</span>
+            </div>
+            <div class="meta-item">
+              <span class="meta-label">{{ $t('notification_webhook_delivery_target') }}</span>
+              <span class="meta-value">{{ item.target || '-' }}</span>
+            </div>
+            <div class="meta-item">
+              <span class="meta-label">{{ $t('notification_webhook_delivery_delivered_at') }}</span>
+              <span class="meta-value">{{ formatFullTime(item.deliveredAt) }}</span>
+            </div>
+            <div class="meta-item">
+              <span class="meta-label">{{ $t('notification_webhook_delivery_retry_at') }}</span>
+              <span class="meta-value">{{ formatFullTime(item.nextRetryAt) }}</span>
+            </div>
+          </div>
+          <div v-if="item.lastError" class="delivery-error">{{ item.lastError }}</div>
+        </div>
+      </div>
+    </el-dialog>
   </div>
 </template>
 
@@ -240,7 +301,7 @@
 import { computed, getCurrentInstance, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import dayjs from 'dayjs'
 import { useRoute, useRouter } from 'vue-router'
-import $notification, { type NotificationListItem, type NotificationStreamPayload, type NotificationWebhookItem } from '@/plugins/notification'
+import $notification, { type NotificationDeliveryItem, type NotificationListItem, type NotificationStreamPayload, type NotificationWebhookItem } from '@/plugins/notification'
 import { getNotificationLevelLabel, getNotificationSourceLabel, getNotificationTypeLabel, resolveNotificationRoute } from '@/plugins/notificationMeta'
 import $application, { type ApplicationMetadata } from '@/plugins/application'
 import { notifyError } from '@/utils/message'
@@ -260,6 +321,12 @@ const selectedItem = ref<NotificationListItem | null>(null)
 const ownedApplications = ref<ApplicationMetadata[]>([])
 const webhooks = ref<NotificationWebhookItem[]>([])
 const webhookLoading = ref(false)
+const deliveryDialogVisible = ref(false)
+const deliveryLoading = ref(false)
+const deliveryItems = ref<NotificationDeliveryItem[]>([])
+const selectedWebhookForDeliveries = ref<NotificationWebhookItem | null>(null)
+const deliveryActionUid = ref('')
+const deliveryReplayUid = ref('')
 const filters = reactive({
   applicationUid: '',
   source: '',
@@ -391,6 +458,34 @@ function notificationSourceLabel(source: string) {
 
 function notificationLevelLabel(level: string) {
   return getNotificationLevelLabel((key) => String($t(key)), level)
+}
+
+function deliveryStatusLabel(status: string) {
+  const normalized = String(status || '').trim()
+  switch (normalized) {
+    case 'delivered':
+      return String($t('notification_level_success'))
+    case 'delivering':
+      return String($t('notification_webhook_delivery_status_delivering'))
+    case 'failed':
+      return String($t('notification_level_warning'))
+    default:
+      return String($t('notification_level_info'))
+  }
+}
+
+function deliveryStatusType(status: string): 'success' | 'info' | 'warning' | 'danger' | undefined {
+  const normalized = String(status || '').trim()
+  switch (normalized) {
+    case 'delivered':
+      return 'success'
+    case 'delivering':
+      return 'info'
+    case 'failed':
+      return 'warning'
+    default:
+      return undefined
+  }
 }
 
 function formatTime(value: string) {
@@ -576,6 +671,59 @@ async function removeWebhook(uid: string) {
     webhooks.value = webhooks.value.filter((item) => item.uid !== uid)
   } catch (error) {
     notifyError(`${$t('notification_webhook_delete_failed')}：${error}`)
+  }
+}
+
+async function openDeliveryDialog(item: NotificationWebhookItem) {
+  selectedWebhookForDeliveries.value = item
+  deliveryDialogVisible.value = true
+  deliveryLoading.value = true
+  deliveryItems.value = []
+  try {
+    const result = await $notification.listWebhookDeliveries(item.uid, 20)
+    deliveryItems.value = Array.isArray(result.items) ? result.items : []
+  } catch (error) {
+    notifyError(`${$t('notification_webhook_delivery_load_failed')}：${error}`)
+  } finally {
+    deliveryLoading.value = false
+  }
+}
+
+async function handleRetryDelivery(item: NotificationDeliveryItem) {
+  const webhook = selectedWebhookForDeliveries.value
+  if (!webhook) {
+    return
+  }
+  deliveryActionUid.value = item.uid
+  try {
+    const updated = await $notification.retryWebhookDelivery(webhook.uid, item.uid)
+    const index = deliveryItems.value.findIndex((entry) => entry.uid === item.uid)
+    if (index >= 0) {
+      deliveryItems.value[index] = updated
+    }
+    await loadWebhooks()
+  } catch (error) {
+    notifyError(`${$t('notification_webhook_retry_failed')}：${error}`)
+  } finally {
+    deliveryActionUid.value = ''
+  }
+}
+
+async function handleReplayDelivery(item: NotificationDeliveryItem) {
+  const webhook = selectedWebhookForDeliveries.value
+  if (!webhook) {
+    return
+  }
+  deliveryReplayUid.value = item.uid
+  try {
+    const replayed = await $notification.replayWebhookDelivery(webhook.uid, item.notificationUid)
+    deliveryItems.value.unshift(replayed)
+    deliveryItems.value = deliveryItems.value.slice(0, 20)
+    await loadWebhooks()
+  } catch (error) {
+    notifyError(`${$t('notification_webhook_replay_failed')}：${error}`)
+  } finally {
+    deliveryReplayUid.value = ''
   }
 }
 
@@ -1124,9 +1272,88 @@ onBeforeUnmount(() => {
   gap: 12px;
 }
 
+.webhook-action-buttons {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
 .webhook-time {
   font-size: 12px;
   color: #6b7280;
+}
+
+.delivery-dialog-head {
+  margin-bottom: 16px;
+}
+
+.delivery-dialog-target {
+  font-size: 14px;
+  font-weight: 600;
+  color: #111827;
+  word-break: break-all;
+}
+
+.delivery-dialog-meta {
+  margin-top: 8px;
+  font-size: 12px;
+  color: #6b7280;
+}
+
+.delivery-list {
+  display: grid;
+  gap: 12px;
+}
+
+.delivery-item {
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  padding: 14px;
+  background: #f8fafc;
+}
+
+.delivery-item-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: center;
+}
+
+.delivery-item-head-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.delivery-item-tags {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.delivery-item-time {
+  font-size: 12px;
+  color: #6b7280;
+}
+
+.delivery-item-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 12px;
+}
+
+.delivery-error {
+  margin-top: 12px;
+  padding: 12px;
+  border-radius: 8px;
+  background: #fff7ed;
+  color: #9a3412;
+  font-size: 12px;
+  line-height: 1.6;
+  word-break: break-word;
 }
 
 @media (max-width: 1100px) {
@@ -1155,6 +1382,10 @@ onBeforeUnmount(() => {
   }
 
   .meta-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .delivery-item-grid {
     grid-template-columns: 1fr;
   }
 }

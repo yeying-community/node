@@ -216,6 +216,62 @@ export function registerPublicNotificationRoutes(app: Express) {
     }
   })
 
+  app.get('/api/v1/public/notifications/webhooks/:uid/deliveries', async (req: Request, res: Response) => {
+    try {
+      const address = resolveCurrentAddress()
+      if (!address) {
+        res.status(401).json(fail(401, 'Missing access token'))
+        return
+      }
+      await ensureUserActive(address)
+      const items = await service.listDeliveriesByWebhook(req.params.uid, address, parsePositiveInt(req.query.limit, 20))
+      res.json(ok({ items }))
+    } catch (error) {
+      const mapped = mapNotificationError(error)
+      res.status(mapped.status).json(fail(mapped.status, mapped.message))
+    }
+  })
+
+  app.post('/api/v1/public/notifications/webhooks/:uid/deliveries/:deliveryUid/retry', async (req: Request, res: Response) => {
+    try {
+      const address = resolveCurrentAddress()
+      if (!address) {
+        res.status(401).json(fail(401, 'Missing access token'))
+        return
+      }
+      await ensureUserActive(address)
+      const item = await service.retryWebhookDelivery(req.params.uid, req.params.deliveryUid, address)
+      if (!item) {
+        res.status(404).json(fail(404, 'Delivery not found'))
+        return
+      }
+      res.json(ok(item))
+    } catch (error) {
+      const mapped = mapNotificationError(error)
+      res.status(mapped.status).json(fail(mapped.status, mapped.message))
+    }
+  })
+
+  app.post('/api/v1/public/notifications/webhooks/:uid/replay/:notificationUid', async (req: Request, res: Response) => {
+    try {
+      const address = resolveCurrentAddress()
+      if (!address) {
+        res.status(401).json(fail(401, 'Missing access token'))
+        return
+      }
+      await ensureUserActive(address)
+      const item = await service.replayWebhookDelivery(req.params.uid, req.params.notificationUid, address)
+      if (!item) {
+        res.status(404).json(fail(404, 'Replay target not found'))
+        return
+      }
+      res.json(ok(item))
+    } catch (error) {
+      const mapped = mapNotificationError(error)
+      res.status(mapped.status).json(fail(mapped.status, mapped.message))
+    }
+  })
+
   app.post('/api/v1/public/notifications/webhooks', async (req: Request, res: Response) => {
     try {
       const address = resolveCurrentAddress()

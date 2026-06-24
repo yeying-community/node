@@ -246,6 +246,9 @@ export class NotificationDeliveryDO {
     @PrimaryGeneratedColumn('uuid')
     uid!: string
 
+    @Column({ length: 64, name: 'webhook_uid', default: '' })
+    webhookUid!: string
+
     @Column({ length: 64, name: 'notification_uid' })
     notificationUid!: string
 
@@ -257,6 +260,12 @@ export class NotificationDeliveryDO {
 
     @Column({ length: 32, default: 'pending' })
     status!: string
+
+    @Column({ length: 128, name: 'lock_token', default: '' })
+    lockToken!: string
+
+    @Column({ length: 64, name: 'locked_at', default: '' })
+    lockedAt!: string
 
     @Column({ type: 'int', name: 'attempt_count', default: 0 })
     attemptCount!: number
