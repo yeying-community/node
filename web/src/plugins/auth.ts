@@ -43,7 +43,12 @@ let cachedProvider: Eip1193Provider | null = null;
 let providerWatcherReady = false;
 let walletListenersProvider: Eip1193Provider | null = null;
 let walletListenersTeardown: Array<() => void> = [];
-let loginInFlight: { accountKey: string; promise: Promise<boolean> } | null = null;
+let accountRequestInFlight: { provider: Eip1193Provider; promise: Promise<string[]> } | null = null;
+let loginInFlight: {
+  accountKey: string;
+  provider: Eip1193Provider | null;
+  promise: Promise<boolean>;
+} | null = null;
 let cachedApiToken: CachedToken | null = null;
 let cachedWebDavToken: CachedToken | null = null;
 let cachedSession: UcanSessionKey | null = null;
@@ -65,12 +70,75 @@ function normalizeAccountKey(account?: string | null) {
   return String(account || '').trim().toLowerCase();
 }
 
+function isProviderCandidate(value: unknown): value is Eip1193Provider {
+  return Boolean(value && typeof (value as Eip1193Provider).request === 'function');
+}
+
+function addFocusProviderCandidate(candidates: Eip1193Provider[], candidate: unknown) {
+  if (isProviderCandidate(candidate) && !candidates.includes(candidate)) {
+    candidates.push(candidate);
+    const nestedProviders = (candidate as { providers?: unknown }).providers;
+    if (Array.isArray(nestedProviders)) {
+      for (const nested of nestedProviders) {
+        addFocusProviderCandidate(candidates, nested);
+      }
+    }
+  }
+}
+
+function getFocusProviderCandidates(provider?: Eip1193Provider | null) {
+  const candidates: Eip1193Provider[] = [];
+  addFocusProviderCandidate(candidates, provider);
+  addFocusProviderCandidate(candidates, loginInFlight?.provider);
+  addFocusProviderCandidate(candidates, accountRequestInFlight?.provider);
+  addFocusProviderCandidate(candidates, cachedProvider);
+  addFocusProviderCandidate(candidates, walletListenersProvider);
+
+  if (typeof window !== 'undefined') {
+    const source = window as Window & Record<string, unknown>;
+    for (const name of ['yeying', 'yeeying', '__YEYING_PROVIDER__', 'ethereum']) {
+      addFocusProviderCandidate(candidates, source[name]);
+    }
+  }
+
+  return candidates;
+}
+
 async function focusPendingWalletApproval(provider?: Eip1193Provider | null) {
+  const candidates = getFocusProviderCandidates(provider);
+  for (const candidate of candidates) {
+    try {
+      const result = await focusPendingApproval(candidate);
+      if (result.focused) {
+        return true;
+      }
+    } catch {
+      // try the next provider candidate
+    }
+  }
+
   try {
-    const result = await focusPendingApproval(provider || undefined);
+    const result = await focusPendingApproval();
     return Boolean(result.focused);
   } catch {
     return false;
+  }
+}
+
+async function requestWalletAccounts(provider: Eip1193Provider) {
+  if (accountRequestInFlight) {
+    void focusPendingWalletApproval(provider);
+    return await accountRequestInFlight.promise;
+  }
+
+  const promise = requestAccounts({ provider });
+  accountRequestInFlight = { provider, promise };
+  try {
+    return await promise;
+  } finally {
+    if (accountRequestInFlight?.promise === promise) {
+      accountRequestInFlight = null;
+    }
   }
 }
 
@@ -659,16 +727,17 @@ export async function connectWallet(router: any, route: any) {
     getWalletDataStore().setWalletReady(true);
     void setupWalletListeners({ provider });
     try {
-      if (loginInFlight && await focusPendingWalletApproval(provider)) {
-          const ok = await waitForLoginCompletion();
-          if (ok) {
-            if (!(await goMarketAfterLogin(router))) {
-              notifyError('登录成功，但跳转应用商店失败，请重试');
-            }
+      if (loginInFlight) {
+        await focusPendingWalletApproval(provider);
+        const ok = await waitForLoginCompletion();
+        if (ok) {
+          if (!(await goMarketAfterLogin(router))) {
+            notifyError('登录成功，但跳转应用商店失败，请重试');
           }
+        }
         return;
       }
-      const accounts = await requestAccounts({ provider });
+      const accounts = await requestWalletAccounts(provider);
       if (Array.isArray(accounts) && accounts.length > 0) {
         const currentAccount = accounts[0];
         const ok = await loginWithUcan(provider, currentAccount);
@@ -907,7 +976,7 @@ export async function loginWithUcan(
       void setupWalletListeners({ provider });
       const accounts = accountOverride
         ? [accountOverride]
-        : await requestAccounts({ provider });
+        : await requestWalletAccounts(provider);
       const currentAccount = accountOverride || accounts?.[0];
       if (!currentAccount) {
         notifyError('未获取到账户');
@@ -928,7 +997,7 @@ export async function loginWithUcan(
       return false;
     }
   })();
-  loginInFlight = { accountKey, promise };
+  loginInFlight = { accountKey, provider: providerOverride || cachedProvider, promise };
   try {
     return await promise;
   } finally {
