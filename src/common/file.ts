@@ -1,22 +1,27 @@
 import fs from "fs";
 import * as os from 'os';
 import * as path from 'path';
+import { SingletonLogger } from '../domain/facade/logger';
 
+const logger = SingletonLogger.get()
 
 export function readFile(filePath: string): string {
     try {
         return fs.readFileSync(filePath, 'utf8')
     } catch (error) {
-        console.error('read file error', error)
+        logger.error('read file error', {
+            filePath,
+            error: error instanceof Error ? error.message : String(error)
+        })
         return ''
     }
 }
 
 export function exists(filename: string) {
     try {
-        fs.accessSync('path/to/file', fs.constants.F_OK);
+        fs.accessSync(filename, fs.constants.F_OK);
         return true
-    } catch (err) {
+    } catch {
         return false
     }
 }

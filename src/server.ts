@@ -17,6 +17,8 @@ import {
     PasskeySubjectCredentialDO,
     NotificationDO,
     NotificationInboxDO,
+    NotificationWebhookDO,
+    NotificationDeliveryDO,
     MpcSessionDO,
     MpcSessionParticipantDO,
     MpcMessageDO,
@@ -53,10 +55,12 @@ import { AddApplicationUcanPolicy20260423193000 } from './migrations/20260423193
 import { BackfillApplicationUcanPolicy20260424110000 } from './migrations/20260424110000-backfill-application-ucan-policy';
 import { FixApplicationUcanPolicyRouterPriority20260424123000 } from './migrations/20260424123000-fix-application-ucan-policy-router-priority';
 import { AddNotifications20260429110000 } from './migrations/20260429110000-add-notifications';
+import { AddNotificationWebhooksAndDeliveries20260624090000 } from './migrations/20260624090000-add-notification-webhooks-and-deliveries';
 import { getConfig } from './config/runtime';
 import { startActionRequestCleanupJobs } from './domain/service/actionRequestCleanup';
 import { startMpcCleanupJobs } from './domain/service/mpcCleanup';
 import { initMpcEventBus } from './domain/service/mpcEvents';
+import { startNotificationDeliveryJobs } from './domain/service/notificationDelivery';
 import { SingletonLogger } from './domain/facade/logger';
 import { getCentralIssuerStatus } from './auth/ucanIssuer';
 import { getTotpAuthStatus } from './auth/totpAuth';
@@ -66,6 +70,7 @@ import { assertJwtSecretReady } from './auth/siwe';
 
 // 初始化日志
 new LoggerService(getConfig<LoggerConfig>('logger')).initialize()
+const logger = SingletonLogger.get()
 
 function resolveWebDistDir() {
     const candidates: string[] = []
@@ -211,6 +216,8 @@ builder.entities([
     PasskeySubjectCredentialDO,
     NotificationDO,
     NotificationInboxDO,
+    NotificationWebhookDO,
+    NotificationDeliveryDO,
     MpcSessionDO,
     MpcSessionParticipantDO,
     MpcMessageDO,
@@ -230,7 +237,8 @@ builder.migrations([
     AddApplicationUcanPolicy20260423193000,
     BackfillApplicationUcanPolicy20260424110000,
     FixApplicationUcanPolicyRouterPriority20260424123000,
-    AddNotifications20260429110000
+    AddNotifications20260429110000,
+    AddNotificationWebhooksAndDeliveries20260624090000
 ])
 
 builder.build().initialize().then(async (conn) => {
@@ -242,12 +250,13 @@ builder.build().initialize().then(async (conn) => {
         await conn.query(`CREATE SCHEMA IF NOT EXISTS ${schemaRef}`)
         await conn.runMigrations()
     } else {
-        console.log('MySQL mode enabled, using synchronize schema initialization (no postgres migrations).')
+        logger.info('mysql mode enabled, using synchronize schema initialization (no postgres migrations)')
     }
-    console.log('The database has been initialized.')
+    logger.info('database initialized')
     initMpcEventBus()
     startActionRequestCleanupJobs()
     startMpcCleanupJobs()
+    startNotificationDeliveryJobs()
     // 创建 Express 应用
     const app = express();
     const webDistDir = resolveWebDistDir()
@@ -296,9 +305,17 @@ builder.build().initialize().then(async (conn) => {
     // 启动服务器
     app.listen(port, '0.0.0.0', () => {
         if (webDistDir) {
-            console.log(`📦 Serving frontend assets from ${webDistDir}`)
+            logger.info('serving frontend assets', { webDistDir })
         }
-        console.log(`🚀 Server is running on http://localhost:${port}`);
+        logger.info('server started', {
+            host: '0.0.0.0',
+            port,
+            url: `http://localhost:${port}`,
+        })
     });
 
-}).catch(error => console.log("Database connection failed", error))
+}).catch(error => {
+    logger.error('database connection failed', {
+        error: error instanceof Error ? error.message : String(error),
+    })
+})

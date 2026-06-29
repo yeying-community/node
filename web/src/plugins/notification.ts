@@ -65,6 +65,34 @@ export type NotificationStreamPayload =
       message: string
     }
 
+export type NotificationWebhookItem = {
+  uid: string
+  owner: string
+  applicationUid: string
+  events: string[]
+  targetUrl: string
+  secretMasked: string
+  enabled: boolean
+  lastTriggeredAt: string
+  createdAt: string
+  updatedAt: string
+}
+
+export type NotificationDeliveryItem = {
+  uid: string
+  webhookUid: string
+  notificationUid: string
+  channel: string
+  target: string
+  status: string
+  attemptCount: number
+  lastError: string
+  deliveredAt: string
+  nextRetryAt: string
+  createdAt: string
+  updatedAt: string
+}
+
 type NotificationStreamHandlers = {
   onEvent?: (event: string, data: NotificationStreamPayload) => void
   onError?: (error: Error) => void
@@ -147,7 +175,14 @@ function isAbortLikeError(error: unknown): boolean {
 let lastStreamEventId = ''
 
 class NotificationClient {
-  async list(input: { page?: number; pageSize?: number; unreadOnly?: boolean; source?: string; level?: string } = {}) {
+  async list(input: {
+    page?: number
+    pageSize?: number
+    unreadOnly?: boolean
+    source?: string
+    level?: string
+    applicationUid?: string
+  } = {}) {
     const params = new URLSearchParams()
     params.set('page', String(input.page || 1))
     params.set('pageSize', String(input.pageSize || 20))
@@ -159,6 +194,9 @@ class NotificationClient {
     }
     if (input.level) {
       params.set('level', input.level)
+    }
+    if (input.applicationUid) {
+      params.set('applicationUid', input.applicationUid)
     }
     const response = await fetch(apiUrl(`/api/v1/public/notifications?${params.toString()}`), {
       method: 'GET',
@@ -207,6 +245,94 @@ class NotificationClient {
       },
     })
     return await parseEnvelope<{ updatedCount: number }>(response)
+  }
+
+  async listWebhooks() {
+    const response = await fetch(apiUrl('/api/v1/public/notifications/webhooks'), {
+      method: 'GET',
+      headers: {
+        ...getAuthorizationHeaders(),
+      },
+    })
+    return await parseEnvelope<{ items: NotificationWebhookItem[] }>(response)
+  }
+
+  async createWebhook(input: {
+    applicationUid?: string
+    events: string[]
+    targetUrl: string
+    secret?: string
+    enabled?: boolean
+  }) {
+    const response = await fetch(apiUrl('/api/v1/public/notifications/webhooks'), {
+      method: 'POST',
+      headers: {
+        ...getAuthorizationHeaders(),
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(input),
+    })
+    return await parseEnvelope<NotificationWebhookItem>(response)
+  }
+
+  async updateWebhook(uid: string, input: {
+    applicationUid?: string
+    events?: string[]
+    targetUrl?: string
+    secret?: string
+    enabled?: boolean
+  }) {
+    const response = await fetch(apiUrl(`/api/v1/public/notifications/webhooks/${uid}`), {
+      method: 'PATCH',
+      headers: {
+        ...getAuthorizationHeaders(),
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(input),
+    })
+    return await parseEnvelope<NotificationWebhookItem>(response)
+  }
+
+  async deleteWebhook(uid: string) {
+    const response = await fetch(apiUrl(`/api/v1/public/notifications/webhooks/${uid}`), {
+      method: 'DELETE',
+      headers: {
+        ...getAuthorizationHeaders(),
+      },
+    })
+    return await parseEnvelope<{ deleted: boolean }>(response)
+  }
+
+  async listWebhookDeliveries(uid: string, limit = 20) {
+    const params = new URLSearchParams()
+    params.set('limit', String(limit))
+    const response = await fetch(apiUrl(`/api/v1/public/notifications/webhooks/${uid}/deliveries?${params.toString()}`), {
+      method: 'GET',
+      headers: {
+        ...getAuthorizationHeaders(),
+      },
+    })
+    return await parseEnvelope<{ items: NotificationDeliveryItem[] }>(response)
+  }
+
+  async retryWebhookDelivery(uid: string, deliveryUid: string) {
+    const response = await fetch(apiUrl(`/api/v1/public/notifications/webhooks/${uid}/deliveries/${deliveryUid}/retry`), {
+      method: 'POST',
+      headers: {
+        ...getAuthorizationHeaders(),
+      },
+    })
+    return await parseEnvelope<NotificationDeliveryItem>(response)
+  }
+
+  async replayWebhookDelivery(uid: string, notificationUid: string) {
+    const response = await fetch(apiUrl(`/api/v1/public/notifications/webhooks/${uid}/replay/${notificationUid}`), {
+      method: 'POST',
+      headers: {
+        ...getAuthorizationHeaders(),
+      },
+    })
+    return await parseEnvelope<NotificationDeliveryItem>(response)
   }
 
   openStream(handlers: NotificationStreamHandlers = {}) {

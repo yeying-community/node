@@ -26,6 +26,7 @@
                         <ApplicationListTable
                             :items="applicationList"
                             :page-from="item.name"
+                            :highlight-uid="highlightUid"
                             :refresh-list="search"
                         />
                     </el-tab-pane>
@@ -50,7 +51,7 @@ import { getCurrentInstance, ref, watch } from 'vue'
 import { Search } from '@element-plus/icons-vue'
 import $application, { ApplicationMetadata } from '@/plugins/application'
 import ApplicationListTable from '@/views/components/ApplicationListTable.vue'
-import { useRouter, RouteLocationAsPathGeneric, RouteLocationAsRelativeGeneric } from 'vue-router'
+import { useRouter, useRoute, RouteLocationAsPathGeneric, RouteLocationAsRelativeGeneric } from 'vue-router'
 import { notifyError } from '@/utils/message'
 import { getCurrentAccount } from '@/plugins/auth'
 
@@ -58,8 +59,11 @@ const searchVal = ref<string>('')
 const activeService = ref<string>('myCreate')
 const applicationList = ref<ApplicationMetadata[]>([])
 const router = useRouter()
+const route = useRoute()
 const { proxy } = getCurrentInstance()!
 const { $t } = proxy
+const highlightUid = ref('')
+let highlightTimer: number | null = null
 
 interface Tab {
   name: string;
@@ -169,6 +173,62 @@ const initialTab = String(router.currentRoute.value.query.tab || '').trim()
 if (initialTab === 'myApply' || initialTab === 'myCreate') {
     activeService.value = initialTab
 }
+
+watch(
+    () => route.query.tab,
+    (tab) => {
+        const normalized = String(tab || '').trim()
+        if (normalized === 'myApply' || normalized === 'myCreate') {
+            activeService.value = normalized
+        }
+    },
+    { immediate: true }
+)
+
+watch(
+    () => route.query.highlightUid,
+    (uid) => {
+        const normalized = String(uid || '').trim()
+        highlightUid.value = normalized
+        if (highlightTimer !== null) {
+            window.clearTimeout(highlightTimer)
+            highlightTimer = null
+        }
+        if (!normalized) {
+            return
+        }
+        highlightTimer = window.setTimeout(() => {
+            highlightUid.value = ''
+            highlightTimer = null
+        }, 4000)
+    },
+    { immediate: true }
+)
+
+watch(
+    () => [route.query.openUid, activeService.value, applicationList.value.length] as const,
+    async ([openUid, tab]) => {
+        const normalized = String(openUid || '').trim()
+        if (!normalized || tab !== 'myCreate') {
+            return
+        }
+        const row = applicationList.value.find((item) => String(item.uid || '').trim() === normalized)
+        if (!row) {
+            return
+        }
+        await router.replace({
+            path: '/market/dev/apply-detail',
+            query: {
+                uid: row.uid,
+                did: row.did,
+                version: String(row.version || ''),
+                pageFrom: 'myCreate',
+                fromNotification: String(route.query.fromNotification || ''),
+                notificationUid: String(route.query.notificationUid || '')
+            }
+        })
+    }
+)
 </script>
 <style scoped lang="less">
 :deep(.el-tabs__nav-scroll) {

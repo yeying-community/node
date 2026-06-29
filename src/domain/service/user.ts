@@ -40,13 +40,30 @@ export class UserService {
     //     return this.userManager.insert(convertUserTo(user))
     // }
 
+    private maskDid(value: string) {
+        const normalized = String(value || '').trim()
+        if (!normalized) return ''
+        if (normalized.length <= 16) return normalized
+        return `${normalized.slice(0, 10)}...${normalized.slice(-6)}`
+    }
+
     async saveUser(user: User) {
-        console.log(`user=${JSON.stringify(user)}`)
+        this.logger.info('saving user', {
+            did: this.maskDid(user.did),
+            hasName: Boolean(String(user.name || '').trim()),
+            hasAvatar: Boolean(String(user.avatar || '').trim()),
+            hasSignature: Boolean(String(user.signature || '').trim())
+        })
         return this.userManager.saveUser(convertUserTo(user))
     }
 
     async saveState(state: UserState) {
-        console.log(`state=${JSON.stringify(state)}`)
+        this.logger.info('saving user state', {
+            did: this.maskDid(state.did),
+            role: state.role,
+            status: state.status,
+            hasSignature: Boolean(String(state.signature || '').trim())
+        })
         return this.userManager.saveState(convertUserStateTo(state))
     }
 
