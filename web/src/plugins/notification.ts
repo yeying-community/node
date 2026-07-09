@@ -1,5 +1,5 @@
 import { apiUrl } from '@/plugins/api'
-import { getStoredAuthToken } from '@/plugins/auth'
+import { getAuthToken } from '@/plugins/auth'
 
 type Envelope<T> = {
   code: number
@@ -98,8 +98,8 @@ type NotificationStreamHandlers = {
   onError?: (error: Error) => void
 }
 
-function getAuthorizationHeaders(): Record<string, string> {
-  const token = getStoredAuthToken()
+async function getAuthorizationHeaders(): Promise<Record<string, string>> {
+  const token = await getAuthToken()
   if (!token) {
     throw new Error('缺少登录态，请重新登录')
   }
@@ -201,7 +201,7 @@ class NotificationClient {
     const response = await fetch(apiUrl(`/api/v1/public/notifications?${params.toString()}`), {
       method: 'GET',
       headers: {
-        ...getAuthorizationHeaders(),
+        ...(await getAuthorizationHeaders()),
       },
     })
     return await parseEnvelope<NotificationPageResult>(response)
@@ -211,7 +211,7 @@ class NotificationClient {
     const response = await fetch(apiUrl(`/api/v1/public/notifications/${notificationUid}`), {
       method: 'GET',
       headers: {
-        ...getAuthorizationHeaders(),
+        ...(await getAuthorizationHeaders()),
       },
     })
     return await parseEnvelope<NotificationListItem>(response)
@@ -221,7 +221,7 @@ class NotificationClient {
     const response = await fetch(apiUrl('/api/v1/public/notifications/unread-count'), {
       method: 'GET',
       headers: {
-        ...getAuthorizationHeaders(),
+        ...(await getAuthorizationHeaders()),
       },
     })
     return await parseEnvelope<NotificationUnreadCount>(response)
@@ -231,7 +231,7 @@ class NotificationClient {
     const response = await fetch(apiUrl(`/api/v1/public/notifications/${notificationUid}/read`), {
       method: 'POST',
       headers: {
-        ...getAuthorizationHeaders(),
+        ...(await getAuthorizationHeaders()),
       },
     })
     return await parseEnvelope<{ notificationUid: string; isRead: boolean; readAt: string }>(response)
@@ -241,7 +241,7 @@ class NotificationClient {
     const response = await fetch(apiUrl('/api/v1/public/notifications/read-all'), {
       method: 'POST',
       headers: {
-        ...getAuthorizationHeaders(),
+        ...(await getAuthorizationHeaders()),
       },
     })
     return await parseEnvelope<{ updatedCount: number }>(response)
@@ -251,7 +251,7 @@ class NotificationClient {
     const response = await fetch(apiUrl('/api/v1/public/notifications/webhooks'), {
       method: 'GET',
       headers: {
-        ...getAuthorizationHeaders(),
+        ...(await getAuthorizationHeaders()),
       },
     })
     return await parseEnvelope<{ items: NotificationWebhookItem[] }>(response)
@@ -267,7 +267,7 @@ class NotificationClient {
     const response = await fetch(apiUrl('/api/v1/public/notifications/webhooks'), {
       method: 'POST',
       headers: {
-        ...getAuthorizationHeaders(),
+        ...(await getAuthorizationHeaders()),
         'Content-Type': 'application/json',
       },
       body: JSON.stringify(input),
@@ -285,7 +285,7 @@ class NotificationClient {
     const response = await fetch(apiUrl(`/api/v1/public/notifications/webhooks/${uid}`), {
       method: 'PATCH',
       headers: {
-        ...getAuthorizationHeaders(),
+        ...(await getAuthorizationHeaders()),
         'Content-Type': 'application/json',
       },
       body: JSON.stringify(input),
@@ -297,7 +297,7 @@ class NotificationClient {
     const response = await fetch(apiUrl(`/api/v1/public/notifications/webhooks/${uid}`), {
       method: 'DELETE',
       headers: {
-        ...getAuthorizationHeaders(),
+        ...(await getAuthorizationHeaders()),
       },
     })
     return await parseEnvelope<{ deleted: boolean }>(response)
@@ -309,7 +309,7 @@ class NotificationClient {
     const response = await fetch(apiUrl(`/api/v1/public/notifications/webhooks/${uid}/deliveries?${params.toString()}`), {
       method: 'GET',
       headers: {
-        ...getAuthorizationHeaders(),
+        ...(await getAuthorizationHeaders()),
       },
     })
     return await parseEnvelope<{ items: NotificationDeliveryItem[] }>(response)
@@ -319,7 +319,7 @@ class NotificationClient {
     const response = await fetch(apiUrl(`/api/v1/public/notifications/webhooks/${uid}/deliveries/${deliveryUid}/retry`), {
       method: 'POST',
       headers: {
-        ...getAuthorizationHeaders(),
+        ...(await getAuthorizationHeaders()),
       },
     })
     return await parseEnvelope<NotificationDeliveryItem>(response)
@@ -329,7 +329,7 @@ class NotificationClient {
     const response = await fetch(apiUrl(`/api/v1/public/notifications/webhooks/${uid}/replay/${notificationUid}`), {
       method: 'POST',
       headers: {
-        ...getAuthorizationHeaders(),
+        ...(await getAuthorizationHeaders()),
       },
     })
     return await parseEnvelope<NotificationDeliveryItem>(response)
@@ -349,7 +349,7 @@ class NotificationClient {
         const response = await fetch(apiUrl(streamPath), {
           method: 'GET',
           headers: {
-            ...getAuthorizationHeaders(),
+            ...(await getAuthorizationHeaders()),
             Accept: 'text/event-stream',
           },
           signal: controller.signal,

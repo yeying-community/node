@@ -6,6 +6,7 @@ import {
   createUcanSession,
   clearUcanSession,
   DEFAULT_UCAN_TOKEN_SKEW_MS,
+  decodeUcanPayload,
   focusPendingApproval,
   getAccounts,
   getCapabilityAction,
@@ -327,6 +328,19 @@ function toDidWeb(value: string): string {
   }
 }
 
+function resolveSameOriginApiAudience(): string {
+  if (typeof window === 'undefined') {
+    return 'did:web:localhost';
+  }
+  const proxyTarget = import.meta.env.DEV
+    ? import.meta.env.VITE_DEV_API_PROXY_TARGET || 'http://localhost:8100'
+    : '';
+  if (proxyTarget) {
+    return toDidWeb(proxyTarget);
+  }
+  return toDidWeb(window.location.origin);
+}
+
 function normalizeActionExpression(raw: string): string {
   const normalized = String(raw || '').trim().toLowerCase().replace(/\|/g, ',');
   if (!normalized) return '';
@@ -434,14 +448,9 @@ function resolveApiAudience(): string {
     if (/^https?:\/\//i.test(endpoint)) {
       return toDidWeb(endpoint);
     }
-    if (typeof window !== 'undefined') {
-      return toDidWeb(window.location.origin);
-    }
+    return resolveSameOriginApiAudience();
   }
-  if (typeof window !== 'undefined') {
-    return toDidWeb(window.location.origin);
-  }
-  return 'did:web:localhost';
+  return resolveSameOriginApiAudience();
 }
 
 function resolveWebDavAudience(): string {
@@ -494,12 +503,38 @@ function isTokenValid(entry: CachedToken | null): boolean {
   }));
 }
 
-function readStoredToken(key: string): CachedToken | null {
+function tokenMatchesExpectedClaims(
+  entry: CachedToken | null,
+  options: { audience?: string; capabilities?: UcanCapability[] } = {}
+): boolean {
+  if (!entry || !isTokenValid(entry)) return false;
+  const payload = decodeUcanPayload(entry.token);
+  if (!payload) return false;
+  if (options.audience && payload.aud !== options.audience) {
+    return false;
+  }
+  if (options.capabilities) {
+    const expectedCapsKey = buildCapsKey(options.capabilities);
+    const actualCapsKey = buildCapsKey(payload.cap || []);
+    if (actualCapsKey !== expectedCapsKey) {
+      return false;
+    }
+  }
+  return true;
+}
+
+function readStoredToken(
+  key: string,
+  options: { audience?: string; capabilities?: UcanCapability[] } = {}
+): CachedToken | null {
   if (typeof localStorage === 'undefined') return null;
   const token = localStorage.getItem(key);
   if (!token) return null;
   const parsed = parseCachedToken(token);
-  if (!parsed || !isTokenValid(parsed)) return null;
+  if (!tokenMatchesExpectedClaims(parsed, options)) {
+    clearStoredToken(key);
+    return null;
+  }
   return parsed;
 }
 
@@ -558,8 +593,10 @@ function clearTokenStores() {
 }
 
 function hasValidApiToken(): boolean {
-  if (isTokenValid(cachedApiToken)) return true;
-  return Boolean(readStoredToken(UCAN_API_TOKEN_KEY));
+  const audience = resolveApiAudience();
+  const capabilities = getApiUcanCapabilities();
+  if (tokenMatchesExpectedClaims(cachedApiToken, { audience, capabilities })) return true;
+  return Boolean(readStoredToken(UCAN_API_TOKEN_KEY, { audience, capabilities }));
 }
 
 function clearUcanSessionQuietly() {
@@ -651,11 +688,20 @@ async function issueInvocationToken(options: {
   }
 
   const cache = options.cache === 'api' ? cachedApiToken : cachedWebDavToken;
-  if (isTokenValid(cache)) {
+  if (tokenMatchesExpectedClaims(cache, {
+    audience: options.audience,
+    capabilities: options.capabilities,
+  })) {
     return cache!.token;
   }
 
-  const stored = readStoredToken(options.cache === 'api' ? UCAN_API_TOKEN_KEY : UCAN_WEBDAV_TOKEN_KEY);
+  const stored = readStoredToken(
+    options.cache === 'api' ? UCAN_API_TOKEN_KEY : UCAN_WEBDAV_TOKEN_KEY,
+    {
+      audience: options.audience,
+      capabilities: options.capabilities,
+    }
+  );
   if (stored) {
     if (options.cache === 'api') {
       cachedApiToken = stored;
@@ -777,7 +823,11 @@ export function getStoredAuthToken() {
   if (typeof localStorage === 'undefined') {
     return '';
   }
-  return String(localStorage.getItem(AUTH_TOKEN_KEY) || '').trim();
+  const stored = readStoredToken(AUTH_TOKEN_KEY, {
+    audience: resolveApiAudience(),
+    capabilities: getApiUcanCapabilities(),
+  });
+  return String(stored?.token || '').trim();
 }
 
 export async function logoutWithUcan(options: { redirect?: boolean } = {}) {
@@ -868,7 +918,10 @@ export async function ensureWalletSession(options: { redirect?: boolean } = {}) 
     emitAccountChange(activeAccount);
   }
   if (!accountChanged && hasValidApiToken()) {
-    const stored = readStoredToken(UCAN_API_TOKEN_KEY);
+    const stored = readStoredToken(UCAN_API_TOKEN_KEY, {
+      audience: resolveApiAudience(),
+      capabilities: getApiUcanCapabilities(),
+    });
     if (stored) {
       cachedApiToken = stored;
     }

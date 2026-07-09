@@ -2,6 +2,7 @@
 // 为 import.meta.env 添加类型声明
 interface ImportMetaEnv {
   readonly VITE_NODE_API_ENDPOINT?: string
+  readonly VITE_DEV_API_PROXY_TARGET?: string
   readonly VITE_WEBDAV_BASE_URL: string
   readonly VITE_WEBDAV_PREFIX?: string
   readonly VITE_WEBDAV_PUBLIC_BASE?: string

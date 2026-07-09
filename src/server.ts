@@ -56,6 +56,7 @@ import { BackfillApplicationUcanPolicy20260424110000 } from './migrations/202604
 import { FixApplicationUcanPolicyRouterPriority20260424123000 } from './migrations/20260424123000-fix-application-ucan-policy-router-priority';
 import { AddNotifications20260429110000 } from './migrations/20260429110000-add-notifications';
 import { AddNotificationWebhooksAndDeliveries20260624090000 } from './migrations/20260624090000-add-notification-webhooks-and-deliveries';
+import { RepairNotificationDeliveryWebhookColumns20260701130000 } from './migrations/20260701130000-repair-notification-delivery-webhook-columns';
 import { getConfig } from './config/runtime';
 import { startActionRequestCleanupJobs } from './domain/service/actionRequestCleanup';
 import { startMpcCleanupJobs } from './domain/service/mpcCleanup';
@@ -238,7 +239,8 @@ builder.migrations([
     BackfillApplicationUcanPolicy20260424110000,
     FixApplicationUcanPolicyRouterPriority20260424123000,
     AddNotifications20260429110000,
-    AddNotificationWebhooksAndDeliveries20260624090000
+    AddNotificationWebhooksAndDeliveries20260624090000,
+    RepairNotificationDeliveryWebhookColumns20260701130000
 ])
 
 builder.build().initialize().then(async (conn) => {
