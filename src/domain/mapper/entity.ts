@@ -115,6 +115,44 @@ export class PasskeySubjectCredentialDO {
     revokedAt!: string
 }
 
+@Entity('custody_key_records')
+@Index('idx_custody_key_records_subject', ['subjectType', 'subjectId'])
+@Index('uidx_custody_key_records_subject_wallet', ['subjectType', 'subjectId', 'walletId'], { unique: true })
+export class CustodyKeyRecordDO {
+    @PrimaryGeneratedColumn('uuid')
+    uid!: string
+
+    @Column({ length: 64, name: 'subject_type', default: 'wallet_address' })
+    subjectType!: string
+
+    @Column({ length: 128, name: 'subject_id' })
+    subjectId!: string
+
+    @Column({ length: 128, name: 'wallet_id' })
+    walletId!: string
+
+    @Column({ length: 128, name: 'account_id', default: '' })
+    accountId!: string
+
+    @Column({ length: 128, name: 'address', default: '' })
+    address!: string
+
+    @Column({ type: 'text', name: 'ciphertext' })
+    ciphertext!: string
+
+    @Column({ type: 'text', name: 'metadata_json', default: '{}' })
+    metadataJson!: string
+
+    @Column({ length: 64, name: 'created_at', default: '' })
+    createdAt!: string
+
+    @Column({ length: 64, name: 'updated_at', default: '' })
+    updatedAt!: string
+
+    @Column({ length: 64, name: 'last_verified_at', default: '' })
+    lastVerifiedAt!: string
+}
+
 @Entity('notifications')
 @Index('idx_notification_type_created_at', ['type', 'createdAt'])
 export class NotificationDO {

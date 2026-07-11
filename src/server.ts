@@ -15,6 +15,7 @@ import {
     ApplicationConfigDO,
     TotpSubjectSecretDO,
     PasskeySubjectCredentialDO,
+    CustodyKeyRecordDO,
     NotificationDO,
     NotificationInboxDO,
     NotificationWebhookDO,
@@ -39,6 +40,7 @@ import { registerPublicApplicationRoutes } from './routes/public/applications';
 import { registerPublicAuditRoutes } from './routes/public/audits';
 import { registerPublicHealthRoute } from './routes/public/health';
 import { registerPublicMpcRoutes } from './routes/public/mpc';
+import { registerPublicCustodyRoutes } from './routes/public/custody';
 import { registerPublicNotificationRoutes } from './routes/public/notifications';
 import { registerAdminAuditRoutes } from './routes/admin/audits';
 import { registerAdminUserRoutes } from './routes/admin/users';
@@ -57,6 +59,7 @@ import { FixApplicationUcanPolicyRouterPriority20260424123000 } from './migratio
 import { AddNotifications20260429110000 } from './migrations/20260429110000-add-notifications';
 import { AddNotificationWebhooksAndDeliveries20260624090000 } from './migrations/20260624090000-add-notification-webhooks-and-deliveries';
 import { RepairNotificationDeliveryWebhookColumns20260701130000 } from './migrations/20260701130000-repair-notification-delivery-webhook-columns';
+import { AddCustodyKeyRecords20260710090000 } from './migrations/20260710090000-add-custody-key-records';
 import { getConfig } from './config/runtime';
 import { startActionRequestCleanupJobs } from './domain/service/actionRequestCleanup';
 import { startMpcCleanupJobs } from './domain/service/mpcCleanup';
@@ -215,6 +218,7 @@ builder.entities([
     ApplicationConfigDO,
     TotpSubjectSecretDO,
     PasskeySubjectCredentialDO,
+    CustodyKeyRecordDO,
     NotificationDO,
     NotificationInboxDO,
     NotificationWebhookDO,
@@ -240,7 +244,8 @@ builder.migrations([
     FixApplicationUcanPolicyRouterPriority20260424123000,
     AddNotifications20260429110000,
     AddNotificationWebhooksAndDeliveries20260624090000,
-    RepairNotificationDeliveryWebhookColumns20260701130000
+    RepairNotificationDeliveryWebhookColumns20260701130000,
+    AddCustodyKeyRecords20260710090000
 ])
 
 builder.build().initialize().then(async (conn) => {
@@ -299,6 +304,7 @@ builder.build().initialize().then(async (conn) => {
     registerPublicApplicationRoutes(app);
     registerPublicAuditRoutes(app);
     registerPublicMpcRoutes(app);
+    registerPublicCustodyRoutes(app);
     registerPublicNotificationRoutes(app);
     registerAdminAuditRoutes(app);
     registerAdminUserRoutes(app);

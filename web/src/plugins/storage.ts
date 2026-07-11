@@ -1,6 +1,6 @@
 import { createWebDavClient, type WebDavClient } from "@yeying-community/web3-bs";
 import { notifyError } from "@/utils/message";
-import { getWebDavToken } from "@/plugins/auth";
+import { authWebDavFetch } from "@/plugins/auth";
 
 class StorageClient {
   private client: WebDavClient | null = null;
@@ -24,11 +24,11 @@ class StorageClient {
         throw new Error("缺少 WebDAV 服务地址配置 VITE_WEBDAV_BASE_URL");
       }
       const prefix = this.normalizePrefix(import.meta.env.VITE_WEBDAV_PREFIX);
-      this.client = createWebDavClient({ baseUrl, prefix });
-    }
-    const token = await getWebDavToken();
-    if (token) {
-      this.client.setToken(token);
+      this.client = createWebDavClient({
+        baseUrl,
+        prefix,
+        fetcher: async (input, init) => await authWebDavFetch(input, init),
+      });
     }
     return this.client;
   }

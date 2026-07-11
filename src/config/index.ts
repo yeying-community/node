@@ -97,6 +97,12 @@ export interface MpcRuntimeConfig {
     ucanCan?: string
 }
 
+export interface CustodyRuntimeConfig {
+    enabled?: boolean
+    ucanWith?: string
+    ucanCan?: string
+}
+
 export interface NotificationRuntimeConfig {
     webhookDeliveryEnabled?: boolean
     webhookDeliveryIntervalMs?: number

@@ -1,6 +1,7 @@
 import { notifyError } from '@/utils/message';
 import { getWalletDataStore } from '@/stores/auth';
 import {
+  authUcanFetch,
   classifyWalletError,
   createInvocationUcan,
   createUcanSession,
@@ -16,11 +17,13 @@ import {
   getChainId as web3GetChainId,
   getOrCreateUcanRoot,
   getProvider,
+  getStoredUcanRoot,
   isUcanTokenFresh,
   normalizeUcanCapabilities,
   onAccountsChanged,
   onChainChanged,
   requestAccounts,
+  resolveUcanAuthorization,
   watchProvider,
   type Eip1193Provider,
   type UcanCapability,
@@ -259,11 +262,22 @@ async function bindWalletProvider(provider: Eip1193Provider) {
 
   walletListenersTeardown.push(onAccountsChanged(provider, async (accounts) => {
     if (!accounts || accounts.length === 0) {
-      if (!hasValidApiToken()) {
-        clearAuthSession();
-        emitAccountChange(null);
-        redirectHome();
+      const storedAccount = getCurrentAccount();
+      const authorization = await resolveWalletUcanAuthorization({
+        root: await getStoredUcanRoot(),
+        account: storedAccount || null,
+        recoverAccountFromRoot: !storedAccount,
+      });
+      if (authorization.status === 'authorized') {
+        if (authorization.restoredAccount && authorization.account) {
+          handleAccountChange(authorization.account);
+          emitAccountChange(authorization.account);
+        }
+        return;
       }
+      await clearAuthSession();
+      emitAccountChange(null);
+      redirectHome();
       return;
     }
     const nextAccount = accounts[0];
@@ -676,6 +690,23 @@ async function ensureUcanRoot(
   return root;
 }
 
+async function resolveWalletUcanAuthorization(options: {
+  root?: UcanRootProof | null;
+  account?: string | null;
+  recoverAccountFromRoot?: boolean;
+} = {}) {
+  return await resolveUcanAuthorization({
+    root: options.root,
+    currentAccount: options.account ?? getCurrentAccount(),
+    expectedCapabilities: getRootUcanCapabilities(),
+    expectedServiceHosts: {
+      router: resolveServiceHost(import.meta.env.VITE_NODE_API_ENDPOINT),
+      webdav: resolveServiceHost(import.meta.env.VITE_WEBDAV_BASE_URL),
+    },
+    recoverAccountFromRoot: options.recoverAccountFromRoot,
+  });
+}
+
 async function issueInvocationToken(options: {
   provider?: Eip1193Provider;
   audience: string;
@@ -749,6 +780,25 @@ export async function getWebDavToken(providerOverride?: Eip1193Provider): Promis
     audience: resolveWebDavAudience(),
     capabilities,
     cache: 'webdav',
+  });
+}
+
+export async function authWebDavFetch(
+  input: RequestInfo | URL,
+  init: RequestInit = {},
+  providerOverride?: Eip1193Provider
+): Promise<Response> {
+  const provider = providerOverride || (await resolveProvider());
+  if (!provider) {
+    throw new Error('未检测到钱包提供方');
+  }
+  const session = await ensureUcanSession(provider);
+  const root = await ensureUcanRoot(provider);
+  return await authUcanFetch(input, init, {
+    issuer: session,
+    audience: resolveWebDavAudience(),
+    capabilities: getWebDavUcanCapabilities(),
+    proofs: [root],
   });
 }
 
