@@ -3,11 +3,16 @@ import { v4 as uuidv4 } from 'uuid'
 import { getCurrentUtcString } from '../../common/date'
 import { SingletonDataSource } from '../facade/datasource'
 import { SingletonLogger } from '../facade/logger'
-import { NotificationDO, NotificationInboxDO } from '../mapper/entity'
+import { NotificationDO, NotificationInboxDO, NotificationWebhookDO, NotificationDeliveryDO } from '../mapper/entity'
 import {
   publishNotificationEvent,
   type NotificationStreamEvent,
 } from './notificationEvents'
+import {
+  encryptNotificationWebhookSecret,
+  replayNotificationWebhookDeliveryNow,
+  retryNotificationWebhookDeliveryNow,
+} from './notificationDelivery'
 
 export type NotificationCreateInput = {
   type: string
@@ -29,6 +34,7 @@ export type NotificationListQuery = {
   unreadOnly?: boolean
   source?: string
   level?: string
+  applicationUid?: string
   page?: number
   pageSize?: number
 }
@@ -55,6 +61,34 @@ export type NotificationListItem = {
   createdAt: string
   updatedAt: string
   expiresAt: string
+}
+
+export type NotificationWebhookRecord = {
+  uid: string
+  owner: string
+  applicationUid: string
+  events: string[]
+  targetUrl: string
+  secretMasked: string
+  enabled: boolean
+  lastTriggeredAt: string
+  createdAt: string
+  updatedAt: string
+}
+
+export type NotificationDeliveryRecord = {
+  uid: string
+  webhookUid: string
+  notificationUid: string
+  channel: string
+  target: string
+  status: string
+  attemptCount: number
+  lastError: string
+  deliveredAt: string
+  nextRetryAt: string
+  createdAt: string
+  updatedAt: string
 }
 
 function normalizeRecipient(input: unknown): string {
@@ -115,6 +149,13 @@ function shortAddress(input: unknown): string {
   return `${value.slice(0, 6)}...${value.slice(-4)}`
 }
 
+function escapeSqlLikeValue(input: string): string {
+  return String(input || '')
+    .replace(/\\/g, '\\\\')
+    .replace(/%/g, '\\%')
+    .replace(/_/g, '\\_')
+}
+
 function buildNotificationEventId(createdAt: string, notificationUid: string): string {
   return `${encodeURIComponent(createdAt || '')}|${encodeURIComponent(notificationUid || '')}`
 }
@@ -141,11 +182,15 @@ function parseNotificationEventId(input: string): { createdAt: string; notificat
 export class NotificationService {
   private notificationRepository: Repository<NotificationDO>
   private inboxRepository: Repository<NotificationInboxDO>
+  private webhookRepository: Repository<NotificationWebhookDO>
+  private deliveryRepository: Repository<NotificationDeliveryDO>
 
   constructor() {
     const dataSource = SingletonDataSource.get()
     this.notificationRepository = dataSource.getRepository(NotificationDO)
     this.inboxRepository = dataSource.getRepository(NotificationInboxDO)
+    this.webhookRepository = dataSource.getRepository(NotificationWebhookDO)
+    this.deliveryRepository = dataSource.getRepository(NotificationDeliveryDO)
   }
 
   private normalizeRecipients(input: string[]): string[] {
@@ -232,6 +277,30 @@ export class NotificationService {
     )
     await this.inboxRepository.save(inboxes)
 
+    const deliveryRecords = recipients.map((recipient) =>
+      this.deliveryRepository.create({
+        notificationUid: notification.uid,
+        webhookUid: '',
+        channel: 'inbox',
+        target: recipient,
+        status: 'delivered',
+        lockToken: '',
+        lockedAt: '',
+        attemptCount: 1,
+        lastError: '',
+        deliveredAt: now,
+        nextRetryAt: '',
+        createdAt: now,
+        updatedAt: now,
+      })
+    )
+    await this.deliveryRepository.save(deliveryRecords)
+
+    const webhookDeliveries = await this.prepareWebhookDeliveries(notification, now)
+    if (webhookDeliveries.length > 0) {
+      await this.deliveryRepository.save(webhookDeliveries)
+    }
+
     for (const recipient of recipients) {
       const unreadCount = await this.getUnreadCount(recipient)
       this.publish({
@@ -273,6 +342,28 @@ export class NotificationService {
     const level = String(query.level || '').trim()
     if (level) {
       qb.andWhere('notification.level = :level', { level })
+    }
+    const applicationUid = String(query.applicationUid || '').trim()
+    if (applicationUid) {
+      const applicationUidLike = `%\"applicationUid\":\"${escapeSqlLikeValue(applicationUid)}\"%`
+      const targetUidLike = `%\"targetUid\":\"${escapeSqlLikeValue(applicationUid)}\"%`
+      const appIdLike = `%\"appId\":\"${escapeSqlLikeValue(applicationUid)}\"%`
+      qb.andWhere(
+        `(
+          (notification.source = :applicationSource AND notification.subject_id = :applicationUid)
+          OR (notification.source = :auditSource AND (notification.payload LIKE :applicationUidLike ESCAPE '\\' OR notification.payload LIKE :targetUidLike ESCAPE '\\'))
+          OR (notification.source = :totpSource AND (notification.payload LIKE :applicationUidLike ESCAPE '\\' OR notification.payload LIKE :appIdLike ESCAPE '\\'))
+        )`,
+        {
+          applicationSource: 'application',
+          auditSource: 'audit',
+          totpSource: 'totp',
+          applicationUid,
+          applicationUidLike,
+          targetUidLike,
+          appIdLike,
+        }
+      )
     }
 
     const total = await qb.clone().getCount()
@@ -596,6 +687,238 @@ export class NotificationService {
     return inboxes.length
   }
 
+  async listWebhooks(ownerInput: string): Promise<NotificationWebhookRecord[]> {
+    const owner = normalizeRecipient(ownerInput)
+    if (!owner) {
+      return []
+    }
+    const rows = await this.webhookRepository.find({
+      where: { owner },
+      order: { createdAt: 'DESC' },
+    })
+    return rows.map((row) => this.mapWebhook(row))
+  }
+
+  async createWebhook(input: {
+    owner: string
+    applicationUid?: string
+    events?: string[]
+    targetUrl: string
+    secret?: string
+    enabled?: boolean
+  }): Promise<NotificationWebhookRecord> {
+    const owner = normalizeRecipient(input.owner)
+    const targetUrl = String(input.targetUrl || '').trim()
+    if (!owner || !targetUrl) {
+      throw new Error('Invalid webhook input')
+    }
+    const now = getCurrentUtcString()
+    const secret = String(input.secret || '').trim()
+    const entity = this.webhookRepository.create({
+      owner,
+      applicationUid: String(input.applicationUid || '').trim(),
+      eventsJson: JSON.stringify(this.normalizeEventList(input.events)),
+      targetUrl,
+      secretMasked: this.maskSecret(secret),
+      secretCiphertext: secret ? encryptNotificationWebhookSecret(secret) : '',
+      enabled: input.enabled !== false,
+      lastTriggeredAt: '',
+      createdAt: now,
+      updatedAt: now,
+    })
+    const saved = await this.webhookRepository.save(entity)
+    return this.mapWebhook(saved)
+  }
+
+  async updateWebhook(
+    uidInput: string,
+    ownerInput: string,
+    input: {
+      applicationUid?: string
+      events?: string[]
+      targetUrl?: string
+      secret?: string
+      enabled?: boolean
+    }
+  ): Promise<NotificationWebhookRecord | null> {
+    const owner = normalizeRecipient(ownerInput)
+    const uid = String(uidInput || '').trim()
+    if (!owner || !uid) {
+      return null
+    }
+    const existing = await this.webhookRepository.findOneBy({ uid, owner })
+    if (!existing) {
+      return null
+    }
+    if (input.applicationUid !== undefined) {
+      existing.applicationUid = String(input.applicationUid || '').trim()
+    }
+    if (input.events !== undefined) {
+      existing.eventsJson = JSON.stringify(this.normalizeEventList(input.events))
+    }
+    if (input.targetUrl !== undefined) {
+      existing.targetUrl = String(input.targetUrl || '').trim()
+    }
+    if (input.secret !== undefined) {
+      const secret = String(input.secret || '').trim()
+      existing.secretCiphertext = secret ? encryptNotificationWebhookSecret(secret) : ''
+      existing.secretMasked = this.maskSecret(secret)
+    }
+    if (input.enabled !== undefined) {
+      existing.enabled = Boolean(input.enabled)
+    }
+    existing.updatedAt = getCurrentUtcString()
+    const saved = await this.webhookRepository.save(existing)
+    return this.mapWebhook(saved)
+  }
+
+  async deleteWebhook(uidInput: string, ownerInput: string): Promise<boolean> {
+    const owner = normalizeRecipient(ownerInput)
+    const uid = String(uidInput || '').trim()
+    if (!owner || !uid) {
+      return false
+    }
+    const existing = await this.webhookRepository.findOneBy({ uid, owner })
+    if (!existing) {
+      return false
+    }
+    await this.webhookRepository.delete({ uid, owner })
+    return true
+  }
+
+  async listDeliveriesByNotificationUid(notificationUidInput: string): Promise<NotificationDeliveryRecord[]> {
+    const notificationUid = String(notificationUidInput || '').trim()
+    if (!notificationUid) {
+      return []
+    }
+    const rows = await this.deliveryRepository.find({
+      where: { notificationUid },
+      order: { createdAt: 'DESC' },
+    })
+    return rows.map((row) => ({
+      uid: row.uid,
+      webhookUid: row.webhookUid,
+      notificationUid: row.notificationUid,
+      channel: row.channel,
+      target: row.target,
+      status: row.status,
+      attemptCount: row.attemptCount,
+      lastError: row.lastError,
+      deliveredAt: row.deliveredAt,
+      nextRetryAt: row.nextRetryAt,
+      createdAt: row.createdAt,
+      updatedAt: row.updatedAt,
+    }))
+  }
+
+  async listDeliveriesByWebhook(uidInput: string, ownerInput: string, limitInput = 20): Promise<NotificationDeliveryRecord[]> {
+    const uid = String(uidInput || '').trim()
+    const owner = normalizeRecipient(ownerInput)
+    if (!uid || !owner) {
+      return []
+    }
+    const webhook = await this.webhookRepository.findOneBy({ uid, owner })
+    if (!webhook) {
+      return []
+    }
+    const limit = Number.isFinite(limitInput) && limitInput > 0 ? Math.min(Math.trunc(limitInput), 100) : 20
+    const rows = await this.deliveryRepository.find({
+      where: { webhookUid: uid },
+      order: { createdAt: 'DESC' },
+      take: limit,
+    })
+    return rows.map((row) => ({
+      uid: row.uid,
+      webhookUid: row.webhookUid,
+      notificationUid: row.notificationUid,
+      channel: row.channel,
+      target: row.target,
+      status: row.status,
+      attemptCount: row.attemptCount,
+      lastError: row.lastError,
+      deliveredAt: row.deliveredAt,
+      nextRetryAt: row.nextRetryAt,
+      createdAt: row.createdAt,
+      updatedAt: row.updatedAt,
+    }))
+  }
+
+  async retryWebhookDelivery(uidInput: string, deliveryUidInput: string, ownerInput: string): Promise<NotificationDeliveryRecord | null> {
+    const uid = String(uidInput || '').trim()
+    const owner = normalizeRecipient(ownerInput)
+    const deliveryUid = String(deliveryUidInput || '').trim()
+    if (!uid || !owner || !deliveryUid) {
+      return null
+    }
+    const webhook = await this.webhookRepository.findOneBy({ uid, owner })
+    if (!webhook) {
+      return null
+    }
+    const delivery = await this.deliveryRepository.findOneBy({ uid: deliveryUid, webhookUid: uid })
+    if (!delivery) {
+      return null
+    }
+    const updated = await retryNotificationWebhookDeliveryNow(deliveryUid)
+    if (!updated) {
+      return null
+    }
+    return {
+      uid: updated.uid,
+      webhookUid: updated.webhookUid,
+      notificationUid: updated.notificationUid,
+      channel: updated.channel,
+      target: updated.target,
+      status: updated.status,
+      attemptCount: updated.attemptCount,
+      lastError: updated.lastError,
+      deliveredAt: updated.deliveredAt,
+      nextRetryAt: updated.nextRetryAt,
+      createdAt: updated.createdAt,
+      updatedAt: updated.updatedAt,
+    }
+  }
+
+  async replayWebhookDelivery(uidInput: string, notificationUidInput: string, ownerInput: string): Promise<NotificationDeliveryRecord | null> {
+    const uid = String(uidInput || '').trim()
+    const owner = normalizeRecipient(ownerInput)
+    const notificationUid = String(notificationUidInput || '').trim()
+    if (!uid || !owner || !notificationUid) {
+      return null
+    }
+    const webhook = await this.webhookRepository.findOneBy({ uid, owner })
+    if (!webhook) {
+      return null
+    }
+    const notification = await this.notificationRepository.findOneBy({ uid: notificationUid })
+    if (!notification) {
+      return null
+    }
+    const latestDelivery = await this.deliveryRepository.findOne({
+      where: { webhookUid: uid, notificationUid },
+      order: { createdAt: 'DESC' },
+    })
+    const updated = await replayNotificationWebhookDeliveryNow({
+      webhookUid: uid,
+      notificationUid,
+      target: webhook.targetUrl,
+      sourceStatus: latestDelivery?.status,
+    })
+    return {
+      uid: updated.uid,
+      webhookUid: updated.webhookUid,
+      notificationUid: updated.notificationUid,
+      channel: updated.channel,
+      target: updated.target,
+      status: updated.status,
+      attemptCount: updated.attemptCount,
+      lastError: updated.lastError,
+      deliveredAt: updated.deliveredAt,
+      nextRetryAt: updated.nextRetryAt,
+      createdAt: updated.createdAt,
+      updatedAt: updated.updatedAt,
+    }
+  }
+
   async notifyAuditApproved(input: {
     auditId: string
     applicant: string
@@ -765,8 +1088,291 @@ export class NotificationService {
     })
   }
 
+  async notifyApplicationCreated(input: {
+    applicationUid: string
+    owner: string
+    actor?: string
+    name?: string
+    did?: string
+    version?: number
+  }): Promise<void> {
+    const recipient = normalizeRecipient(input.owner)
+    if (!recipient) {
+      return
+    }
+    const appName = String(input.name || '应用').trim() || '应用'
+    await this.create({
+      type: 'application.created',
+      source: 'application',
+      subjectType: 'application',
+      subjectId: input.applicationUid,
+      actor: input.actor,
+      recipients: [recipient],
+      level: 'success',
+      title: `${appName} 已创建`,
+      body: `${appName} 已保存到个人应用，可继续配置并提交上架。`,
+      payload: {
+        applicationUid: input.applicationUid,
+        name: appName,
+        did: String(input.did || '').trim(),
+        version: Number.isFinite(input.version) ? Number(input.version) : undefined,
+      },
+    })
+  }
+
+  async notifyApplicationUpdated(input: {
+    applicationUid: string
+    owner: string
+    actor?: string
+    name?: string
+    did?: string
+    version?: number
+  }): Promise<void> {
+    const recipient = normalizeRecipient(input.owner)
+    if (!recipient) {
+      return
+    }
+    const appName = String(input.name || '应用').trim() || '应用'
+    await this.create({
+      type: 'application.updated',
+      source: 'application',
+      subjectType: 'application',
+      subjectId: input.applicationUid,
+      actor: input.actor,
+      recipients: [recipient],
+      level: 'info',
+      title: `${appName} 已更新`,
+      body: `${appName} 的基础信息和授权策略已更新。`,
+      payload: {
+        applicationUid: input.applicationUid,
+        name: appName,
+        did: String(input.did || '').trim(),
+        version: Number.isFinite(input.version) ? Number(input.version) : undefined,
+      },
+    })
+  }
+
+  async notifyApplicationPublished(input: {
+    applicationUid: string
+    owner: string
+    actor?: string
+    name?: string
+    did?: string
+    version?: number
+  }): Promise<void> {
+    const recipient = normalizeRecipient(input.owner)
+    if (!recipient) {
+      return
+    }
+    const appName = String(input.name || '应用').trim() || '应用'
+    await this.create({
+      type: 'application.published',
+      source: 'application',
+      subjectType: 'application',
+      subjectId: input.applicationUid,
+      actor: input.actor,
+      recipients: [recipient],
+      level: 'success',
+      title: `${appName} 已上架`,
+      body: `${appName} 已发布到应用中心，可对外提供接入。`,
+      payload: {
+        applicationUid: input.applicationUid,
+        name: appName,
+        did: String(input.did || '').trim(),
+        version: Number.isFinite(input.version) ? Number(input.version) : undefined,
+      },
+    })
+  }
+
+  async notifyApplicationUnpublished(input: {
+    applicationUid: string
+    owner: string
+    actor?: string
+    name?: string
+    did?: string
+    version?: number
+  }): Promise<void> {
+    const recipient = normalizeRecipient(input.owner)
+    if (!recipient) {
+      return
+    }
+    const appName = String(input.name || '应用').trim() || '应用'
+    await this.create({
+      type: 'application.unpublished',
+      source: 'application',
+      subjectType: 'application',
+      subjectId: input.applicationUid,
+      actor: input.actor,
+      recipients: [recipient],
+      level: 'warning',
+      title: `${appName} 已下架`,
+      body: `${appName} 已从应用中心下架，外部用户将无法继续发现它。`,
+      payload: {
+        applicationUid: input.applicationUid,
+        name: appName,
+        did: String(input.did || '').trim(),
+        version: Number.isFinite(input.version) ? Number(input.version) : undefined,
+      },
+    })
+  }
+
+  async notifyApplicationDeleted(input: {
+    applicationUid: string
+    owner: string
+    actor?: string
+    name?: string
+    did?: string
+    version?: number
+  }): Promise<void> {
+    const recipient = normalizeRecipient(input.owner)
+    if (!recipient) {
+      return
+    }
+    const appName = String(input.name || '应用').trim() || '应用'
+    await this.create({
+      type: 'application.deleted',
+      source: 'application',
+      subjectType: 'application',
+      subjectId: input.applicationUid,
+      actor: input.actor,
+      recipients: [recipient],
+      level: 'warning',
+      title: `${appName} 已删除`,
+      body: `${appName} 已从个人应用中移除。`,
+      payload: {
+        applicationUid: input.applicationUid,
+        name: appName,
+        did: String(input.did || '').trim(),
+        version: Number.isFinite(input.version) ? Number(input.version) : undefined,
+      },
+    })
+  }
+
+  async notifyApplicationConfigUpdated(input: {
+    applicationUid: string
+    owner: string
+    actor?: string
+    name?: string
+    did?: string
+    version?: number
+    configCount?: number
+  }): Promise<void> {
+    const recipient = normalizeRecipient(input.owner)
+    if (!recipient) {
+      return
+    }
+    const appName = String(input.name || '应用').trim() || '应用'
+    const configCount = Number.isFinite(input.configCount) ? Math.max(0, Number(input.configCount)) : 0
+    await this.create({
+      type: 'application.config_updated',
+      source: 'application',
+      subjectType: 'application_config',
+      subjectId: input.applicationUid,
+      actor: input.actor,
+      recipients: [recipient],
+      level: 'info',
+      title: `${appName} 接入设置已更新`,
+      body: configCount > 0 ? `${appName} 的接入设置已更新，共 ${configCount} 项。` : `${appName} 的接入设置已更新。`,
+      payload: {
+        applicationUid: input.applicationUid,
+        name: appName,
+        did: String(input.did || '').trim(),
+        version: Number.isFinite(input.version) ? Number(input.version) : undefined,
+        configCount,
+      },
+    })
+  }
+
   private publish(event: NotificationStreamEvent) {
     publishNotificationEvent(event)
+  }
+
+  private resolveNotificationApplicationUid(notification: Pick<NotificationDO, 'source' | 'subjectId' | 'payload'>): string {
+    const payload = parseJsonObject(notification.payload)
+    const source = String(notification.source || '').trim()
+    if (source === 'application') {
+      return String(payload.applicationUid || notification.subjectId || '').trim()
+    }
+    if (source === 'audit') {
+      return String(payload.applicationUid || payload.targetUid || notification.subjectId || '').trim()
+    }
+    if (source === 'totp') {
+      return String(payload.applicationUid || payload.appId || notification.subjectId || '').trim()
+    }
+    return String(payload.applicationUid || payload.targetUid || payload.appId || notification.subjectId || '').trim()
+  }
+
+  private normalizeEventList(input: string[] | undefined): string[] {
+    return Array.from(new Set((input || []).map((item) => String(item || '').trim()).filter(Boolean))).sort()
+  }
+
+  private maskSecret(secret: string): string {
+    const normalized = String(secret || '').trim()
+    if (!normalized) {
+      return ''
+    }
+    if (normalized.length <= 6) {
+      return `${normalized.slice(0, 1)}***`
+    }
+    return `${normalized.slice(0, 3)}***${normalized.slice(-2)}`
+  }
+
+  private mapWebhook(row: NotificationWebhookDO): NotificationWebhookRecord {
+    return {
+      uid: row.uid,
+      owner: row.owner,
+      applicationUid: row.applicationUid,
+      events: parseJsonArray(row.eventsJson),
+      targetUrl: row.targetUrl,
+      secretMasked: row.secretMasked,
+      enabled: Boolean(row.enabled),
+      lastTriggeredAt: row.lastTriggeredAt,
+      createdAt: row.createdAt,
+      updatedAt: row.updatedAt,
+    }
+  }
+
+  private async prepareWebhookDeliveries(notification: NotificationDO, now: string): Promise<NotificationDeliveryDO[]> {
+    const audienceIds = parseJsonArray(notification.audienceIds)
+    if (audienceIds.length === 0) {
+      return []
+    }
+    const notificationApplicationUid = this.resolveNotificationApplicationUid(notification)
+    const rows = await this.webhookRepository.find({
+      where: audienceIds.map((owner) => ({ owner })),
+    })
+    const deliveries: NotificationDeliveryDO[] = []
+    for (const row of rows) {
+      if (!row.enabled) {
+        continue
+      }
+      const events = parseJsonArray(row.eventsJson)
+      if (events.length > 0 && !events.includes(notification.type)) {
+        continue
+      }
+      const webhookApplicationUid = String(row.applicationUid || '').trim()
+      if (webhookApplicationUid && webhookApplicationUid !== notificationApplicationUid) {
+        continue
+      }
+      deliveries.push(
+        this.deliveryRepository.create({
+          notificationUid: notification.uid,
+          webhookUid: row.uid,
+          channel: 'webhook',
+          target: row.targetUrl,
+          status: 'pending',
+          lockToken: '',
+          lockedAt: '',
+          attemptCount: 0,
+          lastError: '',
+          deliveredAt: '',
+          nextRetryAt: '',
+          createdAt: now,
+          updatedAt: now,
+        })
+      )
+    }
+    return deliveries
   }
 }
 

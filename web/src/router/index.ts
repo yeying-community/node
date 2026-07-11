@@ -81,6 +81,11 @@ export const routes = [
                         path: 'my-config',
                         name: 'myConfig',
                         component: () => import('../views/apply/MyConfigView.vue')
+                    },
+                    {
+                        path: 'notifications',
+                        name: 'notifications',
+                        component: () => import('../views/apply/NotificationCenterView.vue')
                     }
                 ]
             }

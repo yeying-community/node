@@ -115,6 +115,44 @@ export class PasskeySubjectCredentialDO {
     revokedAt!: string
 }
 
+@Entity('custody_key_records')
+@Index('idx_custody_key_records_subject', ['subjectType', 'subjectId'])
+@Index('uidx_custody_key_records_subject_wallet', ['subjectType', 'subjectId', 'walletId'], { unique: true })
+export class CustodyKeyRecordDO {
+    @PrimaryGeneratedColumn('uuid')
+    uid!: string
+
+    @Column({ length: 64, name: 'subject_type', default: 'wallet_address' })
+    subjectType!: string
+
+    @Column({ length: 128, name: 'subject_id' })
+    subjectId!: string
+
+    @Column({ length: 128, name: 'wallet_id' })
+    walletId!: string
+
+    @Column({ length: 128, name: 'account_id', default: '' })
+    accountId!: string
+
+    @Column({ length: 128, name: 'address', default: '' })
+    address!: string
+
+    @Column({ type: 'text', name: 'ciphertext' })
+    ciphertext!: string
+
+    @Column({ type: 'text', name: 'metadata_json', default: '{}' })
+    metadataJson!: string
+
+    @Column({ length: 64, name: 'created_at', default: '' })
+    createdAt!: string
+
+    @Column({ length: 64, name: 'updated_at', default: '' })
+    updatedAt!: string
+
+    @Column({ length: 64, name: 'last_verified_at', default: '' })
+    lastVerifiedAt!: string
+}
+
 @Entity('notifications')
 @Index('idx_notification_type_created_at', ['type', 'createdAt'])
 export class NotificationDO {
@@ -199,6 +237,90 @@ export class NotificationInboxDO {
     createdAt!: string
 
     @Column({ length: 64, name: 'updated_at' })
+    updatedAt!: string
+}
+
+@Entity('notification_webhooks')
+@Index('idx_notification_webhook_owner_application', ['owner', 'applicationUid'])
+export class NotificationWebhookDO {
+    @PrimaryGeneratedColumn('uuid')
+    uid!: string
+
+    @Column({ length: 128, name: 'owner' })
+    owner!: string
+
+    @Column({ length: 64, name: 'application_uid', default: '' })
+    applicationUid!: string
+
+    @Column({ type: 'text', name: 'events_json', default: '[]' })
+    eventsJson!: string
+
+    @Column({ type: 'text', name: 'target_url' })
+    targetUrl!: string
+
+    @Column({ length: 128, name: 'secret_masked', default: '' })
+    secretMasked!: string
+
+    @Column({ type: 'text', name: 'secret_ciphertext', default: '' })
+    secretCiphertext!: string
+
+    @Column({ type: 'boolean', default: true })
+    enabled!: boolean
+
+    @Column({ length: 64, name: 'last_triggered_at', default: '' })
+    lastTriggeredAt!: string
+
+    @Column({ length: 64, name: 'created_at', default: '' })
+    createdAt!: string
+
+    @Column({ length: 64, name: 'updated_at', default: '' })
+    updatedAt!: string
+}
+
+@Entity('notification_deliveries')
+@Index('idx_notification_delivery_notification_uid', ['notificationUid'])
+@Index('idx_notification_delivery_channel_status', ['channel', 'status'])
+export class NotificationDeliveryDO {
+    @PrimaryGeneratedColumn('uuid')
+    uid!: string
+
+    @Column({ length: 64, name: 'webhook_uid', default: '' })
+    webhookUid!: string
+
+    @Column({ length: 64, name: 'notification_uid' })
+    notificationUid!: string
+
+    @Column({ length: 64, default: 'inbox' })
+    channel!: string
+
+    @Column({ type: 'text', default: '' })
+    target!: string
+
+    @Column({ length: 32, default: 'pending' })
+    status!: string
+
+    @Column({ length: 128, name: 'lock_token', default: '' })
+    lockToken!: string
+
+    @Column({ length: 64, name: 'locked_at', default: '' })
+    lockedAt!: string
+
+    @Column({ type: 'int', name: 'attempt_count', default: 0 })
+    attemptCount!: number
+
+    @Column({ type: 'text', name: 'last_error', default: '' })
+    lastError!: string
+
+    @Column({ length: 64, name: 'delivered_at', default: '' })
+    deliveredAt!: string
+
+    @Column({ length: 64, name: 'next_retry_at', default: '' })
+    nextRetryAt!: string
+
+    @Column({ length: 64, name: 'created_at', default: '' })
+    createdAt!: string
+
+    @Column({ length: 64, name: 'updated_at', default: '' })
     updatedAt!: string
 }
 

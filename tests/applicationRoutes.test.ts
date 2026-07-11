@@ -9,6 +9,12 @@ const applicationConfigStore = new Map<string, any>()
 const saveApplicationMock = vi.fn()
 const deleteApplicationMock = vi.fn()
 const upsertApplicationConfigMock = vi.fn()
+const notifyApplicationCreatedMock = vi.fn()
+const notifyApplicationUpdatedMock = vi.fn()
+const notifyApplicationDeletedMock = vi.fn()
+const notifyApplicationConfigUpdatedMock = vi.fn()
+const notifyApplicationPublishedMock = vi.fn()
+const notifyApplicationUnpublishedMock = vi.fn()
 
 const requestReplayStore = new Map<
   string,
@@ -60,6 +66,17 @@ vi.doMock('../src/domain/service/applicationConfig', () => ({
       applicationConfigStore.set(`${saved.applicationUid}:${saved.applicant}`, saved)
       return saved
     },
+  })),
+}))
+
+vi.doMock('../src/domain/service/notification', () => ({
+  NotificationService: mockClass(() => ({
+    notifyApplicationCreated: notifyApplicationCreatedMock,
+    notifyApplicationUpdated: notifyApplicationUpdatedMock,
+    notifyApplicationDeleted: notifyApplicationDeletedMock,
+    notifyApplicationConfigUpdated: notifyApplicationConfigUpdatedMock,
+    notifyApplicationPublished: notifyApplicationPublishedMock,
+    notifyApplicationUnpublished: notifyApplicationUnpublishedMock,
   })),
 }))
 
@@ -172,6 +189,12 @@ describe('public application routes idempotency', () => {
     saveApplicationMock.mockClear()
     deleteApplicationMock.mockClear()
     upsertApplicationConfigMock.mockClear()
+    notifyApplicationCreatedMock.mockClear()
+    notifyApplicationUpdatedMock.mockClear()
+    notifyApplicationDeletedMock.mockClear()
+    notifyApplicationConfigUpdatedMock.mockClear()
+    notifyApplicationPublishedMock.mockClear()
+    notifyApplicationUnpublishedMock.mockClear()
   })
 
   it('replays the first create response and only saves once', async () => {
@@ -234,6 +257,7 @@ describe('public application routes idempotency', () => {
       expect(second.status).toBe(200)
       expect(firstJson).toEqual(secondJson)
       expect(saveApplicationMock).toHaveBeenCalledTimes(1)
+      expect(notifyApplicationCreatedMock).toHaveBeenCalledTimes(1)
       expect(firstJson.data.uid).toBeDefined()
       expect(firstJson.data.did).toBe(rawBody.did)
     })

@@ -25,6 +25,13 @@ function parseBoolean(input: unknown): boolean {
   return value === 'true' || value === '1'
 }
 
+function parseWebhookEvents(input: unknown): string[] {
+  if (!Array.isArray(input)) {
+    return []
+  }
+  return input.map((item) => String(item || '').trim()).filter(Boolean)
+}
+
 function resolveCurrentAddress(): string {
   const user = getRequestUser()
   return normalizeRecipient(user?.address)
@@ -58,6 +65,7 @@ export function registerPublicNotificationRoutes(app: Express) {
         unreadOnly: parseBoolean(req.query.unreadOnly),
         source: String(req.query.source || '').trim(),
         level: String(req.query.level || '').trim(),
+        applicationUid: String(req.query.applicationUid || '').trim(),
         page: parsePositiveInt(req.query.page, 1),
         pageSize: parsePositiveInt(req.query.pageSize, 20),
       })
@@ -189,6 +197,164 @@ export function registerPublicNotificationRoutes(app: Express) {
       res.write(`event: error\n`)
       res.write(`data: ${JSON.stringify({ message: mapped.message })}\n\n`)
       res.end()
+    }
+  })
+
+  app.get('/api/v1/public/notifications/webhooks', async (_req: Request, res: Response) => {
+    try {
+      const address = resolveCurrentAddress()
+      if (!address) {
+        res.status(401).json(fail(401, 'Missing access token'))
+        return
+      }
+      await ensureUserActive(address)
+      const items = await service.listWebhooks(address)
+      res.json(ok({ items }))
+    } catch (error) {
+      const mapped = mapNotificationError(error)
+      res.status(mapped.status).json(fail(mapped.status, mapped.message))
+    }
+  })
+
+  app.get('/api/v1/public/notifications/webhooks/:uid/deliveries', async (req: Request, res: Response) => {
+    try {
+      const address = resolveCurrentAddress()
+      if (!address) {
+        res.status(401).json(fail(401, 'Missing access token'))
+        return
+      }
+      await ensureUserActive(address)
+      const items = await service.listDeliveriesByWebhook(req.params.uid, address, parsePositiveInt(req.query.limit, 20))
+      res.json(ok({ items }))
+    } catch (error) {
+      const mapped = mapNotificationError(error)
+      res.status(mapped.status).json(fail(mapped.status, mapped.message))
+    }
+  })
+
+  app.post('/api/v1/public/notifications/webhooks/:uid/deliveries/:deliveryUid/retry', async (req: Request, res: Response) => {
+    try {
+      const address = resolveCurrentAddress()
+      if (!address) {
+        res.status(401).json(fail(401, 'Missing access token'))
+        return
+      }
+      await ensureUserActive(address)
+      const item = await service.retryWebhookDelivery(req.params.uid, req.params.deliveryUid, address)
+      if (!item) {
+        res.status(404).json(fail(404, 'Delivery not found'))
+        return
+      }
+      res.json(ok(item))
+    } catch (error) {
+      const mapped = mapNotificationError(error)
+      res.status(mapped.status).json(fail(mapped.status, mapped.message))
+    }
+  })
+
+  app.post('/api/v1/public/notifications/webhooks/:uid/replay/:notificationUid', async (req: Request, res: Response) => {
+    try {
+      const address = resolveCurrentAddress()
+      if (!address) {
+        res.status(401).json(fail(401, 'Missing access token'))
+        return
+      }
+      await ensureUserActive(address)
+      const item = await service.replayWebhookDelivery(req.params.uid, req.params.notificationUid, address)
+      if (!item) {
+        res.status(404).json(fail(404, 'Replay target not found'))
+        return
+      }
+      res.json(ok(item))
+    } catch (error) {
+      const mapped = mapNotificationError(error)
+      res.status(mapped.status).json(fail(mapped.status, mapped.message))
+    }
+  })
+
+  app.post('/api/v1/public/notifications/webhooks', async (req: Request, res: Response) => {
+    try {
+      const address = resolveCurrentAddress()
+      if (!address) {
+        res.status(401).json(fail(401, 'Missing access token'))
+        return
+      }
+      await ensureUserActive(address)
+      const item = await service.createWebhook({
+        owner: address,
+        applicationUid: String(req.body?.applicationUid || '').trim(),
+        events: parseWebhookEvents(req.body?.events),
+        targetUrl: String(req.body?.targetUrl || '').trim(),
+        secret: String(req.body?.secret || '').trim(),
+        enabled: req.body?.enabled !== false,
+      })
+      res.json(ok(item))
+    } catch (error) {
+      const mapped = mapNotificationError(error)
+      const status = mapped.message === 'Invalid webhook input' ? 400 : mapped.status
+      res.status(status).json(fail(status, mapped.message))
+    }
+  })
+
+  app.patch('/api/v1/public/notifications/webhooks/:uid', async (req: Request, res: Response) => {
+    try {
+      const address = resolveCurrentAddress()
+      if (!address) {
+        res.status(401).json(fail(401, 'Missing access token'))
+        return
+      }
+      await ensureUserActive(address)
+      const item = await service.updateWebhook(req.params.uid, address, {
+        applicationUid: req.body?.applicationUid,
+        events: Array.isArray(req.body?.events) ? parseWebhookEvents(req.body.events) : undefined,
+        targetUrl: req.body?.targetUrl,
+        secret: req.body?.secret,
+        enabled: req.body?.enabled,
+      })
+      if (!item) {
+        res.status(404).json(fail(404, 'Webhook not found'))
+        return
+      }
+      res.json(ok(item))
+    } catch (error) {
+      const mapped = mapNotificationError(error)
+      res.status(mapped.status).json(fail(mapped.status, mapped.message))
+    }
+  })
+
+  app.delete('/api/v1/public/notifications/webhooks/:uid', async (req: Request, res: Response) => {
+    try {
+      const address = resolveCurrentAddress()
+      if (!address) {
+        res.status(401).json(fail(401, 'Missing access token'))
+        return
+      }
+      await ensureUserActive(address)
+      const deleted = await service.deleteWebhook(req.params.uid, address)
+      if (!deleted) {
+        res.status(404).json(fail(404, 'Webhook not found'))
+        return
+      }
+      res.json(ok({ deleted: true }))
+    } catch (error) {
+      const mapped = mapNotificationError(error)
+      res.status(mapped.status).json(fail(mapped.status, mapped.message))
+    }
+  })
+
+  app.get('/api/v1/admin/notifications/:uid/deliveries', async (req: Request, res: Response) => {
+    try {
+      const address = resolveCurrentAddress()
+      if (!address) {
+        res.status(401).json(fail(401, 'Missing access token'))
+        return
+      }
+      await ensureUserActive(address)
+      const items = await service.listDeliveriesByNotificationUid(req.params.uid)
+      res.json(ok({ items }))
+    } catch (error) {
+      const mapped = mapNotificationError(error)
+      res.status(mapped.status).json(fail(mapped.status, mapped.message))
     }
   })
 

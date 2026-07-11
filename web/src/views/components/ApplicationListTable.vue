@@ -198,7 +198,8 @@ const props = defineProps({
         type: String,
         default: 'myCreate'
     },
-    refreshList: Function
+    refreshList: Function,
+    highlightUid: String
 })
 
 const router = useRouter()
@@ -259,7 +260,18 @@ const refreshList = () => {
     props.refreshList?.()
 }
 
-const resolveRowClassName = () => (props.pageFrom === 'myCreate' ? 'clickable-row' : '')
+const resolveRowClassName = ({ row }: { row: ApplicationMetadata }) => {
+    const classes: string[] = []
+    if (props.pageFrom === 'myCreate') {
+        classes.push('clickable-row')
+    }
+    const highlightUid = String(props.highlightUid || '').trim()
+    const rowUid = String(row?.uid || '').trim()
+    if (highlightUid && rowUid === highlightUid) {
+        classes.push('app-row-highlight')
+    }
+    return classes.join(' ')
+}
 
 const handleRowClick = (row: ApplicationMetadata, _column: unknown, event: Event) => {
     if (props.pageFrom !== 'myCreate') {
@@ -475,5 +487,9 @@ const cancelModal = () => {
     align-items: center;
     flex-wrap: wrap;
     gap: 6px;
+}
+
+:deep(.app-row-highlight > td) {
+    background: #eff6ff !important;
 }
 </style>

@@ -1,5 +1,12 @@
 <template>
     <div class="detail">
+        <el-alert
+            v-if="fromNotification"
+            class="notification-entry-alert"
+            type="info"
+            :closable="false"
+            :title="$t('notification_entry_tip')"
+        />
         <div class="header">
             <div class="left-header">
                 <BreadcrumbHeader :pageName="detailInfo.name" />
@@ -188,6 +195,7 @@ const detailInfo = ref<ApplicationMetadata>({
     codePackagePath: ''
 })
 const pageFrom = String(route.query.pageFrom || '')
+const fromNotification = computed(() => String(route.query.fromNotification || '').trim() === '1')
 const innerVisible = ref(false)
 const modalVisible = ref(false)
 const dialogVisible = ref(false)
@@ -620,6 +628,9 @@ onMounted(() => {
 <style scoped lang="less">
 .detail {
     margin: 20px;
+    .notification-entry-alert {
+        margin-bottom: 16px;
+    }
     .header {
         // text-align: right;
         display: flex;

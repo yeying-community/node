@@ -2,7 +2,6 @@ import { fileURLToPath, URL } from "node:url";
 import viteCompression from "vite-plugin-compression";
 import { defineConfig } from "vite";
 import vue from "@vitejs/plugin-vue";
-import { visualizer } from "rollup-plugin-visualizer";
 import { ElementPlusResolver } from "unplugin-vue-components/resolvers";
 import AutoImport from "unplugin-auto-import/vite";
 import Components from "unplugin-vue-components/vite";
@@ -87,11 +86,6 @@ export default defineConfig({
     }),
     vue(),
     // vueDevTools(),
-    visualizer({
-      open: false, // 打包完成后自动打开分析页面
-      gzipSize: true, // 显示gzip压缩后的大小
-      brotliSize: true, // 显示brotli压缩后的大小
-    }),
     AutoImport({
       resolvers: [ElementPlusResolver()],
     }),

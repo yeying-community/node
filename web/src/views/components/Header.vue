@@ -64,6 +64,13 @@
                         <div class="notification-head-actions">
                             <span class="notification-summary">{{ unreadCount > 0 ? `${unreadCount} ${$t('header_notification_unread_suffix')}` : $t('header_notification_summary_done') }}</span>
                             <button
+                                type="button"
+                                class="notification-view-all-btn"
+                                @click.stop="openNotificationCenter"
+                            >
+                                {{ $t('header_notification_view_all') }}
+                            </button>
+                            <button
                                 v-if="unreadCount > 0"
                                 type="button"
                                 class="notification-read-all-btn"
@@ -173,6 +180,7 @@ import { BellFilled, CaretBottom, Check, DocumentCopy, QuestionFilled, Search } 
 import { apiUrl } from '@/plugins/api'
 import { getAuthToken, getCurrentAccount, getStoredAuthToken, logoutWithUcan } from '@/plugins/auth'
 import $notification, { type NotificationListItem, type NotificationStreamPayload } from '@/plugins/notification'
+import { getNotificationTypeLabel } from '@/plugins/notificationMeta'
 import { notifyError, notifySuccess } from '@/utils/message'
 import Language from '@/components/common/Language.vue'
 
@@ -268,21 +276,7 @@ function hasAuthToken() {
 }
 
 function notificationTypeLabel(type: string) {
-    const normalized = String(type || '').trim()
-    switch (normalized) {
-        case 'audit.approved':
-            return String($t('header_notification_audit_approved'))
-        case 'audit.created':
-            return String($t('header_notification_audit_created'))
-        case 'audit.rejected':
-            return String($t('header_notification_audit_rejected'))
-        case 'totp.request_approved':
-            return String($t('header_notification_totp_approved'))
-        case 'totp.request_expired':
-            return String($t('header_notification_totp_expired'))
-        default:
-            return String($t('header_notification_system'))
-    }
+    return getNotificationTypeLabel((key) => String($t(key)), type)
 }
 
 function formatNotificationTime(value: string) {
@@ -318,42 +312,9 @@ async function loadNotifications() {
     }
 }
 
-function routeByNotification(item: NotificationListItem) {
-    const type = String(item.type || '').trim()
-    if (type.startsWith('audit.')) {
-        const payload = item.payload || {}
-        const auditId = String(payload.auditId || item.subjectId || '').trim()
-        const targetUid = String(payload.targetUid || '').trim()
-        const targetDid = String(payload.targetDid || '').trim()
-        const targetVersionRaw = payload.targetVersion
-        const targetVersion =
-            typeof targetVersionRaw === 'number'
-                ? targetVersionRaw
-                : Number(targetVersionRaw)
-        return {
-            path: type === 'audit.created' ? '/market/dev/approval' : '/market/dev/apply-detail',
-            query:
-                type === 'audit.created'
-                    ? {
-                          ...(auditId ? { auditId } : {}),
-                      }
-                    : {
-                          pageFrom: 'myApply',
-                          ...(auditId ? { auditId } : {}),
-                          ...(targetUid ? { uid: targetUid } : {}),
-                          ...(targetDid ? { did: targetDid } : {}),
-                          ...(Number.isFinite(targetVersion) ? { version: String(targetVersion) } : {})
-                      }
-        }
-    }
-    if (type.startsWith('totp.')) {
-        return {
-            path: '/market/dev/my-config'
-        }
-    }
-    return {
-        path: '/market/'
-    }
+async function openNotificationCenter() {
+    notificationVisible.value = false
+    await router.push('/market/dev/notifications')
 }
 
 async function handleNotificationItemClick(item: NotificationListItem) {
@@ -368,7 +329,12 @@ async function handleNotificationItemClick(item: NotificationListItem) {
         }
     }
     notificationVisible.value = false
-    await router.push(routeByNotification(item))
+    await router.push({
+        path: '/market/dev/notifications',
+        query: {
+            uid: item.notificationUid
+        }
+    })
 }
 
 async function handleNotificationOpen() {
@@ -866,6 +832,7 @@ onBeforeUnmount(() => {
     color: rgba(15, 23, 42, 0.45);
 }
 
+.notification-view-all-btn,
 .notification-read-all-btn{
     border: none;
     background: transparent;

@@ -1,11 +1,13 @@
 import { notifyError } from '@/utils/message';
 import { getWalletDataStore } from '@/stores/auth';
 import {
+  authUcanFetch,
   classifyWalletError,
   createInvocationUcan,
   createUcanSession,
   clearUcanSession,
   DEFAULT_UCAN_TOKEN_SKEW_MS,
+  decodeUcanPayload,
   focusPendingApproval,
   getAccounts,
   getCapabilityAction,
@@ -15,11 +17,13 @@ import {
   getChainId as web3GetChainId,
   getOrCreateUcanRoot,
   getProvider,
+  getStoredUcanRoot,
   isUcanTokenFresh,
   normalizeUcanCapabilities,
   onAccountsChanged,
   onChainChanged,
   requestAccounts,
+  resolveUcanAuthorization,
   watchProvider,
   type Eip1193Provider,
   type UcanCapability,
@@ -43,7 +47,12 @@ let cachedProvider: Eip1193Provider | null = null;
 let providerWatcherReady = false;
 let walletListenersProvider: Eip1193Provider | null = null;
 let walletListenersTeardown: Array<() => void> = [];
-let loginInFlight: { accountKey: string; promise: Promise<boolean> } | null = null;
+let accountRequestInFlight: { provider: Eip1193Provider; promise: Promise<string[]> } | null = null;
+let loginInFlight: {
+  accountKey: string;
+  provider: Eip1193Provider | null;
+  promise: Promise<boolean>;
+} | null = null;
 let cachedApiToken: CachedToken | null = null;
 let cachedWebDavToken: CachedToken | null = null;
 let cachedSession: UcanSessionKey | null = null;
@@ -65,12 +74,75 @@ function normalizeAccountKey(account?: string | null) {
   return String(account || '').trim().toLowerCase();
 }
 
+function isProviderCandidate(value: unknown): value is Eip1193Provider {
+  return Boolean(value && typeof (value as Eip1193Provider).request === 'function');
+}
+
+function addFocusProviderCandidate(candidates: Eip1193Provider[], candidate: unknown) {
+  if (isProviderCandidate(candidate) && !candidates.includes(candidate)) {
+    candidates.push(candidate);
+    const nestedProviders = (candidate as { providers?: unknown }).providers;
+    if (Array.isArray(nestedProviders)) {
+      for (const nested of nestedProviders) {
+        addFocusProviderCandidate(candidates, nested);
+      }
+    }
+  }
+}
+
+function getFocusProviderCandidates(provider?: Eip1193Provider | null) {
+  const candidates: Eip1193Provider[] = [];
+  addFocusProviderCandidate(candidates, provider);
+  addFocusProviderCandidate(candidates, loginInFlight?.provider);
+  addFocusProviderCandidate(candidates, accountRequestInFlight?.provider);
+  addFocusProviderCandidate(candidates, cachedProvider);
+  addFocusProviderCandidate(candidates, walletListenersProvider);
+
+  if (typeof window !== 'undefined') {
+    const source = window as Window & Record<string, unknown>;
+    for (const name of ['yeying', 'yeeying', '__YEYING_PROVIDER__', 'ethereum']) {
+      addFocusProviderCandidate(candidates, source[name]);
+    }
+  }
+
+  return candidates;
+}
+
 async function focusPendingWalletApproval(provider?: Eip1193Provider | null) {
+  const candidates = getFocusProviderCandidates(provider);
+  for (const candidate of candidates) {
+    try {
+      const result = await focusPendingApproval(candidate);
+      if (result.focused) {
+        return true;
+      }
+    } catch {
+      // try the next provider candidate
+    }
+  }
+
   try {
-    const result = await focusPendingApproval(provider || undefined);
+    const result = await focusPendingApproval();
     return Boolean(result.focused);
   } catch {
     return false;
+  }
+}
+
+async function requestWalletAccounts(provider: Eip1193Provider) {
+  if (accountRequestInFlight) {
+    void focusPendingWalletApproval(provider);
+    return await accountRequestInFlight.promise;
+  }
+
+  const promise = requestAccounts({ provider });
+  accountRequestInFlight = { provider, promise };
+  try {
+    return await promise;
+  } finally {
+    if (accountRequestInFlight?.promise === promise) {
+      accountRequestInFlight = null;
+    }
   }
 }
 
@@ -92,22 +164,39 @@ async function waitForLoginCompletion(timeoutMs = LOGIN_COMPLETION_WAIT_MS) {
   return false;
 }
 
+async function waitForRoutePath(router: any, expectedPath: string, timeoutMs = LOGIN_ROUTE_READY_WAIT_MS) {
+  const startedAt = Date.now();
+  while (Date.now() - startedAt < timeoutMs) {
+    const currentPath = String(router?.currentRoute?.value?.path || '');
+    if (currentPath === expectedPath || currentPath.startsWith(`${expectedPath}/`)) {
+      return true;
+    }
+    await delay(LOGIN_COMPLETION_POLL_MS);
+  }
+  return false;
+}
+
 async function goMarketAfterLogin(router: any) {
   if (!(await waitForLoginCompletion(LOGIN_ROUTE_READY_WAIT_MS))) {
     return false;
   }
   if (router) {
-    await router.push('/market').catch(() => undefined);
-    if (String(router.currentRoute?.value?.path || '').startsWith('/market')) {
+    try {
+      await router.isReady?.();
+    } catch {
+      // ignore router readiness errors and continue with fallback checks
+    }
+    const target = { path: '/market' };
+    await router.replace?.(target).catch(() => undefined);
+    if (await waitForRoutePath(router, '/market', LOGIN_ROUTE_READY_WAIT_MS)) {
       return true;
     }
-    await delay(LOGIN_COMPLETION_POLL_MS);
-    if (await waitForLoginCompletion(LOGIN_ROUTE_READY_WAIT_MS)) {
-      await router.push('/market').catch(() => undefined);
+    await router.push?.(target).catch(() => undefined);
+    if (await waitForRoutePath(router, '/market', LOGIN_ROUTE_READY_WAIT_MS)) {
+      return true;
     }
-    return String(router.currentRoute?.value?.path || '').startsWith('/market');
   }
-  window.location.href = `${getHomeUrl()}market`;
+  window.location.assign(`${getHomeUrl()}market`);
   return true;
 }
 
@@ -173,11 +262,22 @@ async function bindWalletProvider(provider: Eip1193Provider) {
 
   walletListenersTeardown.push(onAccountsChanged(provider, async (accounts) => {
     if (!accounts || accounts.length === 0) {
-      if (!hasValidApiToken()) {
-        clearAuthSession();
-        emitAccountChange(null);
-        redirectHome();
+      const storedAccount = getCurrentAccount();
+      const authorization = await resolveWalletUcanAuthorization({
+        root: await getStoredUcanRoot(),
+        account: storedAccount || null,
+        recoverAccountFromRoot: !storedAccount,
+      });
+      if (authorization.status === 'authorized') {
+        if (authorization.restoredAccount && authorization.account) {
+          handleAccountChange(authorization.account);
+          emitAccountChange(authorization.account);
+        }
+        return;
       }
+      await clearAuthSession();
+      emitAccountChange(null);
+      redirectHome();
       return;
     }
     const nextAccount = accounts[0];
@@ -227,7 +327,7 @@ function redirectHome() {
   }
   const target = getHomeUrl();
   if (window.location.href !== target) {
-    window.location.href = target;
+    window.location.assign(target);
   }
 }
 
@@ -240,6 +340,19 @@ function toDidWeb(value: string): string {
     const trimmed = value.replace(/^https?:\/\//, '').split('/')[0];
     return `did:web:${trimmed || 'localhost'}`;
   }
+}
+
+function resolveSameOriginApiAudience(): string {
+  if (typeof window === 'undefined') {
+    return 'did:web:localhost';
+  }
+  const proxyTarget = import.meta.env.DEV
+    ? import.meta.env.VITE_DEV_API_PROXY_TARGET || 'http://localhost:8100'
+    : '';
+  if (proxyTarget) {
+    return toDidWeb(proxyTarget);
+  }
+  return toDidWeb(window.location.origin);
 }
 
 function normalizeActionExpression(raw: string): string {
@@ -349,14 +462,9 @@ function resolveApiAudience(): string {
     if (/^https?:\/\//i.test(endpoint)) {
       return toDidWeb(endpoint);
     }
-    if (typeof window !== 'undefined') {
-      return toDidWeb(window.location.origin);
-    }
+    return resolveSameOriginApiAudience();
   }
-  if (typeof window !== 'undefined') {
-    return toDidWeb(window.location.origin);
-  }
-  return 'did:web:localhost';
+  return resolveSameOriginApiAudience();
 }
 
 function resolveWebDavAudience(): string {
@@ -409,12 +517,38 @@ function isTokenValid(entry: CachedToken | null): boolean {
   }));
 }
 
-function readStoredToken(key: string): CachedToken | null {
+function tokenMatchesExpectedClaims(
+  entry: CachedToken | null,
+  options: { audience?: string; capabilities?: UcanCapability[] } = {}
+): boolean {
+  if (!entry || !isTokenValid(entry)) return false;
+  const payload = decodeUcanPayload(entry.token);
+  if (!payload) return false;
+  if (options.audience && payload.aud !== options.audience) {
+    return false;
+  }
+  if (options.capabilities) {
+    const expectedCapsKey = buildCapsKey(options.capabilities);
+    const actualCapsKey = buildCapsKey(payload.cap || []);
+    if (actualCapsKey !== expectedCapsKey) {
+      return false;
+    }
+  }
+  return true;
+}
+
+function readStoredToken(
+  key: string,
+  options: { audience?: string; capabilities?: UcanCapability[] } = {}
+): CachedToken | null {
   if (typeof localStorage === 'undefined') return null;
   const token = localStorage.getItem(key);
   if (!token) return null;
   const parsed = parseCachedToken(token);
-  if (!parsed || !isTokenValid(parsed)) return null;
+  if (!tokenMatchesExpectedClaims(parsed, options)) {
+    clearStoredToken(key);
+    return null;
+  }
   return parsed;
 }
 
@@ -473,8 +607,10 @@ function clearTokenStores() {
 }
 
 function hasValidApiToken(): boolean {
-  if (isTokenValid(cachedApiToken)) return true;
-  return Boolean(readStoredToken(UCAN_API_TOKEN_KEY));
+  const audience = resolveApiAudience();
+  const capabilities = getApiUcanCapabilities();
+  if (tokenMatchesExpectedClaims(cachedApiToken, { audience, capabilities })) return true;
+  return Boolean(readStoredToken(UCAN_API_TOKEN_KEY, { audience, capabilities }));
 }
 
 function clearUcanSessionQuietly() {
@@ -554,6 +690,23 @@ async function ensureUcanRoot(
   return root;
 }
 
+async function resolveWalletUcanAuthorization(options: {
+  root?: UcanRootProof | null;
+  account?: string | null;
+  recoverAccountFromRoot?: boolean;
+} = {}) {
+  return await resolveUcanAuthorization({
+    root: options.root,
+    currentAccount: options.account ?? getCurrentAccount(),
+    expectedCapabilities: getRootUcanCapabilities(),
+    expectedServiceHosts: {
+      router: resolveServiceHost(import.meta.env.VITE_NODE_API_ENDPOINT),
+      webdav: resolveServiceHost(import.meta.env.VITE_WEBDAV_BASE_URL),
+    },
+    recoverAccountFromRoot: options.recoverAccountFromRoot,
+  });
+}
+
 async function issueInvocationToken(options: {
   provider?: Eip1193Provider;
   audience: string;
@@ -566,11 +719,20 @@ async function issueInvocationToken(options: {
   }
 
   const cache = options.cache === 'api' ? cachedApiToken : cachedWebDavToken;
-  if (isTokenValid(cache)) {
+  if (tokenMatchesExpectedClaims(cache, {
+    audience: options.audience,
+    capabilities: options.capabilities,
+  })) {
     return cache!.token;
   }
 
-  const stored = readStoredToken(options.cache === 'api' ? UCAN_API_TOKEN_KEY : UCAN_WEBDAV_TOKEN_KEY);
+  const stored = readStoredToken(
+    options.cache === 'api' ? UCAN_API_TOKEN_KEY : UCAN_WEBDAV_TOKEN_KEY,
+    {
+      audience: options.audience,
+      capabilities: options.capabilities,
+    }
+  );
   if (stored) {
     if (options.cache === 'api') {
       cachedApiToken = stored;
@@ -621,6 +783,25 @@ export async function getWebDavToken(providerOverride?: Eip1193Provider): Promis
   });
 }
 
+export async function authWebDavFetch(
+  input: RequestInfo | URL,
+  init: RequestInit = {},
+  providerOverride?: Eip1193Provider
+): Promise<Response> {
+  const provider = providerOverride || (await resolveProvider());
+  if (!provider) {
+    throw new Error('未检测到钱包提供方');
+  }
+  const session = await ensureUcanSession(provider);
+  const root = await ensureUcanRoot(provider);
+  return await authUcanFetch(input, init, {
+    issuer: session,
+    audience: resolveWebDavAudience(),
+    capabilities: getWebDavUcanCapabilities(),
+    proofs: [root],
+  });
+}
+
 // 等待钱包注入
 export async function waitForWallet() {
   const provider = await resolveProvider(5000);
@@ -642,16 +823,17 @@ export async function connectWallet(router: any, route: any) {
     getWalletDataStore().setWalletReady(true);
     void setupWalletListeners({ provider });
     try {
-      if (loginInFlight && await focusPendingWalletApproval(provider)) {
-          const ok = await waitForLoginCompletion();
-          if (ok) {
-            if (!(await goMarketAfterLogin(router))) {
-              notifyError('登录成功，但跳转应用商店失败，请重试');
-            }
+      if (loginInFlight) {
+        await focusPendingWalletApproval(provider);
+        const ok = await waitForLoginCompletion();
+        if (ok) {
+          if (!(await goMarketAfterLogin(router))) {
+            notifyError('登录成功，但跳转应用商店失败，请重试');
           }
+        }
         return;
       }
-      const accounts = await requestAccounts({ provider });
+      const accounts = await requestWalletAccounts(provider);
       if (Array.isArray(accounts) && accounts.length > 0) {
         const currentAccount = accounts[0];
         const ok = await loginWithUcan(provider, currentAccount);
@@ -691,7 +873,11 @@ export function getStoredAuthToken() {
   if (typeof localStorage === 'undefined') {
     return '';
   }
-  return String(localStorage.getItem(AUTH_TOKEN_KEY) || '').trim();
+  const stored = readStoredToken(AUTH_TOKEN_KEY, {
+    audience: resolveApiAudience(),
+    capabilities: getApiUcanCapabilities(),
+  });
+  return String(stored?.token || '').trim();
 }
 
 export async function logoutWithUcan(options: { redirect?: boolean } = {}) {
@@ -782,7 +968,10 @@ export async function ensureWalletSession(options: { redirect?: boolean } = {}) 
     emitAccountChange(activeAccount);
   }
   if (!accountChanged && hasValidApiToken()) {
-    const stored = readStoredToken(UCAN_API_TOKEN_KEY);
+    const stored = readStoredToken(UCAN_API_TOKEN_KEY, {
+      audience: resolveApiAudience(),
+      capabilities: getApiUcanCapabilities(),
+    });
     if (stored) {
       cachedApiToken = stored;
     }
@@ -890,7 +1079,7 @@ export async function loginWithUcan(
       void setupWalletListeners({ provider });
       const accounts = accountOverride
         ? [accountOverride]
-        : await requestAccounts({ provider });
+        : await requestWalletAccounts(provider);
       const currentAccount = accountOverride || accounts?.[0];
       if (!currentAccount) {
         notifyError('未获取到账户');
@@ -911,7 +1100,7 @@ export async function loginWithUcan(
       return false;
     }
   })();
-  loginInFlight = { accountKey, promise };
+  loginInFlight = { accountKey, provider: providerOverride || cachedProvider, promise };
   try {
     return await promise;
   } finally {
