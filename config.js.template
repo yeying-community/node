@@ -10,6 +10,23 @@ module.exports = {
     // HTTP server port.
     port: 8100
   },
+  // YeYing Project AppStore adapter. The configured instance must exist in project_instances.
+  projectAdapter: {
+    defaultInstanceId: 'local-project',
+    requestTimeoutMs: 5000
+  },
+  appStoreRelease: {
+    artifactDir: 'data/appstore/releases',
+    maxBundleBytes: 2 * 1024 * 1024,
+    // keyId -> publisher wallet address and Ed25519 SPKI PEM public key.
+    publisherKeys: {}
+  },
+  appStoreAgent: {
+    // instanceId -> SHA-256 of the Agent bearer token. Never store the plaintext token here.
+    instances: {
+      // 'local-project': { tokenSha256: '<64 lowercase hex chars>', leaseSeconds: 60 }
+    }
+  },
   secrets: {
     // 加密密钥文件路径。支持相对路径（相对当前项目目录）。
     // 运行时优先级：SECRETS_FILE env > secrets.file > run/secrets.enc.json
