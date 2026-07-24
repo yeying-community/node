@@ -1,0 +1,38 @@
+{
+  "api_version": "yeying.app/v1",
+  "kind": "Application",
+  "metadata": {
+    "id": "ai",
+    "name": {
+      "zh-CN": "YeYing AI 助手",
+      "en-US": "YeYing AI Assistant"
+    },
+    "description": {
+      "zh-CN": "面向 YeYing Project 的社区 AI 助手",
+      "en-US": "Community AI assistant for YeYing Project"
+    },
+    "license": "MIT",
+    "homepage": "https://github.com/yeying-community/ai",
+    "categories": ["ai", "productivity"]
+  },
+  "spec": {
+    "version": "0.1.0",
+    "host": {
+      "project": ">=1.0.0",
+      "protocol": "^1.0.0"
+    },
+    "entries": [
+      {
+        "id": "main",
+        "location": "application",
+        "label": {
+          "zh-CN": "AI 助手",
+          "en-US": "AI Assistant"
+        },
+        "path": "/apps/ai/",
+        "render": "iframe",
+        "visibility": "all"
+      }
+    ]
+  }
+}

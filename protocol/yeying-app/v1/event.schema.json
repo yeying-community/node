@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://yeying.community/protocol/yeying-app/v1/event.schema.json",
+  "title": "YeYing Lifecycle Event",
+  "type": "object",
+  "required": ["api_version", "event_id", "event_type", "occurred_at", "instance_id", "subject", "data"],
+  "properties": {
+    "api_version": { "const": "yeying.event/v1" },
+    "event_id": { "type": "string", "format": "uuid" },
+    "event_type": { "enum": ["application.installed", "application.upgraded", "application.uninstalled", "user.onboarded", "user.updated", "user.offboarded", "knowledge.changed"] },
+    "occurred_at": { "type": "string", "format": "date-time" },
+    "instance_id": { "type": "string", "minLength": 1 },
+    "subject": {
+      "type": "object",
+      "required": ["type", "id"],
+      "properties": {
+        "type": { "enum": ["application", "user", "knowledge"] },
+        "id": { "type": "string", "minLength": 1 }
+      },
+      "additionalProperties": false
+    },
+    "data": { "type": "object" }
+  },
+  "additionalProperties": false
+}

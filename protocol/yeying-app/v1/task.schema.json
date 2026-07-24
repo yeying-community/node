@@ -1,0 +1,20 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://yeying.community/protocol/yeying-app/v1/task.schema.json",
+  "title": "YeYing Runtime Task",
+  "type": "object",
+  "required": ["api_version", "task_id", "instance_id", "operation", "app_id", "target_version", "release_digest", "status", "revision"],
+  "properties": {
+    "api_version": { "const": "yeying.app/v1" },
+    "task_id": { "type": "string", "format": "uuid" },
+    "instance_id": { "type": "string", "minLength": 1 },
+    "operation": { "enum": ["install", "upgrade", "uninstall"] },
+    "app_id": { "type": "string", "pattern": "^[a-z][a-z0-9-]{1,63}$" },
+    "target_version": { "type": "string" },
+    "release_digest": { "type": "string", "pattern": "^sha256:[a-f0-9]{64}$" },
+    "status": { "enum": ["requested", "pending", "claimed", "applying", "verifying", "rolling_back", "succeeded", "failed", "rolled_back", "rollback_failed"] },
+    "lease_expires_at": { "type": ["string", "null"], "format": "date-time" },
+    "revision": { "type": "integer", "minimum": 1 }
+  },
+  "additionalProperties": false
+}

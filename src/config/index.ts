@@ -132,3 +132,28 @@ export interface RedisRuntimeConfig {
     streamMaxLen?: number
     streamApprox?: boolean
 }
+
+export interface ProjectAdapterRuntimeConfig {
+    defaultInstanceId?: string
+    requestTimeoutMs?: number
+}
+
+export interface AppStorePublisherKeyConfig {
+    owner: string
+    publicKey: string
+}
+
+export interface AppStoreReleaseRuntimeConfig {
+    artifactDir?: string
+    maxBundleBytes?: number
+    publisherKeys?: Record<string, AppStorePublisherKeyConfig>
+}
+
+export interface AppStoreAgentInstanceConfig {
+    tokenSha256: string
+    leaseSeconds?: number
+}
+
+export interface AppStoreAgentRuntimeConfig {
+    instances?: Record<string, AppStoreAgentInstanceConfig>
+}

@@ -462,6 +462,140 @@ export class ApplicationConfigDO {
     updatedAt!: string
 }
 
+/** A YeYing Project deployment registered with the AppStore adapter. */
+@Entity('project_instances')
+export class ProjectInstanceDO {
+    @PrimaryColumn({ length: 128, name: 'instance_id' })
+    instanceId!: string
+
+    @Column({ type: 'text', name: 'project_api_url' })
+    projectApiUrl!: string
+
+    @Column({ length: 64, default: 'active' })
+    status!: string
+
+    @Column({ length: 64, name: 'created_at', default: '' })
+    createdAt!: string
+
+    @Column({ length: 64, name: 'updated_at', default: '' })
+    updatedAt!: string
+}
+
+/** Runtime installation state for one application in one YeYing Project instance. */
+@Entity('project_app_installations')
+@Index('idx_project_app_installation', ['instanceId', 'appId'], { unique: true })
+export class ProjectAppInstallationDO {
+    @PrimaryGeneratedColumn('uuid')
+    uid!: string
+
+    @Column({ length: 128, name: 'instance_id' })
+    instanceId!: string
+
+    @Column({ length: 128, name: 'app_id' })
+    appId!: string
+
+    @Column({ length: 64, name: 'install_version' })
+    installVersion!: string
+
+    @Column({ length: 32, default: 'pending' })
+    status!: string
+
+    @Column({ type: 'text', name: 'menu_items_json', default: '[]' })
+    menuItemsJson!: string
+
+    @Column({ type: 'text', name: 'runtime_config_json', default: '{}' })
+    runtimeConfigJson!: string
+
+    @Column({ length: 64, name: 'install_at', default: '' })
+    installAt!: string
+
+    @Column({ length: 64, name: 'updated_at', default: '' })
+    updatedAt!: string
+}
+
+@Entity('app_releases')
+@Index('idx_app_release_version', ['appId', 'version'], { unique: true })
+export class AppReleaseDO {
+    @PrimaryGeneratedColumn('uuid')
+    uid!: string
+
+    @Column({ length: 128, name: 'app_id' })
+    appId!: string
+
+    @Column({ length: 64 })
+    version!: string
+
+    @Column({ length: 128 })
+    publisher!: string
+
+    @Column({ length: 128, name: 'publisher_key_id' })
+    publisherKeyId!: string
+
+    @Column({ length: 71, name: 'release_digest' })
+    releaseDigest!: string
+
+    @Column({ type: 'text' })
+    image!: string
+
+    @Column({ length: 32, default: 'submitted' })
+    status!: string
+
+    @Column({ type: 'text', name: 'artifact_path' })
+    artifactPath!: string
+
+    @Column({ type: 'text', name: 'validation_json', default: '{}' })
+    validationJson!: string
+
+    @Column({ length: 64, name: 'created_at', default: '' })
+    createdAt!: string
+
+    @Column({ length: 64, name: 'updated_at', default: '' })
+    updatedAt!: string
+}
+
+@Entity('app_runtime_tasks')
+@Index('idx_app_runtime_task_queue', ['instanceId', 'status', 'createdAt'])
+export class AppRuntimeTaskDO {
+    @PrimaryGeneratedColumn('uuid')
+    uid!: string
+
+    @Column({ length: 128, name: 'instance_id' })
+    instanceId!: string
+
+    @Column({ length: 128, name: 'app_id' })
+    appId!: string
+
+    @Column({ length: 32 })
+    operation!: string
+
+    @Column({ length: 64, name: 'target_version' })
+    targetVersion!: string
+
+    @Column({ length: 71, name: 'release_digest' })
+    releaseDigest!: string
+
+    @Column({ length: 32, default: 'pending' })
+    status!: string
+
+    @Column({ length: 128, name: 'claimed_by', default: '' })
+    claimedBy!: string
+
+    @Column({ length: 64, name: 'lease_expires_at', default: '' })
+    leaseExpiresAt!: string
+
+    @Column({ type: 'int', default: 1 })
+    revision!: number
+
+    @Column({ type: 'text', name: 'result_json', default: '{}' })
+    resultJson!: string
+
+    @Column({ length: 64, name: 'created_at', default: '' })
+    createdAt!: string
+
+    @Column({ length: 64, name: 'updated_at', default: '' })
+    updatedAt!: string
+}
+
 /**
  * 审批注释，确认通过/确认拒绝
  */

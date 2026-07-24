@@ -1,0 +1,47 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://yeying.community/protocol/yeying-app/v1/runtime.schema.json",
+  "title": "YeYing Application Runtime",
+  "type": "object",
+  "required": ["api_version", "kind", "app_id", "version", "image", "service", "healthcheck"],
+  "properties": {
+    "api_version": { "const": "yeying.app/v1" },
+    "kind": { "const": "Runtime" },
+    "app_id": { "type": "string", "pattern": "^[a-z][a-z0-9-]{1,63}$" },
+    "version": { "type": "string" },
+    "image": { "type": "string", "pattern": "^[^\\s]+@sha256:[a-f0-9]{64}$" },
+    "service": {
+      "type": "object",
+      "required": ["name", "container_port"],
+      "properties": {
+        "name": { "type": "string", "pattern": "^[a-z][a-z0-9-]{0,63}$" },
+        "container_port": { "type": "integer", "minimum": 1, "maximum": 65535 }
+      },
+      "additionalProperties": false
+    },
+    "healthcheck": {
+      "type": "object",
+      "required": ["protocol", "path", "timeout_seconds"],
+      "properties": {
+        "protocol": { "enum": ["http", "https"] },
+        "path": { "type": "string", "pattern": "^/" },
+        "timeout_seconds": { "type": "integer", "minimum": 1, "maximum": 300 },
+        "success_codes": { "type": "array", "items": { "type": "integer", "minimum": 100, "maximum": 599 } }
+      },
+      "additionalProperties": false
+    },
+    "dependencies": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["capability", "required"],
+        "properties": {
+          "capability": { "enum": ["project-api", "mysql", "redis", "manticore", "object-storage"] },
+          "required": { "type": "boolean" }
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "additionalProperties": false
+}

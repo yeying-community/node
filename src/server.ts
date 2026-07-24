@@ -24,7 +24,11 @@ import {
     MpcSessionParticipantDO,
     MpcMessageDO,
     MpcSignRequestDO,
-    MpcAuditLogDO
+    MpcAuditLogDO,
+    ProjectInstanceDO,
+    ProjectAppInstallationDO,
+    AppReleaseDO,
+    AppRuntimeTaskDO
 } from './domain/mapper/entity'
 import { SingletonDataSource } from './domain/facade/datasource';
 import { LoggerConfig, LoggerService } from './infrastructure/logger';
@@ -60,6 +64,13 @@ import { AddNotifications20260429110000 } from './migrations/20260429110000-add-
 import { AddNotificationWebhooksAndDeliveries20260624090000 } from './migrations/20260624090000-add-notification-webhooks-and-deliveries';
 import { RepairNotificationDeliveryWebhookColumns20260701130000 } from './migrations/20260701130000-repair-notification-delivery-webhook-columns';
 import { AddCustodyKeyRecords20260710090000 } from './migrations/20260710090000-add-custody-key-records';
+import { AddProjectAppInstallations20260723100000 } from './migrations/20260723100000-add-project-app-installations';
+import { registerInternalAppStoreRoutes } from './routes/internal/appstore';
+import { registerPublisherReleaseRoutes } from './routes/publisher/releases';
+import { registerAdminReleaseRoutes } from './routes/admin/releases';
+import { AddAppReleases20260723110000 } from './migrations/20260723110000-add-app-releases';
+import { AddAppRuntimeTasks20260724100000 } from './migrations/20260724100000-add-app-runtime-tasks';
+import { registerRuntimeTaskRoutes } from './routes/runtime/tasks';
 import { getConfig } from './config/runtime';
 import { startActionRequestCleanupJobs } from './domain/service/actionRequestCleanup';
 import { startMpcCleanupJobs } from './domain/service/mpcCleanup';
@@ -89,6 +100,29 @@ function resolveWebDistDir() {
         }
     }
     return ''
+}
+
+function escapeHtml(value: string): string {
+    return value
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+}
+
+function registerAppStoreDeveloperManualPage(app: Express) {
+    app.get('/development/manual', (_req: Request, res: Response) => {
+        const manualPath = path.resolve(
+            process.cwd(),
+            'docs/YeYing-AppStore-Developer-Manual.md'
+        )
+        if (!fs.existsSync(manualPath)) {
+            res.status(404).type('text/plain').send('Developer manual is unavailable')
+            return
+        }
+
+        const markdown = fs.readFileSync(manualPath, 'utf8')
+        res.type('html').send(`<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>YeYing AppStore 开发手册</title><style>body{max-width:960px;margin:32px auto;padding:0 20px;font:14px/1.65 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:#182230}pre{white-space:pre-wrap;word-break:break-word}</style></head><body><pre>${escapeHtml(markdown)}</pre></body></html>`)
+    })
 }
 
 function registerWebStaticRoutes(app: Express, webDistDir: string) {
@@ -227,7 +261,11 @@ builder.entities([
     MpcSessionParticipantDO,
     MpcMessageDO,
     MpcSignRequestDO,
-    MpcAuditLogDO
+    MpcAuditLogDO,
+    ProjectInstanceDO,
+    ProjectAppInstallationDO,
+    AppReleaseDO,
+    AppRuntimeTaskDO
 ])
 builder.migrations([
     InitSchema20260126120000,
@@ -245,7 +283,10 @@ builder.migrations([
     AddNotifications20260429110000,
     AddNotificationWebhooksAndDeliveries20260624090000,
     RepairNotificationDeliveryWebhookColumns20260701130000,
-    AddCustodyKeyRecords20260710090000
+    AddCustodyKeyRecords20260710090000,
+    AddProjectAppInstallations20260723100000,
+    AddAppReleases20260723110000,
+    AddAppRuntimeTasks20260724100000
 ])
 
 builder.build().initialize().then(async (conn) => {
@@ -289,6 +330,11 @@ builder.build().initialize().then(async (conn) => {
     app.use(express.json());
     registerApiRequestLogger(app);
 
+    // Project AppStore compatibility uses Project Token rather than Node JWT/UCAN.
+    registerInternalAppStoreRoutes(app);
+    registerRuntimeTaskRoutes(app);
+    registerAppStoreDeveloperManualPage(app);
+
     // ✅ 将鉴权中间件应用到所有 API 路由（公共认证/健康检查除外）
     app.use('/api/v1', authenticateToken);
     // ✅ 管理员接口前缀控制
@@ -302,12 +348,14 @@ builder.build().initialize().then(async (conn) => {
     registerPublicHealthRoute(app);
     registerPublicProfileRoute(app);
     registerPublicApplicationRoutes(app);
+    registerPublisherReleaseRoutes(app);
     registerPublicAuditRoutes(app);
     registerPublicMpcRoutes(app);
     registerPublicCustodyRoutes(app);
     registerPublicNotificationRoutes(app);
     registerAdminAuditRoutes(app);
     registerAdminUserRoutes(app);
+    registerAdminReleaseRoutes(app);
     registerWebStaticRoutes(app, webDistDir);
 
     // 启动服务器

@@ -1,0 +1,71 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://yeying.community/protocol/yeying-app/v1/application.schema.json",
+  "title": "YeYing Application",
+  "type": "object",
+  "required": ["api_version", "kind", "metadata", "spec"],
+  "properties": {
+    "api_version": { "const": "yeying.app/v1" },
+    "kind": { "const": "Application" },
+    "metadata": {
+      "type": "object",
+      "required": ["id", "name", "description", "license"],
+      "properties": {
+        "id": { "type": "string", "pattern": "^[a-z][a-z0-9-]{1,63}$" },
+        "name": { "$ref": "#/$defs/localizedText" },
+        "description": { "$ref": "#/$defs/localizedText" },
+        "license": { "type": "string", "minLength": 1 },
+        "homepage": { "type": "string", "format": "uri" },
+        "categories": { "type": "array", "items": { "type": "string" }, "uniqueItems": true }
+      },
+      "additionalProperties": false
+    },
+    "spec": {
+      "type": "object",
+      "required": ["version", "host", "entries"],
+      "properties": {
+        "version": { "type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+(?:-[0-9A-Za-z.-]+)?$" },
+        "host": {
+          "type": "object",
+          "required": ["project", "protocol"],
+          "properties": {
+            "project": { "type": "string", "minLength": 1 },
+            "protocol": { "type": "string", "minLength": 1 }
+          },
+          "additionalProperties": false
+        },
+        "entries": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/entry" },
+          "uniqueItems": true
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "$defs": {
+    "localizedText": {
+      "type": "object",
+      "required": ["zh-CN", "en-US"],
+      "properties": {
+        "zh-CN": { "type": "string", "minLength": 1 },
+        "en-US": { "type": "string", "minLength": 1 }
+      },
+      "additionalProperties": { "type": "string" }
+    },
+    "entry": {
+      "type": "object",
+      "required": ["id", "location", "label", "path", "render", "visibility"],
+      "properties": {
+        "id": { "type": "string", "pattern": "^[a-z][a-z0-9-]{0,63}$" },
+        "location": { "enum": ["application", "settings", "project", "task"] },
+        "label": { "$ref": "#/$defs/localizedText" },
+        "path": { "type": "string", "pattern": "^/" },
+        "render": { "enum": ["iframe", "inline", "external"] },
+        "visibility": { "enum": ["all", "admin"] }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}
