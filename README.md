@@ -125,11 +125,13 @@ npm run dev:secure -- --file run/secrets.enc.json
 - `database.username` / `database.password`：数据库账号和密码，必须替换成目标环境的可用凭据，不要保留模板值，也不要把生产密码提交回仓库。
 - `auth.jwtSecret`：JWT 签名密钥。每个环境都应使用独立随机值；通过 `openssl rand -hex 32` 生成。
 - `ucanIssuer.enabled`：是否启用中心化 UCAN 签发模式。默认模板为 `false`；生产环境建议改为 `true`。
+- `ucanIssuer.did`：中心化 UCAN issuer DID，可留空由私钥推导；如果显式配置，必须与私钥推导 DID 一致。
 - `totpAuth.enabled`：是否启用 TOTP 登录桥接。默认模板为 `false`；生产环境建议改为 `true`。
 - `totpAuth.totpMasterKey`：TOTP 主密钥。`totpAuth.enabled=true` 时必须提供，且必须为当前环境单独生成；通过 `openssl rand -hex 32` 生成。
 
 补充说明：
-- 如果 `ucanIssuer.enabled=true`，还需要同时准备 `ucanIssuer.privateKey`（或环境变量 `UCAN_ISSUER_PRIVATE_KEY`）；`ucanIssuer.did` 可留空，由私钥自动推导。
+- 如果 `ucanIssuer.enabled=true` 且 `mode=issue|hybrid`，必须准备 `ucanIssuer.privateKey`（或 `UCAN_ISSUER_PRIVATE_KEY`）；若同时配置 `ucanIssuer.did`（或 `UCAN_ISSUER_DID`），启动时会校验 DID 是否与私钥匹配。
+- Router 等下游服务必须把 Node 当前 issuer DID 配到自己的 trusted issuer 列表，否则中心化 UCAN 会被当成缺少 proof chain 的非可信 token。
 - 如果 `totpAuth.enabled=true`，建议一并检查 `totpAuth.portalBaseUrl` 和 `totpAuth.verifyPath`，确保返回给前端的验证地址指向实际部署域名。
 
 密钥收敛建议：
@@ -231,9 +233,9 @@ curl http://127.0.0.1:8100/api/v1/public/auth/central/issuer
 返回结果中的 `data.issuerDid` 就是当前服务实际使用的 DID。
 
 建议：
-- `ucanIssuer.did` 配置保持空值
-- 统一以 `UCAN_ISSUER_PRIVATE_KEY` 为唯一密钥源
-- DID 由私钥自动推导，避免手工填写不一致
+- 以 `/api/v1/public/auth/central/issuer` 返回的 `data.issuerDid` 作为当前生效 issuer DID。
+- 若显式配置 `ucanIssuer.did` / `UCAN_ISSUER_DID`，必须与 `UCAN_ISSUER_PRIVATE_KEY` 匹配；服务启动时会校验，不匹配会失败。
+- 将当前生效 DID 同步到 Router `ucan.trusted_issuer_dids`，避免 Router 拒绝中心化 UCAN。
 
 ![alt text](image.png)
 

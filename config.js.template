@@ -93,8 +93,9 @@ module.exports = {
     // issue: centralized UCAN issue + verify centralized issuer only
     // hybrid: wallet UCAN verify + centralized UCAN issue/verify
     mode: 'verify',
-    // did:key of centralized issuer. Must match private key derived DID when enabled.
-    // 推荐留空并通过环境变量 UCAN_ISSUER_DID 注入（或由私钥自动推导）。
+    // did:key of centralized issuer. Optional; when set, it must match private key derived DID.
+    // Downstream services such as Router must trust the current issuer DID.
+    // 可通过加密密钥文件或环境变量 UCAN_ISSUER_DID 注入。
     did: '',
     // Ed25519 private key (PEM / base64 seed / hex seed). Keep empty in template.
     // 推荐通过加密密钥文件或环境变量 UCAN_ISSUER_PRIVATE_KEY 注入。
