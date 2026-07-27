@@ -5,9 +5,13 @@ import { ProjectAppManifest } from '../../appstore/manifests'
 
 const REPORT_TRANSITIONS: Record<string, string[]> = {
   claimed: ['applying', 'failed'],
-  applying: ['verifying', 'failed'],
-  verifying: ['succeeded', 'failed'],
+  applying: ['verifying', 'rolling_back', 'failed'],
+  verifying: ['succeeded', 'rolling_back', 'failed'],
+  rolling_back: ['rolled_back', 'rollback_failed'],
 }
+
+type TaskPayload = { menuItems?: unknown[]; previousVersion?: string; previousReleaseDigest?: string; previousRuntimeConfigJson?: string }
+type TaskResult = { release_digest?: unknown; healthcheck?: { ok?: unknown }; uninstalled?: unknown; rollback?: { succeeded?: unknown } }
 
 export function canReportRuntimeTask(current: string, target: string) {
   return (REPORT_TRANSITIONS[current] || []).includes(target)
@@ -17,41 +21,84 @@ function leaseTime(seconds: number) {
   return new Date(Date.now() + seconds * 1000).toISOString()
 }
 
+function parseJson<T>(value: string, fallback: T): T {
+  try { return JSON.parse(value) as T } catch { return fallback }
+}
+
+function terminal(status: string) {
+  return ['succeeded', 'failed', 'rolled_back', 'rollback_failed'].includes(status)
+}
+
 export class AppRuntimeTaskService {
-  async requestInstall(instanceId: string, manifest: ProjectAppManifest, releaseDigest: string) {
+  async requestOperation(input: {
+    instanceId: string
+    operation: 'install' | 'upgrade' | 'uninstall'
+    appId?: string
+    manifest?: ProjectAppManifest
+    releaseDigest?: string
+  }) {
     return await SingletonDataSource.get().transaction(async (manager) => {
       const installationRepo = manager.getRepository(ProjectAppInstallationDO)
       const taskRepo = manager.getRepository(AppRuntimeTaskDO)
-      let installation = await installationRepo.findOneBy({ instanceId, appId: manifest.id })
-      if (!installation) installation = new ProjectAppInstallationDO()
-      installation.instanceId = instanceId
-      installation.appId = manifest.id
-      installation.installVersion = manifest.version
-      installation.status = 'pending'
-      installation.menuItemsJson = JSON.stringify(manifest.menuItems)
-      installation.runtimeConfigJson = JSON.stringify({})
-      installation.installAt = installation.installAt || ''
-      installation.updatedAt = new Date().toISOString()
-      await installationRepo.save(installation)
+      const appId = input.manifest?.id || input.appId || ''
+      if (!appId) throw new Error('APP_ID_REQUIRED')
+      const installation = await installationRepo.findOneBy({ instanceId: input.instanceId, appId })
+      if (input.operation === 'install' && installation?.status === 'installed') throw new Error('APPLICATION_ALREADY_INSTALLED')
+      if (input.operation !== 'install' && (!installation || installation.status !== 'installed')) throw new Error('APPLICATION_NOT_INSTALLED')
 
       const active = await taskRepo.findOne({
-        where: { instanceId, appId: manifest.id, operation: 'install', status: In(['pending', 'claimed', 'applying', 'verifying']) },
+        where: { instanceId: input.instanceId, appId, status: In(['pending', 'claimed', 'applying', 'verifying', 'rolling_back']) },
         order: { createdAt: 'DESC' },
       })
       if (active) return active
+
+      const manifest = input.manifest
+      const payload: TaskPayload = {
+        menuItems: manifest?.menuItems,
+        previousVersion: installation?.installVersion || '',
+        previousReleaseDigest: parseJson<Record<string, string>>(installation?.runtimeConfigJson || '{}', {}).release_digest || '',
+        previousRuntimeConfigJson: installation?.runtimeConfigJson || '{}',
+      }
       const task = new AppRuntimeTaskDO()
-      task.instanceId = instanceId
-      task.appId = manifest.id
-      task.operation = 'install'
-      task.targetVersion = manifest.version
-      task.releaseDigest = releaseDigest
+      task.instanceId = input.instanceId
+      task.appId = appId
+      task.operation = input.operation
+      task.targetVersion = manifest?.version || installation?.installVersion || ''
+      task.releaseDigest = input.releaseDigest || payload.previousReleaseDigest || ''
+      if (!task.releaseDigest) throw new Error('RELEASE_DIGEST_REQUIRED')
       task.status = 'pending'
       task.claimedBy = ''
       task.leaseExpiresAt = ''
       task.revision = 1
+      task.payloadJson = JSON.stringify(payload)
       task.resultJson = '{}'
       task.createdAt = new Date().toISOString()
       task.updatedAt = task.createdAt
+
+      if (!installation) {
+        const created = new ProjectAppInstallationDO()
+        created.instanceId = input.instanceId
+        created.appId = appId
+        created.installVersion = ''
+        created.status = 'pending'
+        created.menuItemsJson = '[]'
+        created.runtimeConfigJson = '{}'
+        created.installAt = ''
+        created.updatedAt = task.createdAt
+        await installationRepo.save(created)
+      } else if (input.operation === 'install') {
+        installation.status = 'pending'
+        installation.updatedAt = task.createdAt
+        await installationRepo.save(installation)
+      } else if (input.operation === 'upgrade') {
+        installation.status = 'upgrading'
+        installation.updatedAt = task.createdAt
+        await installationRepo.save(installation)
+      } else {
+        installation.status = 'uninstalling'
+        installation.updatedAt = task.createdAt
+        await installationRepo.save(installation)
+      }
       return await taskRepo.save(task)
     })
   }
@@ -63,7 +110,7 @@ export class AppRuntimeTaskService {
         .setLock('pessimistic_write')
         .where('task.instance_id = :instanceId', { instanceId })
         .andWhere('(task.status = :pending OR (task.status IN (:...active) AND task.lease_expires_at < :now))', {
-          pending: 'pending', active: ['claimed', 'applying', 'verifying'], now: new Date().toISOString(),
+          pending: 'pending', active: ['claimed', 'applying', 'verifying', 'rolling_back'], now: new Date().toISOString(),
         })
         .orderBy('task.created_at', 'ASC')
         .getOne()
@@ -82,7 +129,7 @@ export class AppRuntimeTaskService {
     const task = await repo.findOneBy({ uid: taskId, instanceId })
     if (!task) throw new Error('TASK_NOT_FOUND')
     if (task.claimedBy !== agentId || task.revision !== revision) throw new Error('TASK_LEASE_CONFLICT')
-    if (!['claimed', 'applying', 'verifying'].includes(task.status)) throw new Error('TASK_NOT_ACTIVE')
+    if (!['claimed', 'applying', 'verifying', 'rolling_back'].includes(task.status)) throw new Error('TASK_NOT_ACTIVE')
     task.leaseExpiresAt = leaseTime(leaseSeconds)
     task.revision += 1
     task.updatedAt = new Date().toISOString()
@@ -110,35 +157,55 @@ export class AppRuntimeTaskService {
       if (!task) throw new Error('TASK_NOT_FOUND')
       if (task.claimedBy !== input.agentId || task.revision !== input.revision) throw new Error('TASK_LEASE_CONFLICT')
       if (!canReportRuntimeTask(task.status, input.status)) throw new Error('INVALID_TASK_TRANSITION')
+      const result = (input.result || {}) as TaskResult
       if (input.status === 'succeeded') {
-        const result = input.result as { release_digest?: unknown; healthcheck?: { ok?: unknown } } | null
-        if (!result || typeof result !== 'object' || result.release_digest !== task.releaseDigest || result.healthcheck?.ok !== true) {
-          throw new Error('TASK_SUCCESS_UNVERIFIED')
+        const verified = task.operation === 'uninstall'
+          ? result.release_digest === task.releaseDigest && result.uninstalled === true
+          : result.release_digest === task.releaseDigest && result.healthcheck?.ok === true
+        if (!verified) throw new Error('TASK_SUCCESS_UNVERIFIED')
+      }
+      if (input.status === 'rolled_back') {
+        const payload = parseJson<TaskPayload>(task.payloadJson, {})
+        if (result.rollback?.succeeded !== true || result.release_digest !== payload.previousReleaseDigest) {
+          throw new Error('TASK_ROLLBACK_UNVERIFIED')
         }
       }
       task.status = input.status
-      task.resultJson = JSON.stringify(input.result || {})
+      task.resultJson = JSON.stringify(result)
       task.revision += 1
       task.updatedAt = new Date().toISOString()
-      if (input.status === 'succeeded') {
-        task.leaseExpiresAt = ''
+      if (terminal(input.status)) task.leaseExpiresAt = ''
+
+      if (terminal(input.status)) {
         const installationRepo = manager.getRepository(ProjectAppInstallationDO)
         const installation = await installationRepo.findOneBy({ instanceId: task.instanceId, appId: task.appId })
         if (!installation) throw new Error('INSTALLATION_NOT_FOUND')
-        installation.status = 'installed'
-        installation.installVersion = task.targetVersion
-        installation.installAt = new Date().toISOString()
-        installation.updatedAt = installation.installAt
-        await installationRepo.save(installation)
-      } else if (input.status === 'failed') {
-        task.leaseExpiresAt = ''
-        const installationRepo = manager.getRepository(ProjectAppInstallationDO)
-        const installation = await installationRepo.findOneBy({ instanceId: task.instanceId, appId: task.appId })
-        if (installation) {
+        const payload = parseJson<TaskPayload>(task.payloadJson, {})
+        if (input.status === 'succeeded' && task.operation === 'uninstall') {
+          installation.status = 'uninstalled'
+          installation.installVersion = ''
+          installation.installAt = ''
+          installation.menuItemsJson = '[]'
+          installation.runtimeConfigJson = '{}'
+        } else if (input.status === 'succeeded') {
+          installation.status = 'installed'
+          installation.installVersion = task.targetVersion
+          installation.installAt = new Date().toISOString()
+          installation.menuItemsJson = JSON.stringify(payload.menuItems || [])
+          installation.runtimeConfigJson = JSON.stringify(result)
+        } else if (input.status === 'rolled_back') {
+          installation.status = 'installed'
+          installation.installVersion = payload.previousVersion || installation.installVersion
+          installation.runtimeConfigJson = payload.previousRuntimeConfigJson || installation.runtimeConfigJson
+        } else if (task.operation === 'uninstall') {
+          installation.status = 'installed'
+        } else if (task.operation === 'upgrade' && result.rollback?.succeeded === true) {
+          installation.status = 'installed'
+        } else {
           installation.status = 'failed'
-          installation.updatedAt = task.updatedAt
-          await installationRepo.save(installation)
         }
+        installation.updatedAt = task.updatedAt
+        await installationRepo.save(installation)
       }
       return await taskRepo.save(task)
     })

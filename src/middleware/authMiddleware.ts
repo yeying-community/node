@@ -41,9 +41,16 @@ function getRequestIp(req: Request): string {
   return req.socket.remoteAddress || '';
 }
 
-function getRouteRequiredUcanCapabilities(req: Request) {
-  if (!req.path.startsWith('/api/v1/public/mpc')) {
-    if (!req.path.startsWith('/api/v1/public/custody')) {
+function getMountedRoutePath(req: Pick<Request, 'baseUrl' | 'path'>): string {
+  const baseUrl = String(req.baseUrl || '').replace(/\/$/, '');
+  const requestPath = String(req.path || '');
+  return `${baseUrl}${requestPath.startsWith('/') ? requestPath : `/${requestPath}`}`;
+}
+
+export function getRouteRequiredUcanCapabilities(req: Pick<Request, 'baseUrl' | 'path'>) {
+  const routePath = getMountedRoutePath(req);
+  if (!routePath.startsWith('/api/v1/public/mpc')) {
+    if (!routePath.startsWith('/api/v1/public/custody')) {
       return null;
     }
     const config = (getConfig<CustodyRuntimeConfig>('custody') || {}) as CustodyRuntimeConfig;

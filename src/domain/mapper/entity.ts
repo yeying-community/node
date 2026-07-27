@@ -589,6 +589,9 @@ export class AppRuntimeTaskDO {
     @Column({ type: 'text', name: 'result_json', default: '{}' })
     resultJson!: string
 
+    @Column({ type: 'text', name: 'payload_json', default: '{}' })
+    payloadJson!: string
+
     @Column({ length: 64, name: 'created_at', default: '' })
     createdAt!: string
 

@@ -129,6 +129,11 @@
 - 应用发布字段：`redirectUris`
   - `appId` 必须为应用市场 `AppId`（`applications.uid`），`redirectUri` 必须命中该字段
 
+说明：
+- `mode=issue|hybrid` 时，必须配置 `UCAN_ISSUER_PRIVATE_KEY`；`UCAN_ISSUER_DID` 可留空由私钥推导。
+- 若显式配置 `UCAN_ISSUER_DID`，启动时会校验它是否等于私钥推导 DID，不匹配会启动失败。
+- Router 等消费中心化 UCAN 的下游服务必须把 Node 当前 issuer DID 配为 trusted issuer。
+
 ## 6. 服务端验证逻辑（第三方无感）
 
 `src/auth/ucan.ts` 的 UCAN 校验入口保持统一，业务接口无须区分钱包签发或中心化签发：
