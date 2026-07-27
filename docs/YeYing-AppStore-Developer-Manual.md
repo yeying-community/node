@@ -83,6 +83,10 @@ POST /api/v1/internal/install
 
 ## 5. Runtime Agent
 
+V1 release 的 `runtime.json.service` 必须声明固定镜像对应的服务名、容器端口、仅绑定回环地址的主机端口，以及与应用 ID 一致的 `route_prefix`（例如 `ai` 为 `/apps/ai/`）。Agent 只从白名单 Project 环境变量生成运行时环境文件，并根据 `route_prefix` 生成受控反代；发布包不得携带 Nginx 配置或任意宿主机挂载。
+
+升级健康检查失败时，Agent 使用同一个 Compose project 启动上一份已验证 release，并回报 `rolled_back`。卸载使用 `down --remove-orphans`，默认保留命名卷。
+
 部署机 Agent 使用实例专属 Bearer Token 领取任务：
 
 ```http

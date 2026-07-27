@@ -28,8 +28,9 @@ type RuntimeManifest = {
   app_id?: unknown
   version?: unknown
   image?: unknown
-  service?: { name?: unknown; container_port?: unknown }
+  service?: { name?: unknown; container_port?: unknown; host_port?: unknown; route_prefix?: unknown }
   healthcheck?: { protocol?: unknown; path?: unknown; timeout_seconds?: unknown }
+  environment?: unknown
 }
 
 type SignatureManifest = {
@@ -105,6 +106,23 @@ function validateRuntime(runtime: RuntimeManifest, appId: string, version: strin
   requireString(runtime.service?.name, 'runtime.service.name', /^[a-z][a-z0-9-]{0,63}$/)
   if (!Number.isInteger(runtime.service?.container_port) || Number(runtime.service?.container_port) < 1 || Number(runtime.service?.container_port) > 65535) {
     fail('runtime.service.container_port')
+  }
+  if (!Number.isInteger(runtime.service?.host_port) || Number(runtime.service?.host_port) < 1024 || Number(runtime.service?.host_port) > 65535) {
+    fail('runtime.service.host_port')
+  }
+  const routePrefix = requireString(runtime.service?.route_prefix, 'runtime.service.route_prefix', /^\/apps\/[a-z][a-z0-9-]{1,63}\/$/)
+  if (routePrefix !== `/apps/${appId}/`) fail('runtime.service.route_prefix')
+  if (runtime.environment !== undefined) {
+    if (!Array.isArray(runtime.environment)) fail('runtime.environment')
+    const allowedSources = new Set(['APP_URL', 'DB_HOST', 'DB_PORT', 'DB_DATABASE', 'DB_USERNAME', 'DB_PASSWORD', 'DB_PREFIX', 'REDIS_HOST', 'REDIS_PORT', 'REDIS_PASSWORD', 'SEARCH_HOST', 'SEARCH_PORT', 'S3_ENDPOINT', 'S3_BUCKET', 'S3_PREFIX', 'S3_ACCESS_KEY_ID', 'S3_SECRET_ACCESS_KEY'])
+    const names = new Set<string>()
+    for (const item of runtime.environment) {
+      if (!item || typeof item !== 'object') fail('runtime.environment item')
+      const value = item as { name?: unknown; from_env?: unknown; required?: unknown }
+      const name = requireString(value.name, 'runtime.environment.name', /^[A-Z][A-Z0-9_]{0,63}$/)
+      if (names.has(name) || !allowedSources.has(String(value.from_env)) || typeof value.required !== 'boolean') fail('runtime.environment item')
+      names.add(name)
+    }
   }
   if (!['http', 'https'].includes(String(runtime.healthcheck?.protocol || ''))) fail('runtime.healthcheck.protocol')
   requireString(runtime.healthcheck?.path, 'runtime.healthcheck.path', /^\//)

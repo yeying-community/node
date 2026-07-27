@@ -38,7 +38,7 @@ function runtimeError(res: Response, error: unknown) {
   if (message === 'TASK_LEASE_CONFLICT' || message === 'TASK_NOT_ACTIVE' || message === 'INVALID_TASK_TRANSITION') {
     return res.status(409).json({ code: 409, message, data: null })
   }
-  if (message === 'TASK_SUCCESS_UNVERIFIED') return res.status(422).json({ code: 422, message, data: null })
+  if (message === 'TASK_SUCCESS_UNVERIFIED' || message === 'TASK_ROLLBACK_UNVERIFIED') return res.status(422).json({ code: 422, message, data: null })
   return res.status(500).json({ code: 500, message: 'Runtime task failed', data: null })
 }
 

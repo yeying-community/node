@@ -197,7 +197,7 @@ requested -> pending -> claimed -> applying -> verifying -> succeeded
                                       +-> failed <--+
 ```
 
-升级失败还需进入 `rolling_back`，最终为 `rolled_back` 或 `rollback_failed`。任务结构使用 `task.schema.json`。
+升级失败还需进入 `rolling_back`，最终为 `rolled_back` 或 `rollback_failed`。回滚必须恢复上一版本、release digest、本地运行配置和受控反代。卸载执行 Compose down，但 V1 默认不删除命名卷。任务结构使用 `task.schema.json`。
 
 Agent 协议：
 

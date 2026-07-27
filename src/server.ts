@@ -70,6 +70,7 @@ import { registerPublisherReleaseRoutes } from './routes/publisher/releases';
 import { registerAdminReleaseRoutes } from './routes/admin/releases';
 import { AddAppReleases20260723110000 } from './migrations/20260723110000-add-app-releases';
 import { AddAppRuntimeTasks20260724100000 } from './migrations/20260724100000-add-app-runtime-tasks';
+import { AddRuntimeTaskPayload20260726100000 } from './migrations/20260726100000-add-runtime-task-payload';
 import { registerRuntimeTaskRoutes } from './routes/runtime/tasks';
 import { getConfig } from './config/runtime';
 import { startActionRequestCleanupJobs } from './domain/service/actionRequestCleanup';
@@ -286,7 +287,8 @@ builder.migrations([
     AddCustodyKeyRecords20260710090000,
     AddProjectAppInstallations20260723100000,
     AddAppReleases20260723110000,
-    AddAppRuntimeTasks20260724100000
+    AddAppRuntimeTasks20260724100000,
+    AddRuntimeTaskPayload20260726100000
 ])
 
 builder.build().initialize().then(async (conn) => {

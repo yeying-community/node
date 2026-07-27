@@ -24,7 +24,8 @@ module.exports = {
   appStoreAgent: {
     // instanceId -> SHA-256 of the Agent bearer token. Never store the plaintext token here.
     instances: {
-      // 'local-project': { tokenSha256: '<64 lowercase hex chars>', leaseSeconds: 60 }
+      // Use a five-minute lease because registry pulls can take several minutes.
+      // 'local-project': { tokenSha256: '<64 lowercase hex chars>', leaseSeconds: 300 }
     }
   },
   secrets: {

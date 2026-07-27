@@ -25,7 +25,7 @@ function createBundle(overrides: Record<string, string> = {}) {
     }),
     'runtime.json': JSON.stringify({
       api_version: 'yeying.app/v1', kind: 'Runtime', app_id: 'ai', version: '0.1.0', image,
-      service: { name: 'ai', container_port: 5001 },
+      service: { name: 'ai', container_port: 5001, host_port: 25001, route_prefix: '/apps/ai/' },
       healthcheck: { protocol: 'http', path: '/health', timeout_seconds: 30 },
     }),
     'config.schema.json': JSON.stringify({ type: 'object' }),
@@ -67,5 +67,17 @@ describe('release bundle validator', () => {
   it('rejects signatures from unknown keys', () => {
     const bundle = createBundle()
     expect(() => validateReleaseBundle({ files: bundle.files }, { trustedPublisherKeys: {} })).toThrow('untrusted publisher key')
+  })
+
+  it('rejects a route outside the application namespace', () => {
+    const bundle = createBundle({
+      'runtime.json': JSON.stringify({
+        api_version: 'yeying.app/v1', kind: 'Runtime', app_id: 'ai', version: '0.1.0',
+        image: `ghcr.io/yeying-community/ai@sha256:${'a'.repeat(64)}`,
+        service: { name: 'ai', container_port: 5001, host_port: 25001, route_prefix: '/apps/admin/' },
+        healthcheck: { protocol: 'http', path: '/health', timeout_seconds: 30 },
+      }),
+    })
+    expect(() => validateReleaseBundle({ files: bundle.files }, { trustedPublisherKeys: { 'test-publisher': bundle.publicKey } })).toThrow('runtime.service.route_prefix')
   })
 })

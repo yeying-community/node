@@ -85,7 +85,7 @@ GET  /api/v1/runtime/releases/{appId}/{version}
 
 `release` 仅允许任务处于 `claimed` 时调用，用于 dry-run 等未执行部署的检查完成后归还任务；它清除租约并将任务恢复为 `pending`，不改变安装记录。
 
-当前 Node 已实现 `/api/v1/runtime/tasks/claim`、`/{taskId}/heartbeat`、`/{taskId}/report` 和 `/{taskId}/release`。Agent 使用 `X-YeYing-Instance`、`X-YeYing-Agent` 和 Bearer Token；Node 配置只保存 Token SHA-256。任务使用 revision 乐观锁和租约，只有 `claimed -> applying -> verifying -> succeeded` 才会把安装记录更新为 `installed`。
+当前 Node 已实现 `/api/v1/runtime/tasks/claim`、`/{taskId}/heartbeat`、`/{taskId}/report` 和 `/{taskId}/release`。Agent 使用 `X-YeYing-Instance`、`X-YeYing-Agent` 和 Bearer Token；Node 配置只保存 Token SHA-256。任务使用 revision 乐观锁和租约，建议为镜像拉取配置 300 秒租约。安装与升级只有 `claimed -> applying -> verifying -> succeeded` 才会更新安装记录；升级失败进入 `rolling_back`，成功恢复旧 release 后终止于 `rolled_back`。卸载成功清空安装状态但默认保留命名卷。
 
 ## Agent 执行流程
 

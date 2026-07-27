@@ -12,4 +12,10 @@ describe('runtime task state machine', () => {
     expect(canReportRuntimeTask('applying', 'succeeded')).toBe(false)
     expect(canReportRuntimeTask('succeeded', 'applying')).toBe(false)
   })
+  it('permits an explicit rollback path', () => {
+    expect(canReportRuntimeTask('verifying', 'rolling_back')).toBe(true)
+    expect(canReportRuntimeTask('rolling_back', 'rolled_back')).toBe(true)
+    expect(canReportRuntimeTask('rolling_back', 'rollback_failed')).toBe(true)
+    expect(canReportRuntimeTask('rolled_back', 'succeeded')).toBe(false)
+  })
 })

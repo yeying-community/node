@@ -130,16 +130,72 @@ export function registerInternalAppStoreRoutes(app: Express) {
       res.status(409).json({ code: 409, data: null, message: 'Published release record not found' })
       return
     }
-    const task = await new AppRuntimeTaskService().requestInstall(context.instanceId, manifest, release.releaseDigest)
-    res.status(202).json({
-      code: 202,
-      data: {
-        id: task.appId,
-        version: task.targetVersion,
-        status: task.status,
-        task_id: task.uid,
-        requested_by: context.user.userId,
-      },
-    })
+    try {
+      const task = await new AppRuntimeTaskService().requestOperation({
+        instanceId: context.instanceId,
+        operation: 'install',
+        manifest,
+        releaseDigest: release.releaseDigest,
+      })
+      res.status(202).json({
+        code: 202,
+        data: {
+          id: task.appId,
+          version: task.targetVersion,
+          status: task.status,
+          task_id: task.uid,
+          requested_by: context.user.userId,
+        },
+      })
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Install request failed'
+      const code = message === 'APPLICATION_ALREADY_INSTALLED' ? 409 : 500
+      res.status(code).json({ code, data: null, message })
+    }
+  })
+
+  app.post('/api/v1/internal/upgrade', async (req: Request, res: Response) => {
+    const context = await authenticateProjectRequest(req, res)
+    if (!context) return
+    if (!context.user.isAdmin) {
+      res.status(403).json({ code: 403, data: null, message: 'Project administrator permission required' })
+      return
+    }
+    const appId = String(req.body?.app_id || '').trim()
+    const version = String(req.body?.version || '').trim()
+    const manifest = await new AppReleaseService().findPublishedManifest({ appId, version: version || undefined, artifactDir: releaseArtifactDir() })
+    if (!manifest) {
+      res.status(404).json({ code: 404, data: null, message: 'Published application version not found' })
+      return
+    }
+    const release = await new AppReleaseService().findPublishedRelease(manifest.id, manifest.version)
+    if (!release) {
+      res.status(409).json({ code: 409, data: null, message: 'Published release record not found' })
+      return
+    }
+    try {
+      const task = await new AppRuntimeTaskService().requestOperation({ instanceId: context.instanceId, operation: 'upgrade', manifest, releaseDigest: release.releaseDigest })
+      res.status(202).json({ code: 202, data: { id: task.appId, version: task.targetVersion, status: task.status, task_id: task.uid, requested_by: context.user.userId } })
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Upgrade request failed'
+      res.status(message === 'APPLICATION_NOT_INSTALLED' ? 409 : 500).json({ code: message === 'APPLICATION_NOT_INSTALLED' ? 409 : 500, data: null, message })
+    }
+  })
+
+  app.post('/api/v1/internal/uninstall', async (req: Request, res: Response) => {
+    const context = await authenticateProjectRequest(req, res)
+    if (!context) return
+    if (!context.user.isAdmin) {
+      res.status(403).json({ code: 403, data: null, message: 'Project administrator permission required' })
+      return
+    }
+    const appId = String(req.body?.app_id || '').trim()
+    try {
+      const task = await new AppRuntimeTaskService().requestOperation({ instanceId: context.instanceId, operation: 'uninstall', appId })
+      res.status(202).json({ code: 202, data: { id: task.appId, version: task.targetVersion, status: task.status, task_id: task.uid, requested_by: context.user.userId } })
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Uninstall request failed'
+      res.status(message === 'APPLICATION_NOT_INSTALLED' ? 409 : 500).json({ code: message === 'APPLICATION_NOT_INSTALLED' ? 409 : 500, data: null, message })
+    }
   })
 }
