@@ -9,6 +9,7 @@
     "build:web": "npm --prefix web run build",
     "build:all": "npm run build && npm run build:web",
     "dev:secure": "node scripts/dev-secure.cjs",
+    "appstore:smoke-release": "node scripts/create-appstore-smoke-release.cjs",
     "secrets:init": "node scripts/init-secrets.cjs",
     "secrets:unlock": "node scripts/unlock-secrets.cjs",
     "package:release": "bash scripts/package.sh",
