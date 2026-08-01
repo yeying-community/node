@@ -1,0 +1,40 @@
+import { buildCorsOptions, isCorsOriginAllowed, parseAllowedOrigins } from '../src/security/cors'
+
+describe('CORS policy', () => {
+  it('parses the environment allowlist', () => {
+    expect(parseAllowedOrigins(' https://portal.example.com,https://admin.example.com ')).toEqual([
+      'https://portal.example.com',
+      'https://admin.example.com',
+    ])
+  })
+
+  it('rejects unconfigured browser origins in production', () => {
+    const config = { env: 'production', port: 8100, corsAllowedOrigins: ['https://portal.example.com'] }
+
+    expect(isCorsOriginAllowed('https://portal.example.com', config, '')).toBe(true)
+    expect(isCorsOriginAllowed('https://attacker.example.com', config, '')).toBe(false)
+    expect(isCorsOriginAllowed('http://localhost:5173', config, '')).toBe(false)
+    expect(isCorsOriginAllowed(undefined, config, '')).toBe(true)
+  })
+
+  it('allows localhost origins in non-production environments', () => {
+    const config = { env: 'dev', port: 8100 }
+
+    expect(isCorsOriginAllowed('http://localhost:5173', config, '')).toBe(true)
+    expect(isCorsOriginAllowed('http://127.0.0.1:5173', config, '')).toBe(true)
+    expect(isCorsOriginAllowed('https://attacker.example.com', config, '')).toBe(false)
+  })
+
+  it('prefers the environment allowlist over file configuration', () => {
+    const config = { env: 'production', port: 8100, corsAllowedOrigins: ['https://old.example.com'] }
+
+    expect(isCorsOriginAllowed('https://new.example.com', config, 'https://new.example.com')).toBe(true)
+    expect(isCorsOriginAllowed('https://old.example.com', config, 'https://new.example.com')).toBe(false)
+  })
+
+  it('enables credentials without accepting an arbitrary origin', () => {
+    const options = buildCorsOptions({ env: 'production', port: 8100 })
+    expect(options.credentials).toBe(true)
+    expect(options.origin).toBeTypeOf('function')
+  })
+})

@@ -13,6 +13,7 @@ export interface DatabaseConfig {
 export interface AppRuntimeConfig {
     env: string
     port: number
+    corsAllowedOrigins?: string[]
 }
 
 export interface SecretsRuntimeConfig {

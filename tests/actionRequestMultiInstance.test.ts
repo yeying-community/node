@@ -11,14 +11,14 @@ import { DataSourceBuilder } from '../src/infrastructure/db'
 
 const TEST_DATABASE_URL = String(process.env.TEST_DATABASE_URL || '').trim()
 
-async function initDatasource() {
+async function initDatasource(resetSchema = true) {
   if (!TEST_DATABASE_URL) {
     throw new Error('TEST_DATABASE_URL is required')
   }
   const builder = new DataSourceBuilder({
     type: 'postgres',
     url: TEST_DATABASE_URL,
-    dropSchema: true,
+    dropSchema: resetSchema,
     synchronize: true,
   })
   builder.entities([ActionRequestDO])
@@ -144,7 +144,7 @@ describe('ActionRequestService multi-instance', () => {
     await expect(firstInstance.begin(buildRequestInput())).resolves.toEqual({ kind: 'new' })
     await closeDatasource(datasource)
 
-    datasource = await initDatasource()
+    datasource = await initDatasource(false)
     const restartedInstance = new ActionRequestService()
 
     await expect(restartedInstance.begin(buildRequestInput())).rejects.toThrow('Request in progress')
@@ -165,7 +165,7 @@ describe('ActionRequestService multi-instance', () => {
     })
     await closeDatasource(datasource)
 
-    datasource = await initDatasource()
+    datasource = await initDatasource(false)
     const restartedInstance = new ActionRequestService()
 
     await expect(restartedInstance.begin(buildRequestInput())).resolves.toEqual({
@@ -195,7 +195,7 @@ describe('ActionRequestService multi-instance', () => {
     expect(executionLog).toEqual(['instance-a'])
     await closeDatasource(datasource)
 
-    datasource = await initDatasource()
+    datasource = await initDatasource(false)
     const appB = createSignedRouteApp('instance-b', executionLog)
     const secondJson = await withServer(appB, async (baseUrl) => {
       const response = await fetch(`${baseUrl}/signed`, {

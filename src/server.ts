@@ -3,7 +3,7 @@
 import fs from 'fs';
 import path from 'path';
 import express, { Express, Request, Response } from 'express';
-import { DatabaseConfig } from './config';
+import { AppRuntimeConfig, DatabaseConfig } from './config';
 import { DataSourceBuilder } from './infrastructure/db';
 import {
     ActionRequestDO,
@@ -33,6 +33,7 @@ import {
 import { SingletonDataSource } from './domain/facade/datasource';
 import { LoggerConfig, LoggerService } from './infrastructure/logger';
 import cors from 'cors';
+import { buildCorsOptions } from './security/cors';
 import authenticateToken from './middleware/authMiddleware';
 import { requireAdmin } from './middleware/accessControl';
 import { registerPublicAuthRoutes } from './routes/publicAuth';
@@ -310,23 +311,7 @@ builder.build().initialize().then(async (conn) => {
     // 创建 Express 应用
     const app = express();
     const webDistDir = resolveWebDistDir()
-    app.use(cors({ origin: true, credentials: true }));
-    app.use((req, res, next) => {
-        const origin = req.headers.origin as string | undefined;
-        if (origin) {
-            res.header('Access-Control-Allow-Origin', origin);
-            res.header('Vary', 'Origin');
-            res.header('Access-Control-Allow-Credentials', 'true');
-        } else {
-            res.header('Access-Control-Allow-Origin', '*');
-        }
-        res.header('Access-Control-Allow-Methods', 'GET,POST,PUT,PATCH,DELETE,OPTIONS');
-        res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
-        if (req.method === 'OPTIONS') {
-            return res.status(204).end();
-        }
-        next();
-    });
+    app.use(cors(buildCorsOptions(getConfig<AppRuntimeConfig>('app'))));
 
     // 设置 JSON 解析中间件
     app.use(express.json());

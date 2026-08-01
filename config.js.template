@@ -8,7 +8,10 @@ module.exports = {
     // Runtime environment label.
     env: 'dev',
     // HTTP server port.
-    port: 8100
+    port: 8100,
+    // Exact browser origins allowed to send credentialed cross-origin requests.
+    // Production deployments must set this list or CORS_ALLOWED_ORIGINS.
+    corsAllowedOrigins: ['http://localhost:5173']
   },
   // YeYing Project AppStore adapter. The configured instance must exist in project_instances.
   projectAdapter: {
