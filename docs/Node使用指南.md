@@ -1,6 +1,6 @@
 # YeYing Node 使用指南
 
-YeYing Node 是社区产品体系中的协调枢纽。它不只是一个应用市场后端，还统一承担身份授权、能力令牌校验、应用发布审核、MPC 消息协调、钱包密钥托管、通知分发和部署 Agent 调度。
+YeYing Node 是社区产品体系中的协调枢纽。它不只是一个应用市场后端，还统一承担身份授权、能力令牌校验、应用发布审核、MPC 消息协调、钱包密钥托管、通知分发和 release artifact 管理。
 
 ## 1. 能力地图
 
@@ -12,8 +12,8 @@ YeYing Node 是社区产品体系中的协调枢纽。它不只是一个应用�
 | MPC 协调 | 会话、参与者、消息中继、SSE 和 Redis Streams 续传 | `/api/v1/public/mpc` |
 | 钱包托管 | Passkey 门禁、客户端加密快照保存和删除 | `/api/v1/public/custody` |
 | 通知中心 | 收件箱、未读状态、SSE、Webhook 和投递重试 | `/api/v1/public/notifications` |
-| AppStore | 发布包校验、审核、安装目录和生命周期任务 | `/api/v1/publisher`、`/api/v1/internal` |
-| Runtime Agent | 任务领取、租约、心跳、结果上报和制品获取 | `/api/v1/runtime` |
+| AppStore / Registry | 发布包校验、审核、发布目录和 release artifact | `/api/v1/publisher`、`/api/v1/admin/releases` |
+| Agent Runtime | Project 安装、升级、失败回滚、卸载和健康检查 | 由 `agent` 仓库提供，不在 Node 暴露 |
 
 Node 不保存钱包明文密钥。托管接口只接受客户端加密后的 `ciphertext`。WebDAV 文件存储也由客户端直连，不通过 Node 转发。
 
@@ -209,22 +209,11 @@ npm run openapi:check
 - 修改钱包密码、增加账户或删除账户后，客户端应重新上传快照。
 - 当前接口允许读取密文，第三方恢复客户端必须额外做好短期授权、错误密码处理和原子导入。
 
-## 11. Runtime Agent
+## 11. Agent Runtime 边界
 
-Agent 使用独立 Bearer token，不使用用户 JWT/UCAN。`config.js` 只保存 token 的 SHA-256：
+Project 安装、升级、失败回滚、卸载和健康检查已经迁移到 `agent` 仓库。Node 不再注册 `/api/v1/internal/*` 安装接口，也不再注册 `/api/v1/runtime/*` 任务接口。
 
-```js
-appStoreAgent: {
-  instances: {
-    'project-instance-id': {
-      tokenSha256: '<64 lowercase hex>',
-      leaseSeconds: 300
-    }
-  }
-}
-```
-
-Agent 应循环执行：领取任务、执行、心跳续租、上报结果；无法继续执行时主动 release。任务 revision 用于防止旧 Agent 覆盖新租约。
+Node 在这条链路中的职责是 Registry：接收发布者提交的 release bundle，校验签名、digest、Compose 策略和发布者身份，审核后提供已发布 release artifact。Agent Runtime 根据 Project 请求查询 Node Registry，再在部署机执行受控运行时流程。
 
 ## 12. 构建、测试和发布
 
@@ -257,7 +246,7 @@ npm run package:release -- v1.0.0
 - Node 日志是否出现 `audience mismatch`、`capability denied` 或数据库连接错误；
 - Redis Streams 长度、消费者延迟和 SSE 重连率；
 - Webhook 失败数、重试数和最终失败数；
-- Runtime Agent 租约冲突和长期未完成任务；
+- Agent Runtime 与 Node Registry 的 release 查询、签名校验和下载错误；
 - 托管密文数量、Passkey 撤销和异常下载行为。
 
 生产日志不得记录完整 Bearer token、钱包私钥、助记词、托管密文、数据库密码或 Webhook 明文密钥。

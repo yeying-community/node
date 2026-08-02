@@ -19,7 +19,7 @@ const document = {
     version: '1.0.0',
     license: { name: 'ISC', identifier: 'ISC' },
     description:
-      'YeYing 社区 Node 枢纽服务接口，覆盖身份授权、应用中心、审核、MPC 协调、钱包托管、通知、AppStore 和 Runtime Agent。',
+      'YeYing 社区 Node 枢纽服务接口，覆盖身份授权、应用中心、审核、MPC 协调、钱包托管、通知、AppStore Registry 和 release artifact。',
   },
   servers: [{ url: 'https://node.yeying.pub', description: 'Community production node' }],
   tags: Object.entries({
@@ -33,9 +33,7 @@ const document = {
     MPC: '多方计算会话、消息和事件流。',
     Custody: '钱包客户端加密密钥托管。',
     Notifications: '通知收件箱、事件流和 Webhook。',
-    Publisher: '应用发布包提交。',
-    AppStore: '应用目录和安装生命周期。',
-    Runtime: '部署 Agent 任务和制品接口。',
+    Publisher: '应用发布包提交、审核和 release artifact 管理。',
     Admin: '管理员治理接口。',
   }).map(([name, description]) => ({ name, description })),
   paths: {},
@@ -51,12 +49,6 @@ const document = {
         type: 'apiKey',
         in: 'cookie',
         name: 'refresh_token',
-      },
-      agentBearer: {
-        type: 'http',
-        scheme: 'bearer',
-        bearerFormat: 'Agent token',
-        description: 'Runtime Agent 专用令牌，服务端只保存 SHA-256。',
       },
     },
     schemas: {
@@ -184,14 +176,6 @@ const document = {
           },
         ],
       },
-      RuntimeReportRequest: {
-        type: 'object', required: ['revision', 'status'],
-        properties: {
-          revision: { type: 'integer' },
-          status: { type: 'string', enum: ['succeeded', 'failed', 'rolled_back'] },
-          result: { type: 'object', additionalProperties: true },
-        },
-      },
       ReleaseSubmitRequest: {
         type: 'object', required: ['publisher_key_id', 'files'],
         properties: {
@@ -289,16 +273,6 @@ const operations = [
   ['post', '/api/v1/publisher/releases/submit', 'Publisher', '提交签名发布包', 'bearer', 'ReleaseSubmitRequest'],
   ['post', '/api/v1/admin/releases/{uid}/approve', 'Admin', '批准发布包', 'bearer'],
   ['post', '/api/v1/admin/releases/{uid}/reject', 'Admin', '驳回发布包', 'bearer'],
-  ['get', '/api/v1/internal/installed', 'AppStore', '查询已安装应用', 'bearer'],
-  ['get', '/api/v1/internal/catalog', 'AppStore', '查询可安装目录', 'bearer'],
-  ['post', '/api/v1/internal/install', 'AppStore', '创建安装任务', 'bearer'],
-  ['post', '/api/v1/internal/upgrade', 'AppStore', '创建升级任务', 'bearer'],
-  ['post', '/api/v1/internal/uninstall', 'AppStore', '创建卸载任务', 'bearer'],
-  ['post', '/api/v1/runtime/tasks/claim', 'Runtime', 'Agent 领取任务', 'agent'],
-  ['post', '/api/v1/runtime/tasks/{uid}/heartbeat', 'Runtime', 'Agent 续租任务', 'agent'],
-  ['post', '/api/v1/runtime/tasks/{uid}/release', 'Runtime', 'Agent 释放任务', 'agent'],
-  ['post', '/api/v1/runtime/tasks/{uid}/report', 'Runtime', 'Agent 上报任务结果', 'agent', 'RuntimeReportRequest'],
-  ['get', '/api/v1/runtime/releases/{appId}/{version}', 'Runtime', 'Agent 获取发布制品', 'agent'],
   ['get', '/api/v1/admin/users', 'Admin', '查询用户列表', 'bearer'],
   ['get', '/api/v1/admin/users/{did}', 'Admin', '查询用户详情', 'bearer'],
   ['patch', '/api/v1/admin/users/{did}/role', 'Admin', '修改用户角色', 'bearer'],
@@ -316,7 +290,6 @@ function operationId(method, route) {
 function securityFor(auth) {
   if (auth === 'none') return []
   if (auth === 'cookie') return [{ refreshCookie: [] }]
-  if (auth === 'agent') return [{ agentBearer: [] }]
   return [{ bearerAuth: [] }]
 }
 

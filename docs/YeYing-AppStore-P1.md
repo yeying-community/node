@@ -1,74 +1,25 @@
-# YeYing AppStore P1
+# YeYing AppStore P1（历史文档）
 
-## 范围
+本文是历史索引。P1 阶段曾尝试让 Node 同时承担应用目录、Project AppStore Adapter 和 Runtime Task 协调。当前架构已经调整为：
 
-P1 将 YeYing 社区 `node` 项目作为应用目录和 Project AppStore Adapter。目标是替换旧 `dootask/appstore` 的已安装应用读取协议；本阶段不授予社区服务 Docker Socket，也不执行容器安装、升级或卸载。
-
-## 数据边界
-
-- `applications`：社区应用目录及发布信息，不表示任何 Project 已安装。
-- `project_instances`：一个已登记的 Project 部署实例，包含实例 ID、Project API 地址与启用状态。
-- `project_app_installations`：一个实例中某应用的运行时安装状态。只有 `status=installed` 会返回给 Project。
-
-`runtime_config_json` 仅保存运行时配置的结构化引用或非敏感配置。密钥后续接入密钥库，不写入 API 响应。
-
-## 已实现接口
-
-`GET /api/v1/internal/installed`
-
-请求头：
-
-- `Token`：Project 当前登录用户 Token，必填。
-- `X-YeYing-Instance`：Project 实例 ID。缺省时使用 `projectAdapter.defaultInstanceId`。
-
-Adapter 会调用 `{project_api_url}/api/users/info` 验证 Token。读取菜单不要求管理员；安装、升级、卸载接口将在后续阶段要求 `data.identity` 包含 `admin`。
-
-`GET /api/v1/internal/catalog` 返回当前可安装的已发布应用目录。
-
-`POST /api/v1/internal/install` 仅允许 Project 管理员调用，请求体为 `{"app_id":"ai","version":"0.1.0"}`。接口只创建或更新 `pending` 安装任务，绝不拉取镜像、写入 Project 文件或操作容器。Runtime Agent 在后续阶段成功执行健康检查后，才会将状态改为 `installed`。
-
-## 标准 Manifest
-
-P1 的第一个 Manifest 为 `src/appstore/manifests/ai.ts`。Manifest 是服务端受控的应用发布数据，包含应用 ID、版本、镜像、最低 Project 版本和菜单项；安装请求不能提交或覆盖这些字段。
-
-成功响应保持 Project 现有前端兼容：
-
-```json
-{
-  "code": 200,
-  "data": [{
-    "id": "ai",
-    "version": "0.1.0",
-    "install_at": "2026-07-23T00:00:00Z",
-    "menu_items": [{
-      "location": "application",
-      "label": "YeYing AI Assistant",
-      "url": "apps/ai/",
-      "visible_to": "all"
-    }]
-  }]
-}
+```text
+Project -> Agent Runtime -> Node Registry
 ```
 
-## 配置与初始化
+## 当前结论
 
-在 `config.js` 配置默认实例 ID。首次登记实例和安装记录由后续受控 Runtime Agent 创建；在 Agent 落地前，不应把数据库手工写入作为生产安装流程。
+- Node 不再注册 Project `api/v1/internal/*` 安装、升级、卸载兼容接口。
+- Node 不再注册 Runtime Agent 任务领取、心跳、释放和上报接口。
+- Node 保留应用目录、发布审核、release artifact、签名校验和授权入口。
+- Agent Runtime 接管安装任务、升级任务、失败回滚、卸载、健康检查和运行状态。
+- Project 侧保留 `api/appstore/*` 兼容入口，但该入口应指向 Agent Runtime。
 
-```sql
-INSERT INTO project_instances (instance_id, project_api_url, status, created_at, updated_at)
-VALUES ('local-project', 'http://127.0.0.1:2222', 'active', '2026-07-23T00:00:00Z', '2026-07-23T00:00:00Z');
-```
+## 保留价值
 
-## 后续顺序
+P1 期间沉淀的 release bundle、固定镜像 digest、禁止 Docker Socket、禁止特权容器、健康检查和本地安装状态镜像等约束仍然有效，但执行位置从 Node 迁移到 Agent。
 
-1. 按 [Runtime Agent 设计](./YeYing-AppStore-Runtime-Agent.md) 先完成 AI Assistant 的签名 release bundle，再实现 Agent。
-2. 增加卸载与升级的任务状态机，并由 Agent 消费。
-3. Project 移除旧 AppStore 容器，仅保留 Adapter URL 配置。
-4. 以 AI Assistant 作为第一个完整迁移样板。
+## 相关文档
 
-## 安全约束
-
-- Node 社区中心不得直接连接生产 Docker Socket。
-- Project Token 只用于当前请求身份验证，不持久化。
-- 插件密钥按实例和应用隔离，后续由密钥库管理。
-- 安装状态只有在 Runtime Agent 健康检查成功后才能写为 `installed`。
+- Node 发布协议：`docs/YeYing-Application-Protocol-v1.md`
+- Node 开发手册：`docs/YeYing-AppStore-Developer-Manual.md`
+- Agent Runtime 设计：`agent/docs/agent-runtime-design.md`

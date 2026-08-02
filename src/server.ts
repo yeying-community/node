@@ -66,13 +66,11 @@ import { AddNotificationWebhooksAndDeliveries20260624090000 } from './migrations
 import { RepairNotificationDeliveryWebhookColumns20260701130000 } from './migrations/20260701130000-repair-notification-delivery-webhook-columns';
 import { AddCustodyKeyRecords20260710090000 } from './migrations/20260710090000-add-custody-key-records';
 import { AddProjectAppInstallations20260723100000 } from './migrations/20260723100000-add-project-app-installations';
-import { registerInternalAppStoreRoutes } from './routes/internal/appstore';
 import { registerPublisherReleaseRoutes } from './routes/publisher/releases';
 import { registerAdminReleaseRoutes } from './routes/admin/releases';
 import { AddAppReleases20260723110000 } from './migrations/20260723110000-add-app-releases';
 import { AddAppRuntimeTasks20260724100000 } from './migrations/20260724100000-add-app-runtime-tasks';
 import { AddRuntimeTaskPayload20260726100000 } from './migrations/20260726100000-add-runtime-task-payload';
-import { registerRuntimeTaskRoutes } from './routes/runtime/tasks';
 import { getConfig } from './config/runtime';
 import { startActionRequestCleanupJobs } from './domain/service/actionRequestCleanup';
 import { startMpcCleanupJobs } from './domain/service/mpcCleanup';
@@ -317,9 +315,8 @@ builder.build().initialize().then(async (conn) => {
     app.use(express.json());
     registerApiRequestLogger(app);
 
-    // Project AppStore compatibility uses Project Token rather than Node JWT/UCAN.
-    registerInternalAppStoreRoutes(app);
-    registerRuntimeTaskRoutes(app);
+    // Agent Runtime owns Project install/upgrade/uninstall and runtime task APIs.
+    // Node only keeps registry, release publishing and authorization endpoints.
     registerAppStoreDeveloperManualPage(app);
 
     // ✅ 将鉴权中间件应用到所有 API 路由（公共认证/健康检查除外）

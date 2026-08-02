@@ -1,6 +1,6 @@
 # node
 
-YeYing 社区 Node 枢纽服务。统一提供身份授权、应用中心、审核治理、MPC 协调、钱包密钥托管、通知分发、AppStore 发布和 Runtime Agent 调度能力。
+YeYing 社区 Node 枢纽服务。统一提供身份授权、应用中心、审核治理、MPC 协调、钱包密钥托管、通知分发、AppStore 发布目录和 release artifact 管理能力。
 
 完整使用指南见 [docs/Node使用指南.md](./docs/Node使用指南.md)，第三方接口规范见 [docs/openapi/node.openapi.yaml](./docs/openapi/node.openapi.yaml)。
 
@@ -9,7 +9,8 @@ YeYing 社区 Node 枢纽服务。统一提供身份授权、应用中心、审�
 - SIWE 登录 + UCAN 访问控制（Authorization: Bearer `<JWT|UCAN>`）
 - UCAN 双模式：钱包校验模式 + 中心化签发模式（`/api/v1/public/auth/central/*`）
 - Passkey / TOTP 无钱包登录与授权
-- 应用发布、审核、AppStore 安装任务与 Runtime Agent 协调
+- 应用发布、审核、AppStore/Agent Registry 和 release artifact 管理
+- 不再承载 Project 安装、升级、失败回滚、卸载和 Runtime Agent 任务调度；这些运行时能力归 Agent Runtime
 - MPC 会话、消息中继、SSE 与 Redis Streams 续传
 - 钱包加密密钥托管（Passkey 门禁）
 - 站内通知、SSE、Webhook 和投递重试
