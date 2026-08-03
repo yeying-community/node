@@ -4,12 +4,12 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 vi.mock('../src/config/runtime', () => ({
   getConfig: vi.fn((key: string) => {
     const values: Record<string, unknown> = {
-      'passkeyAuth.enabled': true,
-      'passkeyAuth.rpId': 'project.example',
-      'passkeyAuth.rpName': 'Project',
-      'passkeyAuth.origin': 'https://project.example',
-      'passkeyAuth.timeoutMs': 60000,
-      'passkeyAuth.challengeTtlMs': 120000,
+      'passportAuth.passkey.enabled': true,
+      'passportAuth.passkey.rpId': 'project.example',
+      'passportAuth.passkey.rpName': 'Project',
+      'passportAuth.passkey.origin': 'https://project.example',
+      'passportAuth.passkey.timeoutMs': 60000,
+      'passportAuth.passkey.challengeTtlMs': 120000,
     }
     return values[key]
   }),

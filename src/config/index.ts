@@ -76,7 +76,7 @@ export interface TotpAuthRuntimeConfig {
     totpMasterKey?: string
 }
 
-export interface PasskeyAuthRuntimeConfig {
+export interface PassportPasskeyRuntimeConfig {
     enabled?: boolean
     rpId?: string
     rpName?: string
@@ -88,6 +88,7 @@ export interface PasskeyAuthRuntimeConfig {
 export interface PassportAuthRuntimeConfig {
     verifyPath?: string
     portalBaseUrl?: string
+    passkey?: PassportPasskeyRuntimeConfig
 }
 
 export interface AuditRuntimeConfig {

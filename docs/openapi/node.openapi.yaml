@@ -274,247 +274,6 @@ paths:
           application/json:
             schema:
               $ref: "#/components/schemas/JsonObject"
-  /api/v1/public/auth/passkey/status:
-    get:
-      tags:
-        - Passkey
-      summary: 查询 Passkey 服务状态
-      operationId: get_api_v1_public_auth_passkey_status
-      security: []
-      parameters: []
-      responses:
-        "200":
-          $ref: "#/components/responses/Success"
-        "400":
-          $ref: "#/components/responses/BadRequest"
-        "401":
-          $ref: "#/components/responses/Unauthorized"
-        "403":
-          $ref: "#/components/responses/Forbidden"
-        "409":
-          $ref: "#/components/responses/Conflict"
-  /api/v1/public/auth/passkey/register/request:
-    post:
-      tags:
-        - Passkey
-      summary: 创建 Passkey 注册挑战
-      operationId: post_api_v1_public_auth_passkey_register_request
-      security:
-        - bearerAuth: []
-      parameters: []
-      responses:
-        "200":
-          $ref: "#/components/responses/Success"
-        "400":
-          $ref: "#/components/responses/BadRequest"
-        "401":
-          $ref: "#/components/responses/Unauthorized"
-        "403":
-          $ref: "#/components/responses/Forbidden"
-        "409":
-          $ref: "#/components/responses/Conflict"
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/JsonObject"
-  /api/v1/public/auth/passkey/register/confirm:
-    post:
-      tags:
-        - Passkey
-      summary: 确认 Passkey 注册
-      operationId: post_api_v1_public_auth_passkey_register_confirm
-      security:
-        - bearerAuth: []
-      parameters: []
-      responses:
-        "200":
-          $ref: "#/components/responses/Success"
-        "400":
-          $ref: "#/components/responses/BadRequest"
-        "401":
-          $ref: "#/components/responses/Unauthorized"
-        "403":
-          $ref: "#/components/responses/Forbidden"
-        "409":
-          $ref: "#/components/responses/Conflict"
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/PasskeyRegisterConfirmRequest"
-  /api/v1/public/auth/passkey/credentials:
-    get:
-      tags:
-        - Passkey
-      summary: 列出当前身份的 Passkey
-      operationId: get_api_v1_public_auth_passkey_credentials
-      security:
-        - bearerAuth: []
-      parameters: []
-      responses:
-        "200":
-          $ref: "#/components/responses/Success"
-        "400":
-          $ref: "#/components/responses/BadRequest"
-        "401":
-          $ref: "#/components/responses/Unauthorized"
-        "403":
-          $ref: "#/components/responses/Forbidden"
-        "409":
-          $ref: "#/components/responses/Conflict"
-  /api/v1/public/auth/passkey/credentials/revoke:
-    post:
-      tags:
-        - Passkey
-      summary: 撤销 Passkey
-      operationId: post_api_v1_public_auth_passkey_credentials_revoke
-      security:
-        - bearerAuth: []
-      parameters: []
-      responses:
-        "200":
-          $ref: "#/components/responses/Success"
-        "400":
-          $ref: "#/components/responses/BadRequest"
-        "401":
-          $ref: "#/components/responses/Unauthorized"
-        "403":
-          $ref: "#/components/responses/Forbidden"
-        "409":
-          $ref: "#/components/responses/Conflict"
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/JsonObject"
-  /api/v1/public/auth/passkey/authorize/request:
-    post:
-      tags:
-        - Passkey
-      summary: 创建 Passkey 授权请求
-      operationId: post_api_v1_public_auth_passkey_authorize_request
-      security: []
-      parameters: []
-      responses:
-        "200":
-          $ref: "#/components/responses/Success"
-        "400":
-          $ref: "#/components/responses/BadRequest"
-        "401":
-          $ref: "#/components/responses/Unauthorized"
-        "403":
-          $ref: "#/components/responses/Forbidden"
-        "409":
-          $ref: "#/components/responses/Conflict"
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/JsonObject"
-  /api/v1/public/auth/passkey/authorize/request/{requestId}:
-    get:
-      tags:
-        - Passkey
-      summary: 查询 Passkey 授权请求
-      operationId: get_api_v1_public_auth_passkey_authorize_request_requestId
-      security: []
-      parameters:
-        - name: requestId
-          in: path
-          required: true
-          schema:
-            type: string
-      responses:
-        "200":
-          $ref: "#/components/responses/Success"
-        "400":
-          $ref: "#/components/responses/BadRequest"
-        "401":
-          $ref: "#/components/responses/Unauthorized"
-        "403":
-          $ref: "#/components/responses/Forbidden"
-        "409":
-          $ref: "#/components/responses/Conflict"
-  /api/v1/public/auth/passkey/authorize/challenge:
-    post:
-      tags:
-        - Passkey
-      summary: 创建 Passkey assertion challenge
-      operationId: post_api_v1_public_auth_passkey_authorize_challenge
-      security: []
-      parameters: []
-      responses:
-        "200":
-          $ref: "#/components/responses/Success"
-        "400":
-          $ref: "#/components/responses/BadRequest"
-        "401":
-          $ref: "#/components/responses/Unauthorized"
-        "403":
-          $ref: "#/components/responses/Forbidden"
-        "409":
-          $ref: "#/components/responses/Conflict"
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/JsonObject"
-  /api/v1/public/auth/passkey/authorize/approve:
-    post:
-      tags:
-        - Passkey
-      summary: 确认 Passkey 授权
-      operationId: post_api_v1_public_auth_passkey_authorize_approve
-      security: []
-      parameters: []
-      responses:
-        "200":
-          $ref: "#/components/responses/Success"
-        "400":
-          $ref: "#/components/responses/BadRequest"
-        "401":
-          $ref: "#/components/responses/Unauthorized"
-        "403":
-          $ref: "#/components/responses/Forbidden"
-        "409":
-          $ref: "#/components/responses/Conflict"
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/JsonObject"
-  /api/v1/public/auth/passkey/authorize/exchange:
-    post:
-      tags:
-        - Passkey
-      summary: 兑换 Passkey 授权码
-      operationId: post_api_v1_public_auth_passkey_authorize_exchange
-      security: []
-      parameters: []
-      responses:
-        "200":
-          $ref: "#/components/responses/Success"
-        "400":
-          $ref: "#/components/responses/BadRequest"
-        "401":
-          $ref: "#/components/responses/Unauthorized"
-        "403":
-          $ref: "#/components/responses/Forbidden"
-        "409":
-          $ref: "#/components/responses/Conflict"
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/JsonObject"
   /api/v1/public/auth/passport/status:
     get:
       tags:
@@ -658,6 +417,52 @@ paths:
           application/json:
             schema:
               $ref: "#/components/schemas/PassportPasskeyRegisterConfirmRequest"
+  /api/v1/public/auth/passport/passkey/credentials:
+    get:
+      tags:
+        - Passport
+      summary: 列出 Passport subject Passkey
+      operationId: get_api_v1_public_auth_passport_passkey_credentials
+      security:
+        - bearerAuth: []
+      parameters: []
+      responses:
+        "200":
+          $ref: "#/components/responses/Success"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+  /api/v1/public/auth/passport/passkey/credentials/revoke:
+    post:
+      tags:
+        - Passport
+      summary: 撤销 Passport subject Passkey
+      operationId: post_api_v1_public_auth_passport_passkey_credentials_revoke
+      security:
+        - bearerAuth: []
+      parameters: []
+      responses:
+        "200":
+          $ref: "#/components/responses/Success"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PassportPasskeyCredentialRevokeRequest"
   /api/v1/public/auth/passport/authorize/request:
     post:
       tags:
@@ -2359,19 +2164,6 @@ components:
           pattern: ^0x[0-9a-fA-F]{40}$
         signature:
           type: string
-    PasskeyRegisterConfirmRequest:
-      type: object
-      required:
-        - requestId
-        - credential
-      properties:
-        requestId:
-          type: string
-        deviceName:
-          type: string
-        credential:
-          type: object
-          additionalProperties: true
     PassportPasskeyRegisterRequest:
       type: object
       properties:
@@ -2391,6 +2183,13 @@ components:
         credential:
           type: object
           additionalProperties: true
+    PassportPasskeyCredentialRevokeRequest:
+      type: object
+      required:
+        - credentialId
+      properties:
+        credentialId:
+          type: string
     PassportAuthorizeRequest:
       type: object
       required:

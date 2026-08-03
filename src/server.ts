@@ -14,7 +14,6 @@ import {
     CommentDO,
     ApplicationConfigDO,
     TotpSubjectSecretDO,
-    PasskeySubjectCredentialDO,
     CustodyKeyRecordDO,
     PassportSubjectDO,
     PassportWalletBindingDO,
@@ -46,7 +45,6 @@ import { requireAdmin } from './middleware/accessControl';
 import { registerPublicAuthRoutes } from './routes/publicAuth';
 import { registerPublicAuthCentralRoutes } from './routes/publicAuthCentral';
 import { registerPublicAuthTotpRoutes } from './routes/publicAuthTotp';
-import { registerPublicAuthPasskeyRoutes } from './routes/publicAuthPasskey';
 import { registerPublicAuthPassportRoutes } from './routes/publicAuthPassport';
 import { registerPublicProfileRoute } from './routes/privateProfile';
 import { registerPublicApplicationRoutes } from './routes/public/applications';
@@ -65,7 +63,6 @@ import { AddActionRequestDedup20260402170000 } from './migrations/20260402170000
 import { DropServiceTables20260423103000 } from './migrations/20260423103000-drop-service-tables';
 import { AddApplicationRedirectUris20260423121000 } from './migrations/20260423121000-add-application-redirect-uris';
 import { AddTotpSubjectSecrets20260423182000 } from './migrations/20260423182000-add-totp-subject-secrets';
-import { AddPasskeyAuth20260622100000 } from './migrations/20260622100000-add-passkey-auth';
 import { AddApplicationUcanPolicy20260423193000 } from './migrations/20260423193000-add-application-ucan-policy';
 import { BackfillApplicationUcanPolicy20260424110000 } from './migrations/20260424110000-backfill-application-ucan-policy';
 import { FixApplicationUcanPolicyRouterPriority20260424123000 } from './migrations/20260424123000-fix-application-ucan-policy-router-priority';
@@ -80,6 +77,8 @@ import { AddAppReleases20260723110000 } from './migrations/20260723110000-add-ap
 import { AddAppRuntimeTasks20260724100000 } from './migrations/20260724100000-add-app-runtime-tasks';
 import { AddRuntimeTaskPayload20260726100000 } from './migrations/20260726100000-add-runtime-task-payload';
 import { AddPassportIdentity20260803100000 } from './migrations/20260803100000-add-passport-identity';
+import { EnforcePassportPasskeyIdentity20260803110000 } from './migrations/20260803110000-enforce-passport-passkey-identity';
+import { RepairPassportWebauthnChallenges20260803120000 } from './migrations/20260803120000-repair-passport-webauthn-challenges';
 import { getConfig } from './config/runtime';
 import { startActionRequestCleanupJobs } from './domain/service/actionRequestCleanup';
 import { startMpcCleanupJobs } from './domain/service/mpcCleanup';
@@ -88,7 +87,7 @@ import { startNotificationDeliveryJobs } from './domain/service/notificationDeli
 import { SingletonLogger } from './domain/facade/logger';
 import { getCentralIssuerStatus } from './auth/ucanIssuer';
 import { getTotpAuthStatus } from './auth/totpAuth';
-import { getPasskeyAuthStatus } from './auth/passkeyAuth';
+import { getPasskeyAuthStatus } from './auth/passportPasskeyAuth';
 import { initializeRuntimeSecrets } from './security/secretVault';
 import { assertJwtSecretReady } from './auth/siwe';
 
@@ -217,7 +216,7 @@ function assertSecurityPreflight(): void {
     const passkeyStatus = getPasskeyAuthStatus()
     if (passkeyStatus.enabled && !passkeyStatus.ready) {
         errors.push(
-            `Passkey 授权未就绪: ${passkeyStatus.error || '缺少有效 passkeyAuth.rpId/origin 配置'}`
+            `Passport Passkey 授权未就绪: ${passkeyStatus.error || '缺少有效 passportAuth.passkey.rpId/origin 配置'}`
         )
     }
 
@@ -260,7 +259,6 @@ builder.entities([
     CommentDO,
     ApplicationConfigDO,
     TotpSubjectSecretDO,
-    PasskeySubjectCredentialDO,
     CustodyKeyRecordDO,
     PassportSubjectDO,
     PassportWalletBindingDO,
@@ -292,7 +290,6 @@ builder.migrations([
     DropServiceTables20260423103000,
     AddApplicationRedirectUris20260423121000,
     AddTotpSubjectSecrets20260423182000,
-    AddPasskeyAuth20260622100000,
     AddApplicationUcanPolicy20260423193000,
     BackfillApplicationUcanPolicy20260424110000,
     FixApplicationUcanPolicyRouterPriority20260424123000,
@@ -304,7 +301,9 @@ builder.migrations([
     AddAppReleases20260723110000,
     AddAppRuntimeTasks20260724100000,
     AddRuntimeTaskPayload20260726100000,
-    AddPassportIdentity20260803100000
+    AddPassportIdentity20260803100000,
+    EnforcePassportPasskeyIdentity20260803110000,
+    RepairPassportWebauthnChallenges20260803120000
 ])
 
 builder.build().initialize().then(async (conn) => {
@@ -345,7 +344,6 @@ builder.build().initialize().then(async (conn) => {
     registerPublicAuthRoutes(app);
     registerPublicAuthCentralRoutes(app);
     registerPublicAuthTotpRoutes(app);
-    registerPublicAuthPasskeyRoutes(app);
     registerPublicAuthPassportRoutes(app);
     registerPublicHealthRoute(app);
     registerPublicProfileRoute(app);

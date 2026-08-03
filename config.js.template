@@ -147,21 +147,21 @@ module.exports = {
     // Node-hosted Passport approval page path. Example: /passport-auth
     verifyPath: '/passport-auth',
     // Base URL used to build Passport verifyUrl in authorize request response.
-    portalBaseUrl: 'http://127.0.0.1:8100'
-  },
-  passkeyAuth: {
-    // Enable passkey registration and authorization confirmation.
-    enabled: false,
-    // Relying Party ID. For local development use 'localhost'.
-    rpId: 'localhost',
-    // Relying Party display name.
-    rpName: 'YeYing Node',
-    // Browser origin that serves the passkey page.
-    origin: 'http://localhost:8100',
-    // WebAuthn operation timeout.
-    timeoutMs: 60 * 1000,
-    // Registration challenge TTL.
-    challengeTtlMs: 2 * 60 * 1000
+    portalBaseUrl: 'http://127.0.0.1:8100',
+    passkey: {
+      // Enable Passport Passkey registration and authorization confirmation.
+      enabled: false,
+      // Relying Party ID. For local development use 'localhost'.
+      rpId: 'localhost',
+      // Relying Party display name.
+      rpName: 'YeYing Node',
+      // Browser origin that serves the Passport page.
+      origin: 'http://localhost:8100',
+      // WebAuthn operation timeout.
+      timeoutMs: 60 * 1000,
+      // Registration challenge TTL.
+      challengeTtlMs: 2 * 60 * 1000
+    }
   },
   audit: {
     // List of approver wallet addresses.

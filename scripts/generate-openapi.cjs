@@ -96,14 +96,6 @@ const document = {
           signature: { type: 'string' },
         },
       },
-      PasskeyRegisterConfirmRequest: {
-        type: 'object', required: ['requestId', 'credential'],
-        properties: {
-          requestId: { type: 'string' },
-          deviceName: { type: 'string' },
-          credential: { type: 'object', additionalProperties: true },
-        },
-      },
       PassportPasskeyRegisterRequest: {
         type: 'object',
         properties: {
@@ -116,6 +108,13 @@ const document = {
           requestId: { type: 'string', description: '注册挑战 requestId。' },
           deviceName: { type: 'string' },
           credential: { type: 'object', additionalProperties: true },
+        },
+      },
+      PassportPasskeyCredentialRevokeRequest: {
+        type: 'object',
+        required: ['credentialId'],
+        properties: {
+          credentialId: { type: 'string' },
         },
       },
       PassportAuthorizeRequest: {
@@ -267,22 +266,14 @@ const operations = [
   ['post', '/api/v1/public/auth/central/session', 'Auth', '创建中心化签发会话', 'bearer'],
   ['post', '/api/v1/public/auth/central/issue', 'Auth', '签发中心化 UCAN', 'bearer'],
   ['post', '/api/v1/public/auth/central/revoke', 'Auth', '撤销中心化签发会话', 'bearer'],
-  ['get', '/api/v1/public/auth/passkey/status', 'Passkey', '查询 Passkey 服务状态', 'none'],
-  ['post', '/api/v1/public/auth/passkey/register/request', 'Passkey', '创建 Passkey 注册挑战', 'bearer'],
-  ['post', '/api/v1/public/auth/passkey/register/confirm', 'Passkey', '确认 Passkey 注册', 'bearer', 'PasskeyRegisterConfirmRequest'],
-  ['get', '/api/v1/public/auth/passkey/credentials', 'Passkey', '列出当前身份的 Passkey', 'bearer'],
-  ['post', '/api/v1/public/auth/passkey/credentials/revoke', 'Passkey', '撤销 Passkey', 'bearer'],
-  ['post', '/api/v1/public/auth/passkey/authorize/request', 'Passkey', '创建 Passkey 授权请求', 'none'],
-  ['get', '/api/v1/public/auth/passkey/authorize/request/{requestId}', 'Passkey', '查询 Passkey 授权请求', 'none'],
-  ['post', '/api/v1/public/auth/passkey/authorize/challenge', 'Passkey', '创建 Passkey assertion challenge', 'none'],
-  ['post', '/api/v1/public/auth/passkey/authorize/approve', 'Passkey', '确认 Passkey 授权', 'none'],
-  ['post', '/api/v1/public/auth/passkey/authorize/exchange', 'Passkey', '兑换 Passkey 授权码', 'none'],
   ['get', '/api/v1/public/auth/passport/status', 'Passport', '查询 Passport 服务状态', 'none'],
   ['post', '/api/v1/public/auth/passport/bind/request', 'Passport', '创建 Passport 钱包绑定准备状态', 'bearer'],
   ['post', '/api/v1/public/auth/passport/bind/confirm', 'Passport', '确认 Passport 钱包绑定', 'bearer'],
   ['get', '/api/v1/public/auth/passport/bindings', 'Passport', '查询 Passport 绑定', 'bearer'],
   ['post', '/api/v1/public/auth/passport/passkey/register/request', 'Passport', '创建 Passport subject Passkey 注册挑战', 'bearer', 'PassportPasskeyRegisterRequest'],
   ['post', '/api/v1/public/auth/passport/passkey/register/confirm', 'Passport', '确认 Passport subject Passkey 注册', 'bearer', 'PassportPasskeyRegisterConfirmRequest'],
+  ['get', '/api/v1/public/auth/passport/passkey/credentials', 'Passport', '列出 Passport subject Passkey', 'bearer'],
+  ['post', '/api/v1/public/auth/passport/passkey/credentials/revoke', 'Passport', '撤销 Passport subject Passkey', 'bearer', 'PassportPasskeyCredentialRevokeRequest'],
   ['post', '/api/v1/public/auth/passport/authorize/request', 'Passport', '创建 Passport code + PKCE 授权请求', 'none', 'PassportAuthorizeRequest'],
   ['get', '/api/v1/public/auth/passport/authorize/request/{requestId}', 'Passport', '查询 Passport 授权请求', 'none'],
   ['post', '/api/v1/public/auth/passport/authorize/challenge', 'Passport', '创建 Passport Passkey assertion challenge', 'none', 'PassportAuthorizeChallengeRequest'],

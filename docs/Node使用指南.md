@@ -22,7 +22,7 @@ Node 不保存钱包明文密钥。托管接口只接受客户端加密后的 `c
 - Node.js 22 或更高版本；生产环境建议固定 LTS 版本。
 - PostgreSQL 作为推荐数据库。PostgreSQL 使用 migration；MySQL 依赖 TypeORM synchronize，功能覆盖需要自行验证。
 - Redis 为可选组件。多实例 MPC、SSE 续传和事件重放建议启用 Redis Streams。
-- Passkey 生产环境必须使用 HTTPS，并保证 `passkeyAuth.rpId` 与访问域名一致。
+- Passkey 生产环境必须使用 HTTPS，并保证 `passportAuth.passkey.rpId` 与访问域名一致。
 
 ## 3. 本地启动
 
@@ -94,16 +94,20 @@ mpc: { ucanWith: 'mpc', ucanCan: 'coordinate' },
 custody: { enabled: true, ucanWith: 'custody', ucanCan: 'write' }
 ```
 
-### Passkey
+### Passport Passkey
 
 ```js
-passkeyAuth: {
-  enabled: true,
-  rpId: 'node.example.com',
-  rpName: 'YeYing Node',
-  origin: 'https://node.example.com',
-  timeoutMs: 60 * 1000,
-  challengeTtlMs: 2 * 60 * 1000
+passportAuth: {
+  verifyPath: '/passport-auth',
+  portalBaseUrl: 'https://node.example.com',
+  passkey: {
+    enabled: true,
+    rpId: 'node.example.com',
+    rpName: 'YeYing Node',
+    origin: 'https://node.example.com',
+    timeoutMs: 60 * 1000,
+    challengeTtlMs: 2 * 60 * 1000
+  }
 }
 ```
 

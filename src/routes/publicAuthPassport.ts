@@ -141,6 +141,28 @@ export function registerPublicAuthPassportRoutes(app: Express) {
     }
   })
 
+  app.get(`${BASE_PATH}/passkey/credentials`, async (req: Request, res: Response) => {
+    try {
+      const address = requireBearerSubject(req)
+      const result = await service.listPasskeyCredentialsByWallet(address)
+      res.json(ok(result))
+    } catch (error) {
+      const mapped = mapPassportError(error)
+      res.status(mapped.status).json(fail(mapped.status, mapped.message))
+    }
+  })
+
+  app.post(`${BASE_PATH}/passkey/credentials/revoke`, async (req: Request, res: Response) => {
+    try {
+      const address = requireBearerSubject(req)
+      const result = await service.revokePasskeyCredentialByWallet(address, req.body?.credentialId)
+      res.json(ok(result))
+    } catch (error) {
+      const mapped = mapPassportError(error)
+      res.status(mapped.status).json(fail(mapped.status, mapped.message))
+    }
+  })
+
   app.post(`${BASE_PATH}/authorize/request`, async (req: Request, res: Response) => {
     try {
       const result = await service.createAuthorizationRequest({

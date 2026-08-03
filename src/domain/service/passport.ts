@@ -17,7 +17,7 @@ import {
 } from '../mapper/entity'
 import { ApplicationService } from './application'
 import { getCurrentUtcString } from '../../common/date'
-import { assertPasskeyAuthReady, getPasskeyAuthStatus } from '../../auth/passkeyAuth'
+import { assertPasskeyAuthReady, getPasskeyAuthStatus } from '../../auth/passportPasskeyAuth'
 import { getConfig } from '../../config/runtime'
 
 export type PassportStatus = {
@@ -491,6 +491,50 @@ export class PassportService {
         revokedAt: item.revokedAt || '',
       })),
     }
+  }
+
+  async listPasskeyCredentialsByWallet(addressInput: unknown) {
+    const address = requireWalletAddress(addressInput)
+    const subject = await this.ensureWalletSubject(address)
+    const credentials = await this.manager.listPasskeyCredentials(subject.subjectId)
+    return {
+      subjectId: subject.subjectId,
+      walletAddress: subject.walletAddress,
+      credentials: credentials.map((item) => ({
+        credentialId: item.credentialId,
+        subjectId: item.subjectId,
+        walletAddress: subject.walletAddress,
+        deviceName: item.deviceName || '',
+        transports: parseTransports(item.transports),
+        createdAt: item.createdAt,
+        lastUsedAt: item.lastUsedAt || '',
+        revokedAt: item.revokedAt || '',
+      })),
+    }
+  }
+
+  async revokePasskeyCredentialByWallet(addressInput: unknown, credentialIdInput: unknown) {
+    const address = requireWalletAddress(addressInput)
+    const credentialId = normalizeString(credentialIdInput)
+    if (!credentialId) {
+      throw new PassportError(400, 'PASSPORT_PASSKEY_CREDENTIAL_ID_REQUIRED', 'Missing credentialId')
+    }
+    const subject = await this.ensureWalletSubject(address)
+    const credential = await this.manager.getPasskeyCredentialById(credentialId)
+    if (!credential || credential.subjectId !== subject.subjectId) {
+      throw new PassportError(404, 'PASSPORT_PASSKEY_CREDENTIAL_NOT_FOUND', 'Passkey credential not found')
+    }
+    if (!String(credential.revokedAt || '').trim()) {
+      credential.revokedAt = getCurrentUtcString()
+      await this.manager.savePasskeyCredential(credential)
+      await this.writeAudit({
+        subjectId: subject.subjectId,
+        walletAddress: subject.walletAddress,
+        action: 'passkey_revoked',
+        metadata: { credentialId },
+      })
+    }
+    return { success: true, subjectId: subject.subjectId, walletAddress: subject.walletAddress }
   }
 
   async createPasskeyRegisterRequest(input: { walletAddress: unknown; deviceName?: unknown }) {

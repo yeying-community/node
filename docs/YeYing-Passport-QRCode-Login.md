@@ -267,7 +267,7 @@ user_passport_bindings
 
 - 应用中心应用登记：`applications.uid`、`redirectUris`、`ucanAudience`、`ucanCapabilities`。
 - TOTP 授权桥：`/api/v1/public/auth/totp/authorize/*`。
-- Passkey 授权桥：`/api/v1/public/auth/passkey/authorize/*`。
+- Passport Passkey 授权桥：`/api/v1/public/auth/passport/authorize/*` 与 `/api/v1/public/auth/passport/passkey/*`。
 
 Passport 协议可以先作为聚合层，而不是复制所有能力：
 
