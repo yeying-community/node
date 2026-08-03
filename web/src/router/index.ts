@@ -89,6 +89,11 @@ export const routes = [
                         component: () => import('../views/apply/MyConfigView.vue')
                     },
                     {
+                        path: 'my-config/passkey-history',
+                        name: 'passkeyTestHistory',
+                        component: () => import('../views/apply/PasskeyTestHistoryView.vue')
+                    },
+                    {
                         path: 'notifications',
                         name: 'notifications',
                         component: () => import('../views/apply/NotificationCenterView.vue')

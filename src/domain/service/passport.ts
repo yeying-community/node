@@ -258,6 +258,40 @@ function parseJsonArray(raw: string): string[] {
   }
 }
 
+function normalizeCredentialIdValue(input: unknown): string {
+  if (!input) return ''
+  if (typeof input === 'string') return normalizeString(input)
+  if (input instanceof Uint8Array) return Buffer.from(input).toString('base64url')
+  if (input instanceof ArrayBuffer) return Buffer.from(new Uint8Array(input)).toString('base64url')
+  if (ArrayBuffer.isView(input)) {
+    return Buffer.from(input.buffer, input.byteOffset, input.byteLength).toString('base64url')
+  }
+  return normalizeString(input)
+}
+
+function legacyDoubleEncodedCredentialId(credentialId: string): string {
+  return credentialId ? Buffer.from(credentialId, 'utf8').toString('base64url') : ''
+}
+
+async function findPasskeyCredentialByCandidates(
+  manager: PassportManager,
+  candidates: unknown[]
+): Promise<{ credential: PassportPasskeyCredentialDO | null; credentialId: string }> {
+  const ids = new Set<string>()
+  for (const candidate of candidates) {
+    const id = normalizeCredentialIdValue(candidate)
+    if (!id) continue
+    ids.add(id)
+    ids.add(legacyDoubleEncodedCredentialId(id))
+  }
+  const [credentialId] = Array.from(ids)
+  for (const id of ids) {
+    const credential = await manager.getPasskeyCredentialById(id)
+    if (credential) return { credential, credentialId: credentialId || id }
+  }
+  return { credential: null, credentialId: credentialId || '' }
+}
+
 function toRequestView(
   record: PassportAuthorizationRequestDO,
   appName = ''
@@ -615,8 +649,8 @@ export class PassportService {
     const verificationAny = verification as {
       verified?: boolean
       registrationInfo?: {
-        credential?: { id?: Uint8Array; publicKey?: Uint8Array; counter?: number; transports?: string[] }
-        credentialID?: Uint8Array
+        credential?: { id?: string | Uint8Array; publicKey?: Uint8Array; counter?: number; transports?: string[] }
+        credentialID?: string | Uint8Array
         credentialPublicKey?: Uint8Array
         counter?: number
         aaguid?: string
@@ -631,8 +665,12 @@ export class PassportService {
     if (!rawCredentialId || !rawPublicKey) {
       throw new PassportError(400, 'PASSPORT_PASSKEY_REGISTER_RESULT_INVALID', 'Passkey register result is invalid')
     }
-    const credentialId = Buffer.from(rawCredentialId).toString('base64url')
-    const existed = await this.manager.getPasskeyCredentialById(credentialId)
+    const credentialId = normalizeCredentialIdValue(rawCredentialId)
+    const { credential: existed } = await findPasskeyCredentialByCandidates(this.manager, [
+      rawCredentialId,
+      input.credential?.id,
+      input.credential?.rawId,
+    ])
     if (existed && !String(existed.revokedAt || '').trim()) {
       throw new PassportError(409, 'PASSPORT_PASSKEY_DUPLICATE_CREDENTIAL', 'Passkey credential already exists')
     }
@@ -729,11 +767,13 @@ export class PassportService {
       throw new PassportError(410, 'PASSPORT_PASSKEY_CHALLENGE_EXPIRED', 'Passkey challenge expired')
     }
 
-    const credentialId = normalizeString(input.credential?.id || input.credential?.rawId)
+    const { credential, credentialId } = await findPasskeyCredentialByCandidates(this.manager, [
+      input.credential?.id,
+      input.credential?.rawId,
+    ])
     if (!credentialId) {
       throw new PassportError(400, 'PASSPORT_PASSKEY_CREDENTIAL_ID_REQUIRED', 'Missing credentialId')
     }
-    const credential = await this.manager.getPasskeyCredentialById(credentialId)
     if (!credential || String(credential.revokedAt || '').trim()) {
       throw new PassportError(404, 'PASSPORT_PASSKEY_CREDENTIAL_NOT_FOUND', 'Passkey credential not found')
     }
@@ -741,7 +781,11 @@ export class PassportService {
       throw new PassportError(403, 'PASSPORT_PASSKEY_SUBJECT_MISMATCH', 'Passkey subject mismatch')
     }
     const allowedCredentialIds = parseJsonArray(challenge.allowedCredentialIds)
-    if (allowedCredentialIds.length > 0 && !allowedCredentialIds.includes(credential.credentialId)) {
+    if (
+      allowedCredentialIds.length > 0 &&
+      !allowedCredentialIds.includes(credential.credentialId) &&
+      !allowedCredentialIds.includes(credentialId)
+    ) {
       throw new PassportError(403, 'PASSPORT_PASSKEY_CREDENTIAL_NOT_ALLOWED', 'Passkey credential is not allowed')
     }
 
@@ -751,7 +795,7 @@ export class PassportService {
       expectedOrigin: status.origin,
       expectedRPID: status.rpId,
       credential: {
-        id: credential.credentialId,
+        id: credentialId,
         publicKey: Buffer.from(credential.publicKey, 'base64url'),
         counter: Number(credential.signCount || 0),
         transports: parseTransports(credential.transports),
@@ -767,6 +811,7 @@ export class PassportService {
       throw new PassportError(401, 'PASSPORT_PASSKEY_AUTHORIZE_VERIFY_FAILED', 'Passkey authorize verify failed')
     }
 
+    credential.credentialId = credentialId
     credential.signCount = String(verificationAny.authenticationInfo?.newCounter || credential.signCount || 0)
     credential.lastUsedAt = getCurrentUtcString()
     await this.manager.savePasskeyCredential(credential)
