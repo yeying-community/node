@@ -143,6 +143,12 @@ module.exports = {
     // 推荐通过加密密钥文件或环境变量 TOTP_AUTH_TOTP_MASTER_KEY 注入。
     totpMasterKey: ''
   },
+  passportAuth: {
+    // Node-hosted Passport approval page path. Example: /passport-auth
+    verifyPath: '/passport-auth',
+    // Base URL used to build Passport verifyUrl in authorize request response.
+    portalBaseUrl: 'http://127.0.0.1:8100'
+  },
   passkeyAuth: {
     // Enable passkey registration and authorization confirmation.
     enabled: false,

@@ -85,6 +85,11 @@ export interface PasskeyAuthRuntimeConfig {
     challengeTtlMs?: number
 }
 
+export interface PassportAuthRuntimeConfig {
+    verifyPath?: string
+    portalBaseUrl?: string
+}
+
 export interface AuditRuntimeConfig {
     approvers?: string[]
     requiredApprovals?: number

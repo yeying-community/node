@@ -16,6 +16,13 @@ import {
     TotpSubjectSecretDO,
     PasskeySubjectCredentialDO,
     CustodyKeyRecordDO,
+    PassportSubjectDO,
+    PassportWalletBindingDO,
+    PassportPasskeyCredentialDO,
+    PassportWebauthnChallengeDO,
+    PassportAuthorizationRequestDO,
+    PassportAuthorizationCodeDO,
+    PassportAuditLogDO,
     NotificationDO,
     NotificationInboxDO,
     NotificationWebhookDO,
@@ -40,6 +47,7 @@ import { registerPublicAuthRoutes } from './routes/publicAuth';
 import { registerPublicAuthCentralRoutes } from './routes/publicAuthCentral';
 import { registerPublicAuthTotpRoutes } from './routes/publicAuthTotp';
 import { registerPublicAuthPasskeyRoutes } from './routes/publicAuthPasskey';
+import { registerPublicAuthPassportRoutes } from './routes/publicAuthPassport';
 import { registerPublicProfileRoute } from './routes/privateProfile';
 import { registerPublicApplicationRoutes } from './routes/public/applications';
 import { registerPublicAuditRoutes } from './routes/public/audits';
@@ -71,6 +79,7 @@ import { registerAdminReleaseRoutes } from './routes/admin/releases';
 import { AddAppReleases20260723110000 } from './migrations/20260723110000-add-app-releases';
 import { AddAppRuntimeTasks20260724100000 } from './migrations/20260724100000-add-app-runtime-tasks';
 import { AddRuntimeTaskPayload20260726100000 } from './migrations/20260726100000-add-runtime-task-payload';
+import { AddPassportIdentity20260803100000 } from './migrations/20260803100000-add-passport-identity';
 import { getConfig } from './config/runtime';
 import { startActionRequestCleanupJobs } from './domain/service/actionRequestCleanup';
 import { startMpcCleanupJobs } from './domain/service/mpcCleanup';
@@ -253,6 +262,13 @@ builder.entities([
     TotpSubjectSecretDO,
     PasskeySubjectCredentialDO,
     CustodyKeyRecordDO,
+    PassportSubjectDO,
+    PassportWalletBindingDO,
+    PassportPasskeyCredentialDO,
+    PassportWebauthnChallengeDO,
+    PassportAuthorizationRequestDO,
+    PassportAuthorizationCodeDO,
+    PassportAuditLogDO,
     NotificationDO,
     NotificationInboxDO,
     NotificationWebhookDO,
@@ -287,7 +303,8 @@ builder.migrations([
     AddProjectAppInstallations20260723100000,
     AddAppReleases20260723110000,
     AddAppRuntimeTasks20260724100000,
-    AddRuntimeTaskPayload20260726100000
+    AddRuntimeTaskPayload20260726100000,
+    AddPassportIdentity20260803100000
 ])
 
 builder.build().initialize().then(async (conn) => {
@@ -329,6 +346,7 @@ builder.build().initialize().then(async (conn) => {
     registerPublicAuthCentralRoutes(app);
     registerPublicAuthTotpRoutes(app);
     registerPublicAuthPasskeyRoutes(app);
+    registerPublicAuthPassportRoutes(app);
     registerPublicHealthRoute(app);
     registerPublicProfileRoute(app);
     registerPublicApplicationRoutes(app);

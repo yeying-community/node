@@ -84,7 +84,7 @@ PC 登录页向 Project 后端创建 Passport 登录请求：
 POST /api/passport/login/request
 ```
 
-Project 生成本地 `login_session_id`，然后调用 Node：
+Project 生成本地 `login_session_id` 和 PKCE `codeVerifier/codeChallenge`，保存 `codeVerifier` 后调用 Node：
 
 ```text
 POST /api/v1/public/auth/passport/authorize/request
@@ -97,6 +97,8 @@ POST /api/v1/public/auth/passport/authorize/request
   "appId": "project",
   "redirectUri": "https://project.yeying.pub/passport/callback",
   "state": "project-login-session-id",
+  "codeChallenge": "S256_PKCE_CODE_CHALLENGE",
+  "codeChallengeMethod": "S256",
   "requestTtlMs": 120000
 }
 ```
@@ -113,10 +115,10 @@ Node 返回：
 }
 ```
 
-PC 二维码内容使用 `verifyUrl`。Project 本地保存映射：
+PC 二维码内容使用 `verifyUrl`。Project 本地保存映射和 PKCE verifier：
 
 ```text
-login_session_id -> passport_request_id -> pending
+login_session_id -> passport_request_id -> code_verifier -> pending
 ```
 
 ### 5.2 手机扫码
@@ -415,6 +417,8 @@ Node：
 ```text
 POST /api/v1/public/auth/passport/authorize/request
 GET  /api/v1/public/auth/passport/authorize/request/:requestId
+POST /api/v1/public/auth/passport/passkey/register/request
+POST /api/v1/public/auth/passport/passkey/register/confirm
 POST /api/v1/public/auth/passport/authorize/challenge
 POST /api/v1/public/auth/passport/authorize/approve
 POST /api/v1/public/auth/passport/authorize/exchange

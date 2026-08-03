@@ -35,6 +35,12 @@ export const routes = [
         component: () => import('../views/TotpAuthView.vue')
     },
     {
+        path: '/passport-auth',
+        name: 'passportAuth',
+        meta: { public: true },
+        component: () => import('../views/PassportAuthView.vue')
+    },
+    {
         path: '/market',
         name: 'market',
         component: () => import('../views/apply/MarketView.vue'),

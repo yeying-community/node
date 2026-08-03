@@ -16,6 +16,8 @@ tags:
     description: SIWE、JWT 和中心化 UCAN。
   - name: Passkey
     description: WebAuthn 通行证注册和授权。
+  - name: Passport
+    description: Passport subject、code + PKCE 和跨应用登录。
   - name: TOTP
     description: TOTP 绑定和无钱包授权。
   - name: Profile
@@ -513,6 +515,273 @@ paths:
           application/json:
             schema:
               $ref: "#/components/schemas/JsonObject"
+  /api/v1/public/auth/passport/status:
+    get:
+      tags:
+        - Passport
+      summary: 查询 Passport 服务状态
+      operationId: get_api_v1_public_auth_passport_status
+      security: []
+      parameters: []
+      responses:
+        "200":
+          $ref: "#/components/responses/Success"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+  /api/v1/public/auth/passport/bind/request:
+    post:
+      tags:
+        - Passport
+      summary: 创建 Passport 钱包绑定准备状态
+      operationId: post_api_v1_public_auth_passport_bind_request
+      security:
+        - bearerAuth: []
+      parameters: []
+      responses:
+        "200":
+          $ref: "#/components/responses/Success"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/JsonObject"
+  /api/v1/public/auth/passport/bind/confirm:
+    post:
+      tags:
+        - Passport
+      summary: 确认 Passport 钱包绑定
+      operationId: post_api_v1_public_auth_passport_bind_confirm
+      security:
+        - bearerAuth: []
+      parameters: []
+      responses:
+        "200":
+          $ref: "#/components/responses/Success"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/JsonObject"
+  /api/v1/public/auth/passport/bindings:
+    get:
+      tags:
+        - Passport
+      summary: 查询 Passport 绑定
+      operationId: get_api_v1_public_auth_passport_bindings
+      security:
+        - bearerAuth: []
+      parameters: []
+      responses:
+        "200":
+          $ref: "#/components/responses/Success"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+  /api/v1/public/auth/passport/passkey/register/request:
+    post:
+      tags:
+        - Passport
+      summary: 创建 Passport subject Passkey 注册挑战
+      operationId: post_api_v1_public_auth_passport_passkey_register_request
+      security:
+        - bearerAuth: []
+      parameters: []
+      responses:
+        "200":
+          $ref: "#/components/responses/Success"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PassportPasskeyRegisterRequest"
+  /api/v1/public/auth/passport/passkey/register/confirm:
+    post:
+      tags:
+        - Passport
+      summary: 确认 Passport subject Passkey 注册
+      operationId: post_api_v1_public_auth_passport_passkey_register_confirm
+      security:
+        - bearerAuth: []
+      parameters: []
+      responses:
+        "200":
+          $ref: "#/components/responses/Success"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PassportPasskeyRegisterConfirmRequest"
+  /api/v1/public/auth/passport/authorize/request:
+    post:
+      tags:
+        - Passport
+      summary: 创建 Passport code + PKCE 授权请求
+      operationId: post_api_v1_public_auth_passport_authorize_request
+      security: []
+      parameters: []
+      responses:
+        "200":
+          $ref: "#/components/responses/Success"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PassportAuthorizeRequest"
+  /api/v1/public/auth/passport/authorize/request/{requestId}:
+    get:
+      tags:
+        - Passport
+      summary: 查询 Passport 授权请求
+      operationId: get_api_v1_public_auth_passport_authorize_request_requestId
+      security: []
+      parameters:
+        - name: requestId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          $ref: "#/components/responses/Success"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+  /api/v1/public/auth/passport/authorize/challenge:
+    post:
+      tags:
+        - Passport
+      summary: 创建 Passport Passkey assertion challenge
+      operationId: post_api_v1_public_auth_passport_authorize_challenge
+      security: []
+      parameters: []
+      responses:
+        "200":
+          $ref: "#/components/responses/Success"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PassportAuthorizeChallengeRequest"
+  /api/v1/public/auth/passport/authorize/approve:
+    post:
+      tags:
+        - Passport
+      summary: 确认 Passport 授权请求
+      operationId: post_api_v1_public_auth_passport_authorize_approve
+      security: []
+      parameters: []
+      responses:
+        "200":
+          $ref: "#/components/responses/Success"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PassportAuthorizeApproveRequest"
+  /api/v1/public/auth/passport/authorize/exchange:
+    post:
+      tags:
+        - Passport
+      summary: 兑换 Passport 授权码
+      operationId: post_api_v1_public_auth_passport_authorize_exchange
+      security: []
+      parameters: []
+      responses:
+        "200":
+          $ref: "#/components/responses/Success"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PassportAuthorizeExchangeRequest"
   /api/v1/public/auth/totp/status:
     get:
       tags:
@@ -2103,6 +2372,105 @@ components:
         credential:
           type: object
           additionalProperties: true
+    PassportPasskeyRegisterRequest:
+      type: object
+      properties:
+        deviceName:
+          type: string
+    PassportPasskeyRegisterConfirmRequest:
+      type: object
+      required:
+        - requestId
+        - credential
+      properties:
+        requestId:
+          type: string
+          description: 注册挑战 requestId。
+        deviceName:
+          type: string
+        credential:
+          type: object
+          additionalProperties: true
+    PassportAuthorizeRequest:
+      type: object
+      required:
+        - appId
+        - redirectUri
+        - codeChallenge
+      properties:
+        appId:
+          type: string
+        redirectUri:
+          type: string
+          format: uri
+        state:
+          type: string
+        codeChallenge:
+          type: string
+          minLength: 43
+          maxLength: 128
+        code_challenge:
+          type: string
+          minLength: 43
+          maxLength: 128
+        codeChallengeMethod:
+          type: string
+          enum:
+            - S256
+        code_challenge_method:
+          type: string
+          enum:
+            - S256
+        requestTtlMs:
+          type: integer
+    PassportAuthorizeChallengeRequest:
+      type: object
+      required:
+        - requestId
+      properties:
+        requestId:
+          type: string
+    PassportAuthorizeApproveRequest:
+      type: object
+      required:
+        - requestId
+      properties:
+        requestId:
+          type: string
+        passkeyRequestId:
+          type: string
+          description: 无 Bearer Passkey approve 时必填。
+        challengeId:
+          type: string
+          description: passkeyRequestId 的兼容别名。
+        credential:
+          type: object
+          additionalProperties: true
+        codeTtlMs:
+          type: integer
+    PassportAuthorizeExchangeRequest:
+      type: object
+      required:
+        - code
+        - appId
+        - redirectUri
+        - codeVerifier
+      properties:
+        code:
+          type: string
+        appId:
+          type: string
+        redirectUri:
+          type: string
+          format: uri
+        codeVerifier:
+          type: string
+          minLength: 43
+          maxLength: 128
+        code_verifier:
+          type: string
+          minLength: 43
+          maxLength: 128
     CustodyStatus:
       type: object
       properties:
