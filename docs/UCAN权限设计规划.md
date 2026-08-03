@@ -1,6 +1,6 @@
 # Node UCAN 权限设计规划
 
-本文基于 wallet 项目的 `/Users/liuxin2/Workspace/opensource/wallet/docs/UCAN协议说明.md`，规划 Node 服务侧的 UCAN 权限模型、接口能力矩阵、校验架构和落地步骤。
+本文基于 wallet 项目的 [UCAN协议说明](https://github.com/yeying-community/wallet/blob/main/docs/UCAN%E5%8D%8F%E8%AE%AE%E8%AF%B4%E6%98%8E.md)，规划 Node 服务侧的 UCAN 权限模型、接口能力矩阵、校验架构和落地步骤。
 
 ## 1. 设计目标
 

@@ -2,7 +2,7 @@
 
 YeYing 社区 Node 枢纽服务。统一提供身份授权、应用中心、审核治理、MPC 协调、钱包密钥托管、通知分发、AppStore 发布目录和 release artifact 管理能力。
 
-完整使用指南见 [docs/Node使用指南.md](./docs/Node使用指南.md)，第三方接口规范见 [docs/openapi/node.openapi.yaml](./docs/openapi/node.openapi.yaml)。
+文档入口见 [docs/README.md](./docs/README.md)，完整使用指南见 [docs/Node使用指南.md](./docs/Node使用指南.md)，第三方接口规范见 [docs/openapi/node.openapi.yaml](./docs/openapi/node.openapi.yaml)。
 
 ## 主要功能
 - REST API（`src/routes` 按 public/admin/internal 分组）
@@ -28,7 +28,7 @@ npm run openapi:check
 `docs/openapi/node.openapi.yaml` 可直接导入 Swagger UI、Postman、Insomnia 和常见 OpenAPI 代码生成器。维护说明见 [docs/openapi/README.md](./docs/openapi/README.md)。
 
 ## 设计文档
-设计文档统一放在 `docs/` 目录下（Markdown + Mermaid），当前仅保留中文版本。入口见 `docs/文档总览.md`。
+设计文档统一放在 `docs/` 目录下（Markdown + Mermaid），当前仅保留中文版本。入口见 `docs/README.md`。
 
 ## 快速启动（前后端）
 

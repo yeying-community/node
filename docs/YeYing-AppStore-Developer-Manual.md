@@ -106,8 +106,45 @@ pending -> claimed -> applying -> verifying -> succeeded
 
 标准事件包括 `application.installed`、`application.upgraded`、`application.uninstalled`、`user.onboarded`、`user.updated` 和 `user.offboarded`。
 
-## 7. 参考资料
+## 7. Node 侧最小验证
+
+Node 只验证发布包和 Registry 流程，不再创建 Runtime Task，也不再描述部署机执行细节。
+
+生成 smoke release：
+
+```bash
+node scripts/create-appstore-smoke-release.cjs \
+  --app-id smoke \
+  --version 0.1.0 \
+  --image registry.example/smoke@sha256:<64 hex> \
+  --publisher-key-id smoke-publisher \
+  --publisher-owner 0xYourPublisherWallet \
+  --host-port 25080 \
+  --container-port 8080 \
+  --health-path / \
+  --out tmp/smoke-0.1.0.json
+```
+
+提交 release：
+
+```bash
+curl -fsS -X POST "$NODE_URL/api/v1/publisher/releases/submit" \
+  -H "Authorization: Bearer $NODE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  --data @tmp/smoke-0.1.0.json
+```
+
+审核发布：
+
+```bash
+curl -fsS -X POST "$NODE_URL/api/v1/admin/releases/$RELEASE_ID/approve"
+curl -fsS -X POST "$NODE_URL/api/v1/admin/releases/$RELEASE_ID/publish"
+```
+
+Project 安装、升级、回滚和卸载验证由 Agent Runtime 仓库维护。
+
+## 8. 参考资料
 
 - [应用协议 v1](./YeYing-Application-Protocol-v1.md)
-- [Runtime Agent 历史说明](./YeYing-AppStore-Runtime-Agent.md)
-- [P1 实施说明](./YeYing-AppStore-P1.md)
+- [节点架构V1](./节点架构V1.md)
+- [节点架构V2](./节点架构V2.md)
