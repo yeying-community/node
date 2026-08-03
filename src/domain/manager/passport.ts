@@ -86,12 +86,26 @@ export class PassportManager {
     return await this.authorizationRequestRepository.findOneBy({ requestId })
   }
 
+  async listAuthorizationRequestsBySubject(subjectId: string) {
+    return await this.authorizationRequestRepository.find({
+      where: { subjectId },
+      order: { createdAt: 'DESC' },
+    })
+  }
+
   async saveAuthorizationCode(code: PassportAuthorizationCodeDO) {
     return await this.authorizationCodeRepository.save(code)
   }
 
   async getAuthorizationCode(code: string) {
     return await this.authorizationCodeRepository.findOneBy({ code })
+  }
+
+  async listAuthorizationCodesBySubject(subjectId: string) {
+    return await this.authorizationCodeRepository.find({
+      where: { subjectId },
+      order: { createdAt: 'DESC' },
+    })
   }
 
   async saveAuditLog(log: PassportAuditLogDO) {

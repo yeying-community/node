@@ -19,6 +19,11 @@ import { ApplicationService } from './application'
 import { getCurrentUtcString } from '../../common/date'
 import { assertPasskeyAuthReady, getPasskeyAuthStatus } from '../../auth/passportPasskeyAuth'
 import { getConfig } from '../../config/runtime'
+import {
+  assertActionSignature,
+  buildActionSignatureMessage,
+  getActionSignatureErrorStatus,
+} from '../../auth/actionSignature'
 
 export type PassportStatus = {
   enabled: true
@@ -64,6 +69,33 @@ export type PassportAuthorizationExchangeResult = {
   issuedAt: string
 }
 
+export type PassportWalletUnbindRequest = {
+  requestId: string
+  action: 'passport_wallet_unbind'
+  subjectId: string
+  walletAddress: string
+  chain: string
+  timestamp: string
+  expiresAt: string
+  payload: {
+    subjectId: string
+    walletAddress: string
+    chain: string
+  }
+  message: string
+}
+
+export type PassportWalletUnbindResult = {
+  success: true
+  subjectId: string
+  walletAddress: string
+  revokedWalletBindings: number
+  revokedPasskeyCredentials: number
+  revokedAuthorizationRequests: number
+  revokedAuthorizationCodes: number
+  subjectStatus: string
+}
+
 export class PassportError extends Error {
   readonly status: number
   readonly code: string
@@ -84,6 +116,8 @@ const MIN_CODE_TTL_MS = 10 * 1000
 const MAX_CODE_TTL_MS = 5 * 60 * 1000
 const DEFAULT_VERIFY_PATH = '/passport-auth'
 const PKCE_REGEX = /^[A-Za-z0-9._~-]{43,128}$/
+const WALLET_UNBIND_ACTION = 'passport_wallet_unbind'
+const DEFAULT_WALLET_UNBIND_TTL_MS = 5 * 60 * 1000
 
 function normalizeAddress(input: unknown): string {
   const value = String(input || '').trim()
@@ -407,6 +441,78 @@ export class PassportService {
     return active ? normalizeAddress(active.address) : ''
   }
 
+  private async requireActiveWalletSubject(addressInput: unknown) {
+    const address = requireWalletAddress(addressInput)
+    const chain = 'eip155:1'
+    const binding = await this.manager.getWalletBinding(chain, address)
+    if (!binding || binding.status !== 'active' || String(binding.revokedAt || '').trim()) {
+      throw new PassportError(404, 'PASSPORT_WALLET_BINDING_NOT_FOUND', 'Passport wallet binding not found')
+    }
+    const subject = await this.manager.getSubject(binding.subjectId)
+    if (!subject || subject.status !== 'active') {
+      throw new PassportError(404, 'PASSPORT_SUBJECT_NOT_FOUND', 'Passport subject not found')
+    }
+    return {
+      subjectId: subject.subjectId,
+      walletAddress: address,
+      chain,
+      subject,
+      binding,
+    }
+  }
+
+  private buildWalletUnbindPayload(input: { subjectId: string; walletAddress: string; chain: string }) {
+    return {
+      subjectId: input.subjectId,
+      walletAddress: input.walletAddress,
+      chain: input.chain,
+    }
+  }
+
+  private async revokeSubjectArtifacts(input: {
+    subjectId: string
+    now: string
+  }) {
+    let revokedPasskeyCredentials = 0
+    let revokedAuthorizationRequests = 0
+    let revokedAuthorizationCodes = 0
+
+    const credentials = await this.manager.listPasskeyCredentials(input.subjectId)
+    for (const credential of credentials) {
+      if (!String(credential.revokedAt || '').trim()) {
+        credential.revokedAt = input.now
+        await this.manager.savePasskeyCredential(credential)
+        revokedPasskeyCredentials += 1
+      }
+    }
+
+    const requests = await this.manager.listAuthorizationRequestsBySubject(input.subjectId)
+    for (const request of requests) {
+      if (request.status === 'pending' || request.status === 'approved') {
+        request.status = 'revoked'
+        request.updatedAt = input.now
+        await this.manager.saveAuthorizationRequest(request)
+        revokedAuthorizationRequests += 1
+      }
+    }
+
+    const codes = await this.manager.listAuthorizationCodesBySubject(input.subjectId)
+    for (const code of codes) {
+      if (!code.used) {
+        code.used = true
+        code.usedAt = input.now
+        await this.manager.saveAuthorizationCode(code)
+        revokedAuthorizationCodes += 1
+      }
+    }
+
+    return {
+      revokedPasskeyCredentials,
+      revokedAuthorizationRequests,
+      revokedAuthorizationCodes,
+    }
+  }
+
   private async issueAuthorizationCodeForSubject(input: {
     request: PassportAuthorizationRequestDO
     subjectId: string
@@ -527,9 +633,119 @@ export class PassportService {
     }
   }
 
+  async createWalletUnbindRequest(addressInput: unknown): Promise<PassportWalletUnbindRequest> {
+    const subject = await this.requireActiveWalletSubject(addressInput)
+    const requestId = generateId('pun')
+    const nowMs = Date.now()
+    const timestamp = toIso(nowMs)
+    const payload = this.buildWalletUnbindPayload(subject)
+    const message = buildActionSignatureMessage({
+      action: WALLET_UNBIND_ACTION,
+      actor: subject.walletAddress,
+      timestamp,
+      requestId,
+      payload,
+    })
+    await this.writeAudit({
+      subjectId: subject.subjectId,
+      walletAddress: subject.walletAddress,
+      requestId,
+      action: 'wallet_unbind_requested',
+      metadata: payload,
+    })
+    return {
+      requestId,
+      action: WALLET_UNBIND_ACTION,
+      subjectId: subject.subjectId,
+      walletAddress: subject.walletAddress,
+      chain: subject.chain,
+      timestamp,
+      expiresAt: toIso(nowMs + DEFAULT_WALLET_UNBIND_TTL_MS),
+      payload,
+      message,
+    }
+  }
+
+  async confirmWalletUnbind(input: {
+    walletAddress: unknown
+    requestId: unknown
+    timestamp: unknown
+    signature: unknown
+  }): Promise<PassportWalletUnbindResult> {
+    const subject = await this.requireActiveWalletSubject(input.walletAddress)
+    const payload = this.buildWalletUnbindPayload(subject)
+    const raw = {
+      requestId: normalizeString(input.requestId),
+      timestamp: normalizeString(input.timestamp),
+      signature: normalizeString(input.signature),
+    }
+    try {
+      await assertActionSignature({
+        raw,
+        action: WALLET_UNBIND_ACTION,
+        actor: subject.walletAddress,
+        payload,
+      })
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Invalid signature'
+      throw new PassportError(
+        getActionSignatureErrorStatus(message) || 401,
+        'PASSPORT_WALLET_UNBIND_SIGNATURE_INVALID',
+        message,
+      )
+    }
+
+    const now = getCurrentUtcString()
+    let revokedWalletBindings = 0
+    if (!String(subject.binding.revokedAt || '').trim()) {
+      subject.binding.status = 'revoked'
+      subject.binding.updatedAt = now
+      subject.binding.revokedAt = now
+      await this.manager.saveWalletBinding(subject.binding)
+      revokedWalletBindings = 1
+    }
+
+    const bindings = await this.manager.listWalletBindings(subject.subjectId)
+    const activeBindings = bindings.filter(
+      (item) =>
+        item.status === 'active' &&
+        !String(item.revokedAt || '').trim() &&
+        !(item.chain === subject.chain && normalizeAddress(item.address) === subject.walletAddress),
+    )
+    subject.subject.status = activeBindings.length > 0 ? 'active' : 'revoked'
+    subject.subject.primaryWalletAddress = activeBindings.length > 0 ? normalizeAddress(activeBindings[0].address) : ''
+    subject.subject.updatedAt = now
+    await this.manager.saveSubject(subject.subject)
+
+    const artifactResult = await this.revokeSubjectArtifacts({
+      subjectId: subject.subjectId,
+      now,
+    })
+
+    await this.writeAudit({
+      subjectId: subject.subjectId,
+      walletAddress: subject.walletAddress,
+      requestId: raw.requestId,
+      action: 'wallet_unbound',
+      metadata: {
+        chain: subject.chain,
+        revokedWalletBindings,
+        ...artifactResult,
+      },
+    })
+
+    return {
+      success: true,
+      subjectId: subject.subjectId,
+      walletAddress: subject.walletAddress,
+      revokedWalletBindings,
+      ...artifactResult,
+      subjectStatus: subject.subject.status,
+    }
+  }
+
   async listPasskeyCredentialsByWallet(addressInput: unknown) {
-    const address = requireWalletAddress(addressInput)
-    const subject = await this.ensureWalletSubject(address)
+    const subject = await this.requireActiveWalletSubject(addressInput)
     const credentials = await this.manager.listPasskeyCredentials(subject.subjectId)
     return {
       subjectId: subject.subjectId,
@@ -548,12 +764,11 @@ export class PassportService {
   }
 
   async revokePasskeyCredentialByWallet(addressInput: unknown, credentialIdInput: unknown) {
-    const address = requireWalletAddress(addressInput)
     const credentialId = normalizeString(credentialIdInput)
     if (!credentialId) {
       throw new PassportError(400, 'PASSPORT_PASSKEY_CREDENTIAL_ID_REQUIRED', 'Missing credentialId')
     }
-    const subject = await this.ensureWalletSubject(address)
+    const subject = await this.requireActiveWalletSubject(addressInput)
     const credential = await this.manager.getPasskeyCredentialById(credentialId)
     if (!credential || credential.subjectId !== subject.subjectId) {
       throw new PassportError(404, 'PASSPORT_PASSKEY_CREDENTIAL_NOT_FOUND', 'Passkey credential not found')

@@ -111,6 +111,33 @@ export function registerPublicAuthPassportRoutes(app: Express) {
     }
   })
 
+  app.post(`${BASE_PATH}/bind/unlink/request`, async (req: Request, res: Response) => {
+    try {
+      const address = requireBearerSubject(req)
+      const result = await service.createWalletUnbindRequest(address)
+      res.json(ok(result))
+    } catch (error) {
+      const mapped = mapPassportError(error)
+      res.status(mapped.status).json(fail(mapped.status, mapped.message))
+    }
+  })
+
+  app.post(`${BASE_PATH}/bind/unlink/confirm`, async (req: Request, res: Response) => {
+    try {
+      const address = requireBearerSubject(req)
+      const result = await service.confirmWalletUnbind({
+        walletAddress: address,
+        requestId: req.body?.requestId,
+        timestamp: req.body?.timestamp,
+        signature: req.body?.signature,
+      })
+      res.json(ok(result))
+    } catch (error) {
+      const mapped = mapPassportError(error)
+      res.status(mapped.status).json(fail(mapped.status, mapped.message))
+    }
+  })
+
   app.post(`${BASE_PATH}/passkey/register/request`, async (req: Request, res: Response) => {
     try {
       const address = requireBearerSubject(req)

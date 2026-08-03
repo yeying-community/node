@@ -1,5 +1,6 @@
 import crypto from 'crypto'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { Wallet } from 'ethers'
 
 vi.mock('../src/config/runtime', () => ({
   getConfig: vi.fn((key: string) => {
@@ -100,11 +101,15 @@ function createHarness() {
       return request
     },
     getAuthorizationRequest: async (requestId: string) => requests.get(requestId) || null,
+    listAuthorizationRequestsBySubject: async (subjectId: string) =>
+      Array.from(requests.values()).filter((item) => item.subjectId === subjectId),
     saveAuthorizationCode: async (code: any) => {
       codes.set(code.code, code)
       return code
     },
     getAuthorizationCode: async (code: string) => codes.get(code) || null,
+    listAuthorizationCodesBySubject: async (subjectId: string) =>
+      Array.from(codes.values()).filter((item) => item.subjectId === subjectId),
     saveAuditLog: async (log: any) => {
       auditLogs.push(log)
       return log
@@ -262,5 +267,85 @@ describe('PassportService', () => {
         codeChallengeMethod: 'S256',
       }),
     ).rejects.toThrow('redirectUri is not allowed')
+  })
+
+  it('requires a wallet signature to unlink a passport identity and revokes subject artifacts', async () => {
+    const { service, subjects, walletBindings, passkeys, requests, codes, auditLogs } = createHarness()
+    const wallet = new Wallet('0x59c6995e998f97a5a0044966f0945389dc9e86dae441fb518eaed14f99d11d72')
+    const walletAddress = wallet.address
+    const pkce = createPkcePair()
+
+    const registerRequest = await service.createPasskeyRegisterRequest({
+      walletAddress,
+      deviceName: 'iPhone',
+    })
+    const registered = await service.confirmPasskeyRegistration({
+      walletAddress,
+      requestId: registerRequest.passkeyRequest.requestId,
+      credential: { id: 'credential-1', type: 'public-key', response: {} },
+    })
+    const request = await service.createAuthorizationRequest({
+      appId: 'project-app',
+      redirectUri: 'https://project.example/passport/callback',
+      codeChallenge: pkce.challenge,
+      codeChallengeMethod: 'S256',
+    })
+    const approved = await service.approveAuthorizationRequest({
+      requestId: request.requestId,
+      walletAddress,
+    })
+
+    const unbindRequest = await service.createWalletUnbindRequest(walletAddress)
+    expect(unbindRequest.action).toBe('passport_wallet_unbind')
+    expect(unbindRequest.subjectId).toBe(registerRequest.subjectId)
+    expect(unbindRequest.message).toContain('Action: passport_wallet_unbind')
+    expect(unbindRequest.message).toContain(`Actor: ${walletAddress.toLowerCase()}`)
+
+    await expect(
+      service.confirmWalletUnbind({
+        walletAddress,
+        requestId: unbindRequest.requestId,
+        timestamp: unbindRequest.timestamp,
+        signature: await Wallet.createRandom().signMessage(unbindRequest.message),
+      }),
+    ).rejects.toThrow('Invalid signature')
+
+    const result = await service.confirmWalletUnbind({
+      walletAddress,
+      requestId: unbindRequest.requestId,
+      timestamp: unbindRequest.timestamp,
+      signature: await wallet.signMessage(unbindRequest.message),
+    })
+
+    expect(result).toMatchObject({
+      success: true,
+      subjectId: registerRequest.subjectId,
+      walletAddress: walletAddress.toLowerCase(),
+      revokedWalletBindings: 1,
+      revokedPasskeyCredentials: 1,
+      revokedAuthorizationRequests: 1,
+      revokedAuthorizationCodes: 1,
+      subjectStatus: 'revoked',
+    })
+    expect(Array.from(walletBindings.values())[0].status).toBe('revoked')
+    expect(subjects.get(registerRequest.subjectId).status).toBe('revoked')
+    expect(passkeys.get(registered.credentialId).revokedAt).toBeTruthy()
+    expect(requests.get(request.requestId).status).toBe('revoked')
+    expect(codes.get(approved.authorizationCode).used).toBe(true)
+    expect(auditLogs.map((item) => item.action)).toEqual(
+      expect.arrayContaining(['wallet_unbind_requested', 'wallet_unbound']),
+    )
+
+    await expect(
+      service.exchangeAuthorizationCode({
+        code: approved.authorizationCode,
+        appId: 'project-app',
+        redirectUri: 'https://project.example/passport/callback',
+        codeVerifier: pkce.verifier,
+      }),
+    ).rejects.toThrow('Authorization code already used')
+
+    const bindings = await service.listBindingsByWallet(walletAddress)
+    expect(bindings).toEqual({ subjectId: '', walletBindings: [] })
   })
 })

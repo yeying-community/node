@@ -113,6 +113,14 @@ passportAuth: {
 
 `rpId` 只能是当前域名或其可注册父域，`origin` 必须包含协议且与浏览器实际来源完全一致。
 
+社区身份解绑由 Node 执行，Wallet 不应只删除本地状态：
+
+1. Wallet 使用当前登录 Bearer 调用 `POST /api/v1/public/auth/passport/bind/unlink/request`。
+2. Wallet 对返回的 `message` 发起钱包签名。
+3. Wallet 将 `requestId`、`timestamp`、`signature` 提交到 `POST /api/v1/public/auth/passport/bind/unlink/confirm`。
+4. Node 校验签名后撤销钱包绑定、该 subject 下 Passkey credential、未完成授权请求和未使用授权码，并写入 Passport 审计。
+5. Wallet 重新查询 `/api/v1/public/auth/passport/bindings` 刷新身份状态。
+
 ### 生产密钥
 
 不要把 JWT、UCAN issuer、TOTP 或 Webhook 主密钥直接提交到 `config.js`。推荐使用加密密钥文件：

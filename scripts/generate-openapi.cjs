@@ -96,6 +96,15 @@ const document = {
           signature: { type: 'string' },
         },
       },
+      PassportWalletUnbindConfirmRequest: {
+        allOf: [
+          ref('SignedActionFields'),
+          {
+            type: 'object',
+            description: '签名 message 由 /auth/passport/bind/unlink/request 返回，action 固定为 passport_wallet_unbind。',
+          },
+        ],
+      },
       PassportPasskeyRegisterRequest: {
         type: 'object',
         properties: {
@@ -270,6 +279,8 @@ const operations = [
   ['post', '/api/v1/public/auth/passport/bind/request', 'Passport', '创建 Passport 钱包绑定准备状态', 'bearer'],
   ['post', '/api/v1/public/auth/passport/bind/confirm', 'Passport', '确认 Passport 钱包绑定', 'bearer'],
   ['get', '/api/v1/public/auth/passport/bindings', 'Passport', '查询 Passport 绑定', 'bearer'],
+  ['post', '/api/v1/public/auth/passport/bind/unlink/request', 'Passport', '创建 Passport 钱包解绑签名请求', 'bearer'],
+  ['post', '/api/v1/public/auth/passport/bind/unlink/confirm', 'Passport', '确认 Passport 钱包解绑并撤销主体授权', 'bearer', 'PassportWalletUnbindConfirmRequest'],
   ['post', '/api/v1/public/auth/passport/passkey/register/request', 'Passport', '创建 Passport subject Passkey 注册挑战', 'bearer', 'PassportPasskeyRegisterRequest'],
   ['post', '/api/v1/public/auth/passport/passkey/register/confirm', 'Passport', '确认 Passport subject Passkey 注册', 'bearer', 'PassportPasskeyRegisterConfirmRequest'],
   ['get', '/api/v1/public/auth/passport/passkey/credentials', 'Passport', '列出 Passport subject Passkey', 'bearer'],
