@@ -4,24 +4,6 @@
 
         <div class="publish-panel">
             <el-form ref="formRef" label-position="top" :model="detailInfo" :rules="rules">
-                <div v-if="!isEdit" class="section">
-                    <div class="section-title">{{ $t('app_edit_section_template') }}</div>
-                    <el-form-item>
-                        <el-radio-group v-model="selectedPreset" @change="handlePresetChange">
-                            <el-radio
-                                v-for="preset in presets"
-                                :key="preset.key"
-                                :value="preset.key"
-                            >
-                                {{ preset.label }}
-                            </el-radio>
-                        </el-radio-group>
-                    </el-form-item>
-                    <div v-if="currentPreset" class="preset-tip">
-                        {{ currentPreset.note }}
-                    </div>
-                </div>
-
                 <div class="section">
                     <div class="section-title">{{ publishSectionTitle }}</div>
                     <el-row :gutter="20">
@@ -35,12 +17,19 @@
                         </el-col>
                         <el-col :span="12" :xs="24">
                             <el-form-item :label="$t('app_edit_category')" prop="code">
-                                <el-select v-model="detailInfo.code" :placeholder="$t('app_edit_category_placeholder')">
+                                <el-select
+                                    v-model="detailInfo.code"
+                                    filterable
+                                    allow-create
+                                    default-first-option
+                                    :reserve-keyword="false"
+                                    :placeholder="$t('app_edit_category_placeholder')"
+                                >
                                     <el-option
-                                        v-for="(label, code) in codeMap"
-                                        :key="String(code)"
-                                        :label="label"
-                                        :value="String(code)"
+                                        v-for="option in categoryOptions"
+                                        :key="option.value"
+                                        :label="option.label"
+                                        :value="option.value"
                                     />
                                 </el-select>
                             </el-form-item>
@@ -149,7 +138,12 @@ import { Upload } from '@element-plus/icons-vue'
 import BreadcrumbHeader from '@/views/components/BreadcrumbHeader.vue'
 import Uploader from '@/components/common/Uploader.vue'
 import defaultAppAvatar from '@/assets/img/default.jpg'
-import $application, { type ApplicationMetadata, codeMap, filterLegacyDependencies } from '@/plugins/application'
+import $application, {
+    type ApplicationMetadata,
+    applicationCategories,
+    filterLegacyDependencies,
+    normalizeApplicationCategory
+} from '@/plugins/application'
 import $audit from '@/plugins/audit'
 import { generateIdentity } from '@/plugins/account'
 import { getCurrentAccount } from '@/plugins/auth'
@@ -157,76 +151,10 @@ import { normalizeAddress } from '@/utils/actionSignature'
 import { notifyError } from '@/utils/message'
 import $storage from '@/plugins/storage'
 
-type PresetKey = 'chat' | 'router' | 'warehouse' | 'custom'
-
-type ApplicationPreset = {
-    key: PresetKey
-    label: string
-    note: string
-    defaults: {
-        name: string
-        description: string
-        code: string
-        location: string
-        codePackagePath: string
-    }
-}
-
 type DependencyOption = {
     label: string
     value: string
 }
-
-const presets: ApplicationPreset[] = [
-    {
-        key: 'chat',
-        label: '聊天应用',
-        note: '应用默认地址 http://localhost:3020',
-        defaults: {
-            name: '聊天应用',
-            description: '集成多模型对话和云同步的智能聊天应用，可在桌面和手机浏览器中使用。',
-            code: 'APPLICATION_CODE_CHAT',
-            location: 'http://localhost:3020',
-            codePackagePath: 'git@github.com:yeying-community/chat.git'
-        }
-    },
-    {
-        key: 'router',
-        label: '网关应用',
-        note: '应用默认地址 http://localhost:3011',
-        defaults: {
-            name: '网关应用',
-            description: '统一模型网关与管理后台，提供标准 API 路由与鉴权能力。',
-            code: 'APPLICATION_CODE_ROUTER',
-            location: 'http://localhost:3011',
-            codePackagePath: 'git@github.com:yeying-community/router.git'
-        }
-    },
-    {
-        key: 'warehouse',
-        label: '仓储应用',
-        note: '应用默认地址 http://localhost:6065',
-        defaults: {
-            name: '仓储应用',
-            description: 'Web3 数据与文件仓储服务，提供存储能力与身份认证能力。',
-            code: 'APPLICATION_CODE_WAREHOUSE',
-            location: 'http://localhost:6065',
-            codePackagePath: 'git@github.com:yeying-community/warehouse.git'
-        }
-    },
-    {
-        key: 'custom',
-        label: '自定义',
-        note: '完全自定义发布，按实际项目填写访问地址和源码路径。',
-        defaults: {
-            name: '',
-            description: '',
-            code: 'APPLICATION_CODE_UNKNOWN',
-            location: '',
-            codePackagePath: ''
-        }
-    }
-]
 
 const route = useRoute()
 const router = useRouter()
@@ -234,7 +162,6 @@ const { proxy } = getCurrentInstance()!
 const { $t } = proxy
 
 const isEdit = ref(false)
-const selectedPreset = ref<PresetKey>('chat')
 const formRef = ref<FormInstance>()
 
 const avatarList = ref<Array<Record<string, unknown>>>([])
@@ -247,7 +174,7 @@ const detailInfo = ref<ApplicationMetadata>({
     name: '',
     description: '',
     location: '',
-    code: 'APPLICATION_CODE_CHAT',
+    code: '',
     serviceCodes: [],
     redirectUris: [],
     avatar: '',
@@ -256,16 +183,18 @@ const detailInfo = ref<ApplicationMetadata>({
     codePackagePath: ''
 })
 
-const currentPreset = computed(() =>
-    presets.find((item) => item.key === selectedPreset.value) || null
-)
-
 const pageTitle = computed(() => String($t(isEdit.value ? 'app_edit_title_edit' : 'app_edit_title_create')))
 const publishSectionTitle = computed(() =>
     String($t(isEdit.value ? 'app_edit_section_info' : 'app_edit_section_publish'))
 )
 const saveButtonText = computed(() => String($t(isEdit.value ? 'app_edit_save_edit' : 'app_edit_save_create')))
 const publishButtonText = computed(() => String($t(isEdit.value ? 'app_edit_publish_edit' : 'app_edit_publish_create')))
+const categoryOptions = computed(() =>
+    applicationCategories.map((item) => ({
+        label: String($t(item.labelKey)),
+        value: item.value
+    }))
+)
 
 const rules = reactive<FormRules>({
     name: [{ required: true, message: String($t('app_edit_rule_name')), trigger: 'blur' }],
@@ -339,42 +268,6 @@ function toSingleRedirectUri(value: unknown): string {
     return values[0]
 }
 
-function detectPreset(app: ApplicationMetadata): PresetKey {
-    const source = String(app.codePackagePath || '').toLowerCase()
-    const name = String(app.name || '').toLowerCase()
-    if (source.includes('/chat') || source.includes('../chat') || name.includes('chat')) {
-        return 'chat'
-    }
-    if (source.includes('/router') || source.includes('../router') || name.includes('router')) {
-        return 'router'
-    }
-    if (source.includes('/warehouse') || source.includes('../warehouse') || name.includes('warehouse')) {
-        return 'warehouse'
-    }
-    return 'custom'
-}
-
-function applyPreset(key: PresetKey) {
-    const preset = presets.find((item) => item.key === key)
-    if (!preset) {
-        return
-    }
-    selectedPreset.value = key
-    detailInfo.value = {
-        ...detailInfo.value,
-        name: preset.defaults.name,
-        description: preset.defaults.description,
-        code: preset.defaults.code,
-        location: preset.defaults.location,
-        codePackagePath: preset.defaults.codePackagePath
-    }
-}
-
-function handlePresetChange(value: string | number | boolean) {
-    const key = String(value) as PresetKey
-    applyPreset(key)
-}
-
 function resolveSubmitError(error: unknown): string {
     const message = error instanceof Error ? error.message : String(error || '未知错误')
     if (message.includes('USER_ROLE_DENIED')) {
@@ -389,7 +282,6 @@ function resolveSubmitError(error: unknown): string {
 async function getDetailInfo() {
     const uid = String(route.query.uid || '').trim()
     if (!uid) {
-        applyPreset('chat')
         return
     }
     isEdit.value = true
@@ -400,13 +292,12 @@ async function getDetailInfo() {
     detailInfo.value = {
         ...detailInfo.value,
         ...res,
-        code: String(res.code || 'APPLICATION_CODE_UNKNOWN'),
+        code: normalizeApplicationCategory(res.code),
         serviceCodes: toServiceCodeArray(res.serviceCodes),
         redirectUris: toRedirectUriArray(res.redirectUris),
         codePackagePath: String(res.codePackagePath || '')
     }
     redirectUriInput.value = toSingleRedirectUri(res.redirectUris)
-    selectedPreset.value = detectPreset(res)
     avatarValue.value = String(res.avatar || '').trim()
     imageUrl.value = avatarValue.value || defaultAppAvatar
     avatarList.value = res.avatar
@@ -455,7 +346,7 @@ function buildSubmitParams(account: string): ApplicationMetadata & { codeType?: 
     const redirectUri = toSingleRedirectUri(redirectUriInput.value)
     return {
         ...detailInfo.value,
-        code: String(detailInfo.value.code || 'APPLICATION_CODE_UNKNOWN'),
+        code: String(detailInfo.value.code || '').trim(),
         serviceCodes: toServiceCodeArray(detailInfo.value.serviceCodes),
         redirectUris: redirectUri ? [redirectUri] : [],
         avatar: avatarValue.value,
@@ -651,12 +542,6 @@ onMounted(() => {
     font-size: 15px;
     font-weight: 500;
     color: rgba(0, 0, 0, 0.85);
-}
-
-.preset-tip {
-    font-size: 13px;
-    line-height: 1.5;
-    color: #4f6b95;
 }
 
 .field-hint {

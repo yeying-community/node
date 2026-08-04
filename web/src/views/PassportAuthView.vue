@@ -25,12 +25,12 @@
       </div>
 
       <template v-else>
-        <div class="passport-timer">
+        <div class="auth-timer passport-timer">
           {{ t('passport_auth_remaining') }}
           <strong>{{ requestCountdownText }}</strong>
         </div>
 
-        <div class="passkey-panel">
+        <div class="auth-method-panel passkey-panel">
           <div class="passkey-icon">P</div>
           <div>
             <p class="passkey-title">{{ t('passport_auth_passkey_title') }}</p>
@@ -416,11 +416,14 @@ onBeforeUnmount(() => {
 
 <style scoped lang="less">
 .passport-auth-page {
-  min-height: 100vh;
+  min-height: 100dvh;
   display: flex;
   align-items: center;
   justify-content: center;
-  background: linear-gradient(180deg, #f8fafc 0%, #eef3f9 100%);
+  background:
+    radial-gradient(1200px 500px at -10% -10%, #f6fbff 0%, transparent 60%),
+    radial-gradient(1000px 450px at 110% 0%, #f4f7ff 0%, transparent 60%),
+    linear-gradient(180deg, #f7f9fc 0%, #eef3f9 100%);
   padding: 24px;
 }
 
@@ -506,7 +509,7 @@ h1 {
   line-height: 1.4;
 }
 
-.passport-timer {
+.auth-timer {
   margin-top: 4px;
   align-self: flex-start;
   border-radius: 10px;
@@ -517,12 +520,12 @@ h1 {
   font-weight: 500;
 }
 
-.passport-timer strong {
+.auth-timer strong {
   font-size: 16px;
   margin: 0 4px;
 }
 
-.passkey-panel {
+.auth-method-panel {
   display: flex;
   gap: 12px;
   align-items: center;

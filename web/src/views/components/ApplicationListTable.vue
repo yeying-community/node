@@ -21,7 +21,7 @@
                 </template>
             </el-table-column>
 
-            <el-table-column prop="code" :label="$t('app_list_category')" width="75">
+            <el-table-column prop="code" :label="$t('app_list_category')" width="100">
                 <template #default="scope">
                     {{ resolveApplicationCategoryLabel(scope.row.code) }}
                 </template>

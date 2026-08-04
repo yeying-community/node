@@ -25,26 +25,28 @@
       </div>
 
       <template v-else>
-        <div class="totp-timer">
+        <div class="auth-timer totp-timer">
           {{ $t('totp_auth_remaining') }}
           <strong>{{ requestCountdownText }}</strong>
         </div>
 
-        <div class="digit-group">
-          <input
-            v-for="(_, index) in digitValues"
-            :key="`totp-digit-${index}`"
-            :ref="(el) => setDigitRef(el as HTMLInputElement | null, index)"
-            class="digit-input"
-            inputmode="numeric"
-            pattern="[0-9]*"
-            maxlength="1"
-            autocomplete="one-time-code"
-            :value="digitValues[index]"
-            :disabled="inputDisabled"
-            @input="onDigitInput($event, index)"
-            @keydown="onDigitKeydown($event, index)"
-          />
+        <div class="auth-method-panel totp-code-panel">
+          <div class="digit-group">
+            <input
+              v-for="(_, index) in digitValues"
+              :key="`totp-digit-${index}`"
+              :ref="(el) => setDigitRef(el as HTMLInputElement | null, index)"
+              class="digit-input"
+              inputmode="numeric"
+              pattern="[0-9]*"
+              maxlength="1"
+              autocomplete="one-time-code"
+              :value="digitValues[index]"
+              :disabled="inputDisabled"
+              @input="onDigitInput($event, index)"
+              @keydown="onDigitKeydown($event, index)"
+            />
+          </div>
         </div>
 
         <p class="hint" :class="`hint-${hintType}`">{{ hintMessage }}</p>
@@ -701,7 +703,7 @@ onBeforeUnmount(() => {
 
 <style scoped lang="less">
 .totp-auth-page {
-  min-height: 100vh;
+  min-height: 100dvh;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -795,7 +797,7 @@ h1 {
   line-height: 1.4;
 }
 
-.totp-timer {
+.auth-timer {
   margin-top: 4px;
   align-self: flex-start;
   border-radius: 10px;
@@ -806,9 +808,23 @@ h1 {
   font-weight: 500;
 }
 
-.totp-timer strong {
+.auth-timer strong {
   font-size: 16px;
   margin: 0 4px;
+}
+
+.auth-method-panel {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  border: 1px solid #dbeafe;
+  background: #f8fbff;
+  border-radius: 12px;
+  padding: 12px;
+}
+
+.totp-code-panel {
+  display: block;
 }
 
 .expired-panel {
@@ -840,14 +856,13 @@ h1 {
 }
 
 .digit-group {
-  margin-top: 4px;
   display: grid;
   grid-template-columns: repeat(6, minmax(0, 1fr));
   gap: 10px;
 }
 
 .digit-input {
-  height: 52px;
+  height: 48px;
   border-radius: 12px;
   border: 1px solid #d5dbe7;
   background: #fff;
@@ -922,7 +937,7 @@ h1 {
   }
 
   .digit-input {
-    height: 48px;
+    height: 46px;
     font-size: 22px;
   }
 }
