@@ -63,6 +63,7 @@ export default {
     app_edit_title_edit: 'Edit App',
     app_edit_section_template: '1. Select App Template',
     app_edit_section_publish: '2. Publish Information',
+    app_edit_section_info: 'App Information',
     app_edit_name: 'App Name',
     app_edit_name_placeholder: 'Example: Chat App / Gateway App / Warehouse App',
     app_edit_category: 'Category',

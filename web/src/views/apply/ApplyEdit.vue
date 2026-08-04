@@ -4,7 +4,7 @@
 
         <div class="publish-panel">
             <el-form ref="formRef" label-position="top" :model="detailInfo" :rules="rules">
-                <div class="section">
+                <div v-if="!isEdit" class="section">
                     <div class="section-title">{{ $t('app_edit_section_template') }}</div>
                     <el-form-item>
                         <el-radio-group v-model="selectedPreset" @change="handlePresetChange">
@@ -23,7 +23,7 @@
                 </div>
 
                 <div class="section">
-                    <div class="section-title">{{ $t('app_edit_section_publish') }}</div>
+                    <div class="section-title">{{ publishSectionTitle }}</div>
                     <el-row :gutter="20">
                         <el-col :span="12" :xs="24">
                             <el-form-item :label="$t('app_edit_name')" prop="name">
@@ -261,6 +261,9 @@ const currentPreset = computed(() =>
 )
 
 const pageTitle = computed(() => String($t(isEdit.value ? 'app_edit_title_edit' : 'app_edit_title_create')))
+const publishSectionTitle = computed(() =>
+    String($t(isEdit.value ? 'app_edit_section_info' : 'app_edit_section_publish'))
+)
 const saveButtonText = computed(() => String($t(isEdit.value ? 'app_edit_save_edit' : 'app_edit_save_create')))
 const publishButtonText = computed(() => String($t(isEdit.value ? 'app_edit_publish_edit' : 'app_edit_publish_create')))
 

@@ -387,9 +387,6 @@ export function registerPublicApplicationRoutes(app: Express) {
           if (!existing) {
             return { status: 404, body: fail(404, 'Application not found') };
           }
-          if (existing.isOnline) {
-            return { status: 409, body: fail(409, 'Please unpublish application before edit') };
-          }
           const isAdmin = await isAdminUser(user.address);
           if (!isAdmin && normalizeAddress(existing.owner) !== normalizeAddress(user.address)) {
             return { status: 403, body: fail(403, 'Owner mismatch') };
