@@ -44,7 +44,12 @@
     </div>
 
     <div class="filter-bar compact">
-      <el-select v-model="filters.applicationUid" clearable :placeholder="$t('notification_filter_application')">
+      <el-select
+        v-model="filters.applicationUid"
+        class="filter-select application-select"
+        clearable
+        :placeholder="$t('notification_filter_application')"
+      >
         <el-option :label="$t('notification_filter_all_applications')" value="" />
         <el-option
           v-for="item in applicationFilterOptions"
@@ -53,13 +58,23 @@
           :value="item.uid"
         />
       </el-select>
-      <el-select v-model="filters.source" clearable :placeholder="$t('notification_filter_source')">
+      <el-select
+        v-model="filters.source"
+        class="filter-select"
+        clearable
+        :placeholder="$t('notification_filter_source')"
+      >
         <el-option :label="$t('notification_filter_all_sources')" value="" />
         <el-option :label="$t('notification_source_application')" value="application" />
         <el-option :label="$t('notification_source_audit')" value="audit" />
         <el-option :label="$t('notification_source_totp')" value="totp" />
       </el-select>
-      <el-select v-model="filters.level" clearable :placeholder="$t('notification_filter_level')">
+      <el-select
+        v-model="filters.level"
+        class="filter-select"
+        clearable
+        :placeholder="$t('notification_filter_level')"
+      >
         <el-option :label="$t('notification_filter_all_levels')" value="" />
         <el-option :label="$t('notification_level_info')" value="info" />
         <el-option :label="$t('notification_level_success')" value="success" />
@@ -68,9 +83,10 @@
       </el-select>
       <el-segmented
         v-model="unreadFilter"
+        class="read-filter"
         :options="unreadOptions"
       />
-      <el-button @click="reloadCurrentPage">{{ $t('notification_reload') }}</el-button>
+      <el-button class="reload-button" @click="reloadCurrentPage">{{ $t('notification_reload') }}</el-button>
     </div>
 
     <div class="content-grid">
@@ -970,7 +986,24 @@ onBeforeUnmount(() => {
 }
 
 .filter-bar.compact {
+  align-items: center;
+  flex-wrap: nowrap;
   margin-top: -4px;
+}
+
+.filter-select {
+  flex: 0 1 168px;
+  min-width: 140px;
+}
+
+.application-select {
+  flex-basis: 260px;
+  min-width: 220px;
+}
+
+.read-filter,
+.reload-button {
+  flex: 0 0 auto;
 }
 
 .source-group-card {
@@ -1379,6 +1412,20 @@ onBeforeUnmount(() => {
   .page-head-actions {
     width: 100%;
     justify-content: space-between;
+  }
+
+  .filter-bar.compact {
+    flex-wrap: wrap;
+  }
+
+  .filter-select,
+  .application-select {
+    flex: 1 1 100%;
+    min-width: 0;
+  }
+
+  .read-filter {
+    flex: 1 1 auto;
   }
 
   .meta-grid {
