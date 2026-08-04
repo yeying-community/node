@@ -359,7 +359,7 @@ function normalizeActionExpression(raw: string): string {
 function sanitizeAppId(value: string): string {
   return String(value || '')
     .trim()
-    .replace(/[^a-zA-Z0-9._-]/g, '-');
+    .replace(/[^a-zA-Z0-9._*-]/g, '-');
 }
 
 function resolveAppId(): string {
@@ -370,6 +370,31 @@ function resolveAppId(): string {
     if (host) return host;
   }
   return 'localhost';
+}
+
+function parseDidWebHost(value: string): string {
+  const normalized = String(value || '').trim();
+  if (!normalized.startsWith('did:web:')) {
+    return '';
+  }
+  return normalized
+    .slice('did:web:'.length)
+    .split('/')[0]
+    .trim();
+}
+
+function resolveApiCapabilityAppId(): string {
+  const envAppId = sanitizeAppId(import.meta.env.VITE_UCAN_APP_ID || '');
+  if (envAppId) return envAppId;
+  const audienceHost = parseDidWebHost(resolveApiAudience());
+  if (audienceHost) {
+    const hostname = audienceHost.split(':')[0];
+    const normalizedHost = sanitizeAppId(hostname || audienceHost);
+    if (normalizedHost) {
+      return `${normalizedHost}-*`;
+    }
+  }
+  return resolveAppId();
 }
 
 function buildUcanCapability(resource: string, action: string): UcanCapability {
@@ -400,7 +425,7 @@ function buildCapsKey(caps: UcanCapability[]): string {
 function resolveApiCapabilityResource(): string {
   return (
     import.meta.env.VITE_UCAN_WITH ||
-    `app:all:${resolveAppId()}`
+    `app:all:${resolveApiCapabilityAppId()}`
   );
 }
 

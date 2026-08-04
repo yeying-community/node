@@ -5,6 +5,7 @@ import $audit, {
 } from '@/plugins/audit'
 import { apiUrl } from '@/plugins/api'
 import { getAuthToken, getCurrentAccount, getStoredAuthToken, signWithWallet } from '@/plugins/auth'
+import { translate } from '@/lang/messages'
 import {
   createSignedActionBody,
   normalizeAddress
@@ -37,46 +38,44 @@ export interface ApplicationUcanCapability {
   can: string
 }
 
-export const codeMapTrans = {
-  0: 'APPLICATION_CODE_UNKNOWN',
-  1: 'APPLICATION_CODE_MARKET',
-  2: 'APPLICATION_CODE_ASSET',
-  3: 'APPLICATION_CODE_KNOWLEDGE',
-  4: 'APPLICATION_CODE_KEEPER',
-  5: 'APPLICATION_CODE_SOCIAL',
-  6: 'APPLICATION_CODE_WORKBENCH'
-}
-
 export const serviceCodeMapTrans = {
   0: 'SERVICE_CODE_UNKNOWN',
   2: 'SERVICE_CODE_WAREHOUSE',
   3: 'SERVICE_CODE_AGENT'
 }
 
-export const codeMap = {
-  APPLICATION_CODE_CHAT: '聊天',
-  APPLICATION_CODE_ROUTER: '网关',
-  APPLICATION_CODE_WAREHOUSE: '仓储',
-  APPLICATION_CODE_UNKNOWN: '未知',
-  APPLICATION_CODE_MARKET: '社区集市',
-  APPLICATION_CODE_ASSET: '资产应用',
-  APPLICATION_CODE_KNOWLEDGE: '知识库应用',
-  APPLICATION_CODE_KEEPER: '智能管家应用',
-  APPLICATION_CODE_SOCIAL: '社交应用',
-  APPLICATION_CODE_WORKBENCH: '工作台应用'
+export const applicationCategories = [
+  { value: 'assistant', labelKey: 'application_category_assistant' },
+  { value: 'content', labelKey: 'application_category_content' },
+  { value: 'knowledge', labelKey: 'application_category_knowledge' },
+  { value: 'analytics', labelKey: 'application_category_analytics' },
+  { value: 'automation', labelKey: 'application_category_automation' },
+  { value: 'developer', labelKey: 'application_category_developer' },
+  { value: 'collaboration', labelKey: 'application_category_collaboration' },
+  { value: 'asset', labelKey: 'application_category_asset' },
+  { value: 'identity', labelKey: 'application_category_identity' },
+  { value: 'social', labelKey: 'application_category_social' },
+  { value: 'storage', labelKey: 'application_category_storage' },
+  { value: 'aggregation', labelKey: 'application_category_aggregation' },
+  { value: 'marketplace', labelKey: 'application_category_marketplace' },
+  { value: 'project', labelKey: 'application_category_project' },
+  { value: 'operations', labelKey: 'application_category_operations' }
+]
+
+export function normalizeApplicationCategory(value: unknown): string {
+  return String(value || '').trim()
 }
 
 export function resolveApplicationCategoryLabel(code: unknown): string {
-  const normalizedCode = String(code || '').trim()
+  const normalizedCode = normalizeApplicationCategory(code)
   if (!normalizedCode) {
-    return '未分类'
+    return translate('application_category_uncategorized')
   }
-  const fullLabel = codeMap[normalizedCode as keyof typeof codeMap]
-  if (!fullLabel) {
-    return '未分类'
+  const category = applicationCategories.find((item) => item.value === normalizedCode)
+  if (category) {
+    return translate(category.labelKey)
   }
-  const parts = fullLabel.trim().split(/\s+/).filter((item) => item.length > 0)
-  return parts.length > 1 ? parts[parts.length - 1] : parts[0] || '未分类'
+  return normalizedCode
 }
 
 export const serviceCodeMap = {
@@ -332,7 +331,7 @@ function buildApplicationCreateBody(params: ApplicationMetadata, actor: string) 
     version,
     name: String(params.name || ''),
     description: String(params.description || ''),
-    code: String(params.code || 'APPLICATION_CODE_UNKNOWN'),
+    code: String(params.code || ''),
     location: String(params.location || ''),
     serviceCodes: toServiceCodesString(params.serviceCodes),
     redirectUris: toRedirectUris(params.redirectUris),

@@ -29,20 +29,6 @@
     </el-tabs>
 
     <template v-if="activeView === 'inbox'">
-    <div class="filter-bar">
-      <button
-        v-for="group in sourceGroups"
-        :key="group.value"
-        type="button"
-        class="source-group-card"
-        :class="{ active: filters.source === group.value || (!filters.source && group.value === '') }"
-        @click="applySourceGroup(group.value)"
-      >
-        <span class="group-title">{{ group.label }}</span>
-        <span class="group-count">{{ group.count }}</span>
-      </button>
-    </div>
-
     <div class="filter-bar compact">
       <el-select
         v-model="filters.applicationUid"
@@ -393,26 +379,6 @@ const applicationFilterOptions = computed(() => {
   }
   return items
 })
-const sourceGroups = computed(() => {
-  const counters = {
-    all: items.value.length,
-    application: 0,
-    audit: 0,
-    totp: 0,
-  }
-  for (const item of items.value) {
-    const source = String(item.source || '').trim()
-    if (source === 'application') counters.application += 1
-    else if (source === 'audit') counters.audit += 1
-    else if (source === 'totp') counters.totp += 1
-  }
-  return [
-    { value: '', label: String($t('notification_filter_all_sources')), count: counters.all },
-    { value: 'application', label: String($t('notification_source_application')), count: counters.application },
-    { value: 'audit', label: String($t('notification_source_audit')), count: counters.audit },
-    { value: 'totp', label: String($t('notification_source_totp')), count: counters.totp },
-  ]
-})
 const webhookEventOptions = computed(() => [
   { label: 'application.created', value: 'application.created' },
   { label: 'application.updated', value: 'application.updated' },
@@ -518,10 +484,6 @@ function formatFullTime(value: string) {
     return '-'
   }
   return parsed.format('YYYY-MM-DD HH:mm:ss')
-}
-
-function applySourceGroup(value: string) {
-  filters.source = value
 }
 
 async function loadUnreadCount() {
@@ -1004,41 +966,6 @@ onBeforeUnmount(() => {
 .read-filter,
 .reload-button {
   flex: 0 0 auto;
-}
-
-.source-group-card {
-  min-width: 112px;
-  padding: 12px 14px;
-  border: 1px solid #e5e7eb;
-  border-radius: 8px;
-  background: #fff;
-  display: inline-flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 8px;
-  cursor: pointer;
-  transition: all 0.2s ease;
-
-  &:hover {
-    border-color: #cbd5e1;
-    background: #f8fafc;
-  }
-
-  &.active {
-    border-color: #2563eb;
-    background: #eff6ff;
-  }
-}
-
-.group-title {
-  font-size: 13px;
-  color: #475569;
-}
-
-.group-count {
-  font-size: 22px;
-  font-weight: 600;
-  color: #0f172a;
 }
 
 .content-grid {

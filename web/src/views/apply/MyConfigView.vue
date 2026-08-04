@@ -59,30 +59,34 @@
               <el-input v-model="passkeyDeviceName" :placeholder="mt('devicePlaceholder')" />
             </div>
 
-            <div class="credential-grid">
+            <div class="credential-list">
+              <div class="credential-list-head">
+                <span>{{ mt('deviceName') }}</span>
+                <span>{{ mt('credentialId') }}</span>
+                <span>{{ mt('transports') }}</span>
+                <span>{{ mt('createdAt') }}</span>
+                <span>{{ mt('status') }}</span>
+                <span>{{ mt('actions') }}</span>
+              </div>
               <div v-if="!passkeyCredentials.length" class="credential-empty compact-empty">
                 {{ mt('noPasskeyCredentials') }}
               </div>
-              <div v-for="credential in passkeyCredentials" :key="credential.credentialId" class="credential-card">
-                <div class="credential-card-head">
-                  <div>
-                    <div class="credential-name">{{ credential.deviceName || mt('defaultCredential') }}</div>
-                    <div class="credential-created">{{ credential.createdAt || '-' }}</div>
+              <div v-for="credential in passkeyCredentials" :key="credential.credentialId" class="credential-row">
+                <div class="credential-cell credential-device">
+                  <div class="credential-name">{{ credential.deviceName || mt('defaultCredential') }}</div>
+                  <div v-if="credential.revokedAt" class="credential-revoked-mobile">
+                    {{ mt('revokedAt') }}：{{ credential.revokedAt }}
                   </div>
+                </div>
+                <div class="credential-cell credential-detail path-text">{{ credential.credentialId }}</div>
+                <div class="credential-cell credential-transports">{{ credential.transports?.join(', ') || '-' }}</div>
+                <div class="credential-cell credential-created">{{ credential.createdAt || '-' }}</div>
+                <div class="credential-cell credential-status">
                   <el-tag :type="credential.revokedAt ? 'info' : 'success'" effect="light">
                     {{ credential.revokedAt ? mt('revoked') : mt('valid') }}
                   </el-tag>
                 </div>
-                <div class="credential-detail path-text">{{ credential.credentialId }}</div>
-                <div class="credential-meta-row">
-                  <span>{{ mt('transports') }}</span>
-                  <span>{{ credential.transports?.join(', ') || '-' }}</span>
-                </div>
-                <div v-if="credential.revokedAt" class="credential-meta-row warning-row">
-                  <span>{{ mt('revokedAt') }}</span>
-                  <span>{{ credential.revokedAt }}</span>
-                </div>
-                <div class="credential-actions">
+                <div class="credential-cell credential-actions">
                   <el-button size="small" @click="copyText(credential.credentialId, mt('credentialId'))">{{ mt('copyId') }}</el-button>
                   <el-button
                     :disabled="Boolean(credential.revokedAt)"
@@ -1619,23 +1623,46 @@ watch(
     align-items: center;
   }
 
-  .credential-grid {
+  .credential-list {
     margin-top: 16px;
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-    gap: 12px;
-  }
-
-  .credential-card,
-  .credential-empty {
-    min-height: 160px;
-    padding: 14px;
+    overflow: hidden;
     border: 1px solid #e8edf4;
     border-radius: 8px;
     background: #fff;
   }
 
+  .credential-list-head,
+  .credential-row {
+    display: grid;
+    grid-template-columns: minmax(140px, 1fr) minmax(220px, 1.6fr) minmax(110px, 0.8fr) minmax(150px, 1fr) 86px 150px;
+    gap: 12px;
+    align-items: center;
+  }
+
+  .credential-list-head {
+    min-height: 42px;
+    padding: 0 14px;
+    background: #f8fafc;
+    border-bottom: 1px solid #e8edf4;
+    color: rgba(0, 0, 0, 0.52);
+    font-size: 12px;
+    line-height: 1.4;
+    font-weight: 500;
+  }
+
+  .credential-row {
+    min-height: 64px;
+    padding: 12px 14px;
+    border-bottom: 1px solid #edf1f7;
+  }
+
+  .credential-row:last-child {
+    border-bottom: 0;
+  }
+
   .credential-empty {
+    min-height: 120px;
+    padding: 14px;
     display: flex;
     flex-direction: column;
     align-items: flex-start;
@@ -1651,45 +1678,36 @@ watch(
     color: rgba(0, 0, 0, 0.82);
   }
 
-  .credential-card-head {
-    display: flex;
-    align-items: flex-start;
-    justify-content: space-between;
-    gap: 12px;
+  .credential-cell {
+    min-width: 0;
+    font-size: 13px;
+    line-height: 1.5;
+    color: rgba(0, 0, 0, 0.72);
   }
 
   .credential-created {
-    margin-top: 4px;
     font-size: 12px;
     color: rgba(0, 0, 0, 0.45);
   }
 
   .credential-detail {
-    margin-top: 12px;
-    padding: 10px;
-    border-radius: 6px;
-    background: #f6f8fb;
-    border: 1px solid #edf1f7;
-    min-height: 38px;
-    max-height: 72px;
-    overflow: auto;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
-  .credential-meta-row {
-    margin-top: 10px;
-    display: flex;
-    justify-content: space-between;
-    gap: 12px;
-    font-size: 13px;
+  .credential-transports {
     color: rgba(0, 0, 0, 0.62);
   }
 
-  .warning-row {
+  .credential-revoked-mobile {
+    display: none;
+    margin-top: 4px;
+    font-size: 12px;
     color: #b45309;
   }
 
   .credential-actions {
-    margin-top: 12px;
     display: flex;
     justify-content: flex-end;
     gap: 8px;
@@ -2138,6 +2156,12 @@ watch(
       grid-template-columns: repeat(2, minmax(0, 1fr));
     }
 
+    .credential-list-head,
+    .credential-row {
+      grid-template-columns: minmax(120px, 1fr) minmax(180px, 1.4fr) 96px minmax(120px, 1fr) 74px 136px;
+      gap: 10px;
+    }
+
     .qr-box {
       justify-self: start;
     }
@@ -2167,6 +2191,39 @@ watch(
 
     .passport-summary-grid {
       grid-template-columns: 1fr;
+    }
+
+    .credential-list {
+      border-radius: 8px;
+    }
+
+    .credential-list-head {
+      display: none;
+    }
+
+    .credential-row {
+      grid-template-columns: 1fr;
+      gap: 8px;
+      align-items: flex-start;
+      padding: 14px;
+    }
+
+    .credential-cell {
+      width: 100%;
+    }
+
+    .credential-detail {
+      white-space: normal;
+      word-break: break-all;
+    }
+
+    .credential-status,
+    .credential-actions {
+      justify-content: flex-start;
+    }
+
+    .credential-revoked-mobile {
+      display: block;
     }
 
     .passport-card-head,
