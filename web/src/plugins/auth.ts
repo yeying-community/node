@@ -391,7 +391,7 @@ function resolveApiCapabilityAppId(): string {
     const hostname = audienceHost.split(':')[0];
     const normalizedHost = sanitizeAppId(hostname || audienceHost);
     if (normalizedHost) {
-      return `${normalizedHost}-*`;
+      return audienceHost.includes(':') ? `${normalizedHost}-*` : normalizedHost;
     }
   }
   return resolveAppId();

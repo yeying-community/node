@@ -15,8 +15,8 @@ VITE_WEBDAV_BASE_URL=https://webdav.example.com
 
 可选高级项：
 - `VITE_UCAN_AUD`：API 的 audience；默认由 `VITE_NODE_API_ENDPOINT` 推导
-- `VITE_UCAN_WITH` / `VITE_UCAN_CAN`：API 的 UCAN 能力；默认 `app:all:<API audience host>-* + invoke`
-- `VITE_UCAN_APP_ID`：覆盖默认 appId（默认由 API audience host 推导为 `<host>-*`）
+- `VITE_UCAN_WITH` / `VITE_UCAN_CAN`：API 的 UCAN 能力；默认 `app:all:<API audience app id> + invoke`
+- `VITE_UCAN_APP_ID`：覆盖默认 appId（默认由 API audience host 推导；带端口的开发地址使用 `<host>-*`，生产域名使用 `<host>`）
 - `VITE_WEBDAV_PREFIX`：WebDAV 子路径前缀
 - `VITE_WEBDAV_AUD`：WebDAV audience；默认由 `VITE_WEBDAV_BASE_URL` 推导
 - `VITE_WEBDAV_UCAN_WITH` / `VITE_WEBDAV_UCAN_CAN`：WebDAV 的 UCAN 能力；默认 `app:all:<当前前端 host> + write`
