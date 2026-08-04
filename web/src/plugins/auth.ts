@@ -285,15 +285,6 @@ async function bindWalletProvider(provider: Eip1193Provider) {
     if (!stored || stored.toLowerCase() !== nextAccount.toLowerCase()) {
       handleAccountChange(nextAccount);
       emitAccountChange(nextAccount);
-      try {
-        const ok = await loginWithUcan(provider, nextAccount);
-        if (!ok) {
-          throw new Error('登录失败');
-        }
-      } catch {
-        clearAuthSession();
-        redirectHome();
-      }
     }
   }));
 
@@ -303,7 +294,6 @@ async function bindWalletProvider(provider: Eip1193Provider) {
 
   walletListenersTeardown.push(addProviderListener(provider, 'connect', () => {
     getWalletDataStore().setWalletReady(true);
-    void ensureWalletSession({ redirect: false });
   }));
 
   walletListenersTeardown.push(addProviderListener(provider, 'disconnect', () => {
@@ -977,12 +967,7 @@ export async function ensureWalletSession(options: { redirect?: boolean } = {}) 
     }
     return true;
   }
-  try {
-    const ok = await loginWithUcan(provider, activeAccount);
-    if (!ok) {
-      throw new Error('登录失败');
-    }
-  } catch (error) {
+  if (!hasValidApiToken()) {
     clearAuthSession();
     if (redirect) {
       redirectHome();

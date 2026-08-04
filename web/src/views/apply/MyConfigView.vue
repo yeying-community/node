@@ -358,7 +358,7 @@ import { computed, onMounted, reactive, ref, watch } from 'vue';
 import QRCode from 'qrcode';
 import { useRoute, useRouter } from 'vue-router';
 import { apiUrl } from '@/plugins/api';
-import { getAuthToken, getCurrentAccount } from '@/plugins/auth';
+import { getAuthToken, getCurrentAccount, getStoredAuthToken } from '@/plugins/auth';
 import $application, { type ApplicationMetadata } from '@/plugins/application';
 import { getLocaleRef } from '@/lang/locale';
 import { notifyError, notifyInfo, notifySuccess } from '@/utils/message';
@@ -658,8 +658,8 @@ async function postJson<T>(path: string, body: unknown, fallbackMessage: string)
   return await parseEnvelope<T>(response, fallbackMessage);
 }
 
-async function getBearerToken(): Promise<string> {
-  const token = await getAuthToken();
+async function getBearerToken(options: { interactive?: boolean } = {}): Promise<string> {
+  const token = options.interactive ? await getAuthToken() : getStoredAuthToken();
   if (!token) {
     throw new Error(mt('missingLogin'));
   }
@@ -679,7 +679,7 @@ async function getAuthJson<T>(path: string, fallbackMessage: string): Promise<T>
 }
 
 async function postAuthJson<T>(path: string, body: unknown, fallbackMessage: string): Promise<T> {
-  const token = await getBearerToken();
+  const token = await getBearerToken({ interactive: true });
   const response = await fetch(apiUrl(path), {
     method: 'POST',
     headers: {
@@ -842,7 +842,7 @@ async function renderTotpQrCode(uri: string) {
 
 async function loadTotpProvision() {
   try {
-    const token = await getBearerToken();
+    const token = await getBearerToken({ interactive: true });
     const response = await fetch(apiUrl('/api/v1/public/auth/totp/totp/provision'), {
       method: 'GET',
       headers: {
