@@ -69,52 +69,6 @@ export class TotpSubjectSecretDO {
     boundAt!: string
 }
 
-@Entity('passkey_subject_credentials')
-@Index('idx_passkey_subject_credentials_subject', ['subjectType', 'subjectId'])
-export class PasskeySubjectCredentialDO {
-    @PrimaryGeneratedColumn('uuid')
-    id!: string
-
-    @Column({ length: 64, name: 'subject_type', default: 'wallet_address' })
-    subjectType!: string
-
-    @Column({ length: 128, name: 'subject_id' })
-    subjectId!: string
-
-    @Column({ type: 'text', name: 'credential_id', unique: true })
-    credentialId!: string
-
-    @Column({ type: 'text', name: 'public_key' })
-    publicKey!: string
-
-    @Column({ type: 'bigint', name: 'sign_count', default: 0 })
-    signCount!: string
-
-    @Column({ length: 128, name: 'aaguid', default: '' })
-    aaguid!: string
-
-    @Column({ type: 'text', name: 'transports', default: '' })
-    transports!: string
-
-    @Column({ length: 255, name: 'device_name', default: '' })
-    deviceName!: string
-
-    @Column({ length: 255, name: 'rp_id' })
-    rpId!: string
-
-    @Column({ type: 'text', name: 'user_handle', default: '' })
-    userHandle!: string
-
-    @Column({ length: 64, name: 'created_at' })
-    createdAt!: string
-
-    @Column({ length: 64, name: 'last_used_at', default: '' })
-    lastUsedAt!: string
-
-    @Column({ length: 64, name: 'revoked_at', default: '' })
-    revokedAt!: string
-}
-
 @Entity('custody_key_records')
 @Index('idx_custody_key_records_subject', ['subjectType', 'subjectId'])
 @Index('uidx_custody_key_records_subject_wallet', ['subjectType', 'subjectId', 'walletId'], { unique: true })
@@ -151,6 +105,251 @@ export class CustodyKeyRecordDO {
 
     @Column({ length: 64, name: 'last_verified_at', default: '' })
     lastVerifiedAt!: string
+}
+
+@Entity('passport_subjects')
+export class PassportSubjectDO {
+    @PrimaryColumn({ length: 128, name: 'subject_id' })
+    subjectId!: string
+
+    @Column({ length: 64, default: 'active' })
+    status!: string
+
+    @Column({ length: 64, name: 'created_from', default: 'wallet' })
+    createdFrom!: string
+
+    @Column({ length: 128, name: 'primary_wallet_address', default: '' })
+    primaryWalletAddress!: string
+
+    @Column({ length: 64, name: 'created_at', default: '' })
+    createdAt!: string
+
+    @Column({ length: 64, name: 'updated_at', default: '' })
+    updatedAt!: string
+}
+
+@Entity('passport_wallet_bindings')
+@Index('uidx_passport_wallet_binding_address', ['chain', 'address'], { unique: true })
+@Index('idx_passport_wallet_binding_subject', ['subjectId'])
+export class PassportWalletBindingDO {
+    @PrimaryGeneratedColumn('uuid')
+    uid!: string
+
+    @Column({ length: 128, name: 'subject_id' })
+    subjectId!: string
+
+    @Column({ length: 64, default: 'eip155:1' })
+    chain!: string
+
+    @Column({ length: 128 })
+    address!: string
+
+    @Column({ type: 'text', name: 'proof_json', default: '{}' })
+    proofJson!: string
+
+    @Column({ length: 64, default: 'active' })
+    status!: string
+
+    @Column({ length: 64, name: 'created_at', default: '' })
+    createdAt!: string
+
+    @Column({ length: 64, name: 'updated_at', default: '' })
+    updatedAt!: string
+
+    @Column({ length: 64, name: 'revoked_at', default: '' })
+    revokedAt!: string
+}
+
+@Entity('passport_passkey_credentials')
+@Index('idx_passport_passkey_credentials_subject', ['subjectId'])
+export class PassportPasskeyCredentialDO {
+    @PrimaryGeneratedColumn('uuid')
+    uid!: string
+
+    @Column({ length: 128, name: 'subject_id' })
+    subjectId!: string
+
+    @Column({ type: 'text', name: 'credential_id', unique: true })
+    credentialId!: string
+
+    @Column({ type: 'text', name: 'public_key' })
+    publicKey!: string
+
+    @Column({ type: 'bigint', name: 'sign_count', default: 0 })
+    signCount!: string
+
+    @Column({ length: 128, name: 'aaguid', default: '' })
+    aaguid!: string
+
+    @Column({ type: 'text', name: 'transports', default: '' })
+    transports!: string
+
+    @Column({ length: 255, name: 'device_name', default: '' })
+    deviceName!: string
+
+    @Column({ length: 255, name: 'rp_id', default: '' })
+    rpId!: string
+
+    @Column({ type: 'text', name: 'user_handle', default: '' })
+    userHandle!: string
+
+    @Column({ length: 64, name: 'created_at', default: '' })
+    createdAt!: string
+
+    @Column({ length: 64, name: 'last_used_at', default: '' })
+    lastUsedAt!: string
+
+    @Column({ length: 64, name: 'revoked_at', default: '' })
+    revokedAt!: string
+}
+
+@Entity('passport_webauthn_challenges')
+@Index('idx_passport_webauthn_challenge_expires_at', ['expiresAt'])
+export class PassportWebauthnChallengeDO {
+    @PrimaryColumn({ length: 128, name: 'challenge_id' })
+    challengeId!: string
+
+    @Column({ length: 32, name: 'challenge_type' })
+    challengeType!: string
+
+    @Column({ length: 128, name: 'subject_id', default: '' })
+    subjectId!: string
+
+    @Column({ length: 128, name: 'request_id', default: '' })
+    requestId!: string
+
+    @Column({ type: 'text' })
+    challenge!: string
+
+    @Column({ type: 'text', name: 'allowed_credential_ids', default: '[]' })
+    allowedCredentialIds!: string
+
+    @Column({ length: 64, name: 'created_at', default: '' })
+    createdAt!: string
+
+    @Column({ length: 64, name: 'expires_at', default: '' })
+    expiresAt!: string
+
+    @Column({ type: 'boolean', default: false })
+    used!: boolean
+}
+
+@Entity('passport_authorization_requests')
+@Index('idx_passport_authorization_request_status', ['status', 'expiresAt'])
+export class PassportAuthorizationRequestDO {
+    @PrimaryColumn({ length: 128, name: 'request_id' })
+    requestId!: string
+
+    @Column({ length: 128, name: 'app_id' })
+    appId!: string
+
+    @Column({ type: 'text', name: 'redirect_uri' })
+    redirectUri!: string
+
+    @Column({ type: 'text', default: '' })
+    state!: string
+
+    @Column({ length: 128, name: 'code_challenge' })
+    codeChallenge!: string
+
+    @Column({ length: 16, name: 'code_challenge_method', default: 'S256' })
+    codeChallengeMethod!: string
+
+    @Column({ length: 128, name: 'subject_id', default: '' })
+    subjectId!: string
+
+    @Column({ length: 128, name: 'wallet_address', default: '' })
+    walletAddress!: string
+
+    @Column({ length: 64, default: 'pending' })
+    status!: string
+
+    @Column({ length: 64, name: 'created_at', default: '' })
+    createdAt!: string
+
+    @Column({ length: 64, name: 'updated_at', default: '' })
+    updatedAt!: string
+
+    @Column({ length: 64, name: 'expires_at', default: '' })
+    expiresAt!: string
+
+    @Column({ length: 64, name: 'approved_at', default: '' })
+    approvedAt!: string
+}
+
+@Entity('passport_authorization_codes')
+@Index('idx_passport_authorization_code_request', ['requestId'])
+export class PassportAuthorizationCodeDO {
+    @PrimaryColumn({ length: 128 })
+    code!: string
+
+    @Column({ length: 128, name: 'request_id' })
+    requestId!: string
+
+    @Column({ length: 128, name: 'subject_id' })
+    subjectId!: string
+
+    @Column({ length: 128, name: 'wallet_address', default: '' })
+    walletAddress!: string
+
+    @Column({ length: 128, name: 'app_id' })
+    appId!: string
+
+    @Column({ type: 'text', name: 'redirect_uri' })
+    redirectUri!: string
+
+    @Column({ type: 'text', default: '' })
+    state!: string
+
+    @Column({ length: 128, name: 'code_challenge' })
+    codeChallenge!: string
+
+    @Column({ length: 16, name: 'code_challenge_method', default: 'S256' })
+    codeChallengeMethod!: string
+
+    @Column({ length: 64, name: 'created_at', default: '' })
+    createdAt!: string
+
+    @Column({ length: 64, name: 'expires_at', default: '' })
+    expiresAt!: string
+
+    @Column({ type: 'boolean', default: false })
+    used!: boolean
+
+    @Column({ length: 64, name: 'used_at', default: '' })
+    usedAt!: string
+}
+
+@Entity('passport_audit_logs')
+@Index('idx_passport_audit_subject_created_at', ['subjectId', 'createdAt'])
+@Index('idx_passport_audit_request_created_at', ['requestId', 'createdAt'])
+export class PassportAuditLogDO {
+    @PrimaryGeneratedColumn('uuid')
+    uid!: string
+
+    @Column({ length: 128, name: 'subject_id', default: '' })
+    subjectId!: string
+
+    @Column({ length: 128, name: 'wallet_address', default: '' })
+    walletAddress!: string
+
+    @Column({ length: 128, name: 'request_id', default: '' })
+    requestId!: string
+
+    @Column({ length: 128, name: 'app_id', default: '' })
+    appId!: string
+
+    @Column({ length: 64 })
+    action!: string
+
+    @Column({ length: 32, default: 'info' })
+    level!: string
+
+    @Column({ type: 'text', name: 'metadata_json', default: '{}' })
+    metadataJson!: string
+
+    @Column({ length: 64, name: 'created_at', default: '' })
+    createdAt!: string
 }
 
 @Entity('notifications')

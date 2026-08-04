@@ -1,15 +1,34 @@
 # node
 
-YeYing 社区节点服务（Node.js）。提供 REST 接口与 SIWE/UCAN 鉴权。文件存储通过前端使用 `@yeying-community/web3-bs` 的 WebDAV 接口直接访问。
+YeYing 社区 Node 枢纽服务。统一提供身份授权、应用中心、审核治理、MPC 协调、钱包密钥托管、通知分发、AppStore 发布目录和 release artifact 管理能力。
+
+文档入口见 [docs/README.md](./docs/README.md)，完整使用指南见 [docs/Node使用指南.md](./docs/Node使用指南.md)，第三方接口规范见 [docs/openapi/node.openapi.yaml](./docs/openapi/node.openapi.yaml)。
 
 ## 主要功能
 - REST API（`src/routes` 按 public/admin/internal 分组）
 - SIWE 登录 + UCAN 访问控制（Authorization: Bearer `<JWT|UCAN>`）
 - UCAN 双模式：钱包校验模式 + 中心化签发模式（`/api/v1/public/auth/central/*`）
+- Passkey / TOTP 无钱包登录与授权
+- 应用发布、审核、AppStore/Agent Registry 和 release artifact 管理
+- 不再承载 Project 安装、升级、失败回滚、卸载和 Runtime Agent 任务调度；这些运行时能力归 Agent Runtime
+- MPC 会话、消息中继、SSE 与 Redis Streams 续传
+- 钱包加密密钥托管（Passkey 门禁）
+- 站内通知、SSE、Webhook 和投递重试
 - WebDAV 存储（前端直连 WebDAV，使用 UCAN 作为 Bearer Token）
 
+## OpenAPI
+
+OpenAPI 3.1 文档由脚本生成，避免手工编辑生成文件：
+
+```bash
+npm run openapi:generate
+npm run openapi:check
+```
+
+`docs/openapi/node.openapi.yaml` 可直接导入 Swagger UI、Postman、Insomnia 和常见 OpenAPI 代码生成器。维护说明见 [docs/openapi/README.md](./docs/openapi/README.md)。
+
 ## 设计文档
-设计文档统一放在 `docs/` 目录下（Markdown + Mermaid），当前仅保留中文版本。入口见 `docs/文档总览.md`。
+设计文档统一放在 `docs/` 目录下（Markdown + Mermaid），当前仅保留中文版本。入口见 `docs/README.md`。
 
 ## 快速启动（前后端）
 
@@ -114,7 +133,7 @@ npm run dev:secure -- --file run/secrets.enc.json
 ```
 
 常用配置项（`config.js`）：
-- `app.env` / `app.port`
+- `app.env` / `app.port` / `app.corsAllowedOrigins`
 - `auth.jwtSecret` / `auth.accessTtlMs` / `auth.refreshTtlMs` / `auth.challengeTtlMs`
 - `auth.cookieSameSite` / `auth.cookieSecure`
 - `ucan.aud` / `ucan.with` / `ucan.can`
@@ -184,6 +203,25 @@ bash scripts/package.sh v1.0.1
 - 安装包内包含后端构建产物、`config.js.template`、`web/dist` 静态资源和 `scripts/starter.sh`
 - 解压安装包后，进入目录执行 `bash scripts/starter.sh` 即可启动；若包内存在 `web/dist`，后端会自动托管前端静态资源
 - 注意：`scripts/starter.sh` 面向生产/类生产启动；本地联调建议继续使用 `npm run dev`
+
+### 健康检查
+
+项目提供统一健康检查入口，默认执行就绪检查：
+
+```bash
+./scripts/health-check.sh
+./scripts/health-check.sh --level all
+./scripts/health-check.sh --level all --format json
+```
+
+检查层级：
+
+- `liveness`：检查 PID 文件对应进程（使用外部进程管理时跳过）以及公共健康接口。
+- `readiness`：检查服务进程和公共健康接口是否已经可以响应请求。
+- `dependency`：使用当前 `config.js` 对数据库执行只读 `SELECT 1`。
+- `all`：依次执行存活、就绪和依赖检查。
+
+数据库是 Node 的必需依赖，数据库检查失败会返回 `FAIL`。当前没有被健康检查标记为可选并允许降级的外部依赖。命令行参数、环境变量、输出格式和退出码遵循社区的 `HEALTH_CHECK.md` 规范；可使用 `HEALTH_BASE_URL`、`HEALTH_CONFIG` 等环境变量覆盖默认配置。
 
 ### 生产密钥初始化（推荐）
 为避免密钥明文写入 `config.js`，可使用内置脚本生成并加密保存：

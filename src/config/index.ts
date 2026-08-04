@@ -13,6 +13,7 @@ export interface DatabaseConfig {
 export interface AppRuntimeConfig {
     env: string
     port: number
+    corsAllowedOrigins?: string[]
 }
 
 export interface SecretsRuntimeConfig {
@@ -75,13 +76,19 @@ export interface TotpAuthRuntimeConfig {
     totpMasterKey?: string
 }
 
-export interface PasskeyAuthRuntimeConfig {
+export interface PassportPasskeyRuntimeConfig {
     enabled?: boolean
     rpId?: string
     rpName?: string
     origin?: string
     timeoutMs?: number
     challengeTtlMs?: number
+}
+
+export interface PassportAuthRuntimeConfig {
+    verifyPath?: string
+    portalBaseUrl?: string
+    passkey?: PassportPasskeyRuntimeConfig
 }
 
 export interface AuditRuntimeConfig {

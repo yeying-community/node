@@ -8,7 +8,10 @@ module.exports = {
     // Runtime environment label.
     env: 'dev',
     // HTTP server port.
-    port: 8100
+    port: 8100,
+    // Exact browser origins allowed to send credentialed cross-origin requests.
+    // Production deployments must set this list or CORS_ALLOWED_ORIGINS.
+    corsAllowedOrigins: ['http://localhost:5173']
   },
   // YeYing Project AppStore adapter. The configured instance must exist in project_instances.
   projectAdapter: {
@@ -140,19 +143,25 @@ module.exports = {
     // 推荐通过加密密钥文件或环境变量 TOTP_AUTH_TOTP_MASTER_KEY 注入。
     totpMasterKey: ''
   },
-  passkeyAuth: {
-    // Enable passkey registration and authorization confirmation.
-    enabled: false,
-    // Relying Party ID. For local development use 'localhost'.
-    rpId: 'localhost',
-    // Relying Party display name.
-    rpName: 'YeYing Node',
-    // Browser origin that serves the passkey page.
-    origin: 'http://localhost:8100',
-    // WebAuthn operation timeout.
-    timeoutMs: 60 * 1000,
-    // Registration challenge TTL.
-    challengeTtlMs: 2 * 60 * 1000
+  passportAuth: {
+    // Node-hosted Passport approval page path. Example: /passport-auth
+    verifyPath: '/passport-auth',
+    // Base URL used to build Passport verifyUrl in authorize request response.
+    portalBaseUrl: 'http://127.0.0.1:8100',
+    passkey: {
+      // Enable Passport Passkey registration and authorization confirmation.
+      enabled: false,
+      // Relying Party ID. For local development use 'localhost'.
+      rpId: 'localhost',
+      // Relying Party display name.
+      rpName: 'YeYing Node',
+      // Browser origin that serves the Passport page.
+      origin: 'http://localhost:8100',
+      // WebAuthn operation timeout.
+      timeoutMs: 60 * 1000,
+      // Registration challenge TTL.
+      challengeTtlMs: 2 * 60 * 1000
+    }
   },
   audit: {
     // List of approver wallet addresses.

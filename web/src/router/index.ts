@@ -35,6 +35,12 @@ export const routes = [
         component: () => import('../views/TotpAuthView.vue')
     },
     {
+        path: '/passport-auth',
+        name: 'passportAuth',
+        meta: { public: true },
+        component: () => import('../views/PassportAuthView.vue')
+    },
+    {
         path: '/market',
         name: 'market',
         component: () => import('../views/apply/MarketView.vue'),
@@ -81,6 +87,11 @@ export const routes = [
                         path: 'my-config',
                         name: 'myConfig',
                         component: () => import('../views/apply/MyConfigView.vue')
+                    },
+                    {
+                        path: 'my-config/passkey-history',
+                        name: 'passkeyTestHistory',
+                        component: () => import('../views/apply/PasskeyTestHistoryView.vue')
                     },
                     {
                         path: 'notifications',

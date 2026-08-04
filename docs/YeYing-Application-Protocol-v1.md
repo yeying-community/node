@@ -15,7 +15,7 @@ v1 优先保证发布和接入流程可运行，不包含计费、许可证交�
 ## 2. 设计原则
 
 1. 发布与安装分离：应用上架不表示任何 Project 已安装。
-2. 控制面与执行面分离：Registry 创建任务，Agent 执行任务。
+2. 发布目录与运行控制面分离：Node Registry 管理 release，Agent Runtime 创建并执行任务。
 3. 制品不可变：同一 `app_id + version` 只能对应一个 release digest。
 4. 权限显式声明：应用只能调用审核通过的 Host API 能力。
 5. 禁止任意脚本：协议不接受远程 Shell Hook、特权容器或 Docker Socket。
@@ -199,20 +199,7 @@ requested -> pending -> claimed -> applying -> verifying -> succeeded
 
 升级失败还需进入 `rolling_back`，最终为 `rolled_back` 或 `rollback_failed`。回滚必须恢复上一版本、release digest、本地运行配置和受控反代。卸载执行 Compose down，但 V1 默认不删除命名卷。任务结构使用 `task.schema.json`。
 
-Agent 协议：
-
-```text
-POST /api/v1/runtime/tasks/claim
-POST /api/v1/runtime/tasks/{taskId}/heartbeat
-POST /api/v1/runtime/tasks/{taskId}/report
-GET  /api/v1/runtime/releases/{appId}/{version}
-```
-
-- Claim 使用实例 Agent 凭据，并产生租约。
-- Heartbeat 延长租约，防止双重执行。
-- Report 带当前状态、release digest、脱敏日志摘要和健康检查结果。
-- 状态转换使用乐观锁版本，Registry 拒绝越级或重复转换。
-- 相同实例、应用、目标版本和操作使用幂等键去重。
+Agent Runtime 协议由 `agent` 仓库维护。Node Registry 只提供已发布 release artifact、digest、签名、公钥或授权结果；任务领取、心跳、状态上报、回滚和卸载状态机不在 Node 暴露。
 
 ## 11. Registry 发布 API
 
@@ -240,22 +227,20 @@ draft -> uploaded -> validating -> submitted -> approved -> published
 
 当前发布入口为 `POST /api/v1/publisher/releases/submit`。请求使用 Node JWT/UCAN 登录态，`publisher_key_id` 必须在 `appStoreRelease.publisherKeys` 中登记且 owner 与当前钱包一致。接口校验 bundle 后以内容寻址方式保存制品，并创建 `submitted` release；同一应用版本禁止用不同 digest 覆盖。
 
-审核接口位于 `/api/v1/admin/releases/{releaseId}/approve|reject|publish|withdraw`，仅 Node 管理员可调用。状态只能依次从 `submitted -> approved -> published`，发布后只允许撤回。Adapter 的 catalog 与安装接口只读取 `published` release 的已校验制品，不再使用内置或写死的应用列表。
+审核接口位于 `/api/v1/admin/releases/{releaseId}/approve|reject|publish|withdraw`，仅 Node 管理员可调用。状态只能依次从 `submitted -> approved -> published`，发布后只允许撤回。Agent Runtime 只能读取 `published` release 的已校验制品，不再使用内置或写死的应用列表。
 
 ## 12. Host 接入 API
 
-Project 与 AppStore Adapter 保持以下兼容入口：
+Project 与 Agent Runtime 保持以下兼容入口，具体实现位于 `agent` 仓库：
 
 ```text
-GET  /internal
-GET  /api/v1/internal/catalog
 GET  /api/v1/internal/installed
 POST /api/v1/internal/install
 POST /api/v1/internal/upgrade
 POST /api/v1/internal/uninstall
 ```
 
-`installed` 继续返回 Project 当前消费的 `id`、`version`、`install_at` 和 `menu_items`。Adapter 负责把协议中的多语言 label、entry 和 visibility 转换为当前格式。
+`installed` 继续返回 Project 当前消费的 `id`、`version`、`install_at` 和 `menu_items`。Agent Runtime 负责把协议中的多语言 label、entry 和 visibility 转换为当前格式。
 
 ## 13. 本地状态镜像
 
@@ -289,7 +274,7 @@ Registry 是任务与安装历史的权威数据源，本地文件是 Host 运�
 | `openapi` | bundle `openapi.yaml` + permissions |
 | Shell lifecycle Hook | 签名 HTTP lifecycle event |
 | `APP_SECRET` | 独立应用身份；兼容期保留 |
-| `/api/v1/internal/installed` | Adapter 兼容输出 |
+| `/api/v1/internal/installed` | Agent Runtime 兼容输出 |
 | AppStore 挂 Docker Socket | 部署机拉取式受限 Agent |
 
 ## 15. 最小闭环
@@ -300,8 +285,8 @@ Registry 是任务与安装历史的权威数据源，本地文件是 Host 运�
 2. Publisher 使用钱包/发布密钥签名并上传 Registry。
 3. Registry 自动校验，管理员审核后发布。
 4. Project 管理员请求安装并确认权限与配置。
-5. Agent claim 任务，校验、部署、健康检查并 report。
-6. Registry 标记安装成功，Project `installed` 接口返回 AI 菜单。
+5. Agent Runtime 创建任务，校验、部署、健康检查并记录状态。
+6. Project `installed` 接口返回 AI 菜单。
 7. Host 签发用户 access ticket，AI 使用声明权限访问 Project API。
 8. 升级和卸载沿用同一任务与事件协议。
 

@@ -1,5 +1,5 @@
 import { Repository } from 'typeorm/repository/Repository'
-import { CustodyKeyRecordDO, PasskeySubjectCredentialDO } from '../mapper/entity'
+import { CustodyKeyRecordDO, PassportPasskeyCredentialDO, PassportWalletBindingDO } from '../mapper/entity'
 import { SingletonDataSource } from '../facade/datasource'
 
 export class CustodyManager {
@@ -11,14 +11,22 @@ export class CustodyManager {
 
   async countActivePasskeys(subject: string): Promise<number> {
     const ds = SingletonDataSource.get()
-    const result = await ds
-      .getRepository(PasskeySubjectCredentialDO)
+    const binding = await ds.getRepository(PassportWalletBindingDO).findOne({
+      where: {
+        chain: 'eip155:1',
+        address: subject,
+        status: 'active',
+      },
+    })
+    if (!binding || String(binding.revokedAt || '').trim()) {
+      return 0
+    }
+    return await ds
+      .getRepository(PassportPasskeyCredentialDO)
       .createQueryBuilder('credential')
-      .where('credential.subjectType = :subjectType', { subjectType: 'wallet_address' })
-      .andWhere('credential.subjectId = :subjectId', { subjectId: subject })
+      .where('credential.subjectId = :subjectId', { subjectId: binding.subjectId })
       .andWhere("(credential.revokedAt IS NULL OR credential.revokedAt = '')")
       .getCount()
-    return result
   }
 
   async listKeyRecords(subject: string): Promise<CustodyKeyRecordDO[]> {

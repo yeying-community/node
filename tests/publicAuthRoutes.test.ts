@@ -6,6 +6,17 @@ const consumeRefreshTokenMock = vi.fn()
 const issueTokensMock = vi.fn()
 const provisionUserStateMock = vi.fn()
 
+vi.doMock('../src/config/runtime', () => ({
+  getConfig: vi.fn((key: string) => {
+    const values: Record<string, unknown> = {
+      'auth.refreshCookieName': 'refresh_token',
+      'auth.cookieSameSite': 'lax',
+      'auth.cookieSecure': false,
+    }
+    return values[key]
+  }),
+}))
+
 vi.doMock('../src/auth/siwe', () => ({
   consumeRefreshToken: consumeRefreshTokenMock,
   deleteChallenge: vi.fn(),

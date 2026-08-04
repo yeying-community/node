@@ -1,0 +1,2489 @@
+openapi: 3.1.0
+info:
+  title: YeYing Node API
+  version: 1.0.0
+  license:
+    name: ISC
+    identifier: ISC
+  description: YeYing 社区 Node 枢纽服务接口，覆盖身份授权、应用中心、审核、MPC 协调、钱包托管、通知、AppStore Registry 和 release artifact。
+servers:
+  - url: https://node.yeying.pub
+    description: Community production node
+tags:
+  - name: Health
+    description: 服务可用性检查。
+  - name: Auth
+    description: SIWE、JWT 和中心化 UCAN。
+  - name: Passkey
+    description: WebAuthn 通行证注册和授权。
+  - name: Passport
+    description: Passport subject、code + PKCE 和跨应用登录。
+  - name: TOTP
+    description: TOTP 绑定和无钱包授权。
+  - name: Profile
+    description: 当前认证身份信息。
+  - name: Applications
+    description: 应用元数据、配置、搜索和发布状态。
+  - name: Audits
+    description: 应用审核申请和审批。
+  - name: MPC
+    description: 多方计算会话、消息和事件流。
+  - name: Custody
+    description: 钱包客户端加密密钥托管。
+  - name: Notifications
+    description: 通知收件箱、事件流和 Webhook。
+  - name: Publisher
+    description: 应用发布包提交、审核和 release artifact 管理。
+  - name: Admin
+    description: 管理员治理接口。
+paths:
+  /api/v1/public/health:
+    get:
+      tags:
+        - Health
+      summary: 健康检查
+      operationId: get_api_v1_public_health
+      security: []
+      parameters: []
+      responses:
+        "200":
+          $ref: "#/components/responses/Success"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+  /api/v1/public/healthCheck:
+    get:
+      tags:
+        - Health
+      summary: 兼容健康检查
+      operationId: get_api_v1_public_healthCheck
+      security: []
+      parameters: []
+      responses:
+        "200":
+          $ref: "#/components/responses/Success"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+  /api/v1/public/auth/challenge:
+    post:
+      tags:
+        - Auth
+      summary: 创建 SIWE 登录挑战
+      operationId: post_api_v1_public_auth_challenge
+      security: []
+      parameters: []
+      responses:
+        "200":
+          $ref: "#/components/responses/Success"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AuthChallengeRequest"
+  /api/v1/public/auth/verify:
+    post:
+      tags:
+        - Auth
+      summary: 验证钱包签名并签发 JWT
+      operationId: post_api_v1_public_auth_verify
+      security: []
+      parameters: []
+      responses:
+        "200":
+          $ref: "#/components/responses/Success"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AuthVerifyRequest"
+  /api/v1/public/auth/refresh:
+    post:
+      tags:
+        - Auth
+      summary: 刷新访问令牌
+      operationId: post_api_v1_public_auth_refresh
+      security:
+        - refreshCookie: []
+      parameters: []
+      responses:
+        "200":
+          $ref: "#/components/responses/Success"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/JsonObject"
+  /api/v1/public/auth/logout:
+    post:
+      tags:
+        - Auth
+      summary: 注销刷新会话
+      operationId: post_api_v1_public_auth_logout
+      security:
+        - refreshCookie: []
+      parameters: []
+      responses:
+        "200":
+          $ref: "#/components/responses/Success"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/JsonObject"
+  /api/v1/public/auth/central/issuer:
+    get:
+      tags:
+        - Auth
+      summary: 查询中心化 UCAN issuer
+      operationId: get_api_v1_public_auth_central_issuer
+      security: []
+      parameters: []
+      responses:
+        "200":
+          $ref: "#/components/responses/Success"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+  /api/v1/public/auth/central/session:
+    post:
+      tags:
+        - Auth
+      summary: 创建中心化签发会话
+      operationId: post_api_v1_public_auth_central_session
+      security:
+        - bearerAuth: []
+      parameters: []
+      responses:
+        "200":
+          $ref: "#/components/responses/Success"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/JsonObject"
+  /api/v1/public/auth/central/issue:
+    post:
+      tags:
+        - Auth
+      summary: 签发中心化 UCAN
+      operationId: post_api_v1_public_auth_central_issue
+      security:
+        - bearerAuth: []
+      parameters: []
+      responses:
+        "200":
+          $ref: "#/components/responses/Success"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/JsonObject"
+  /api/v1/public/auth/central/revoke:
+    post:
+      tags:
+        - Auth
+      summary: 撤销中心化签发会话
+      operationId: post_api_v1_public_auth_central_revoke
+      security:
+        - bearerAuth: []
+      parameters: []
+      responses:
+        "200":
+          $ref: "#/components/responses/Success"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/JsonObject"
+  /api/v1/public/auth/passport/status:
+    get:
+      tags:
+        - Passport
+      summary: 查询 Passport 服务状态
+      operationId: get_api_v1_public_auth_passport_status
+      security: []
+      parameters: []
+      responses:
+        "200":
+          $ref: "#/components/responses/Success"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+  /api/v1/public/auth/passport/bind/request:
+    post:
+      tags:
+        - Passport
+      summary: 创建 Passport 钱包绑定准备状态
+      operationId: post_api_v1_public_auth_passport_bind_request
+      security:
+        - bearerAuth: []
+      parameters: []
+      responses:
+        "200":
+          $ref: "#/components/responses/Success"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/JsonObject"
+  /api/v1/public/auth/passport/bind/confirm:
+    post:
+      tags:
+        - Passport
+      summary: 确认 Passport 钱包绑定
+      operationId: post_api_v1_public_auth_passport_bind_confirm
+      security:
+        - bearerAuth: []
+      parameters: []
+      responses:
+        "200":
+          $ref: "#/components/responses/Success"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/JsonObject"
+  /api/v1/public/auth/passport/bindings:
+    get:
+      tags:
+        - Passport
+      summary: 查询 Passport 绑定
+      operationId: get_api_v1_public_auth_passport_bindings
+      security:
+        - bearerAuth: []
+      parameters: []
+      responses:
+        "200":
+          $ref: "#/components/responses/Success"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+  /api/v1/public/auth/passport/bind/unlink/request:
+    post:
+      tags:
+        - Passport
+      summary: 创建 Passport 钱包解绑签名请求
+      operationId: post_api_v1_public_auth_passport_bind_unlink_request
+      security:
+        - bearerAuth: []
+      parameters: []
+      responses:
+        "200":
+          $ref: "#/components/responses/Success"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/JsonObject"
+  /api/v1/public/auth/passport/bind/unlink/confirm:
+    post:
+      tags:
+        - Passport
+      summary: 确认 Passport 钱包解绑并撤销主体授权
+      operationId: post_api_v1_public_auth_passport_bind_unlink_confirm
+      security:
+        - bearerAuth: []
+      parameters: []
+      responses:
+        "200":
+          $ref: "#/components/responses/Success"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PassportWalletUnbindConfirmRequest"
+  /api/v1/public/auth/passport/passkey/register/request:
+    post:
+      tags:
+        - Passport
+      summary: 创建 Passport subject Passkey 注册挑战
+      operationId: post_api_v1_public_auth_passport_passkey_register_request
+      security:
+        - bearerAuth: []
+      parameters: []
+      responses:
+        "200":
+          $ref: "#/components/responses/Success"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PassportPasskeyRegisterRequest"
+  /api/v1/public/auth/passport/passkey/register/confirm:
+    post:
+      tags:
+        - Passport
+      summary: 确认 Passport subject Passkey 注册
+      operationId: post_api_v1_public_auth_passport_passkey_register_confirm
+      security:
+        - bearerAuth: []
+      parameters: []
+      responses:
+        "200":
+          $ref: "#/components/responses/Success"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PassportPasskeyRegisterConfirmRequest"
+  /api/v1/public/auth/passport/passkey/credentials:
+    get:
+      tags:
+        - Passport
+      summary: 列出 Passport subject Passkey
+      operationId: get_api_v1_public_auth_passport_passkey_credentials
+      security:
+        - bearerAuth: []
+      parameters: []
+      responses:
+        "200":
+          $ref: "#/components/responses/Success"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+  /api/v1/public/auth/passport/passkey/credentials/revoke:
+    post:
+      tags:
+        - Passport
+      summary: 撤销 Passport subject Passkey
+      operationId: post_api_v1_public_auth_passport_passkey_credentials_revoke
+      security:
+        - bearerAuth: []
+      parameters: []
+      responses:
+        "200":
+          $ref: "#/components/responses/Success"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PassportPasskeyCredentialRevokeRequest"
+  /api/v1/public/auth/passport/authorize/request:
+    post:
+      tags:
+        - Passport
+      summary: 创建 Passport code + PKCE 授权请求
+      operationId: post_api_v1_public_auth_passport_authorize_request
+      security: []
+      parameters: []
+      responses:
+        "200":
+          $ref: "#/components/responses/Success"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PassportAuthorizeRequest"
+  /api/v1/public/auth/passport/authorize/request/{requestId}:
+    get:
+      tags:
+        - Passport
+      summary: 查询 Passport 授权请求
+      operationId: get_api_v1_public_auth_passport_authorize_request_requestId
+      security: []
+      parameters:
+        - name: requestId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          $ref: "#/components/responses/Success"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+  /api/v1/public/auth/passport/authorize/challenge:
+    post:
+      tags:
+        - Passport
+      summary: 创建 Passport Passkey assertion challenge
+      operationId: post_api_v1_public_auth_passport_authorize_challenge
+      security: []
+      parameters: []
+      responses:
+        "200":
+          $ref: "#/components/responses/Success"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PassportAuthorizeChallengeRequest"
+  /api/v1/public/auth/passport/authorize/approve:
+    post:
+      tags:
+        - Passport
+      summary: 确认 Passport 授权请求
+      operationId: post_api_v1_public_auth_passport_authorize_approve
+      security: []
+      parameters: []
+      responses:
+        "200":
+          $ref: "#/components/responses/Success"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PassportAuthorizeApproveRequest"
+  /api/v1/public/auth/passport/authorize/exchange:
+    post:
+      tags:
+        - Passport
+      summary: 兑换 Passport 授权码
+      operationId: post_api_v1_public_auth_passport_authorize_exchange
+      security: []
+      parameters: []
+      responses:
+        "200":
+          $ref: "#/components/responses/Success"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PassportAuthorizeExchangeRequest"
+  /api/v1/public/auth/totp/status:
+    get:
+      tags:
+        - TOTP
+      summary: 查询 TOTP 服务状态
+      operationId: get_api_v1_public_auth_totp_status
+      security: []
+      parameters: []
+      responses:
+        "200":
+          $ref: "#/components/responses/Success"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+  /api/v1/public/auth/totp/totp/provision:
+    get:
+      tags:
+        - TOTP
+      summary: 获取当前身份 TOTP 配置
+      operationId: get_api_v1_public_auth_totp_totp_provision
+      security:
+        - bearerAuth: []
+      parameters: []
+      responses:
+        "200":
+          $ref: "#/components/responses/Success"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+  /api/v1/public/auth/totp/bind/request:
+    post:
+      tags:
+        - TOTP
+      summary: 创建 TOTP 绑定请求
+      operationId: post_api_v1_public_auth_totp_bind_request
+      security:
+        - bearerAuth: []
+      parameters: []
+      responses:
+        "200":
+          $ref: "#/components/responses/Success"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/JsonObject"
+  /api/v1/public/auth/totp/bind/request/{requestId}:
+    get:
+      tags:
+        - TOTP
+      summary: 查询 TOTP 绑定请求
+      operationId: get_api_v1_public_auth_totp_bind_request_requestId
+      security: []
+      parameters:
+        - name: requestId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          $ref: "#/components/responses/Success"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+  /api/v1/public/auth/totp/bind/approve:
+    post:
+      tags:
+        - TOTP
+      summary: 确认 TOTP 绑定
+      operationId: post_api_v1_public_auth_totp_bind_approve
+      security: []
+      parameters: []
+      responses:
+        "200":
+          $ref: "#/components/responses/Success"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/JsonObject"
+  /api/v1/public/auth/totp/authorize/request:
+    post:
+      tags:
+        - TOTP
+      summary: 创建 TOTP 授权请求
+      operationId: post_api_v1_public_auth_totp_authorize_request
+      security: []
+      parameters: []
+      responses:
+        "200":
+          $ref: "#/components/responses/Success"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/JsonObject"
+  /api/v1/public/auth/totp/authorize/request/{requestId}:
+    get:
+      tags:
+        - TOTP
+      summary: 查询 TOTP 授权请求
+      operationId: get_api_v1_public_auth_totp_authorize_request_requestId
+      security: []
+      parameters:
+        - name: requestId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          $ref: "#/components/responses/Success"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+  /api/v1/public/auth/totp/authorize/approve:
+    post:
+      tags:
+        - TOTP
+      summary: 使用 TOTP 确认授权
+      operationId: post_api_v1_public_auth_totp_authorize_approve
+      security: []
+      parameters: []
+      responses:
+        "200":
+          $ref: "#/components/responses/Success"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/JsonObject"
+  /api/v1/public/auth/totp/authorize/exchange:
+    post:
+      tags:
+        - TOTP
+      summary: 兑换 TOTP 授权码
+      operationId: post_api_v1_public_auth_totp_authorize_exchange
+      security: []
+      parameters: []
+      responses:
+        "200":
+          $ref: "#/components/responses/Success"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/JsonObject"
+  /api/v1/public/profile/me:
+    get:
+      tags:
+        - Profile
+      summary: 查询当前认证身份
+      operationId: get_api_v1_public_profile_me
+      security:
+        - bearerAuth: []
+      parameters: []
+      responses:
+        "200":
+          $ref: "#/components/responses/Success"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+  /api/v1/public/applications:
+    post:
+      tags:
+        - Applications
+      summary: 创建应用
+      operationId: post_api_v1_public_applications
+      security:
+        - bearerAuth: []
+      parameters: []
+      responses:
+        "200":
+          $ref: "#/components/responses/Success"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/JsonObject"
+  /api/v1/public/applications/{uid}:
+    patch:
+      tags:
+        - Applications
+      summary: 更新应用
+      operationId: patch_api_v1_public_applications_uid
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: uid
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          $ref: "#/components/responses/Success"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/JsonObject"
+    get:
+      tags:
+        - Applications
+      summary: 查询应用详情
+      operationId: get_api_v1_public_applications_uid
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: uid
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          $ref: "#/components/responses/Success"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+    delete:
+      tags:
+        - Applications
+      summary: 删除应用
+      operationId: delete_api_v1_public_applications_uid
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: uid
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          $ref: "#/components/responses/Success"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+  /api/v1/public/applications/{uid}/config:
+    get:
+      tags:
+        - Applications
+      summary: 查询应用用户配置
+      operationId: get_api_v1_public_applications_uid_config
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: uid
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          $ref: "#/components/responses/Success"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+    put:
+      tags:
+        - Applications
+      summary: 更新应用用户配置
+      operationId: put_api_v1_public_applications_uid_config
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: uid
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          $ref: "#/components/responses/Success"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/JsonObject"
+  /api/v1/public/applications/by-did:
+    get:
+      tags:
+        - Applications
+      summary: 按 DID 和版本查询应用
+      operationId: get_api_v1_public_applications_by_did
+      security:
+        - bearerAuth: []
+      parameters: []
+      responses:
+        "200":
+          $ref: "#/components/responses/Success"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+  /api/v1/public/applications/search:
+    post:
+      tags:
+        - Applications
+      summary: 搜索应用
+      operationId: post_api_v1_public_applications_search
+      security:
+        - bearerAuth: []
+      parameters: []
+      responses:
+        "200":
+          $ref: "#/components/responses/Success"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/JsonObject"
+  /api/v1/public/applications/{uid}/publish:
+    post:
+      tags:
+        - Applications
+      summary: 发布应用
+      operationId: post_api_v1_public_applications_uid_publish
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: uid
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          $ref: "#/components/responses/Success"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/JsonObject"
+  /api/v1/public/applications/{uid}/unpublish:
+    post:
+      tags:
+        - Applications
+      summary: 下架应用
+      operationId: post_api_v1_public_applications_uid_unpublish
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: uid
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          $ref: "#/components/responses/Success"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/JsonObject"
+  /api/v1/public/audits:
+    post:
+      tags:
+        - Audits
+      summary: 创建审核申请
+      operationId: post_api_v1_public_audits
+      security:
+        - bearerAuth: []
+      parameters: []
+      responses:
+        "200":
+          $ref: "#/components/responses/Success"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/JsonObject"
+  /api/v1/public/audits/search:
+    post:
+      tags:
+        - Audits
+      summary: 搜索审核申请
+      operationId: post_api_v1_public_audits_search
+      security:
+        - bearerAuth: []
+      parameters: []
+      responses:
+        "200":
+          $ref: "#/components/responses/Success"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/JsonObject"
+  /api/v1/public/audits/{uid}:
+    get:
+      tags:
+        - Audits
+      summary: 查询审核详情
+      operationId: get_api_v1_public_audits_uid
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: uid
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          $ref: "#/components/responses/Success"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+    delete:
+      tags:
+        - Audits
+      summary: 撤销审核申请
+      operationId: delete_api_v1_public_audits_uid
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: uid
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          $ref: "#/components/responses/Success"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+  /api/v1/admin/audits/{uid}/approve:
+    post:
+      tags:
+        - Admin
+      summary: 批准审核
+      operationId: post_api_v1_admin_audits_uid_approve
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: uid
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          $ref: "#/components/responses/Success"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/JsonObject"
+  /api/v1/admin/audits/{uid}/reject:
+    post:
+      tags:
+        - Admin
+      summary: 驳回审核
+      operationId: post_api_v1_admin_audits_uid_reject
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: uid
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          $ref: "#/components/responses/Success"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/JsonObject"
+  /api/v1/public/mpc/sessions:
+    post:
+      tags:
+        - MPC
+      summary: 创建 MPC 会话
+      operationId: post_api_v1_public_mpc_sessions
+      security:
+        - bearerAuth: []
+      parameters: []
+      responses:
+        "200":
+          $ref: "#/components/responses/Success"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MpcSessionCreateRequest"
+  /api/v1/public/mpc/sessions/{sessionId}/join:
+    post:
+      tags:
+        - MPC
+      summary: 加入 MPC 会话
+      operationId: post_api_v1_public_mpc_sessions_sessionId_join
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: sessionId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          $ref: "#/components/responses/Success"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MpcJoinRequest"
+  /api/v1/public/mpc/sessions/{sessionId}/messages:
+    post:
+      tags:
+        - MPC
+      summary: 发送 MPC 消息
+      operationId: post_api_v1_public_mpc_sessions_sessionId_messages
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: sessionId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          $ref: "#/components/responses/Success"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/JsonObject"
+    get:
+      tags:
+        - MPC
+      summary: 拉取 MPC 消息
+      operationId: get_api_v1_public_mpc_sessions_sessionId_messages
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: sessionId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          $ref: "#/components/responses/Success"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+  /api/v1/public/mpc/sessions/{sessionId}:
+    get:
+      tags:
+        - MPC
+      summary: 查询 MPC 会话
+      operationId: get_api_v1_public_mpc_sessions_sessionId
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: sessionId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          $ref: "#/components/responses/Success"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+  /api/v1/public/mpc/ws:
+    get:
+      tags:
+        - MPC
+      summary: 订阅 MPC SSE 事件流
+      operationId: get_api_v1_public_mpc_ws
+      security:
+        - bearerAuth: []
+      parameters: []
+      responses:
+        "200":
+          description: SSE event stream
+          content:
+            text/event-stream:
+              schema:
+                type: string
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+  /api/v1/public/custody/status:
+    get:
+      tags:
+        - Custody
+      summary: 查询通行证和托管状态
+      operationId: get_api_v1_public_custody_status
+      security:
+        - bearerAuth: []
+      parameters: []
+      responses:
+        "200":
+          description: Passkey 绑定和托管记录状态
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CustodyStatusEnvelope"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+  /api/v1/public/custody/secrets:
+    get:
+      tags:
+        - Custody
+      summary: 列出托管记录
+      operationId: get_api_v1_public_custody_secrets
+      security:
+        - bearerAuth: []
+      parameters: []
+      responses:
+        "200":
+          $ref: "#/components/responses/Success"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+    post:
+      tags:
+        - Custody
+      summary: 上传或更新托管密文
+      operationId: post_api_v1_public_custody_secrets
+      security:
+        - bearerAuth: []
+      parameters: []
+      responses:
+        "200":
+          $ref: "#/components/responses/Success"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CustodyUpsertRequest"
+  /api/v1/public/custody/secrets/{walletId}:
+    get:
+      tags:
+        - Custody
+      summary: 获取托管密文
+      operationId: get_api_v1_public_custody_secrets_walletId
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: walletId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          $ref: "#/components/responses/Success"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+    delete:
+      tags:
+        - Custody
+      summary: 删除托管记录
+      operationId: delete_api_v1_public_custody_secrets_walletId
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: walletId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          $ref: "#/components/responses/Success"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+  /api/v1/public/notifications:
+    get:
+      tags:
+        - Notifications
+      summary: 查询通知列表
+      operationId: get_api_v1_public_notifications
+      security:
+        - bearerAuth: []
+      parameters: []
+      responses:
+        "200":
+          $ref: "#/components/responses/Success"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+  /api/v1/public/notifications/unread-count:
+    get:
+      tags:
+        - Notifications
+      summary: 查询未读数量
+      operationId: get_api_v1_public_notifications_unread_count
+      security:
+        - bearerAuth: []
+      parameters: []
+      responses:
+        "200":
+          $ref: "#/components/responses/Success"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+  /api/v1/public/notifications/{uid}/read:
+    post:
+      tags:
+        - Notifications
+      summary: 标记通知已读
+      operationId: post_api_v1_public_notifications_uid_read
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: uid
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          $ref: "#/components/responses/Success"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/JsonObject"
+  /api/v1/public/notifications/read-all:
+    post:
+      tags:
+        - Notifications
+      summary: 标记全部已读
+      operationId: post_api_v1_public_notifications_read_all
+      security:
+        - bearerAuth: []
+      parameters: []
+      responses:
+        "200":
+          $ref: "#/components/responses/Success"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/JsonObject"
+  /api/v1/public/notifications/stream:
+    get:
+      tags:
+        - Notifications
+      summary: 订阅通知 SSE
+      operationId: get_api_v1_public_notifications_stream
+      security:
+        - bearerAuth: []
+      parameters: []
+      responses:
+        "200":
+          description: SSE event stream
+          content:
+            text/event-stream:
+              schema:
+                type: string
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+  /api/v1/public/notifications/{uid}:
+    get:
+      tags:
+        - Notifications
+      summary: 查询通知详情
+      operationId: get_api_v1_public_notifications_uid
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: uid
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          $ref: "#/components/responses/Success"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+  /api/v1/public/notifications/webhooks:
+    get:
+      tags:
+        - Notifications
+      summary: 列出 Webhook
+      operationId: get_api_v1_public_notifications_webhooks
+      security:
+        - bearerAuth: []
+      parameters: []
+      responses:
+        "200":
+          $ref: "#/components/responses/Success"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+    post:
+      tags:
+        - Notifications
+      summary: 创建 Webhook
+      operationId: post_api_v1_public_notifications_webhooks
+      security:
+        - bearerAuth: []
+      parameters: []
+      responses:
+        "200":
+          $ref: "#/components/responses/Success"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/JsonObject"
+  /api/v1/public/notifications/webhooks/{uid}:
+    patch:
+      tags:
+        - Notifications
+      summary: 更新 Webhook
+      operationId: patch_api_v1_public_notifications_webhooks_uid
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: uid
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          $ref: "#/components/responses/Success"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/JsonObject"
+    delete:
+      tags:
+        - Notifications
+      summary: 删除 Webhook
+      operationId: delete_api_v1_public_notifications_webhooks_uid
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: uid
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          $ref: "#/components/responses/Success"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+  /api/v1/public/notifications/webhooks/{uid}/deliveries:
+    get:
+      tags:
+        - Notifications
+      summary: 查询 Webhook 投递
+      operationId: get_api_v1_public_notifications_webhooks_uid_deliveries
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: uid
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          $ref: "#/components/responses/Success"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+  /api/v1/public/notifications/webhooks/{uid}/deliveries/{deliveryUid}/retry:
+    post:
+      tags:
+        - Notifications
+      summary: 重试 Webhook 投递
+      operationId: post_api_v1_public_notifications_webhooks_uid_deliveries_deliveryUid_retry
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: uid
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: deliveryUid
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          $ref: "#/components/responses/Success"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/JsonObject"
+  /api/v1/public/notifications/webhooks/{uid}/replay/{notificationUid}:
+    post:
+      tags:
+        - Notifications
+      summary: 重放通知到 Webhook
+      operationId: post_api_v1_public_notifications_webhooks_uid_replay_notificationUid
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: uid
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: notificationUid
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          $ref: "#/components/responses/Success"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/JsonObject"
+  /api/v1/admin/notifications/{uid}/deliveries:
+    get:
+      tags:
+        - Admin
+      summary: 管理员查询通知投递
+      operationId: get_api_v1_admin_notifications_uid_deliveries
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: uid
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          $ref: "#/components/responses/Success"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+  /api/v1/publisher/releases/submit:
+    post:
+      tags:
+        - Publisher
+      summary: 提交签名发布包
+      operationId: post_api_v1_publisher_releases_submit
+      security:
+        - bearerAuth: []
+      parameters: []
+      responses:
+        "200":
+          $ref: "#/components/responses/Success"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReleaseSubmitRequest"
+  /api/v1/admin/releases/{uid}/approve:
+    post:
+      tags:
+        - Admin
+      summary: 批准发布包
+      operationId: post_api_v1_admin_releases_uid_approve
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: uid
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          $ref: "#/components/responses/Success"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/JsonObject"
+  /api/v1/admin/releases/{uid}/reject:
+    post:
+      tags:
+        - Admin
+      summary: 驳回发布包
+      operationId: post_api_v1_admin_releases_uid_reject
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: uid
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          $ref: "#/components/responses/Success"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/JsonObject"
+  /api/v1/admin/users:
+    get:
+      tags:
+        - Admin
+      summary: 查询用户列表
+      operationId: get_api_v1_admin_users
+      security:
+        - bearerAuth: []
+      parameters: []
+      responses:
+        "200":
+          $ref: "#/components/responses/Success"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+  /api/v1/admin/users/{did}:
+    get:
+      tags:
+        - Admin
+      summary: 查询用户详情
+      operationId: get_api_v1_admin_users_did
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: did
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          $ref: "#/components/responses/Success"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+  /api/v1/admin/users/{did}/role:
+    patch:
+      tags:
+        - Admin
+      summary: 修改用户角色
+      operationId: patch_api_v1_admin_users_did_role
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: did
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          $ref: "#/components/responses/Success"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/JsonObject"
+  /api/v1/admin/users/{did}/status:
+    patch:
+      tags:
+        - Admin
+      summary: 修改用户状态
+      operationId: patch_api_v1_admin_users_did_status
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: did
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          $ref: "#/components/responses/Success"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/JsonObject"
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT or UCAN
+      description: SIWE JWT、钱包签发 UCAN 或中心化签发 UCAN。
+    refreshCookie:
+      type: apiKey
+      in: cookie
+      name: refresh_token
+  schemas:
+    JsonObject:
+      type: object
+      additionalProperties: true
+    Envelope:
+      type: object
+      required:
+        - code
+        - message
+        - data
+        - timestamp
+      properties:
+        code:
+          type: integer
+          examples:
+            - 0
+        message:
+          type: string
+          examples:
+            - ok
+        data: {}
+        timestamp:
+          type: integer
+          format: int64
+    ErrorEnvelope:
+      allOf:
+        - $ref: "#/components/schemas/Envelope"
+        - type: object
+          properties:
+            code:
+              type: integer
+              minimum: 400
+            data:
+              type:
+                - object
+                - "null"
+    SignedActionFields:
+      type: object
+      required:
+        - requestId
+        - timestamp
+        - signature
+      properties:
+        requestId:
+          type: string
+          description: 幂等请求 ID / 签名 nonce。
+        timestamp:
+          oneOf:
+            - type: integer
+            - type: string
+        signature:
+          type: string
+          description: 钱包 personal_sign 签名。
+    AuthChallengeRequest:
+      type: object
+      required:
+        - address
+      properties:
+        address:
+          type: string
+          pattern: ^0x[0-9a-fA-F]{40}$
+    AuthVerifyRequest:
+      type: object
+      required:
+        - address
+        - signature
+      properties:
+        address:
+          type: string
+          pattern: ^0x[0-9a-fA-F]{40}$
+        signature:
+          type: string
+    PassportWalletUnbindConfirmRequest:
+      allOf:
+        - $ref: "#/components/schemas/SignedActionFields"
+        - type: object
+          description: 签名 message 由 /auth/passport/bind/unlink/request 返回，action 固定为 passport_wallet_unbind。
+    PassportPasskeyRegisterRequest:
+      type: object
+      properties:
+        deviceName:
+          type: string
+    PassportPasskeyRegisterConfirmRequest:
+      type: object
+      required:
+        - requestId
+        - credential
+      properties:
+        requestId:
+          type: string
+          description: 注册挑战 requestId。
+        deviceName:
+          type: string
+        credential:
+          type: object
+          additionalProperties: true
+    PassportPasskeyCredentialRevokeRequest:
+      type: object
+      required:
+        - credentialId
+      properties:
+        credentialId:
+          type: string
+    PassportAuthorizeRequest:
+      type: object
+      required:
+        - appId
+        - redirectUri
+        - codeChallenge
+      properties:
+        appId:
+          type: string
+        redirectUri:
+          type: string
+          format: uri
+        state:
+          type: string
+        codeChallenge:
+          type: string
+          minLength: 43
+          maxLength: 128
+        code_challenge:
+          type: string
+          minLength: 43
+          maxLength: 128
+        codeChallengeMethod:
+          type: string
+          enum:
+            - S256
+        code_challenge_method:
+          type: string
+          enum:
+            - S256
+        requestTtlMs:
+          type: integer
+    PassportAuthorizeChallengeRequest:
+      type: object
+      required:
+        - requestId
+      properties:
+        requestId:
+          type: string
+    PassportAuthorizeApproveRequest:
+      type: object
+      required:
+        - requestId
+      properties:
+        requestId:
+          type: string
+        passkeyRequestId:
+          type: string
+          description: 无 Bearer Passkey approve 时必填。
+        challengeId:
+          type: string
+          description: passkeyRequestId 的兼容别名。
+        credential:
+          type: object
+          additionalProperties: true
+        codeTtlMs:
+          type: integer
+    PassportAuthorizeExchangeRequest:
+      type: object
+      required:
+        - code
+        - appId
+        - redirectUri
+        - codeVerifier
+      properties:
+        code:
+          type: string
+        appId:
+          type: string
+        redirectUri:
+          type: string
+          format: uri
+        codeVerifier:
+          type: string
+          minLength: 43
+          maxLength: 128
+        code_verifier:
+          type: string
+          minLength: 43
+          maxLength: 128
+    CustodyStatus:
+      type: object
+      properties:
+        subject:
+          type: string
+        passkeyBound:
+          type: boolean
+        passkeyCount:
+          type: integer
+        enabled:
+          type: boolean
+        recordCount:
+          type: integer
+        records:
+          type: array
+          items:
+            $ref: "#/components/schemas/CustodyRecord"
+    CustodyStatusEnvelope:
+      allOf:
+        - $ref: "#/components/schemas/Envelope"
+        - type: object
+          properties:
+            data:
+              $ref: "#/components/schemas/CustodyStatus"
+    CustodyRecord:
+      type: object
+      required:
+        - walletId
+      properties:
+        walletId:
+          type: string
+        accountId:
+          type: string
+        address:
+          type: string
+        ciphertext:
+          type: string
+          description: 仅详情接口返回的客户端加密密文。
+        metadata:
+          type: object
+          additionalProperties: true
+        createdAt:
+          type: string
+        updatedAt:
+          type: string
+        lastVerifiedAt:
+          type: string
+    CustodyUpsertRequest:
+      type: object
+      required:
+        - walletId
+        - ciphertext
+      properties:
+        walletId:
+          type: string
+        accountId:
+          type: string
+        address:
+          type: string
+        ciphertext:
+          type: string
+          description: 必须在客户端完成加密。
+        metadata:
+          type: object
+          additionalProperties: true
+    MpcSessionCreateRequest:
+      allOf:
+        - $ref: "#/components/schemas/SignedActionFields"
+        - type: object
+          required:
+            - type
+            - walletId
+            - threshold
+            - participants
+          properties:
+            id:
+              type: string
+            type:
+              type: string
+            walletId:
+              type: string
+            threshold:
+              type: integer
+              minimum: 1
+            participants:
+              type: array
+              items:
+                type: string
+            curve:
+              type: string
+            expiresAt:
+              type: string
+            keyVersion:
+              type: integer
+            shareVersion:
+              type: integer
+    MpcJoinRequest:
+      allOf:
+        - $ref: "#/components/schemas/SignedActionFields"
+        - type: object
+          required:
+            - participantId
+            - deviceId
+            - identity
+            - e2ePublicKey
+          properties:
+            participantId:
+              type: string
+            deviceId:
+              type: string
+            identity:
+              type: string
+            e2ePublicKey:
+              type: string
+            signingPublicKey:
+              type: string
+    ReleaseSubmitRequest:
+      type: object
+      required:
+        - publisher_key_id
+        - files
+      properties:
+        publisher_key_id:
+          type: string
+        files:
+          type: object
+          additionalProperties:
+            type: string
+          description: 文件路径到文本内容的映射。
+  responses:
+    Success:
+      description: 统一成功响应
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Envelope"
+    BadRequest:
+      description: 请求参数或签名错误
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorEnvelope"
+    Unauthorized:
+      description: 缺少或无效的 JWT/UCAN/Agent token
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorEnvelope"
+    Forbidden:
+      description: 角色、状态、capability 或资源权限不足
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorEnvelope"
+    Conflict:
+      description: 幂等冲突、状态冲突或租约冲突
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorEnvelope"

@@ -4,228 +4,101 @@
       <el-breadcrumb-item>{{ mt('breadcrumb') }}</el-breadcrumb-item>
     </el-breadcrumb>
 
-    <div class="page-head">
-      <div>
-        <div class="page-title">{{ mt('pageTitle') }}</div>
-        <div class="page-subtitle">{{ mt('pageSubtitle') }}</div>
-      </div>
-      <div class="head-actions">
-        <el-button @click="refreshStatuses">{{ mt('refreshStatus') }}</el-button>
-      </div>
-    </div>
-
-    <div class="shared-test-panel">
-      <div class="section-heading">{{ mt('testAppTitle') }}</div>
-      <div class="panel-card">
-        <div class="totp-head">
-          <div>
-            <div class="totp-title">{{ mt('testAppTitle') }}</div>
-            <div class="section-hint">{{ mt('testAppHint') }}</div>
-          </div>
-          <div class="status-actions">
-            <el-button @click="loadOwnedApplications">{{ mt('refreshApps') }}</el-button>
-            <el-button v-if="!ownedApplications.length" type="primary" plain @click="goPublishApp">
-              {{ mt('goPublishApp') }}
-            </el-button>
-          </div>
-        </div>
-        <el-form label-position="top" class="config-form">
-          <div class="grid-two">
-            <el-form-item class="full" :label="mt('selectApp')">
-              <el-select v-model="form.selectedAppUid" class="full-select" :placeholder="mt('selectAppPlaceholder')">
-                <el-option
-                  v-for="app in ownedApplications"
-                  :key="app.uid"
-                  :label="`${app.name || app.uid} (${app.uid})`"
-                  :value="String(app.uid || '')"
-                />
-              </el-select>
-              <div v-if="selectedApplication" class="selected-app-meta">
-                <div class="meta-chip">{{ selectedApplication.name || selectedApplication.uid }}</div>
-                <div class="meta-chip mono-chip">{{ selectedRedirectUri }}</div>
-              </div>
-              <div v-if="!ownedApplications.length" class="empty-text inline-empty">{{ mt('noPublishedApps') }}</div>
-            </el-form-item>
-            <el-form-item :label="mt('address')">
-              <el-input :model-value="currentAccount || '-'" readonly />
-            </el-form-item>
-            <el-form-item :label="mt('redirectUri')">
-              <el-input :model-value="selectedRedirectUri || '-'" readonly />
-            </el-form-item>
-            <el-form-item :label="mt('state')">
-              <el-input v-model="form.state" :placeholder="mt('optional')" />
-            </el-form-item>
-            <el-form-item :label="mt('requestTtlMs')">
-              <el-input-number v-model="form.requestTtlMs" :min="60000" :step="30000" />
-            </el-form-item>
-          </div>
-        </el-form>
-      </div>
-    </div>
-
     <el-tabs v-model="authTab" class="page-tabs">
       <el-tab-pane :label="mt('passkeyTab')" name="passkey">
-        <div class="method-section">
-          <div class="section-heading">{{ mt('configSection') }}</div>
-          <div class="primary-grid single-column-grid">
-            <div class="totp-card passkey-card">
-              <div class="totp-head">
-                <div>
-                  <div class="totp-title">{{ mt('passkeyConfigTitle') }}</div>
-                  <div class="section-hint">{{ mt('passkeyManageHint') }}</div>
+        <div class="method-section passkey-dashboard">
+          <div class="passport-main-card">
+            <div class="passport-card-head">
+              <div>
+                <div class="passport-title-row">
+                  <span>{{ mt('passkeyListTitle') }}</span>
+                  <el-tag :type="passkeyStatus?.enabled ? 'success' : 'info'" effect="light">
+                    {{ passkeyStatus ? (passkeyStatus.enabled ? mt('enabled') : mt('disabled')) : '-' }}
+                  </el-tag>
+                  <el-tag :type="passkeyStatus?.ready ? 'success' : 'warning'" effect="light">
+                    {{ passkeyStatus ? (passkeyStatus.ready ? mt('ready') : mt('notReady')) : '-' }}
+                  </el-tag>
                 </div>
-                <div class="status-badges">
-                  <div class="status-badge">
-                    <el-tag :type="passkeyStatus?.enabled ? 'success' : 'info'" effect="light">
-                      {{ passkeyStatus ? (passkeyStatus.enabled ? mt('enabled') : mt('disabled')) : '-' }}
-                    </el-tag>
-                  </div>
-                  <div class="status-badge">
-                    <el-tag :type="passkeyStatus?.ready ? 'success' : 'warning'" effect="light">
-                      {{ passkeyStatus ? (passkeyStatus.ready ? mt('ready') : mt('notReady')) : '-' }}
-                    </el-tag>
-                  </div>
-                </div>
+                <div class="section-hint">{{ mt('passkeyManageHint') }}</div>
               </div>
-              <div v-if="passkeyStatus?.error" class="status-error compact-error">{{ mt('errorPrefix') }}{{ passkeyStatus.error }}</div>
-              <div class="passkey-actions">
-                <div class="field-line">
-                  <span class="label">{{ mt('deviceName') }}</span>
-                  <el-input v-model="passkeyDeviceName" :placeholder="mt('devicePlaceholder')" />
-                  <el-button :disabled="!passkeyStatus?.enabled || !passkeyStatus?.ready" @click="loadPasskeyCredentials">{{ mt('refreshCredentials') }}</el-button>
+              <div class="passport-head-actions">
+                <el-button :disabled="!passkeyStatus?.enabled || !passkeyStatus?.ready" @click="loadPasskeyCredentials">{{ mt('refreshCredentials') }}</el-button>
+                <el-button @click="goPasskeyTestHistory">{{ mt('testHistory') }}</el-button>
+                <el-button :disabled="!passkeyStatus?.enabled || !passkeyStatus?.ready" type="success" plain @click="openPasskeyTestDialog">
+                  {{ mt('testPasskey') }}
+                </el-button>
+                <el-button :disabled="!passkeyStatus?.enabled || !passkeyStatus?.ready" type="primary" @click="registerPasskey">
+                  {{ mt('registerPasskey') }}
+                </el-button>
+              </div>
+            </div>
+
+            <div v-if="passkeyStatus?.error" class="status-error compact-error">{{ mt('errorPrefix') }}{{ passkeyStatus.error }}</div>
+
+            <div class="passport-summary-grid">
+              <div class="summary-metric">
+                <span class="summary-label">{{ mt('activeCredentials') }}</span>
+                <strong>{{ activePasskeyCount }}</strong>
+              </div>
+              <div class="summary-metric">
+                <span class="summary-label">{{ mt('revokedCredentials') }}</span>
+                <strong>{{ revokedPasskeyCount }}</strong>
+              </div>
+              <div class="summary-identity">
+                <span class="summary-label">{{ mt('subjectId') }}</span>
+                <span class="path-text">{{ passportPasskeyBinding?.subjectId || '-' }}</span>
+              </div>
+              <div class="summary-identity">
+                <span class="summary-label">{{ mt('walletAddress') }}</span>
+                <span class="path-text">{{ passportPasskeyBinding?.walletAddress || currentAccount || '-' }}</span>
+              </div>
+            </div>
+
+            <div class="register-inline">
+              <span class="label">{{ mt('deviceName') }}</span>
+              <el-input v-model="passkeyDeviceName" :placeholder="mt('devicePlaceholder')" />
+            </div>
+
+            <div class="credential-grid">
+              <div v-if="!passkeyCredentials.length" class="credential-empty compact-empty">
+                {{ mt('noPasskeyCredentials') }}
+              </div>
+              <div v-for="credential in passkeyCredentials" :key="credential.credentialId" class="credential-card">
+                <div class="credential-card-head">
+                  <div>
+                    <div class="credential-name">{{ credential.deviceName || mt('defaultCredential') }}</div>
+                    <div class="credential-created">{{ credential.createdAt || '-' }}</div>
+                  </div>
+                  <el-tag :type="credential.revokedAt ? 'info' : 'success'" effect="light">
+                    {{ credential.revokedAt ? mt('revoked') : mt('valid') }}
+                  </el-tag>
+                </div>
+                <div class="credential-detail path-text">{{ credential.credentialId }}</div>
+                <div class="credential-meta-row">
+                  <span>{{ mt('transports') }}</span>
+                  <span>{{ credential.transports?.join(', ') || '-' }}</span>
+                </div>
+                <div v-if="credential.revokedAt" class="credential-meta-row warning-row">
+                  <span>{{ mt('revokedAt') }}</span>
+                  <span>{{ credential.revokedAt }}</span>
+                </div>
+                <div class="credential-actions">
+                  <el-button size="small" @click="copyText(credential.credentialId, mt('credentialId'))">{{ mt('copyId') }}</el-button>
                   <el-button
-                    :disabled="!passkeyStatus?.enabled || !passkeyStatus?.ready"
-                    type="primary"
-                    @click="registerPasskey"
+                    :disabled="Boolean(credential.revokedAt)"
+                    size="small"
+                    type="danger"
+                    plain
+                    @click="revokePasskeyCredentialAction(credential.credentialId)"
                   >
-                    {{ mt('registerPasskey') }}
+                    {{ mt('revoke') }}
                   </el-button>
                 </div>
               </div>
-              <div class="passkey-list">
-                <div v-if="!passkeyCredentials.length" class="empty-text">{{ mt('noPasskeyCredentials') }}</div>
-                <div v-for="credential in passkeyCredentials" :key="credential.credentialId" class="flow-step">
-                  <div class="credential-head">
-                    <div class="credential-name">{{ credential.deviceName || mt('defaultCredential') }}</div>
-                    <el-tag :type="credential.revokedAt ? 'info' : 'success'" effect="light">
-                      {{ credential.revokedAt ? mt('revoked') : mt('valid') }}
-                    </el-tag>
-                  </div>
-                  <div class="status-list compact-list">
-                    <div class="status-item">
-                      <span class="status-label">{{ mt('credentialId') }}</span>
-                      <span class="status-value path-text">{{ credential.credentialId }}</span>
-                    </div>
-                    <div class="status-item">
-                      <span class="status-label">{{ mt('transports') }}</span>
-                      <span class="status-value">{{ credential.transports?.join(', ') || '-' }}</span>
-                    </div>
-                    <div class="status-item">
-                      <span class="status-label">{{ mt('createdAt') }}</span>
-                      <span class="status-value">{{ credential.createdAt || '-' }}</span>
-                    </div>
-                    <div v-if="credential.revokedAt" class="status-item">
-                      <span class="status-label">{{ mt('revokedAt') }}</span>
-                      <span class="status-value">{{ credential.revokedAt }}</span>
-                    </div>
-                  </div>
-                  <div class="actions">
-                    <el-button
-                      :disabled="Boolean(credential.revokedAt)"
-                      type="danger"
-                      plain
-                      @click="revokePasskeyCredentialAction(credential.credentialId)"
-                    >
-                      {{ mt('revoke') }}
-                    </el-button>
-                    <el-button @click="copyText(credential.credentialId, mt('credentialId'))">{{ mt('copyId') }}</el-button>
-                  </div>
-                </div>
-              </div>
             </div>
           </div>
         </div>
 
-        <div class="method-section">
-          <div class="section-heading">{{ mt('testSection') }}</div>
-          <div class="debug-hint">{{ mt('passkeyTestHint') }}</div>
-          <div class="panel-card">
-            <div class="flow-step">
-              <div class="step-title"><span class="step-dot">P1</span>{{ mt('stepPasskeyCreateRequest') }}</div>
-              <div class="line">
-                <span class="label">{{ mt('requestId') }}</span>
-                <el-input v-model="passkeyRequestIdInput" :placeholder="mt('requestIdPlaceholder')" />
-                <el-button :disabled="!passkeyStatus?.enabled || !passkeyStatus?.ready || !selectedApplication" @click="createPasskeyAuthorizeRequestAction">{{ mt('create') }}</el-button>
-                <el-button :disabled="!passkeyStatus?.enabled || !passkeyStatus?.ready" @click="queryPasskeyAuthorizeRequest">{{ mt('query') }}</el-button>
-              </div>
-            </div>
-
-            <div class="flow-step">
-              <div class="step-title"><span class="step-dot">P2</span>{{ mt('stepPasskeyApprove') }}</div>
-              <div class="line">
-                <span class="label">{{ mt('passkeyChallenge') }}</span>
-                <el-input :model-value="passkeyAuthChallenge?.passkeyRequest?.requestId || ''" readonly :placeholder="mt('passkeyChallengePlaceholder')" />
-                <el-button
-                  :disabled="!passkeyStatus?.enabled || !passkeyStatus?.ready"
-                  type="success"
-                  @click="approveAuthorizeRequestWithPasskey"
-                >
-                  {{ mt('triggerSignature') }}
-                </el-button>
-              </div>
-            </div>
-
-            <div class="flow-step">
-              <div class="step-title"><span class="step-dot">P3</span>{{ mt('stepPasskeyExchange') }}</div>
-              <div class="line">
-                <span class="label">{{ mt('authCode') }}</span>
-                <el-input v-model="passkeyAuthCodeInput" :placeholder="mt('authCodePlaceholder')" />
-                <el-button
-                  :disabled="!passkeyStatus?.enabled || !passkeyStatus?.ready"
-                  type="warning"
-                  @click="exchangePasskeyAuthorizeCode"
-                >
-                  {{ mt('exchangeToken') }}
-                </el-button>
-              </div>
-            </div>
-
-            <div class="flow-step">
-              <div class="step-title"><span class="step-dot">P4</span>{{ mt('stepPasskeyLinks') }}</div>
-              <div class="line">
-                <span class="label">{{ mt('redirectTo') }}</span>
-                <el-input :model-value="passkeyApproveResult?.redirectTo || ''" readonly />
-                <el-button @click="openLink(passkeyApproveResult?.redirectTo || '')">{{ mt('open') }}</el-button>
-                <el-button @click="copyText(passkeyApproveResult?.redirectTo || '', mt('redirectTo'))">{{ mt('copy') }}</el-button>
-              </div>
-            </div>
-          </div>
-
-          <div class="panel-card">
-            <div class="totp-head">
-              <div class="totp-title">{{ mt('testResultTitle') }}</div>
-            </div>
-            <div class="flow-step">
-              <div class="line">
-                <span class="label">{{ mt('jwtToken') }}</span>
-                <el-input :model-value="passkeyExchangeResult?.token || ''" readonly />
-                <el-button @click="copyText(passkeyExchangeResult?.token || '', mt('jwtToken'))">{{ mt('copy') }}</el-button>
-                <el-button @click="verifyPasskeyProfileWithJwt">{{ mt('verify') }}</el-button>
-              </div>
-            </div>
-            <div class="flow-step">
-              <div class="line">
-                <span class="label">{{ mt('ucanToken') }}</span>
-                <el-input :model-value="passkeyExchangeResult?.ucan || ''" readonly />
-                <el-button @click="copyText(passkeyExchangeResult?.ucan || '', mt('ucanToken'))">{{ mt('copy') }}</el-button>
-                <el-button @click="verifyPasskeyProfileWithUcan">{{ mt('verify') }}</el-button>
-              </div>
-            </div>
-            <div class="result-json">
-              <pre>{{ prettyPasskeyResult }}</pre>
-            </div>
-          </div>
-        </div>
       </el-tab-pane>
 
       <el-tab-pane :label="mt('totpTab')" name="totp">
@@ -370,6 +243,113 @@
         </div>
       </el-tab-pane>
     </el-tabs>
+
+    <el-dialog v-model="passkeyTestDialogVisible" :title="mt('testPasskeyDialogTitle')" width="760px" class="passkey-test-dialog">
+      <div class="dialog-test-layout">
+        <div class="panel-card compact-test-card">
+          <div class="totp-head">
+            <div>
+              <div class="totp-title">{{ mt('testAppTitle') }}</div>
+              <div class="section-hint">{{ mt('testAppHint') }}</div>
+            </div>
+            <div class="status-actions">
+              <el-button @click="loadOwnedApplications">{{ mt('refreshApps') }}</el-button>
+              <el-button v-if="!ownedApplications.length" type="primary" plain @click="goPublishApp">
+                {{ mt('goPublishApp') }}
+              </el-button>
+            </div>
+          </div>
+          <el-form label-position="top" class="config-form compact-config-form">
+            <div class="grid-two">
+              <el-form-item class="full" :label="mt('selectApp')">
+                <el-select v-model="form.selectedAppUid" class="full-select" :placeholder="mt('selectAppPlaceholder')">
+                  <el-option
+                    v-for="app in ownedApplications"
+                    :key="app.uid"
+                    :label="`${app.name || app.uid} (${app.uid})`"
+                    :value="String(app.uid || '')"
+                  />
+                </el-select>
+                <div v-if="selectedApplication" class="selected-app-meta">
+                  <div class="meta-chip">{{ selectedApplication.name || selectedApplication.uid }}</div>
+                  <div class="meta-chip mono-chip">{{ selectedRedirectUri }}</div>
+                </div>
+                <div v-if="!ownedApplications.length" class="empty-text inline-empty">{{ mt('noPublishedApps') }}</div>
+              </el-form-item>
+              <el-form-item :label="mt('state')">
+                <el-input v-model="form.state" :placeholder="mt('optional')" />
+              </el-form-item>
+              <el-form-item :label="mt('requestTtlMs')">
+                <el-input-number v-model="form.requestTtlMs" :min="60000" :step="30000" />
+              </el-form-item>
+            </div>
+          </el-form>
+        </div>
+
+        <div class="test-step-list">
+          <div class="flow-step compact-flow-step" :class="{ current: passkeyTestStep === 0 }">
+            <div class="step-title"><span class="step-dot">1</span>{{ mt('stepPasskeyCreateRequest') }}</div>
+            <div class="line">
+              <span class="label">{{ mt('requestId') }}</span>
+              <el-input v-model="passkeyRequestIdInput" :placeholder="mt('requestIdPlaceholder')" />
+              <el-button :disabled="!passkeyStatus?.enabled || !passkeyStatus?.ready || !selectedApplication" type="primary" @click="runPasskeyTestCreateRequest">{{ mt('create') }}</el-button>
+              <el-button :disabled="!passkeyStatus?.enabled || !passkeyStatus?.ready" @click="queryPasskeyAuthorizeRequest">{{ mt('query') }}</el-button>
+            </div>
+          </div>
+
+          <div class="flow-step compact-flow-step" :class="{ current: passkeyTestStep === 1 }">
+            <div class="step-title"><span class="step-dot">2</span>{{ mt('stepPasskeyApprove') }}</div>
+            <div class="line">
+              <span class="label">{{ mt('passkeyChallenge') }}</span>
+              <el-input :model-value="passkeyAuthChallenge?.passkeyRequest?.requestId || ''" readonly :placeholder="mt('passkeyChallengePlaceholder')" />
+              <el-button :disabled="!passkeyStatus?.enabled || !passkeyStatus?.ready" type="success" @click="runPasskeyTestApprove">
+                {{ mt('triggerSignature') }}
+              </el-button>
+            </div>
+          </div>
+
+          <div class="flow-step compact-flow-step" :class="{ current: passkeyTestStep === 2 }">
+            <div class="step-title"><span class="step-dot">3</span>{{ mt('stepPasskeyExchange') }}</div>
+            <div class="line">
+              <span class="label">{{ mt('authCode') }}</span>
+              <el-input v-model="passkeyAuthCodeInput" :placeholder="mt('authCodePlaceholder')" />
+              <el-button :disabled="!passkeyStatus?.enabled || !passkeyStatus?.ready" type="warning" @click="runPasskeyTestExchange">
+                {{ mt('exchangeToken') }}
+              </el-button>
+            </div>
+          </div>
+
+          <div class="flow-step compact-flow-step" :class="{ current: passkeyTestStep === 3 }">
+            <div class="step-title"><span class="step-dot">4</span>{{ mt('testResultTitle') }}</div>
+            <div class="result-summary-grid">
+              <div>
+                <span>{{ mt('subjectId') }}</span>
+                <strong>{{ passkeyExchangeResult?.subjectId || '-' }}</strong>
+              </div>
+              <div>
+                <span>{{ mt('walletAddress') }}</span>
+                <strong>{{ passkeyExchangeResult?.walletAddress || '-' }}</strong>
+              </div>
+              <div>
+                <span>{{ mt('appId') }}</span>
+                <strong>{{ passkeyExchangeResult?.appId || '-' }}</strong>
+              </div>
+              <div>
+                <span>{{ mt('redirectUri') }}</span>
+                <strong>{{ passkeyExchangeResult?.redirectUri || '-' }}</strong>
+              </div>
+            </div>
+            <div class="result-json compact-result-json">
+              <pre>{{ prettyPasskeyResult }}</pre>
+            </div>
+          </div>
+        </div>
+      </div>
+      <template #footer>
+        <el-button @click="goPasskeyTestHistory">{{ mt('testHistory') }}</el-button>
+        <el-button type="primary" @click="passkeyTestDialogVisible = false">{{ mt('close') }}</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -429,7 +409,8 @@ type PasskeyStatus = {
 
 type PasskeyCredentialRecord = {
   credentialId: string;
-  subject: string;
+  subjectId?: string;
+  walletAddress?: string;
   deviceName?: string;
   transports?: string[];
   createdAt: string;
@@ -437,7 +418,13 @@ type PasskeyCredentialRecord = {
   revokedAt?: string;
 };
 
-type PasskeyRegisterRequestResult = {
+type PassportPasskeyCredentialListResult = {
+  subjectId: string;
+  walletAddress: string;
+  credentials: PasskeyCredentialRecord[];
+};
+
+type PasskeyRegisterOptions = {
   requestId: string;
   challenge: string;
   rp: {
@@ -464,12 +451,18 @@ type PasskeyRegisterRequestResult = {
   };
 };
 
+type PasskeyRegisterRequestResult = {
+  subjectId: string;
+  walletAddress: string;
+  passkeyRequest: PasskeyRegisterOptions;
+};
+
 type PasskeyAuthorizeChallengeRequest = {
   requestId: string;
   challenge: string;
   timeout: number;
   rpId: string;
-  allowCredentials: Array<{
+  allowCredentials?: Array<{
     id: string;
     type: 'public-key';
     transports?: string[];
@@ -492,44 +485,50 @@ type UcanCapability = {
 type AuthorizeRequestResult = {
   requestId: string;
   status: string;
-  subject: string;
-  subjectHint: string;
+  subject?: string;
+  subjectId?: string;
+  subjectHint?: string;
+  walletAddress?: string;
   appId: string;
   redirectUri: string;
   state?: string;
-  audience: string;
-  capabilities: UcanCapability[];
+  audience?: string;
+  capabilities?: UcanCapability[];
   appName: string;
-  createdAt: number;
-  expiresAt: number;
-  verifyUrl: string;
+  createdAt: number | string;
+  expiresAt: number | string;
+  verifyUrl?: string;
 };
 
 type AuthorizeApproveResult = {
   requestId: string;
-  appName: string;
-  approvedAt: number;
+  appName?: string;
+  subjectId?: string;
+  walletAddress?: string;
+  approvedAt?: number | string;
   authorizationCode: string;
-  authorizationCodeExpiresAt: number;
+  authorizationCodeExpiresAt: number | string;
   redirectTo: string;
 };
 
 type AuthorizeExchangeResult = {
   requestId: string;
-  subject: string;
+  subject?: string;
+  subjectId?: string;
+  walletAddress?: string;
   appId: string;
   redirectUri: string;
   state?: string;
-  token: string;
-  expiresAt: number;
-  refreshExpiresAt: number;
-  ucan: string;
-  issuer: string;
-  audience: string;
-  capabilities: UcanCapability[];
-  notBefore: number;
-  ucanExpiresAt: number;
-  issuedAt: number;
+  token?: string;
+  expiresAt?: number;
+  refreshExpiresAt?: number;
+  ucan?: string;
+  issuer?: string;
+  audience?: string;
+  capabilities?: UcanCapability[];
+  notBefore?: number;
+  ucanExpiresAt?: number;
+  issuedAt: number | string;
 };
 
 type ProfileResult = {
@@ -545,6 +544,18 @@ type ConfigForm = {
   state: string;
   requestTtlMs: number;
 };
+
+type PasskeyTestHistoryRecord = {
+  id: string;
+  action: string;
+  status: 'success' | 'failed';
+  createdAt: string;
+  appId?: string;
+  requestId?: string;
+  subjectId?: string;
+  walletAddress?: string;
+  detail: Record<string, unknown>;
+};
 const locale = getLocaleRef();
 const router = useRouter();
 const route = useRoute();
@@ -553,13 +564,18 @@ function mt(key: MyConfigMessageKey): string {
   return getMyConfigMessage(locale.value, key);
 }
 
+const PASSKEY_TEST_HISTORY_KEY = 'passport:passkey:test-history';
+
 const authTab = ref('passkey');
+const passkeyTestDialogVisible = ref(false);
+const passkeyTestStep = ref(0);
 const currentAccount = ref('');
 const ownedApplications = ref<ApplicationMetadata[]>([]);
 const totpStatus = ref<TotpStatus | null>(null);
 const totpProvision = ref<TotpProvision | null>(null);
 const totpQrDataUrl = ref('');
 const passkeyStatus = ref<PasskeyStatus | null>(null);
+const passportPasskeyBinding = ref<PassportPasskeyCredentialListResult | null>(null);
 const passkeyCredentials = ref<PasskeyCredentialRecord[]>([]);
 const passkeyDeviceName = ref('');
 const passkeyRequestResult = ref<AuthorizeRequestResult | null>(null);
@@ -569,6 +585,7 @@ const passkeyProfileResult = ref<ProfileResult | null>(null);
 const passkeyAuthChallenge = ref<PasskeyAuthorizeChallengeResponse | null>(null);
 const passkeyRequestIdInput = ref('');
 const passkeyAuthCodeInput = ref('');
+const passkeyCodeVerifier = ref('');
 const requestResult = ref<AuthorizeRequestResult | null>(null);
 const approveResult = ref<AuthorizeApproveResult | null>(null);
 const exchangeResult = ref<AuthorizeExchangeResult | null>(null);
@@ -595,6 +612,14 @@ const selectedRedirectUri = computed(() => {
   const redirectUris = selectedApplication.value?.redirectUris || [];
   return String(redirectUris[0] || '').trim();
 });
+
+const activePasskeyCount = computed(() =>
+  passkeyCredentials.value.filter((item) => !String(item.revokedAt || '').trim()).length
+);
+
+const revokedPasskeyCount = computed(() =>
+  passkeyCredentials.value.filter((item) => Boolean(String(item.revokedAt || '').trim())).length
+);
 
 async function parseEnvelope<T>(response: Response, fallbackMessage: string): Promise<T> {
   const text = await response.text();
@@ -691,6 +716,22 @@ function arrayBufferToBase64Url(input: ArrayBufferLike): string {
   return window.btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '');
 }
 
+function randomBase64Url(byteLength: number): string {
+  const bytes = new Uint8Array(byteLength);
+  window.crypto.getRandomValues(bytes);
+  return arrayBufferToBase64Url(bytes.buffer);
+}
+
+async function createPkcePair() {
+  const verifier = randomBase64Url(32);
+  const data = new TextEncoder().encode(verifier);
+  const digest = await window.crypto.subtle.digest('SHA-256', data);
+  return {
+    verifier,
+    challenge: arrayBufferToBase64Url(digest),
+  };
+}
+
 function ensurePasskeySupported() {
   if (
     typeof window === 'undefined' ||
@@ -767,10 +808,11 @@ async function loadTotpStatus() {
 
 async function loadPasskeyStatus() {
   try {
-    passkeyStatus.value = await getJson<PasskeyStatus>(
-      '/api/v1/public/auth/passkey/status',
+    const status = await getJson<{ passkey: PasskeyStatus }>(
+      '/api/v1/public/auth/passport/status',
       mt('loadPasskeyStatusFailed')
     );
+    passkeyStatus.value = status.passkey;
   } catch (error) {
     notifyError(String(error));
   }
@@ -823,10 +865,12 @@ async function loadTotpProvision() {
 async function loadPasskeyCredentials() {
   try {
     ensurePasskeyReady();
-    passkeyCredentials.value = await getAuthJson<PasskeyCredentialRecord[]>(
-      '/api/v1/public/auth/passkey/credentials',
+    const result = await getAuthJson<PassportPasskeyCredentialListResult>(
+      '/api/v1/public/auth/passport/passkey/credentials',
       mt('loadPasskeyCredentialsFailed')
     );
+    passportPasskeyBinding.value = result;
+    passkeyCredentials.value = result.credentials || [];
   } catch (error) {
     notifyError(String(error));
   }
@@ -837,30 +881,31 @@ async function registerPasskey() {
     ensurePasskeyReady();
     ensurePasskeySupported();
     const request = await postAuthJson<PasskeyRegisterRequestResult>(
-      '/api/v1/public/auth/passkey/register/request',
+      '/api/v1/public/auth/passport/passkey/register/request',
       {
         deviceName: String(passkeyDeviceName.value || '').trim() || undefined,
       },
       mt('createPasskeyRegisterFailed')
     );
 
+    const passkeyRequest = request.passkeyRequest;
     const publicKey: PublicKeyCredentialCreationOptions = {
-      challenge: base64UrlToUint8Array(request.challenge),
-      rp: request.rp,
+      challenge: base64UrlToUint8Array(passkeyRequest.challenge),
+      rp: passkeyRequest.rp,
       user: {
-        id: base64UrlToUint8Array(request.user.id),
-        name: request.user.name,
-        displayName: request.user.displayName,
+        id: base64UrlToUint8Array(passkeyRequest.user.id),
+        name: passkeyRequest.user.name,
+        displayName: passkeyRequest.user.displayName,
       },
-      pubKeyCredParams: request.pubKeyCredParams,
-      timeout: request.timeout,
-      attestation: request.attestation,
-      excludeCredentials: (request.excludeCredentials || []).map((item) => ({
+      pubKeyCredParams: passkeyRequest.pubKeyCredParams,
+      timeout: passkeyRequest.timeout,
+      attestation: passkeyRequest.attestation,
+      excludeCredentials: (passkeyRequest.excludeCredentials || []).map((item) => ({
         id: base64UrlToUint8Array(item.id),
         type: item.type,
         transports: item.transports as AuthenticatorTransport[] | undefined,
       })),
-      authenticatorSelection: request.authenticatorSelection,
+      authenticatorSelection: passkeyRequest.authenticatorSelection,
     };
 
     const credential = (await navigator.credentials.create({
@@ -880,9 +925,9 @@ async function registerPasskey() {
       typeof response.getTransports === 'function' ? response.getTransports() : undefined;
 
     await postAuthJson<PasskeyCredentialRecord>(
-      '/api/v1/public/auth/passkey/register/confirm',
+      '/api/v1/public/auth/passport/passkey/register/confirm',
       {
-        requestId: request.requestId,
+        requestId: request.passkeyRequest.requestId,
         deviceName: String(passkeyDeviceName.value || '').trim() || undefined,
         credential: {
           id: credential.id,
@@ -906,19 +951,88 @@ async function registerPasskey() {
   }
 }
 
-async function createPasskeyAuthorizeRequestAction() {
+function buildPasskeyTestDetail(): Record<string, unknown> {
+  return {
+    selectedApp: selectedApplication.value
+      ? {
+          uid: selectedApplication.value.uid,
+          name: selectedApplication.value.name,
+          redirectUri: selectedRedirectUri.value,
+        }
+      : null,
+    passkeyStatus: passkeyStatus.value,
+    passportBinding: passportPasskeyBinding.value,
+    passkeyRequest: passkeyRequestResult.value,
+    passkeyChallenge: passkeyAuthChallenge.value,
+    passkeyApprove: passkeyApproveResult.value,
+    passkeyExchange: passkeyExchangeResult.value,
+    passkeyProfile: passkeyProfileResult.value,
+  };
+}
+
+function savePasskeyTestHistory(action: string, status: 'success' | 'failed') {
+  const record: PasskeyTestHistoryRecord = {
+    id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
+    action,
+    status,
+    createdAt: new Date().toISOString(),
+    appId: String(selectedApplication.value?.uid || ''),
+    requestId: String(passkeyRequestIdInput.value || passkeyRequestResult.value?.requestId || ''),
+    subjectId: String(passkeyExchangeResult.value?.subjectId || passportPasskeyBinding.value?.subjectId || ''),
+    walletAddress: String(passkeyExchangeResult.value?.walletAddress || passportPasskeyBinding.value?.walletAddress || currentAccount.value || ''),
+    detail: buildPasskeyTestDetail(),
+  };
+  try {
+    const parsed = JSON.parse(localStorage.getItem(PASSKEY_TEST_HISTORY_KEY) || '[]');
+    const list = Array.isArray(parsed) ? parsed : [];
+    localStorage.setItem(PASSKEY_TEST_HISTORY_KEY, JSON.stringify([record, ...list].slice(0, 50)));
+  } catch {
+    // ignore local storage failure
+  }
+}
+
+function openPasskeyTestDialog() {
+  passkeyTestDialogVisible.value = true;
+  passkeyTestStep.value = passkeyExchangeResult.value ? 3 : passkeyApproveResult.value ? 2 : passkeyRequestResult.value ? 1 : 0;
+}
+
+function goPasskeyTestHistory() {
+  router.push('/market/dev/my-config/passkey-history').catch(() => undefined);
+}
+
+async function runPasskeyTestCreateRequest() {
+  const ok = await createPasskeyAuthorizeRequestAction();
+  savePasskeyTestHistory('create_request', ok ? 'success' : 'failed');
+  if (ok) passkeyTestStep.value = 1;
+}
+
+async function runPasskeyTestApprove() {
+  const ok = await approveAuthorizeRequestWithPasskey();
+  savePasskeyTestHistory('approve_passkey', ok ? 'success' : 'failed');
+  if (ok) passkeyTestStep.value = 2;
+}
+
+async function runPasskeyTestExchange() {
+  const ok = await exchangePasskeyAuthorizeCode();
+  savePasskeyTestHistory('exchange_code', ok ? 'success' : 'failed');
+  if (ok) passkeyTestStep.value = 3;
+}
+
+async function createPasskeyAuthorizeRequestAction(): Promise<boolean> {
   try {
     ensurePasskeyReady();
     ensurePasskeySupported();
-    const address = ensureAddress();
     const { appId, redirectUri } = ensureAppConfig();
+    const pkce = await createPkcePair();
+    passkeyCodeVerifier.value = pkce.verifier;
     const result = await postJson<AuthorizeRequestResult>(
-      '/api/v1/public/auth/passkey/authorize/request',
+      '/api/v1/public/auth/passport/authorize/request',
       {
-        address,
         appId,
         redirectUri,
         state: form.state || undefined,
+        codeChallenge: pkce.challenge,
+        codeChallengeMethod: 'S256',
         requestTtlMs: form.requestTtlMs,
       },
       mt('createPasskeyAuthorizeRequestFailed')
@@ -930,8 +1044,10 @@ async function createPasskeyAuthorizeRequestAction() {
     passkeyProfileResult.value = null;
     passkeyAuthChallenge.value = null;
     notifySuccess(mt('passkeyAuthorizeRequestCreated'));
+    return true;
   } catch (error) {
     notifyError(String(error));
+    return false;
   }
 }
 
@@ -944,7 +1060,7 @@ async function queryPasskeyAuthorizeRequest() {
       return;
     }
     const result = await getJson<AuthorizeRequestResult>(
-      `/api/v1/public/auth/passkey/authorize/request/${encodeURIComponent(requestId)}`,
+      `/api/v1/public/auth/passport/authorize/request/${encodeURIComponent(requestId)}`,
       mt('queryPasskeyAuthorizeRequestFailed')
     );
     passkeyRequestResult.value = result;
@@ -954,18 +1070,18 @@ async function queryPasskeyAuthorizeRequest() {
   }
 }
 
-async function approveAuthorizeRequestWithPasskey() {
+async function approveAuthorizeRequestWithPasskey(): Promise<boolean> {
   try {
     ensurePasskeyReady();
     ensurePasskeySupported();
     const requestId = String(passkeyRequestIdInput.value || '').trim();
     if (!requestId) {
       notifyError(mt('createOrEnterPasskeyRequestFirst'));
-      return;
+      return false;
     }
 
     const challenge = await postJson<PasskeyAuthorizeChallengeResponse>(
-      '/api/v1/public/auth/passkey/authorize/challenge',
+      '/api/v1/public/auth/passport/authorize/challenge',
       { requestId },
       mt('createPasskeyChallengeFailed')
     );
@@ -996,7 +1112,7 @@ async function approveAuthorizeRequestWithPasskey() {
     }
 
     const result = await postJson<AuthorizeApproveResult>(
-      '/api/v1/public/auth/passkey/authorize/approve',
+      '/api/v1/public/auth/passport/authorize/approve',
       {
         requestId,
         passkeyRequestId: challenge.passkeyRequest.requestId,
@@ -1023,30 +1139,39 @@ async function approveAuthorizeRequestWithPasskey() {
     passkeyExchangeResult.value = null;
     passkeyProfileResult.value = null;
     notifySuccess(mt('passkeyAuthorizeApproved'));
+    return true;
   } catch (error) {
     notifyError(String(error));
+    return false;
   }
 }
 
-async function exchangePasskeyAuthorizeCode() {
+async function exchangePasskeyAuthorizeCode(): Promise<boolean> {
   try {
     ensurePasskeyReady();
     const code = String(passkeyAuthCodeInput.value || '').trim();
     const { appId, redirectUri } = ensureAppConfig();
     if (!code) {
       notifyError(mt('enterPasskeyAuthCode'));
-      return;
+      return false;
+    }
+    const codeVerifier = String(passkeyCodeVerifier.value || '').trim();
+    if (!codeVerifier) {
+      notifyError(mt('createOrEnterPasskeyRequestFirst'));
+      return false;
     }
     const result = await postJson<AuthorizeExchangeResult>(
-      '/api/v1/public/auth/passkey/authorize/exchange',
-      { code, appId, redirectUri },
+      '/api/v1/public/auth/passport/authorize/exchange',
+      { code, appId, redirectUri, codeVerifier },
       mt('exchangePasskeyCodeFailed')
     );
     passkeyExchangeResult.value = result;
     passkeyProfileResult.value = null;
     notifySuccess(mt('passkeyCodeExchanged'));
+    return true;
   } catch (error) {
     notifyError(String(error));
+    return false;
   }
 }
 
@@ -1054,7 +1179,7 @@ async function revokePasskeyCredentialAction(credentialId: string) {
   try {
     ensurePasskeyReady();
     await postAuthJson(
-      '/api/v1/public/auth/passkey/credentials/revoke',
+      '/api/v1/public/auth/passport/passkey/credentials/revoke',
       { credentialId },
       mt('revokePasskeyCredentialFailed')
     );
@@ -1159,7 +1284,7 @@ async function verifyProfileWithJwt() {
     const token = exchangeResult.value?.token;
     if (!token) {
       notifyError(mt('missingJwtToken'));
-      return;
+      return false;
     }
     const response = await fetch(apiUrl('/api/v1/public/profile/me'), {
       method: 'GET',
@@ -1180,7 +1305,7 @@ async function verifyProfileWithUcan() {
     const token = exchangeResult.value?.ucan;
     if (!token) {
       notifyError(mt('missingUcanToken'));
-      return;
+      return false;
     }
     const response = await fetch(apiUrl('/api/v1/public/profile/me'), {
       method: 'GET',
@@ -1190,48 +1315,6 @@ async function verifyProfileWithUcan() {
       credentials: 'include',
     });
     profileResult.value = await parseEnvelope<ProfileResult>(response, mt('verifyUcanFailed'));
-    notifySuccess(mt('verifyUcanSuccess'));
-  } catch (error) {
-    notifyError(String(error));
-  }
-}
-
-async function verifyPasskeyProfileWithJwt() {
-  try {
-    const token = passkeyExchangeResult.value?.token;
-    if (!token) {
-      notifyError(mt('missingJwtToken'));
-      return;
-    }
-    const response = await fetch(apiUrl('/api/v1/public/profile/me'), {
-      method: 'GET',
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
-      credentials: 'include',
-    });
-    passkeyProfileResult.value = await parseEnvelope<ProfileResult>(response, mt('verifyJwtFailed'));
-    notifySuccess(mt('verifyJwtSuccess'));
-  } catch (error) {
-    notifyError(String(error));
-  }
-}
-
-async function verifyPasskeyProfileWithUcan() {
-  try {
-    const token = passkeyExchangeResult.value?.ucan;
-    if (!token) {
-      notifyError(mt('missingUcanToken'));
-      return;
-    }
-    const response = await fetch(apiUrl('/api/v1/public/profile/me'), {
-      method: 'GET',
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
-      credentials: 'include',
-    });
-    passkeyProfileResult.value = await parseEnvelope<ProfileResult>(response, mt('verifyUcanFailed'));
     notifySuccess(mt('verifyUcanSuccess'));
   } catch (error) {
     notifyError(String(error));
@@ -1333,6 +1416,9 @@ onMounted(async () => {
   }
   await loadOwnedApplications();
   await refreshStatuses();
+  if (passkeyStatus.value?.enabled && passkeyStatus.value?.ready) {
+    await loadPasskeyCredentials();
+  }
 });
 
 watch(
@@ -1458,6 +1544,254 @@ watch(
 
   .passkey-card {
     min-height: 100%;
+  }
+
+  .passport-main-card {
+    padding: 18px;
+    border: 1px solid #e8edf4;
+    border-radius: 10px;
+    background: #fff;
+  }
+
+  .passport-card-head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 16px;
+  }
+
+  .passport-title-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+    font-size: 16px;
+    line-height: 1.4;
+    font-weight: 600;
+    color: rgba(0, 0, 0, 0.88);
+  }
+
+  .passport-head-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+
+  .passport-summary-grid {
+    margin-top: 16px;
+    display: grid;
+    grid-template-columns: 150px 150px minmax(0, 1fr) minmax(0, 1fr);
+    gap: 10px;
+  }
+
+  .summary-metric,
+  .summary-identity {
+    min-height: 72px;
+    padding: 12px;
+    border: 1px solid #e9eef6;
+    border-radius: 8px;
+    background: #fafcff;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 6px;
+    min-width: 0;
+  }
+
+  .summary-metric strong {
+    font-size: 24px;
+    line-height: 1;
+    color: #111827;
+  }
+
+  .summary-label {
+    font-size: 12px;
+    line-height: 1.4;
+    color: rgba(0, 0, 0, 0.52);
+  }
+
+  .register-inline {
+    margin-top: 14px;
+    display: grid;
+    grid-template-columns: 110px minmax(240px, 420px);
+    gap: 8px;
+    align-items: center;
+  }
+
+  .credential-grid {
+    margin-top: 16px;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 12px;
+  }
+
+  .credential-card,
+  .credential-empty {
+    min-height: 160px;
+    padding: 14px;
+    border: 1px solid #e8edf4;
+    border-radius: 8px;
+    background: #fff;
+  }
+
+  .credential-empty {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    justify-content: center;
+    gap: 10px;
+    background: #fafcff;
+  }
+
+  .empty-title {
+    font-size: 15px;
+    line-height: 1.4;
+    font-weight: 500;
+    color: rgba(0, 0, 0, 0.82);
+  }
+
+  .credential-card-head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+  }
+
+  .credential-created {
+    margin-top: 4px;
+    font-size: 12px;
+    color: rgba(0, 0, 0, 0.45);
+  }
+
+  .credential-detail {
+    margin-top: 12px;
+    padding: 10px;
+    border-radius: 6px;
+    background: #f6f8fb;
+    border: 1px solid #edf1f7;
+    min-height: 38px;
+    max-height: 72px;
+    overflow: auto;
+  }
+
+  .credential-meta-row {
+    margin-top: 10px;
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    font-size: 13px;
+    color: rgba(0, 0, 0, 0.62);
+  }
+
+  .warning-row {
+    color: #b45309;
+  }
+
+  .credential-actions {
+    margin-top: 12px;
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+
+  .passkey-collapse {
+    border: 1px solid #e8edf4;
+    border-radius: 10px;
+    background: #fff;
+    padding: 0 14px;
+  }
+
+  .passkey-collapse :deep(.el-collapse) {
+    border: 0;
+  }
+
+  .passkey-collapse :deep(.el-collapse-item__header) {
+    height: 50px;
+    border-bottom-color: #edf1f7;
+    font-size: 15px;
+    font-weight: 500;
+    color: rgba(0, 0, 0, 0.84);
+  }
+
+  .passkey-collapse :deep(.el-collapse-item__wrap) {
+    border-bottom: 0;
+  }
+
+  .compact-test-card {
+    margin-top: 14px;
+  }
+
+  .compact-test-card:first-child {
+    margin-top: 0;
+  }
+
+  .compact-config-form :deep(.el-form-item) {
+    margin-bottom: 10px;
+  }
+
+  .quick-test-actions {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+
+  .compact-flow-step:last-child {
+    margin-bottom: 0;
+  }
+
+  .result-token-line + .result-token-line {
+    margin-top: 10px;
+  }
+
+  .compact-result-json {
+    max-height: 260px;
+  }
+
+  .result-summary-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+  }
+
+  .result-summary-grid div {
+    padding: 10px;
+    border: 1px solid #edf1f7;
+    border-radius: 8px;
+    background: #fff;
+    display: grid;
+    gap: 6px;
+  }
+
+  .result-summary-grid span {
+    font-size: 12px;
+    color: rgba(0, 0, 0, 0.5);
+  }
+
+  .result-summary-grid strong {
+    font-size: 13px;
+    color: rgba(0, 0, 0, 0.82);
+    word-break: break-all;
+  }
+
+  .dialog-test-layout {
+    display: grid;
+    gap: 14px;
+  }
+
+  .test-step-list {
+    display: grid;
+    gap: 12px;
+  }
+
+  .compact-flow-step.current {
+    border-color: #1677ff;
+    background: #f5faff;
+  }
+
+  .passkey-test-dialog :deep(.el-dialog__body) {
+    padding-top: 8px;
   }
 
   .single-column-grid {
@@ -1800,6 +2134,10 @@ watch(
       grid-template-columns: 1fr;
     }
 
+    .passport-summary-grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
     .qr-box {
       justify-self: start;
     }
@@ -1822,10 +2160,16 @@ watch(
     }
 
     .line,
-    .field-line {
+    .field-line,
+    .register-inline {
       grid-template-columns: 1fr;
     }
 
+    .passport-summary-grid {
+      grid-template-columns: 1fr;
+    }
+
+    .passport-card-head,
     .totp-head,
     .status-actions,
     .status-badges {

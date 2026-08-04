@@ -4,9 +4,9 @@
 
 ## 1. 开发边界
 
-应用由独立服务提供业务能力，YeYing Project 负责用户、组织、权限和菜单入口，社区 Node 负责目录、发布审核和安装任务。应用不得直接控制部署机 Docker Socket，也不得要求 Project 启动 MySQL、Redis、Manticore 等共享中间件。
+应用由独立服务提供业务能力，YeYing Project 负责用户、组织、权限和菜单入口，社区 Node 负责目录、发布审核和 release artifact，Agent Runtime 负责安装、升级、失败回滚和卸载。应用不得直接控制部署机 Docker Socket，也不得要求 Project 启动 MySQL、Redis、Manticore 等共享中间件。
 
-运行时依赖必须在 release 中声明，由部署机 Runtime Agent 检查连接和执行受控部署。
+运行时依赖必须在 release 中声明，由 Agent Runtime 检查连接和执行受控部署。
 
 ## 2. Release bundle
 
@@ -56,16 +56,16 @@ submitted -> rejected
 approved  -> rejected
 ```
 
-## 4. Project 接入
+## 4. Project / Agent 接入
 
-Project 管理员通过 AppStore Adapter 查询目录并请求安装：
+Project 管理员通过 Project 的 `api/appstore/*` 兼容入口请求安装，Project 再调用 Agent Runtime：
 
 ```http
-GET  /api/v1/internal/catalog
-POST /api/v1/internal/install
+GET  <agent>/api/v1/internal/installed
+POST <agent>/api/v1/internal/install
 ```
 
-安装请求只提交 `app_id` 和可选版本，不能提交镜像、Compose 或菜单。Adapter 只接受已发布制品，随后创建 Runtime Agent 任务。
+安装请求只提交 `app_id` 和可选版本，不能提交镜像、Compose 或菜单。Agent Runtime 只接受 Node 已发布 release，并由 Agent 负责创建任务、校验制品、执行健康检查和失败回滚。
 
 已安装应用继续使用兼容响应：
 
@@ -87,15 +87,7 @@ V1 release 的 `runtime.json.service` 必须声明固定镜像对应的服务名
 
 升级健康检查失败时，Agent 使用同一个 Compose project 启动上一份已验证 release，并回报 `rolled_back`。卸载使用 `down --remove-orphans`，默认保留命名卷。
 
-部署机 Agent 使用实例专属 Bearer Token 领取任务：
-
-```http
-POST /api/v1/runtime/tasks/claim
-POST /api/v1/runtime/tasks/{taskId}/heartbeat
-POST /api/v1/runtime/tasks/{taskId}/report
-POST /api/v1/runtime/tasks/{taskId}/release
-GET  /api/v1/runtime/releases/{appId}/{version}
-```
+部署机 Agent 的 internal API、任务领取、心跳、状态上报和 release 下载协议由 `agent` 仓库维护。Node 文档只定义 release bundle、发布审核和 Registry 查询边界。
 
 任务状态：
 
@@ -104,15 +96,7 @@ pending -> claimed -> applying -> verifying -> succeeded
                     \-> failed
 ```
 
-只有成功回报了任务一致的 `release_digest` 且 `healthcheck.ok=true`，Adapter 才把应用标记为 `installed`。`release` 用于 dry-run，归还 `claimed` 任务而不改变安装状态。
-
-Project 可使用：
-
-```bash
-scripts/appstore-agent.sh --dry-run
-```
-
-该命令仅校验 release 和依赖连通性，不拉镜像、不修改配置、不启动或停止容器。
+只有 Agent Runtime 校验到任务一致的 `release_digest` 且 `healthcheck.ok=true`，Project 才应看到 `installed` 状态。dry-run、执行、回滚和卸载命令由 `agent` 仓库维护。
 
 ## 6. 权限与事件
 
@@ -122,8 +106,45 @@ scripts/appstore-agent.sh --dry-run
 
 标准事件包括 `application.installed`、`application.upgraded`、`application.uninstalled`、`user.onboarded`、`user.updated` 和 `user.offboarded`。
 
-## 7. 参考资料
+## 7. Node 侧最小验证
+
+Node 只验证发布包和 Registry 流程，不再创建 Runtime Task，也不再描述部署机执行细节。
+
+生成 smoke release：
+
+```bash
+node scripts/create-appstore-smoke-release.cjs \
+  --app-id smoke \
+  --version 0.1.0 \
+  --image registry.example/smoke@sha256:<64 hex> \
+  --publisher-key-id smoke-publisher \
+  --publisher-owner 0xYourPublisherWallet \
+  --host-port 25080 \
+  --container-port 8080 \
+  --health-path / \
+  --out tmp/smoke-0.1.0.json
+```
+
+提交 release：
+
+```bash
+curl -fsS -X POST "$NODE_URL/api/v1/publisher/releases/submit" \
+  -H "Authorization: Bearer $NODE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  --data @tmp/smoke-0.1.0.json
+```
+
+审核发布：
+
+```bash
+curl -fsS -X POST "$NODE_URL/api/v1/admin/releases/$RELEASE_ID/approve"
+curl -fsS -X POST "$NODE_URL/api/v1/admin/releases/$RELEASE_ID/publish"
+```
+
+Project 安装、升级、回滚和卸载验证由 Agent Runtime 仓库维护。
+
+## 8. 参考资料
 
 - [应用协议 v1](./YeYing-Application-Protocol-v1.md)
-- [Runtime Agent 设计](./YeYing-AppStore-Runtime-Agent.md)
-- [P1 实施说明](./YeYing-AppStore-P1.md)
+- [节点架构V1](./节点架构V1.md)
+- [节点架构V2](./节点架构V2.md)
