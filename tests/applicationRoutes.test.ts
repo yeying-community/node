@@ -483,6 +483,65 @@ describe('public application routes idempotency', () => {
     })
   })
 
+  it('updates redirect URI for an online application owned by the actor', async () => {
+    const wallet = Wallet.createRandom()
+    const actor = wallet.address.toLowerCase()
+    const app = createTestApp(actor)
+    const existing = {
+      uid: 'app-online-update-1',
+      owner: actor,
+      ownerName: actor,
+      network: '',
+      address: '',
+      did: 'did:app:online-update-1',
+      version: 1,
+      name: 'Online Project',
+      description: 'desc',
+      code: 'APPLICATION_CODE_TEST',
+      location: 'https://project.example',
+      serviceCodes: '',
+      redirectUris: 'https://project.example/callback',
+      avatar: 'avatar',
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      signature: '',
+      codePackagePath: '/pkg',
+      status: 'BUSINESS_STATUS_ONLINE',
+      isOnline: true,
+    }
+    applicationStore.set(`uid:${existing.uid}`, existing)
+    applicationStore.set(`did:${existing.did}:${existing.version}`, existing)
+    const redirectUris = ['https://project.example/passport/callback']
+    const signedBody = await signBody({
+      wallet,
+      action: 'application_update',
+      requestId: 'req-application-online-update',
+      rawBody: {
+        redirectUris,
+      },
+      signablePayload: {
+        applicationUid: existing.uid,
+        redirectUris,
+      },
+    })
+
+    await withServer(app, async (baseUrl) => {
+      const response = await fetch(`${baseUrl}/api/v1/public/applications/${existing.uid}`, {
+        method: 'PATCH',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(signedBody),
+      })
+      const responseJson = await response.json()
+
+      expect(response.status).toBe(200)
+      expect(saveApplicationMock).toHaveBeenCalledTimes(1)
+      expect(responseJson.data.redirectUris).toBe('https://project.example/passport/callback')
+      expect(responseJson.data.status).toBe('BUSINESS_STATUS_ONLINE')
+      expect(responseJson.data.isOnline).toBe(true)
+      expect(notifyApplicationUpdatedMock).toHaveBeenCalledTimes(1)
+    })
+  })
+
   it('replays the first config upsert response after the application is later removed', async () => {
     const wallet = Wallet.createRandom()
     const actor = wallet.address.toLowerCase()

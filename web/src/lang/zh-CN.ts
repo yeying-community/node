@@ -63,6 +63,7 @@ export default {
     app_edit_title_edit: '编辑应用',
     app_edit_section_template: '1. 选择应用模板',
     app_edit_section_publish: '2. 发布信息',
+    app_edit_section_info: '应用信息',
     app_edit_name: '应用名称',
     app_edit_name_placeholder: '例如：聊天应用 / 网关应用 / 仓储应用',
     app_edit_category: '应用分类',
