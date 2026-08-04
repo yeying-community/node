@@ -24,6 +24,16 @@ const createMpcSessionMock = vi.fn()
 const joinMpcSessionMock = vi.fn()
 const sendMpcMessageMock = vi.fn()
 
+vi.doMock('../src/config/runtime', () => ({
+  getConfig: vi.fn((key: string) => {
+    const values: Record<string, unknown> = {
+      mpc: {},
+      redis: {},
+    }
+    return values[key]
+  }),
+}))
+
 let auditSearchResult: { data: any[]; page: { total: number; page: number; pageSize: number } } = {
   data: [],
   page: {
