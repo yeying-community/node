@@ -1,4 +1,4 @@
-import { getAuthToken, getCurrentAccount, signWithWallet } from '@/plugins/auth'
+import { getAuthToken, getCurrentAccount, getStoredAuthToken, signWithWallet } from '@/plugins/auth'
 import { apiUrl } from '@/plugins/api'
 import { createSignedActionBody, normalizeAddress } from '@/utils/actionSignature'
 import { notifyError } from '@/utils/message'
@@ -275,7 +275,7 @@ async function requireReadToken() {
   if (!ensureWalletConnected()) {
     return null
   }
-  const token = await getAuthToken()
+  const token = getStoredAuthToken()
   if (!token) {
     notifyError('未获取到访问令牌')
     return null
@@ -284,8 +284,9 @@ async function requireReadToken() {
 }
 
 async function requireWriteSession() {
-  const token = await requireReadToken()
+  const token = await getAuthToken()
   if (!token) {
+    notifyError('未获取到访问令牌')
     return null
   }
   const account = getCurrentAccount()
