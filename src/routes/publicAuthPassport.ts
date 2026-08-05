@@ -190,6 +190,21 @@ export function registerPublicAuthPassportRoutes(app: Express) {
     }
   })
 
+  app.post(`${BASE_PATH}/passkey/credentials/rename`, async (req: Request, res: Response) => {
+    try {
+      const address = requireBearerSubject(req)
+      const result = await service.renamePasskeyCredentialByWallet(
+        address,
+        req.body?.credentialId,
+        req.body?.deviceName,
+      )
+      res.json(ok(result))
+    } catch (error) {
+      const mapped = mapPassportError(error)
+      res.status(mapped.status).json(fail(mapped.status, mapped.message))
+    }
+  })
+
   app.post(`${BASE_PATH}/authorize/request`, async (req: Request, res: Response) => {
     try {
       const result = await service.createAuthorizationRequest({

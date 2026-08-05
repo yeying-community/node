@@ -114,7 +114,7 @@ const MAX_REQUEST_TTL_MS = 30 * 60 * 1000
 const DEFAULT_CODE_TTL_MS = 60 * 1000
 const MIN_CODE_TTL_MS = 10 * 1000
 const MAX_CODE_TTL_MS = 5 * 60 * 1000
-const DEFAULT_VERIFY_PATH = '/passport-auth'
+const DEFAULT_VERIFY_PATH = '/passport/authorize'
 const PKCE_REGEX = /^[A-Za-z0-9._~-]{43,128}$/
 const WALLET_UNBIND_ACTION = 'passport_wallet_unbind'
 const DEFAULT_WALLET_UNBIND_TTL_MS = 5 * 60 * 1000
@@ -763,6 +763,36 @@ export class PassportService {
     }
   }
 
+  async renamePasskeyCredentialByWallet(addressInput: unknown, credentialIdInput: unknown, deviceNameInput: unknown) {
+    const credentialId = normalizeString(credentialIdInput)
+    const deviceName = normalizeString(deviceNameInput)
+    if (!credentialId) {
+      throw new PassportError(400, 'PASSPORT_PASSKEY_CREDENTIAL_ID_REQUIRED', 'Missing credentialId')
+    }
+    if (!deviceName) {
+      throw new PassportError(400, 'PASSPORT_PASSKEY_DEVICE_NAME_REQUIRED', 'Missing deviceName')
+    }
+    const subject = await this.requireActiveWalletSubject(addressInput)
+    const credential = await this.manager.getPasskeyCredentialById(credentialId)
+    if (!credential || credential.subjectId !== subject.subjectId) {
+      throw new PassportError(404, 'PASSPORT_PASSKEY_CREDENTIAL_NOT_FOUND', 'Passkey credential not found')
+    }
+    credential.deviceName = deviceName
+    await this.manager.savePasskeyCredential(credential)
+    await this.writeAudit({
+      subjectId: subject.subjectId,
+      walletAddress: subject.walletAddress,
+      action: 'passkey_credential_renamed',
+      metadata: { credentialId },
+    })
+    return {
+      subjectId: subject.subjectId,
+      walletAddress: subject.walletAddress,
+      credentialId,
+      deviceName: credential.deviceName,
+    }
+  }
+
   async revokePasskeyCredentialByWallet(addressInput: unknown, credentialIdInput: unknown) {
     const credentialId = normalizeString(credentialIdInput)
     if (!credentialId) {
@@ -897,7 +927,7 @@ export class PassportService {
     entity.signCount = String(info.credential?.counter || info.counter || 0)
     entity.aaguid = String(info.aaguid || '')
     entity.transports = JSON.stringify(info.credential?.transports || [])
-    entity.deviceName = normalizeString(input.deviceName) || 'passkey-device'
+    entity.deviceName = normalizeString(input.deviceName) || 'Passkey Device'
     entity.rpId = status.rpId
     entity.userHandle = subject.subjectId
     entity.createdAt = existed?.createdAt || now

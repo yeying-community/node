@@ -108,7 +108,7 @@ Node 返回：
 ```json
 {
   "requestId": "passport-request-id",
-  "verifyUrl": "https://node.yeying.pub/passport-auth?requestId=passport-request-id",
+  "verifyUrl": "https://node.yeying.pub/passport/authorize?requestId=passport-request-id",
   "expiresAt": 1785500000000,
   "appName": "YeYing Project",
   "status": "pending"
@@ -126,7 +126,7 @@ login_session_id -> passport_request_id -> code_verifier -> pending
 手机相机打开：
 
 ```text
-https://node.yeying.pub/passport-auth?requestId=passport-request-id
+https://node.yeying.pub/passport/authorize?requestId=passport-request-id
 ```
 
 Node 页面展示：

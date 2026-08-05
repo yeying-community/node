@@ -98,7 +98,7 @@ custody: { enabled: true, ucanWith: 'custody', ucanCan: 'write' }
 
 ```js
 passportAuth: {
-  verifyPath: '/passport-auth',
+  verifyPath: '/passport/authorize',
   portalBaseUrl: 'https://node.example.com',
   passkey: {
     enabled: true,

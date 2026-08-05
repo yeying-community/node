@@ -73,7 +73,7 @@
               </div>
               <div v-for="credential in passkeyCredentials" :key="credential.credentialId" class="credential-row">
                 <div class="credential-cell credential-device">
-                  <div class="credential-name">{{ credential.deviceName || mt('defaultCredential') }}</div>
+                  <div class="credential-name">{{ getCredentialDeviceName(credential) }}</div>
                   <div v-if="credential.revokedAt" class="credential-revoked-mobile">
                     {{ mt('revokedAt') }}：{{ credential.revokedAt }}
                   </div>
@@ -87,16 +87,40 @@
                   </el-tag>
                 </div>
                 <div class="credential-cell credential-actions">
-                  <el-button size="small" @click="copyText(credential.credentialId, mt('credentialId'))">{{ mt('copyId') }}</el-button>
-                  <el-button
-                    :disabled="Boolean(credential.revokedAt)"
-                    size="small"
-                    type="danger"
-                    plain
-                    @click="revokePasskeyCredentialAction(credential.credentialId)"
-                  >
-                    {{ mt('revoke') }}
-                  </el-button>
+                  <el-tooltip :content="mt('copyId')" placement="top">
+                    <el-button
+                      circle
+                      size="small"
+                      class="credential-icon-button"
+                      @click="copyText(credential.credentialId, mt('credentialId'))"
+                    >
+                      <el-icon><CopyDocument /></el-icon>
+                    </el-button>
+                  </el-tooltip>
+                  <el-tooltip :content="mt('rename')" placement="top">
+                    <el-button
+                      :disabled="Boolean(credential.revokedAt)"
+                      circle
+                      size="small"
+                      class="credential-icon-button"
+                      @click="renamePasskeyCredentialAction(credential)"
+                    >
+                      <el-icon><EditPen /></el-icon>
+                    </el-button>
+                  </el-tooltip>
+                  <el-tooltip :content="mt('revoke')" placement="top">
+                    <el-button
+                      :disabled="Boolean(credential.revokedAt)"
+                      circle
+                      size="small"
+                      type="danger"
+                      plain
+                      class="credential-icon-button"
+                      @click="revokePasskeyCredentialAction(credential.credentialId)"
+                    >
+                      <el-icon><Delete /></el-icon>
+                    </el-button>
+                  </el-tooltip>
                 </div>
               </div>
             </div>
@@ -107,148 +131,79 @@
 
       <el-tab-pane :label="mt('totpTab')" name="totp">
         <div class="method-section">
-          <div class="section-heading">{{ mt('configSection') }}</div>
           <div class="primary-grid single-column-grid">
-            <div class="totp-card">
-              <div class="totp-head">
-                <div>
-                  <div class="totp-title">{{ mt('totpProvisionTitle') }}</div>
-                  <div class="section-hint">{{ mt('totpManageHint') }}</div>
-                </div>
-                <div class="status-actions">
-                  <div class="status-badges">
-                    <div class="status-badge">
-                      <el-tag :type="totpStatus?.enabled ? 'success' : 'info'" effect="light">
-                        {{ totpStatus ? (totpStatus.enabled ? mt('enabled') : mt('disabled')) : '-' }}
-                      </el-tag>
-                    </div>
-                    <div class="status-badge">
-                      <el-tag :type="totpStatus?.ready ? 'success' : 'warning'" effect="light">
-                        {{ totpStatus ? (totpStatus.ready ? mt('ready') : mt('notReady')) : '-' }}
-                      </el-tag>
-                    </div>
-                  </div>
-                  <el-button size="small" @click="loadTotpProvision">{{ mt('loadTotpProvision') }}</el-button>
-                </div>
-              </div>
-              <div v-if="totpStatus?.error" class="status-error compact-error">{{ mt('errorPrefix') }}{{ totpStatus.error }}</div>
-              <div v-if="totpProvision" class="totp-body">
-                <div class="totp-meta">
-                  <div class="meta-item">
-                    <span class="status-label">{{ mt('issuer') }}</span>
-                    <span class="status-value">{{ totpProvision.issuer }}</span>
-                  </div>
-                  <div class="meta-item">
-                    <span class="status-label">{{ mt('accountName') }}</span>
-                    <span class="status-value">{{ totpProvision.accountName }}</span>
-                  </div>
-                  <div class="meta-item">
-                    <span class="status-label">{{ mt('periodDigits') }}</span>
-                    <span class="status-value">{{ totpProvision.period }}s / {{ totpProvision.digits }}</span>
-                  </div>
-                  <div class="field-line">
-                    <span class="label">{{ mt('secret') }}</span>
-                    <el-input :model-value="totpProvision.secret" readonly />
-                    <el-button @click="copyText(totpProvision.secret, mt('totpSecretLabel'))">{{ mt('copy') }}</el-button>
-                  </div>
-                  <div class="field-line">
-                    <span class="label">{{ mt('authenticatorLink') }}</span>
-                    <el-input :model-value="totpProvision.otpauthUri" readonly />
-                    <el-button @click="copyText(totpProvision.otpauthUri, mt('authenticatorUriLabel'))">{{ mt('copy') }}</el-button>
-                    <el-button @click="openLink(totpProvision.otpauthUri)">{{ mt('open') }}</el-button>
-                  </div>
-                </div>
-                <div class="qr-box">
-                  <div class="label">{{ mt('qrCode') }}</div>
-                  <div class="qr-panel">
-                    <img v-if="totpQrDataUrl" :src="totpQrDataUrl" :alt="mt('qrAlt')" />
-                    <div v-else class="qr-placeholder">{{ mt('qrPlaceholder') }}</div>
-                  </div>
-                </div>
-              </div>
-              <div v-else class="empty-text">{{ mt('totpEmptyHint') }}</div>
-            </div>
-          </div>
-        </div>
+	            <div class="totp-card">
+	              <div class="totp-head">
+	                <div>
+	                  <div class="totp-title-row">
+	                    <span class="totp-title">{{ mt('totpProvisionTitle') }}</span>
+	                    <el-tag :type="totpStatus?.enabled ? 'success' : 'info'" effect="light">
+	                      {{ totpStatus ? (totpStatus.enabled ? mt('enabled') : mt('disabled')) : '-' }}
+	                    </el-tag>
+	                    <el-tag :type="totpStatus?.ready ? 'success' : 'warning'" effect="light">
+	                      {{ totpStatus ? (totpStatus.ready ? mt('ready') : mt('notReady')) : '-' }}
+	                    </el-tag>
+	                  </div>
+	                  <div class="section-hint">{{ mt('totpManageHint') }}</div>
+	                </div>
+	                <div class="totp-head-actions">
+	                  <el-button @click="goTotpTestHistory">{{ mt('testHistory') }}</el-button>
+	                  <el-button
+	                    :disabled="!totpStatus?.enabled || !totpStatus?.ready"
+	                    type="success"
+	                    plain
+	                    @click="openTotpTestDialog"
+	                  >
+	                    {{ mt('testTotp') }}
+	                  </el-button>
+	                </div>
+	              </div>
+	              <div v-if="totpStatus?.error" class="status-error compact-error">{{ mt('errorPrefix') }}{{ totpStatus.error }}</div>
+	              <div v-if="totpProvision" class="totp-body">
+		                <div class="totp-meta">
+	                  <div class="totp-meta-item">
+	                    <span class="status-label">{{ mt('issuer') }}</span>
+	                    <span class="status-value">{{ totpProvision.issuer }}</span>
+	                  </div>
+	                  <div class="totp-meta-item">
+	                    <span class="status-label">{{ mt('accountName') }}</span>
+	                    <span class="status-value">{{ totpProvision.accountName }}</span>
+	                  </div>
+	                  <div class="totp-meta-item">
+	                    <span class="status-label">{{ mt('periodDigits') }}</span>
+	                    <span class="status-value">{{ totpProvision.period }}s / {{ totpProvision.digits }}</span>
+	                  </div>
+	                  <div class="totp-meta-item">
+	                    <span class="status-label">{{ mt('secret') }}</span>
+	                    <div class="totp-field-controls">
+	                      <el-input :model-value="maskedTotpSecret" readonly />
+	                      <el-button @click="copyText(totpProvision.secret, mt('totpSecretLabel'))">{{ mt('copy') }}</el-button>
+	                    </div>
+	                  </div>
+	                  <div class="totp-meta-item">
+	                    <span class="status-label">{{ mt('authenticatorLink') }}</span>
+	                    <div class="totp-field-controls">
+	                      <el-input :model-value="totpProvision.otpauthUri" readonly />
+	                      <el-button @click="copyText(totpProvision.otpauthUri, mt('authenticatorUriLabel'))">{{ mt('copy') }}</el-button>
+	                      <el-button @click="openLink(totpProvision.otpauthUri)">{{ mt('open') }}</el-button>
+	                    </div>
+	                  </div>
+	                </div>
+	                <div class="qr-box">
+	                  <div class="qr-panel">
+	                    <img v-if="totpQrDataUrl" :src="totpQrDataUrl" :alt="mt('qrAlt')" />
+	                    <div v-else class="qr-placeholder">{{ mt('qrPlaceholder') }}</div>
+	                  </div>
+	                </div>
+	              </div>
+	              <div v-else class="empty-text">{{ mt('totpEmptyHint') }}</div>
+	            </div>
+	          </div>
+	        </div>
+	      </el-tab-pane>
+	    </el-tabs>
 
-        <div class="method-section">
-          <div class="section-heading">{{ mt('testSection') }}</div>
-          <div class="debug-hint">{{ mt('totpTestHint') }}</div>
-          <div class="panel-card">
-          <div class="flow-step">
-            <div class="step-title"><span class="step-dot">1</span>{{ mt('stepQueryRequest') }}</div>
-            <div class="line">
-              <span class="label">{{ mt('requestId') }}</span>
-              <el-input v-model="requestIdInput" :placeholder="mt('requestIdPlaceholder')" />
-              <el-button :disabled="!selectedApplication" type="primary" @click="createAuthorizeRequest">{{ mt('create') }}</el-button>
-              <el-button @click="queryAuthorizeRequest">{{ mt('query') }}</el-button>
-            </div>
-          </div>
-
-          <div class="flow-step">
-            <div class="step-title"><span class="step-dot">2</span>{{ mt('stepApproveWithTotp') }}</div>
-            <div class="line">
-              <span class="label">{{ mt('totpCode') }}</span>
-              <el-input v-model="totpCode" :placeholder="mt('totpCodePlaceholder')" />
-              <el-button type="success" @click="approveAuthorizeRequest">{{ mt('approveAuthorize') }}</el-button>
-            </div>
-          </div>
-
-          <div class="flow-step">
-            <div class="step-title"><span class="step-dot">3</span>{{ mt('stepExchangeCode') }}</div>
-            <div class="line">
-              <span class="label">{{ mt('authCode') }}</span>
-              <el-input v-model="authCodeInput" :placeholder="mt('authCodePlaceholder')" />
-              <el-button type="warning" @click="exchangeAuthorizeCode">{{ mt('exchangeToken') }}</el-button>
-            </div>
-          </div>
-
-          <div class="flow-step">
-            <div class="step-title"><span class="step-dot">4</span>{{ mt('stepConfirmLinks') }}</div>
-            <div class="line">
-              <span class="label">{{ mt('verifyUrl') }}</span>
-              <el-input :model-value="requestResult?.verifyUrl || ''" readonly />
-              <el-button @click="openVerifyUrl">{{ mt('open') }}</el-button>
-              <el-button @click="copyText(requestResult?.verifyUrl || '', mt('verifyUrl'))">{{ mt('copy') }}</el-button>
-            </div>
-            <div class="line">
-              <span class="label">{{ mt('redirectTo') }}</span>
-              <el-input :model-value="approveResult?.redirectTo || ''" readonly />
-              <el-button @click="openRedirectTo">{{ mt('open') }}</el-button>
-              <el-button @click="copyText(approveResult?.redirectTo || '', mt('redirectTo'))">{{ mt('copy') }}</el-button>
-            </div>
-          </div>
-          </div>
-
-          <div class="panel-card">
-            <div class="totp-head">
-              <div class="totp-title">{{ mt('testResultTitle') }}</div>
-            </div>
-          <div class="flow-step">
-            <div class="line">
-              <span class="label">{{ mt('jwtToken') }}</span>
-              <el-input :model-value="exchangeResult?.token || ''" readonly />
-              <el-button @click="copyText(exchangeResult?.token || '', mt('jwtToken'))">{{ mt('copy') }}</el-button>
-              <el-button @click="verifyProfileWithJwt">{{ mt('verify') }}</el-button>
-            </div>
-          </div>
-          <div class="flow-step">
-            <div class="line">
-              <span class="label">{{ mt('ucanToken') }}</span>
-              <el-input :model-value="exchangeResult?.ucan || ''" readonly />
-              <el-button @click="copyText(exchangeResult?.ucan || '', mt('ucanToken'))">{{ mt('copy') }}</el-button>
-              <el-button @click="verifyProfileWithUcan">{{ mt('verify') }}</el-button>
-            </div>
-          </div>
-          <div class="result-json">
-            <pre>{{ prettyTotpResult }}</pre>
-          </div>
-          </div>
-        </div>
-      </el-tab-pane>
-    </el-tabs>
-
-    <el-dialog v-model="passkeyTestDialogVisible" :title="mt('testPasskeyDialogTitle')" width="760px" class="passkey-test-dialog">
+	    <el-dialog v-model="passkeyTestDialogVisible" :title="mt('testPasskeyDialogTitle')" width="760px" class="passkey-test-dialog">
       <div class="dialog-test-layout">
         <div class="panel-card compact-test-card">
           <div class="totp-head">
@@ -353,12 +308,131 @@
         <el-button @click="goPasskeyTestHistory">{{ mt('testHistory') }}</el-button>
         <el-button type="primary" @click="passkeyTestDialogVisible = false">{{ mt('close') }}</el-button>
       </template>
-    </el-dialog>
-  </div>
+	    </el-dialog>
+	
+	    <el-dialog v-model="totpTestDialogVisible" :title="mt('testTotpDialogTitle')" width="760px" class="passkey-test-dialog">
+	      <div class="dialog-test-layout">
+	        <div class="panel-card compact-test-card">
+	          <div class="totp-head">
+	            <div>
+	              <div class="totp-title">{{ mt('testAppTitle') }}</div>
+	              <div class="section-hint">{{ mt('testAppHint') }}</div>
+	            </div>
+	            <div class="status-actions">
+	              <el-button @click="loadOwnedApplications">{{ mt('refreshApps') }}</el-button>
+	              <el-button v-if="!ownedApplications.length" type="primary" plain @click="goPublishApp">
+	                {{ mt('goPublishApp') }}
+	              </el-button>
+	            </div>
+	          </div>
+	          <el-form label-position="top" class="config-form compact-config-form">
+	            <div class="grid-two">
+	              <el-form-item class="full" :label="mt('selectApp')">
+	                <el-select v-model="form.selectedAppUid" class="full-select" :placeholder="mt('selectAppPlaceholder')">
+	                  <el-option
+	                    v-for="app in ownedApplications"
+	                    :key="app.uid"
+	                    :label="`${app.name || app.uid} (${app.uid})`"
+	                    :value="String(app.uid || '')"
+	                  />
+	                </el-select>
+	                <div v-if="selectedApplication" class="selected-app-meta">
+	                  <div class="meta-chip">{{ selectedApplication.name || selectedApplication.uid }}</div>
+	                  <div class="meta-chip mono-chip">{{ selectedRedirectUri }}</div>
+	                </div>
+	                <div v-if="!ownedApplications.length" class="empty-text inline-empty">{{ mt('noPublishedApps') }}</div>
+	              </el-form-item>
+	              <el-form-item :label="mt('state')">
+	                <el-input v-model="form.state" :placeholder="mt('optional')" />
+	              </el-form-item>
+	              <el-form-item :label="mt('requestTtlMs')">
+	                <el-input-number v-model="form.requestTtlMs" :min="60000" :step="30000" />
+	              </el-form-item>
+	            </div>
+	          </el-form>
+	        </div>
+
+	        <div class="test-step-list">
+	          <div class="flow-step compact-flow-step">
+	            <div class="step-title"><span class="step-dot">1</span>{{ mt('stepQueryRequest') }}</div>
+	            <div class="line">
+	              <span class="label">{{ mt('requestId') }}</span>
+	              <el-input v-model="requestIdInput" :placeholder="mt('requestIdPlaceholder')" />
+	              <el-button :disabled="!selectedApplication" type="primary" @click="createAuthorizeRequest">{{ mt('create') }}</el-button>
+	              <el-button @click="queryAuthorizeRequest">{{ mt('query') }}</el-button>
+	            </div>
+	          </div>
+
+	          <div class="flow-step compact-flow-step">
+	            <div class="step-title"><span class="step-dot">2</span>{{ mt('stepApproveWithTotp') }}</div>
+	            <div class="line">
+	              <span class="label">{{ mt('totpCode') }}</span>
+	              <el-input v-model="totpCode" :placeholder="mt('totpCodePlaceholder')" />
+	              <el-button type="success" @click="approveAuthorizeRequest">{{ mt('approveAuthorize') }}</el-button>
+	            </div>
+	          </div>
+
+	          <div class="flow-step compact-flow-step">
+	            <div class="step-title"><span class="step-dot">3</span>{{ mt('stepExchangeCode') }}</div>
+	            <div class="line">
+	              <span class="label">{{ mt('authCode') }}</span>
+	              <el-input v-model="authCodeInput" :placeholder="mt('authCodePlaceholder')" />
+	              <el-button type="warning" @click="exchangeAuthorizeCode">{{ mt('exchangeToken') }}</el-button>
+	            </div>
+	          </div>
+
+	          <div class="flow-step compact-flow-step">
+	            <div class="step-title"><span class="step-dot">4</span>{{ mt('stepConfirmLinks') }}</div>
+	            <div class="line">
+	              <span class="label">{{ mt('verifyUrl') }}</span>
+	              <el-input :model-value="requestResult?.verifyUrl || ''" readonly />
+	              <el-button @click="openVerifyUrl">{{ mt('open') }}</el-button>
+	              <el-button @click="copyText(requestResult?.verifyUrl || '', mt('verifyUrl'))">{{ mt('copy') }}</el-button>
+	            </div>
+	            <div class="line">
+	              <span class="label">{{ mt('redirectTo') }}</span>
+	              <el-input :model-value="approveResult?.redirectTo || ''" readonly />
+	              <el-button @click="openRedirectTo">{{ mt('open') }}</el-button>
+	              <el-button @click="copyText(approveResult?.redirectTo || '', mt('redirectTo'))">{{ mt('copy') }}</el-button>
+	            </div>
+	          </div>
+
+	          <div class="flow-step compact-flow-step">
+	            <div class="step-title"><span class="step-dot">5</span>{{ mt('testResultTitle') }}</div>
+	            <div class="flow-step">
+	              <div class="line">
+	                <span class="label">{{ mt('jwtToken') }}</span>
+	                <el-input :model-value="exchangeResult?.token || ''" readonly />
+	                <el-button @click="copyText(exchangeResult?.token || '', mt('jwtToken'))">{{ mt('copy') }}</el-button>
+	                <el-button @click="verifyProfileWithJwt">{{ mt('verify') }}</el-button>
+	              </div>
+	            </div>
+	            <div class="flow-step">
+	              <div class="line">
+	                <span class="label">{{ mt('ucanToken') }}</span>
+	                <el-input :model-value="exchangeResult?.ucan || ''" readonly />
+	                <el-button @click="copyText(exchangeResult?.ucan || '', mt('ucanToken'))">{{ mt('copy') }}</el-button>
+	                <el-button @click="verifyProfileWithUcan">{{ mt('verify') }}</el-button>
+	              </div>
+	            </div>
+	            <div class="result-json compact-result-json">
+	              <pre>{{ prettyTotpResult }}</pre>
+	            </div>
+	          </div>
+	        </div>
+	      </div>
+	      <template #footer>
+	        <el-button @click="goTotpTestHistory">{{ mt('testHistory') }}</el-button>
+	        <el-button type="primary" @click="totpTestDialogVisible = false">{{ mt('close') }}</el-button>
+	      </template>
+	    </el-dialog>
+	  </div>
 </template>
 
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref, watch } from 'vue';
+import { ElMessageBox } from 'element-plus';
+import { CopyDocument, Delete, EditPen } from '@element-plus/icons-vue';
 import QRCode from 'qrcode';
 import { useRoute, useRouter } from 'vue-router';
 import { apiUrl } from '@/plugins/api';
@@ -569,9 +643,12 @@ function mt(key: MyConfigMessageKey): string {
 }
 
 const PASSKEY_TEST_HISTORY_KEY = 'passport:passkey:test-history';
+const TOTP_TEST_HISTORY_KEY = 'passport:totp:test-history';
+const LEGACY_PASSKEY_DEVICE_NAME = 'passkey-device';
 
 const authTab = ref('passkey');
 const passkeyTestDialogVisible = ref(false);
+const totpTestDialogVisible = ref(false);
 const passkeyTestStep = ref(0);
 const currentAccount = ref('');
 const ownedApplications = ref<ApplicationMetadata[]>([]);
@@ -581,7 +658,7 @@ const totpQrDataUrl = ref('');
 const passkeyStatus = ref<PasskeyStatus | null>(null);
 const passportPasskeyBinding = ref<PassportPasskeyCredentialListResult | null>(null);
 const passkeyCredentials = ref<PasskeyCredentialRecord[]>([]);
-const passkeyDeviceName = ref('');
+const passkeyDeviceName = ref(createDefaultPasskeyDeviceName());
 const passkeyRequestResult = ref<AuthorizeRequestResult | null>(null);
 const passkeyApproveResult = ref<AuthorizeApproveResult | null>(null);
 const passkeyExchangeResult = ref<AuthorizeExchangeResult | null>(null);
@@ -763,6 +840,41 @@ function ensureAddress() {
   return address;
 }
 
+function detectBrowserName(userAgent: string): string {
+  if (/Edg\//.test(userAgent)) return 'Edge';
+  if (/OPR\//.test(userAgent)) return 'Opera';
+  if (/Firefox\//.test(userAgent)) return 'Firefox';
+  if (/CriOS\//.test(userAgent)) return 'Chrome';
+  if (/Chrome\//.test(userAgent) && !/Chromium\//.test(userAgent)) return 'Chrome';
+  if (/Safari\//.test(userAgent)) return 'Safari';
+  return 'Browser';
+}
+
+function detectOsName(userAgent: string): string {
+  if (/iPhone|iPad|iPod/.test(userAgent)) return 'iOS';
+  if (/Android/.test(userAgent)) return 'Android';
+  if (/Mac OS X|Macintosh/.test(userAgent)) return 'macOS';
+  if (/Windows NT/.test(userAgent)) return 'Windows';
+  if (/Linux/.test(userAgent)) return 'Linux';
+  return 'Device';
+}
+
+function createDefaultPasskeyDeviceName(): string {
+  if (typeof navigator === 'undefined') {
+    return 'Passkey Device';
+  }
+  const userAgent = navigator.userAgent || '';
+  return `${detectBrowserName(userAgent)} / ${detectOsName(userAgent)}`;
+}
+
+function getCredentialDeviceName(credential: PasskeyCredentialRecord): string {
+  const deviceName = String(credential.deviceName || '').trim();
+  if (!deviceName || deviceName === LEGACY_PASSKEY_DEVICE_NAME) {
+    return mt('defaultPasskeyDeviceName');
+  }
+  return deviceName;
+}
+
 function ensureAppConfig() {
   const appId = String(selectedApplication.value?.uid || '').trim();
   const redirectUri = String(selectedRedirectUri.value || '').trim();
@@ -844,8 +956,20 @@ async function renderTotpQrCode(uri: string) {
   }
 }
 
-async function loadTotpProvision() {
+function maskMiddle(value: string, left = 4, right = 4) {
+  const normalized = String(value || '').trim();
+  if (!normalized) return '';
+  if (normalized.length <= left + right + 2) {
+    return `${normalized.slice(0, Math.min(left, normalized.length))}****`;
+  }
+  return `${normalized.slice(0, left)}****${normalized.slice(-right)}`;
+}
+
+async function loadTotpProvision(options: { silent?: boolean; force?: boolean } = {}) {
   try {
+    if (!options.force && totpProvision.value?.secret && totpQrDataUrl.value) {
+      return;
+    }
     const token = await getBearerToken({ interactive: true });
     const response = await fetch(apiUrl('/api/v1/public/auth/totp/totp/provision'), {
       method: 'GET',
@@ -859,10 +983,14 @@ async function loadTotpProvision() {
       mt('loadTotpProvisionFailed')
     );
     await renderTotpQrCode(totpProvision.value.otpauthUri);
-    notifySuccess(mt('totpProvisionLoaded'));
+    if (!options.silent) {
+      notifySuccess(mt('totpProvisionLoaded'));
+    }
   } catch (error) {
     totpQrDataUrl.value = '';
-    notifyError(String(error));
+    if (!options.silent) {
+      notifyError(String(error));
+    }
   }
 }
 
@@ -974,6 +1102,29 @@ function buildPasskeyTestDetail(): Record<string, unknown> {
   };
 }
 
+function buildTotpTestDetail(): Record<string, unknown> {
+  return {
+    selectedApp: selectedApplication.value
+      ? {
+          uid: selectedApplication.value.uid,
+          name: selectedApplication.value.name,
+          redirectUri: selectedRedirectUri.value,
+        }
+      : null,
+    totpStatus: totpStatus.value,
+    totpProvision: totpProvision.value
+      ? {
+          ...totpProvision.value,
+          secret: maskedTotpSecret.value,
+        }
+      : null,
+    request: requestResult.value,
+    approve: approveResult.value,
+    exchange: exchangeResult.value,
+    profile: profileResult.value,
+  };
+}
+
 function savePasskeyTestHistory(action: string, status: 'success' | 'failed') {
   const record: PasskeyTestHistoryRecord = {
     id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
@@ -995,6 +1146,27 @@ function savePasskeyTestHistory(action: string, status: 'success' | 'failed') {
   }
 }
 
+function saveTotpTestHistory(action: string, status: 'success' | 'failed') {
+  const record: PasskeyTestHistoryRecord = {
+    id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
+    action,
+    status,
+    createdAt: new Date().toISOString(),
+    appId: String(selectedApplication.value?.uid || ''),
+    requestId: String(requestIdInput.value || requestResult.value?.requestId || ''),
+    subjectId: String(exchangeResult.value?.subjectId || ''),
+    walletAddress: String(exchangeResult.value?.walletAddress || currentAccount.value || ''),
+    detail: buildTotpTestDetail(),
+  };
+  try {
+    const parsed = JSON.parse(localStorage.getItem(TOTP_TEST_HISTORY_KEY) || '[]');
+    const list = Array.isArray(parsed) ? parsed : [];
+    localStorage.setItem(TOTP_TEST_HISTORY_KEY, JSON.stringify([record, ...list].slice(0, 50)));
+  } catch {
+    // ignore local storage failure
+  }
+}
+
 function openPasskeyTestDialog() {
   passkeyTestDialogVisible.value = true;
   passkeyTestStep.value = passkeyExchangeResult.value ? 3 : passkeyApproveResult.value ? 2 : passkeyRequestResult.value ? 1 : 0;
@@ -1002,6 +1174,14 @@ function openPasskeyTestDialog() {
 
 function goPasskeyTestHistory() {
   router.push('/market/dev/my-config/passkey-history').catch(() => undefined);
+}
+
+function goTotpTestHistory() {
+  router.push('/market/dev/my-config/totp-history').catch(() => undefined);
+}
+
+function openTotpTestDialog() {
+  totpTestDialogVisible.value = true;
 }
 
 async function runPasskeyTestCreateRequest() {
@@ -1194,6 +1374,32 @@ async function revokePasskeyCredentialAction(credentialId: string) {
   }
 }
 
+async function renamePasskeyCredentialAction(credential: PasskeyCredentialRecord) {
+  try {
+    ensurePasskeyReady();
+    const result = await ElMessageBox.prompt(mt('renamePasskeyPrompt'), mt('renamePasskeyTitle'), {
+      confirmButtonText: mt('confirm'),
+      cancelButtonText: mt('cancel'),
+      inputValue: getCredentialDeviceName(credential),
+      inputPlaceholder: mt('devicePlaceholder'),
+      inputValidator: (value) => Boolean(String(value || '').trim()) || mt('deviceNameRequired'),
+    });
+    const deviceName = String(result.value || '').trim();
+    await postAuthJson(
+      '/api/v1/public/auth/passport/passkey/credentials/rename',
+      { credentialId: credential.credentialId, deviceName },
+      mt('renamePasskeyCredentialFailed')
+    );
+    await loadPasskeyCredentials();
+    notifySuccess(mt('passkeyCredentialRenamed'));
+  } catch (error) {
+    if (String((error as { action?: unknown })?.action || '') === 'cancel') {
+      return;
+    }
+    notifyError(String(error));
+  }
+}
+
 async function createAuthorizeRequest() {
   try {
     const address = ensureAddress();
@@ -1216,8 +1422,10 @@ async function createAuthorizeRequest() {
     exchangeResult.value = null;
     profileResult.value = null;
     notifySuccess(mt('authorizeRequestCreated'));
+    saveTotpTestHistory('create_request', 'success');
   } catch (error) {
     notifyError(String(error));
+    saveTotpTestHistory('create_request', 'failed');
   }
 }
 
@@ -1257,8 +1465,10 @@ async function approveAuthorizeRequest() {
     exchangeResult.value = null;
     profileResult.value = null;
     notifySuccess(mt('authorizeApproved'));
+    saveTotpTestHistory('approve_totp', 'success');
   } catch (error) {
     notifyError(String(error));
+    saveTotpTestHistory('approve_totp', 'failed');
   }
 }
 
@@ -1278,8 +1488,10 @@ async function exchangeAuthorizeCode() {
     exchangeResult.value = result;
     profileResult.value = null;
     notifySuccess(mt('authorizeCodeExchanged'));
+    saveTotpTestHistory('exchange_code', 'success');
   } catch (error) {
     notifyError(String(error));
+    saveTotpTestHistory('exchange_code', 'failed');
   }
 }
 
@@ -1299,8 +1511,10 @@ async function verifyProfileWithJwt() {
     });
     profileResult.value = await parseEnvelope<ProfileResult>(response, mt('verifyJwtFailed'));
     notifySuccess(mt('verifyJwtSuccess'));
+    saveTotpTestHistory('verify_jwt', 'success');
   } catch (error) {
     notifyError(String(error));
+    saveTotpTestHistory('verify_jwt', 'failed');
   }
 }
 
@@ -1320,8 +1534,10 @@ async function verifyProfileWithUcan() {
     });
     profileResult.value = await parseEnvelope<ProfileResult>(response, mt('verifyUcanFailed'));
     notifySuccess(mt('verifyUcanSuccess'));
+    saveTotpTestHistory('verify_ucan', 'success');
   } catch (error) {
     notifyError(String(error));
+    saveTotpTestHistory('verify_ucan', 'failed');
   }
 }
 
@@ -1408,8 +1624,13 @@ const prettyPasskeyResult = computed(() => {
   return JSON.stringify(payload, null, 2);
 });
 
+const maskedTotpSecret = computed(() => maskMiddle(totpProvision.value?.secret || ''));
+
 onMounted(async () => {
   currentAccount.value = String(getCurrentAccount() || '').trim();
+  if (!String(passkeyDeviceName.value || '').trim()) {
+    passkeyDeviceName.value = createDefaultPasskeyDeviceName();
+  }
   const routeAuthTab = String(route.query.authTab || '').trim();
   if (routeAuthTab === 'passkey' || routeAuthTab === 'totp') {
     authTab.value = routeAuthTab;
@@ -1420,10 +1641,32 @@ onMounted(async () => {
   }
   await loadOwnedApplications();
   await refreshStatuses();
+  if (authTab.value === 'totp' && totpStatus.value?.enabled && totpStatus.value?.ready) {
+    await loadTotpProvision({ silent: true });
+  }
   if (passkeyStatus.value?.enabled && passkeyStatus.value?.ready) {
     await loadPasskeyCredentials();
   }
 });
+
+watch(
+  () => authTab.value,
+  async (value) => {
+    if ((value === 'passkey' || value === 'totp') && route.query.authTab !== value) {
+      await router
+        .replace({
+          query: {
+            ...route.query,
+            authTab: value
+          }
+        })
+        .catch(() => undefined);
+    }
+    if (value === 'totp' && totpStatus.value?.enabled && totpStatus.value?.ready) {
+      await loadTotpProvision({ silent: true });
+    }
+  }
+);
 
 watch(
   () => route.query.authTab,
@@ -1634,7 +1877,7 @@ watch(
   .credential-list-head,
   .credential-row {
     display: grid;
-    grid-template-columns: minmax(140px, 1fr) minmax(220px, 1.6fr) minmax(110px, 0.8fr) minmax(150px, 1fr) 86px 150px;
+    grid-template-columns: minmax(140px, 1fr) minmax(220px, 1.6fr) minmax(110px, 0.8fr) minmax(150px, 1fr) 86px 128px;
     gap: 12px;
     align-items: center;
   }
@@ -1711,7 +1954,12 @@ watch(
     display: flex;
     justify-content: flex-end;
     gap: 8px;
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
+    white-space: nowrap;
+  }
+
+  .credential-icon-button {
+    flex: 0 0 auto;
   }
 
   .passkey-collapse {
@@ -1824,6 +2072,24 @@ watch(
     gap: 16px;
   }
 
+  .totp-title-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+    font-size: 16px;
+    line-height: 1.4;
+    font-weight: 600;
+    color: rgba(0, 0, 0, 0.88);
+  }
+
+  .totp-head-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+
   .totp-title {
     font-size: 15px;
     font-weight: 500;
@@ -1839,15 +2105,34 @@ watch(
 
   .totp-meta {
     display: grid;
-    gap: 10px;
+    gap: 18px;
+    align-content: stretch;
   }
 
-  .meta-item {
-    display: flex;
-    gap: 10px;
-    align-items: center;
+  .totp-meta-item {
+    min-height: 0;
+    padding: 16px 0;
+    display: grid;
+    gap: 12px;
     font-size: 14px;
     line-height: 1.5;
+    border-bottom: 1px solid #edf1f7;
+  }
+
+  .totp-meta-item:first-child {
+    padding-top: 0;
+  }
+
+  .totp-meta-item:last-child {
+    padding-bottom: 0;
+    border-bottom: none;
+  }
+
+  .totp-field-controls {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto auto;
+    gap: 8px;
+    align-items: center;
   }
 
   .qr-box {
@@ -1855,12 +2140,8 @@ watch(
   }
 
   .qr-panel {
-    margin-top: 8px;
     width: 232px;
     height: 232px;
-    border: 1px solid #e5e7eb;
-    border-radius: 8px;
-    background: #ffffff;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -1868,8 +2149,8 @@ watch(
   }
 
   .qr-panel img {
-    width: 220px;
-    height: 220px;
+    width: 232px;
+    height: 232px;
     display: block;
   }
 
@@ -2152,13 +2433,17 @@ watch(
       grid-template-columns: 1fr;
     }
 
+    .qr-box {
+      justify-self: start;
+    }
+
     .passport-summary-grid {
       grid-template-columns: repeat(2, minmax(0, 1fr));
     }
 
     .credential-list-head,
     .credential-row {
-      grid-template-columns: minmax(120px, 1fr) minmax(180px, 1.4fr) 96px minmax(120px, 1fr) 74px 136px;
+      grid-template-columns: minmax(120px, 1fr) minmax(180px, 1.4fr) 96px minmax(120px, 1fr) 74px 128px;
       gap: 10px;
     }
 
@@ -2185,7 +2470,8 @@ watch(
 
     .line,
     .field-line,
-    .register-inline {
+    .register-inline,
+    .totp-field-controls {
       grid-template-columns: 1fr;
     }
 

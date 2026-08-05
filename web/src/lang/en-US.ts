@@ -398,7 +398,7 @@ export default {
     sidebar_collapse: 'Collapse Toolbar',
     sidebar_my_apps: 'My Apps',
     sidebar_my_approval: 'My Approvals',
-    sidebar_my_config: 'Login Config',
+    sidebar_my_config: 'Security Settings',
     sidebar_notifications: 'Notifications',
     notification_page_breadcrumb: 'Notifications',
     notification_page_title: 'Notification Center',

@@ -148,7 +148,7 @@ describe('PassportService', () => {
 
     expect(request.status).toBe('pending')
     expect(request.appId).toBe('project-app')
-    expect(request.verifyUrl).toContain(`/passport-auth?requestId=${encodeURIComponent(request.requestId)}`)
+    expect(request.verifyUrl).toContain(`/passport/authorize?requestId=${encodeURIComponent(request.requestId)}`)
 
     const approved = await service.approveAuthorizationRequest({
       requestId: request.requestId,
@@ -219,8 +219,17 @@ describe('PassportService', () => {
     expect(registered).toMatchObject({
       subjectId: registerRequest.subjectId,
       credentialId: Buffer.from('credential-1').toString('base64url'),
+      deviceName: 'Passkey Device',
     })
     expect(passkeys.size).toBe(1)
+
+    const renamed = await service.renamePasskeyCredentialByWallet(
+      walletAddress,
+      registered.credentialId,
+      'Work MacBook',
+    )
+    expect(renamed.deviceName).toBe('Work MacBook')
+    expect(passkeys.get(registered.credentialId).deviceName).toBe('Work MacBook')
 
     const request = await service.createAuthorizationRequest({
       appId: 'project-app',
@@ -243,7 +252,12 @@ describe('PassportService', () => {
     expect(codes.get(approved.authorizationCode).codeChallenge).toBe(pkce.challenge)
     expect(passkeys.get(registered.credentialId).signCount).toBe('2')
     expect(auditLogs.map((item) => item.action)).toEqual(
-      expect.arrayContaining(['passkey_register_requested', 'passkey_registered', 'authorize_passkey_approved']),
+      expect.arrayContaining([
+        'passkey_register_requested',
+        'passkey_registered',
+        'passkey_credential_renamed',
+        'authorize_passkey_approved',
+      ]),
     )
 
     await expect(
