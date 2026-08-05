@@ -138,7 +138,18 @@ function registerWebStaticRoutes(app: Express, webDistDir: string) {
         return
     }
 
-    app.use(express.static(webDistDir, { index: false }))
+    app.use(express.static(webDistDir, {
+        index: false,
+        setHeaders(res, filePath) {
+            if (path.basename(filePath) === 'index.html') {
+                res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate')
+                return
+            }
+            if (filePath.includes(`${path.sep}static${path.sep}`)) {
+                res.setHeader('Cache-Control', 'public, max-age=31536000, immutable')
+            }
+        }
+    }))
     app.use((req: Request, res: Response, next) => {
         if (req.method !== 'GET' && req.method !== 'HEAD') {
             next()
@@ -152,6 +163,7 @@ function registerWebStaticRoutes(app: Express, webDistDir: string) {
             next()
             return
         }
+        res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate')
         res.sendFile(path.join(webDistDir, 'index.html'), (error) => {
             if (error) {
                 next(error)
