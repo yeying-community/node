@@ -398,7 +398,7 @@ export default {
     sidebar_collapse: '收起工具栏',
     sidebar_my_apps: '我的应用',
     sidebar_my_approval: '我的审批',
-    sidebar_my_config: '登录配置',
+    sidebar_my_config: '安全配置',
     sidebar_notifications: '通知中心',
     notification_page_breadcrumb: '通知中心',
     notification_page_title: '通知中心',

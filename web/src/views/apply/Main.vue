@@ -82,7 +82,7 @@ const resolveActiveName = (currentRoute: typeof route) => {
   if (name === "approval") {
     return "approval";
   }
-  if (name === "myConfig" || name === "passkeyTestHistory") {
+  if (name === "myConfig" || name === "passkeyTestHistory" || name === "totpTestHistory") {
     return "myConfig";
   }
   if (name === "notifications") {

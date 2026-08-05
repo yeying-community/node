@@ -148,7 +148,7 @@ describe('PassportService', () => {
 
     expect(request.status).toBe('pending')
     expect(request.appId).toBe('project-app')
-    expect(request.verifyUrl).toContain(`/passport-auth?requestId=${encodeURIComponent(request.requestId)}`)
+    expect(request.verifyUrl).toContain(`/passport/authorize?requestId=${encodeURIComponent(request.requestId)}`)
 
     const approved = await service.approveAuthorizationRequest({
       requestId: request.requestId,

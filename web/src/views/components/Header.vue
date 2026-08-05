@@ -126,7 +126,6 @@
                 </span>
                 <template #dropdown>
                         <el-dropdown-menu>
-                            <el-dropdown-item command="totpProvision">{{ $t('header_totp_config') }}</el-dropdown-item>
                             <el-dropdown-item command="logout">{{ $t('header_logout') }}</el-dropdown-item>
                         </el-dropdown-menu>
                 </template>
@@ -134,51 +133,14 @@
             <span v-else>--</span>
         </div>
     </div>
-    <el-dialog
-        v-model="totpDialogVisible"
-        :title="$t('header_totp_config')"
-        width="420px"
-        class="totp-provision-dialog"
-        destroy-on-close
-    >
-        <div v-loading="totpProvisionLoading" class="totp-dialog-body">
-            <template v-if="totpProvision">
-                <div class="totp-dialog-qr">
-                    <img v-if="totpQrDataUrl" :src="totpQrDataUrl" :alt="$t('header_totp_qr_alt')" />
-                    <div v-else class="totp-dialog-qr-empty">{{ $t('header_totp_qr_unavailable') }}</div>
-                </div>
-                <div class="totp-dialog-hint">{{ $t('header_totp_scan_hint') }}</div>
-                <div class="totp-dialog-meta">
-                    <div class="totp-meta-row">
-                        <span class="totp-meta-label">{{ $t('header_totp_issuer') }}</span>
-                        <span class="totp-meta-value">{{ totpProvision.issuer }}</span>
-                    </div>
-                    <div class="totp-meta-row">
-                        <span class="totp-meta-label">{{ $t('header_totp_account') }}</span>
-                        <span class="totp-meta-value">{{ totpProvision.accountName }}</span>
-                    </div>
-                    <div class="totp-meta-row">
-                        <span class="totp-meta-label">{{ $t('header_totp_period') }}</span>
-                        <span class="totp-meta-value">{{ totpProvision.period }}s / {{ totpProvision.digits }} 位</span>
-                    </div>
-                </div>
-                <div class="totp-dialog-actions">
-                    <el-button @click="copyText(totpProvision.secret, String($t('header_totp_secret_label')))">{{ $t('header_totp_copy_secret') }}</el-button>
-                    <el-button @click="copyText(totpProvision.otpauthUri, String($t('header_totp_link_label')))">{{ $t('header_totp_copy_link') }}</el-button>
-                </div>
-            </template>
-            <div v-else class="totp-dialog-empty">{{ $t('header_totp_empty') }}</div>
-        </div>
-    </el-dialog>
 </template>
 <script lang="ts" setup>
 import { computed, getCurrentInstance, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import dayjs from 'dayjs'
-import QRCode from 'qrcode'
 import { BellFilled, CaretBottom, Check, DocumentCopy, QuestionFilled, Search } from '@element-plus/icons-vue'
 import { apiUrl } from '@/plugins/api'
-import { getAuthToken, getCurrentAccount, getStoredAuthToken, logoutWithUcan } from '@/plugins/auth'
+import { getCurrentAccount, getStoredAuthToken, logoutWithUcan } from '@/plugins/auth'
 import $notification, { type NotificationListItem, type NotificationStreamPayload } from '@/plugins/notification'
 import { getNotificationTypeLabel } from '@/plugins/notificationMeta'
 import { notifyError, notifySuccess } from '@/utils/message'
@@ -188,15 +150,6 @@ type Envelope<T> = {
     code?: number
     message?: string
     data?: T
-}
-
-type TotpProvision = {
-    issuer: string
-    accountName: string
-    secret: string
-    otpauthUri: string
-    period: number
-    digits: number
 }
 
 const router = useRouter();
@@ -211,10 +164,6 @@ const notificationLoading = ref(false)
 const unreadCount = ref(0)
 const notifications = ref<NotificationListItem[]>([])
 const notificationListDirty = ref(false)
-const totpDialogVisible = ref(false)
-const totpProvisionLoading = ref(false)
-const totpProvision = ref<TotpProvision | null>(null)
-const totpQrDataUrl = ref('')
 let notificationStream: { close: () => Promise<void> } | null = null
 let notificationErrorShown = false
 let copiedTimer: number | null = null
@@ -450,24 +399,6 @@ async function parseEnvelope<T>(response: Response, fallbackMessage: string): Pr
     return parsed.data as T
 }
 
-async function renderTotpQrCode(uri: string) {
-    const value = String(uri || '').trim()
-    if (!value) {
-        totpQrDataUrl.value = ''
-        return
-    }
-    try {
-        totpQrDataUrl.value = await QRCode.toDataURL(value, {
-            margin: 1,
-            width: 220,
-            errorCorrectionLevel: 'M'
-        })
-    } catch {
-        totpQrDataUrl.value = ''
-        notifyError(String($t('header_qr_failed')))
-    }
-}
-
 async function copyText(value: string, label: string) {
     const normalized = String(value || '').trim()
     if (!normalized) {
@@ -481,42 +412,8 @@ async function copyText(value: string, label: string) {
     notifySuccess(`${label} ${$t('header_copy_suffix')}`)
 }
 
-async function openTotpProvisionDialog() {
-    try {
-        const token = await getAuthToken()
-        if (!token) {
-            notifyError(String($t('header_missing_login')))
-            return
-        }
-        totpDialogVisible.value = true
-        totpProvisionLoading.value = true
-        totpProvision.value = null
-        totpQrDataUrl.value = ''
-        const response = await fetch(apiUrl('/api/v1/public/auth/totp/totp/provision'), {
-            method: 'GET',
-            headers: {
-                Authorization: `Bearer ${token}`
-            },
-            credentials: 'include'
-        })
-        totpProvision.value = await parseEnvelope<TotpProvision>(response, String($t('header_totp_load_failed')))
-        await renderTotpQrCode(totpProvision.value.otpauthUri)
-    } catch (error) {
-        totpDialogVisible.value = false
-        totpProvision.value = null
-        totpQrDataUrl.value = ''
-        notifyError(String(error))
-    } finally {
-        totpProvisionLoading.value = false
-    }
-}
-
 const handleAccountCommand = async (command: string | number | object) => {
     const action = String(command)
-    if (action === 'totpProvision') {
-        await openTotpProvisionDialog()
-        return
-    }
     if (action !== 'logout') {
         return
     }
@@ -722,78 +619,6 @@ onBeforeUnmount(() => {
             color: rgba(0,0,0,0.45);
         }
     }
-}
-
-.totp-dialog-body{
-    min-height: 320px;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 14px;
-}
-
-.totp-dialog-qr{
-    width: 236px;
-    height: 236px;
-    border-radius: 20px;
-    background: #f8fafc;
-    border: 1px solid rgba(15, 23, 42, 0.08);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    overflow: hidden;
-    img{
-        width: 220px;
-        height: 220px;
-        display: block;
-    }
-}
-
-.totp-dialog-qr-empty,
-.totp-dialog-empty{
-    color: rgba(15,23,42,0.46);
-    font-size: 13px;
-}
-
-.totp-dialog-hint{
-    font-size: 13px;
-    color: rgba(15,23,42,0.64);
-}
-
-.totp-dialog-meta{
-    width: 100%;
-    padding: 12px 14px;
-    border-radius: 14px;
-    background: #f8fafc;
-    border: 1px solid rgba(15, 23, 42, 0.08);
-}
-
-.totp-meta-row{
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 12px;
-    font-size: 13px;
-    &:not(:first-child){
-        margin-top: 8px;
-    }
-}
-
-.totp-meta-label{
-    color: rgba(15,23,42,0.46);
-}
-
-.totp-meta-value{
-    color: rgba(15,23,42,0.88);
-    text-align: right;
-    word-break: break-all;
-}
-
-.totp-dialog-actions{
-    width: 100%;
-    display: flex;
-    justify-content: center;
-    gap: 10px;
 }
 
 :deep(.notification-popover){

@@ -144,8 +144,8 @@ module.exports = {
     totpMasterKey: ''
   },
   passportAuth: {
-    // Node-hosted Passport approval page path. Example: /passport-auth
-    verifyPath: '/passport-auth',
+    // Node-hosted Passport authorization page path. Example: /passport/authorize
+    verifyPath: '/passport/authorize',
     // Base URL used to build Passport verifyUrl in authorize request response.
     portalBaseUrl: 'http://127.0.0.1:8100',
     passkey: {
