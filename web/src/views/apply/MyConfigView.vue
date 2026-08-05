@@ -131,7 +131,6 @@
 
       <el-tab-pane :label="mt('totpTab')" name="totp">
         <div class="method-section">
-          <div class="section-heading">{{ mt('configSection') }}</div>
           <div class="primary-grid single-column-grid">
 	            <div class="totp-card">
 	              <div class="totp-head">
@@ -1653,6 +1652,16 @@ onMounted(async () => {
 watch(
   () => authTab.value,
   async (value) => {
+    if ((value === 'passkey' || value === 'totp') && route.query.authTab !== value) {
+      await router
+        .replace({
+          query: {
+            ...route.query,
+            authTab: value
+          }
+        })
+        .catch(() => undefined);
+    }
     if (value === 'totp' && totpStatus.value?.enabled && totpStatus.value?.ready) {
       await loadTotpProvision({ silent: true });
     }
