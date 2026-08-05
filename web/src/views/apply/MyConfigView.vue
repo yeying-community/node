@@ -73,7 +73,7 @@
               </div>
               <div v-for="credential in passkeyCredentials" :key="credential.credentialId" class="credential-row">
                 <div class="credential-cell credential-device">
-                  <div class="credential-name">{{ credential.deviceName || mt('defaultCredential') }}</div>
+                  <div class="credential-name">{{ getCredentialDeviceName(credential) }}</div>
                   <div v-if="credential.revokedAt" class="credential-revoked-mobile">
                     {{ mt('revokedAt') }}：{{ credential.revokedAt }}
                   </div>
@@ -87,16 +87,40 @@
                   </el-tag>
                 </div>
                 <div class="credential-cell credential-actions">
-                  <el-button size="small" @click="copyText(credential.credentialId, mt('credentialId'))">{{ mt('copyId') }}</el-button>
-                  <el-button
-                    :disabled="Boolean(credential.revokedAt)"
-                    size="small"
-                    type="danger"
-                    plain
-                    @click="revokePasskeyCredentialAction(credential.credentialId)"
-                  >
-                    {{ mt('revoke') }}
-                  </el-button>
+                  <el-tooltip :content="mt('copyId')" placement="top">
+                    <el-button
+                      circle
+                      size="small"
+                      class="credential-icon-button"
+                      @click="copyText(credential.credentialId, mt('credentialId'))"
+                    >
+                      <el-icon><CopyDocument /></el-icon>
+                    </el-button>
+                  </el-tooltip>
+                  <el-tooltip :content="mt('rename')" placement="top">
+                    <el-button
+                      :disabled="Boolean(credential.revokedAt)"
+                      circle
+                      size="small"
+                      class="credential-icon-button"
+                      @click="renamePasskeyCredentialAction(credential)"
+                    >
+                      <el-icon><EditPen /></el-icon>
+                    </el-button>
+                  </el-tooltip>
+                  <el-tooltip :content="mt('revoke')" placement="top">
+                    <el-button
+                      :disabled="Boolean(credential.revokedAt)"
+                      circle
+                      size="small"
+                      type="danger"
+                      plain
+                      class="credential-icon-button"
+                      @click="revokePasskeyCredentialAction(credential.credentialId)"
+                    >
+                      <el-icon><Delete /></el-icon>
+                    </el-button>
+                  </el-tooltip>
                 </div>
               </div>
             </div>
@@ -359,6 +383,8 @@
 
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref, watch } from 'vue';
+import { ElMessageBox } from 'element-plus';
+import { CopyDocument, Delete, EditPen } from '@element-plus/icons-vue';
 import QRCode from 'qrcode';
 import { useRoute, useRouter } from 'vue-router';
 import { apiUrl } from '@/plugins/api';
@@ -569,6 +595,7 @@ function mt(key: MyConfigMessageKey): string {
 }
 
 const PASSKEY_TEST_HISTORY_KEY = 'passport:passkey:test-history';
+const LEGACY_PASSKEY_DEVICE_NAME = 'passkey-device';
 
 const authTab = ref('passkey');
 const passkeyTestDialogVisible = ref(false);
@@ -581,7 +608,7 @@ const totpQrDataUrl = ref('');
 const passkeyStatus = ref<PasskeyStatus | null>(null);
 const passportPasskeyBinding = ref<PassportPasskeyCredentialListResult | null>(null);
 const passkeyCredentials = ref<PasskeyCredentialRecord[]>([]);
-const passkeyDeviceName = ref('');
+const passkeyDeviceName = ref(createDefaultPasskeyDeviceName());
 const passkeyRequestResult = ref<AuthorizeRequestResult | null>(null);
 const passkeyApproveResult = ref<AuthorizeApproveResult | null>(null);
 const passkeyExchangeResult = ref<AuthorizeExchangeResult | null>(null);
@@ -761,6 +788,41 @@ function ensureAddress() {
     throw new Error(mt('missingAddress'));
   }
   return address;
+}
+
+function detectBrowserName(userAgent: string): string {
+  if (/Edg\//.test(userAgent)) return 'Edge';
+  if (/OPR\//.test(userAgent)) return 'Opera';
+  if (/Firefox\//.test(userAgent)) return 'Firefox';
+  if (/CriOS\//.test(userAgent)) return 'Chrome';
+  if (/Chrome\//.test(userAgent) && !/Chromium\//.test(userAgent)) return 'Chrome';
+  if (/Safari\//.test(userAgent)) return 'Safari';
+  return 'Browser';
+}
+
+function detectOsName(userAgent: string): string {
+  if (/iPhone|iPad|iPod/.test(userAgent)) return 'iOS';
+  if (/Android/.test(userAgent)) return 'Android';
+  if (/Mac OS X|Macintosh/.test(userAgent)) return 'macOS';
+  if (/Windows NT/.test(userAgent)) return 'Windows';
+  if (/Linux/.test(userAgent)) return 'Linux';
+  return 'Device';
+}
+
+function createDefaultPasskeyDeviceName(): string {
+  if (typeof navigator === 'undefined') {
+    return 'Passkey Device';
+  }
+  const userAgent = navigator.userAgent || '';
+  return `${detectBrowserName(userAgent)} / ${detectOsName(userAgent)}`;
+}
+
+function getCredentialDeviceName(credential: PasskeyCredentialRecord): string {
+  const deviceName = String(credential.deviceName || '').trim();
+  if (!deviceName || deviceName === LEGACY_PASSKEY_DEVICE_NAME) {
+    return mt('defaultPasskeyDeviceName');
+  }
+  return deviceName;
 }
 
 function ensureAppConfig() {
@@ -1194,6 +1256,32 @@ async function revokePasskeyCredentialAction(credentialId: string) {
   }
 }
 
+async function renamePasskeyCredentialAction(credential: PasskeyCredentialRecord) {
+  try {
+    ensurePasskeyReady();
+    const result = await ElMessageBox.prompt(mt('renamePasskeyPrompt'), mt('renamePasskeyTitle'), {
+      confirmButtonText: mt('confirm'),
+      cancelButtonText: mt('cancel'),
+      inputValue: getCredentialDeviceName(credential),
+      inputPlaceholder: mt('devicePlaceholder'),
+      inputValidator: (value) => Boolean(String(value || '').trim()) || mt('deviceNameRequired'),
+    });
+    const deviceName = String(result.value || '').trim();
+    await postAuthJson(
+      '/api/v1/public/auth/passport/passkey/credentials/rename',
+      { credentialId: credential.credentialId, deviceName },
+      mt('renamePasskeyCredentialFailed')
+    );
+    await loadPasskeyCredentials();
+    notifySuccess(mt('passkeyCredentialRenamed'));
+  } catch (error) {
+    if (String((error as { action?: unknown })?.action || '') === 'cancel') {
+      return;
+    }
+    notifyError(String(error));
+  }
+}
+
 async function createAuthorizeRequest() {
   try {
     const address = ensureAddress();
@@ -1410,6 +1498,9 @@ const prettyPasskeyResult = computed(() => {
 
 onMounted(async () => {
   currentAccount.value = String(getCurrentAccount() || '').trim();
+  if (!String(passkeyDeviceName.value || '').trim()) {
+    passkeyDeviceName.value = createDefaultPasskeyDeviceName();
+  }
   const routeAuthTab = String(route.query.authTab || '').trim();
   if (routeAuthTab === 'passkey' || routeAuthTab === 'totp') {
     authTab.value = routeAuthTab;
@@ -1634,7 +1725,7 @@ watch(
   .credential-list-head,
   .credential-row {
     display: grid;
-    grid-template-columns: minmax(140px, 1fr) minmax(220px, 1.6fr) minmax(110px, 0.8fr) minmax(150px, 1fr) 86px 150px;
+    grid-template-columns: minmax(140px, 1fr) minmax(220px, 1.6fr) minmax(110px, 0.8fr) minmax(150px, 1fr) 86px 128px;
     gap: 12px;
     align-items: center;
   }
@@ -1711,7 +1802,12 @@ watch(
     display: flex;
     justify-content: flex-end;
     gap: 8px;
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
+    white-space: nowrap;
+  }
+
+  .credential-icon-button {
+    flex: 0 0 auto;
   }
 
   .passkey-collapse {
@@ -2158,7 +2254,7 @@ watch(
 
     .credential-list-head,
     .credential-row {
-      grid-template-columns: minmax(120px, 1fr) minmax(180px, 1.4fr) 96px minmax(120px, 1fr) 74px 136px;
+      grid-template-columns: minmax(120px, 1fr) minmax(180px, 1.4fr) 96px minmax(120px, 1fr) 74px 128px;
       gap: 10px;
     }
 

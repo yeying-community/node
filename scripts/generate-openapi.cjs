@@ -126,6 +126,14 @@ const document = {
           credentialId: { type: 'string' },
         },
       },
+      PassportPasskeyCredentialRenameRequest: {
+        type: 'object',
+        required: ['credentialId', 'deviceName'],
+        properties: {
+          credentialId: { type: 'string' },
+          deviceName: { type: 'string' },
+        },
+      },
       PassportAuthorizeRequest: {
         type: 'object',
         required: ['appId', 'redirectUri', 'codeChallenge'],
@@ -285,6 +293,7 @@ const operations = [
   ['post', '/api/v1/public/auth/passport/passkey/register/confirm', 'Passport', '确认 Passport subject Passkey 注册', 'bearer', 'PassportPasskeyRegisterConfirmRequest'],
   ['get', '/api/v1/public/auth/passport/passkey/credentials', 'Passport', '列出 Passport subject Passkey', 'bearer'],
   ['post', '/api/v1/public/auth/passport/passkey/credentials/revoke', 'Passport', '撤销 Passport subject Passkey', 'bearer', 'PassportPasskeyCredentialRevokeRequest'],
+  ['post', '/api/v1/public/auth/passport/passkey/credentials/rename', 'Passport', '重命名 Passport subject Passkey', 'bearer', 'PassportPasskeyCredentialRenameRequest'],
   ['post', '/api/v1/public/auth/passport/authorize/request', 'Passport', '创建 Passport code + PKCE 授权请求', 'none', 'PassportAuthorizeRequest'],
   ['get', '/api/v1/public/auth/passport/authorize/request/{requestId}', 'Passport', '查询 Passport 授权请求', 'none'],
   ['post', '/api/v1/public/auth/passport/authorize/challenge', 'Passport', '创建 Passport Passkey assertion challenge', 'none', 'PassportAuthorizeChallengeRequest'],
