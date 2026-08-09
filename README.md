@@ -1,282 +1,117 @@
-# node
+# YeYing Node
 
-YeYing 社区 Node 枢纽服务。统一提供身份授权、应用中心、审核治理、MPC 协调、钱包密钥托管、通知分发、AppStore 发布目录和 release artifact 管理能力。
+YeYing Node 是社区控制面，面向社区应用、钱包与 Agent Runtime 提供身份、授权、应用目录和治理能力。它不是 Project 的业务后端，也不负责 Agent Runtime 的安装、升级、回滚、任务调度或运行状态。
 
-文档入口见 [docs/README.md](./docs/README.md)，完整使用指南见 [docs/Node使用指南.md](./docs/Node使用指南.md)，第三方接口规范见 [docs/openapi/node.openapi.yaml](./docs/openapi/node.openapi.yaml)。
+## 提供什么
 
-## 主要功能
-- REST API（`src/routes` 按 public/admin/internal 分组）
-- SIWE 登录 + UCAN 访问控制（Authorization: Bearer `<JWT|UCAN>`）
-- UCAN 双模式：钱包校验模式 + 中心化签发模式（`/api/v1/public/auth/central/*`）
-- Passkey / TOTP 无钱包登录与授权
-- 应用发布、审核、AppStore/Agent Registry 和 release artifact 管理
-- 不再承载 Project 安装、升级、失败回滚、卸载和 Runtime Agent 任务调度；这些运行时能力归 Agent Runtime
-- MPC 会话、消息中继、SSE 与 Redis Streams 续传
-- 钱包加密密钥托管（Passkey 门禁）
-- 站内通知、SSE、Webhook 和投递重试
-- WebDAV 存储（前端直连 WebDAV，使用 UCAN 作为 Bearer Token）
+- Passport：SIWE、JWT、UCAN、Passkey、TOTP、应用授权码和 PKCE 登录交换。
+- 授权控制：应用授权策略、中心化 UCAN 签发、Scoped Grant、撤销与审计。
+- 应用中心：应用登记、发布审核、release artifact 与开发者目录。
+- 社区能力：通知、Webhook 投递、MPC 协调、钱包加密快照控制面。
 
-## OpenAPI
+前端位于 `web/`，采用 Vue 3 + Vite；后端位于 `src/`，采用 Express + TypeScript + TypeORM。生产环境使用 PostgreSQL migration；MySQL 仅使用实体同步模式。
 
-OpenAPI 3.1 文档由脚本生成，避免手工编辑生成文件：
+## 本地开发
 
-```bash
-npm run openapi:generate
-npm run openapi:check
-```
+### 前置条件
 
-`docs/openapi/node.openapi.yaml` 可直接导入 Swagger UI、Postman、Insomnia 和常见 OpenAPI 代码生成器。维护说明见 [docs/openapi/README.md](./docs/openapi/README.md)。
+- Node.js 24。
+- npm。
+- PostgreSQL 16+，本地建议使用 Docker。
 
-## 设计文档
-设计文档统一放在 `docs/` 目录下（Markdown + Mermaid），当前仅保留中文版本。入口见 `docs/README.md`。
+Node 依赖 PostgreSQL 或 MySQL，开发环境推荐 PostgreSQL。以下示例使用本地 PostgreSQL 和默认端口：后端 `8100`，前端 `8991`。
 
-## 快速启动（前后端）
+### 1. 启动数据库
 
-建议使用两个终端分别启动后端与前端。
-数据库支持 `PostgreSQL` / `MySQL`（不再支持 SQLite）。
-
-### 1) 先拉起 PostgreSQL
-
-中间件统一来自社区仓库：`git@github.com:yeying-community/deployer.git`
+使用一个可访问的 PostgreSQL 数据库，并创建 `node` 数据库和对应用户。若使用社区 deployer：
 
 ```bash
 git clone git@github.com:yeying-community/deployer.git
 cd deployer/middleware/postgresql
 cp .env.template .env
 docker compose up -d
-```
-
-首次可校验数据库是否可用：
-
-```bash
-cd deployer/middleware/postgresql
-docker compose exec postgres sh -lc 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "select version();"'
-```
-
-如需创建业务库（例如 `node`）：
-
-```bash
-cd deployer/middleware/postgresql
 ./database.sh create-db -d node -u node_user
 ```
 
-如需使用 MySQL（同样使用 deployer 仓库）：
+### 2. 启动后端
+
+在项目根目录执行：
 
 ```bash
-cd deployer/middleware/mysql
-cp .env.template .env
-docker compose up -d
+cp config.js.template config.js
+npm install
 ```
 
-`config.js` 数据库配置与中间件映射：
+编辑 `config.js` 的 `database`，填入本地数据库连接信息；开发环境至少需要设置：
 
 ```js
-// PostgreSQL
 database: {
   type: 'postgres',
   host: '127.0.0.1',
   port: 5432,
   database: 'node',
   username: 'node_user',
-  password: '<your_password>',
+  password: '<local-password>',
   schema: 'node',
   synchronize: false
 }
-
-// MySQL
-database: {
-  type: 'mysql',
-  host: '127.0.0.1',
-  port: 3306,
-  database: 'node',
-  username: '<MYSQL_USER>',
-  password: '<MYSQL_PASSWORD>',
-  synchronize: true
-}
 ```
 
-后端：
+通过环境变量提供本地 JWT 密钥后启动热更新服务：
+
 ```bash
-cp config.js.template config.js
-npm install
-JWT_SECRET=$(openssl rand -hex 32) npm run dev
-```
-默认端口：`http://localhost:8100`
-默认日志目录：`./logs`（按天轮转，保留 14 天）
-
-说明：
-- 模板默认不再写入明文 `auth.jwtSecret`，本地 `npm run dev` 请通过环境变量注入（如上）。
-- 如果你使用加密密钥文件，推荐用 `npm run dev:secure`（会提示口令并在进程内解密）。
-
-启动模式说明：
-- 本地开发（推荐）：`npm run dev`
-  - 读取 `config.js`
-  - 支持热更新
-  - 若配置了 `SECRETS_FILE`，会在进程内解密
-- 生产/类生产：`bash scripts/starter.sh start|restart`
-  - 读取构建产物 `dist/server.js`
-  - 若存在 `SECRETS_FILE`（默认 `run/secrets.enc.json`），会在启动前解锁密钥文件，Node 进程内解密到内存
-  - 默认交互输入密码；自动化场景可通过 `NODE_SECRETS_PASSWORD` 或 `SECRETS_PASSWORD_FILE` 注入
-  - 不支持热更新
-
-如果本地也要模拟“加密密钥启动”：
-```bash
-node scripts/init-secrets.cjs
-SECRETS_FILE=run/secrets.enc.json bash scripts/starter.sh restart
+JWT_SECRET="$(openssl rand -hex 32)" npm run dev
 ```
 
-本地开发也可以直接安全模式启动：
+后端地址：<http://localhost:8100>。健康检查：<http://localhost:8100/api/v1/public/health>。
+
+需要模拟生产的加密密钥启动方式时，先执行 `npm run secrets:init`，然后使用：
+
 ```bash
 npm run dev:secure
-# 或指定密钥文件
-npm run dev:secure -- --file run/secrets.enc.json
 ```
 
-常用配置项（`config.js`）：
-- `app.env` / `app.port` / `app.corsAllowedOrigins`
-- `auth.jwtSecret` / `auth.accessTtlMs` / `auth.refreshTtlMs` / `auth.challengeTtlMs`
-- `auth.cookieSameSite` / `auth.cookieSecure`
-- `ucan.aud` / `ucan.with` / `ucan.can`
-- `audit.approvers` / `audit.requiredApprovals`（上架审核人列表与通过阈值）
+### 3. 启动前端
 
-部署前需要修改的配置：
-- `database.host`：数据库地址，模板默认是 `127.0.0.1`，部署时要改成实际数据库地址。
-- `database.username` / `database.password`：数据库账号和密码，必须替换成目标环境的可用凭据，不要保留模板值，也不要把生产密码提交回仓库。
-- `auth.jwtSecret`：JWT 签名密钥。每个环境都应使用独立随机值；通过 `openssl rand -hex 32` 生成。
-- `ucanIssuer.enabled`：是否启用中心化 UCAN 签发模式。默认模板为 `false`；生产环境建议改为 `true`。
-- `ucanIssuer.did`：中心化 UCAN issuer DID，可留空由私钥推导；如果显式配置，必须与私钥推导 DID 一致。
-- `totpAuth.enabled`：是否启用 TOTP 登录桥接。默认模板为 `false`；生产环境建议改为 `true`。
-- `totpAuth.totpMasterKey`：TOTP 主密钥。`totpAuth.enabled=true` 时必须提供，且必须为当前环境单独生成；通过 `openssl rand -hex 32` 生成。
+另开一个终端：
 
-补充说明：
-- 如果 `ucanIssuer.enabled=true` 且 `mode=issue|hybrid`，必须准备 `ucanIssuer.privateKey`（或 `UCAN_ISSUER_PRIVATE_KEY`）；若同时配置 `ucanIssuer.did`（或 `UCAN_ISSUER_DID`），启动时会校验 DID 是否与私钥匹配。
-- Router 等下游服务必须把 Node 当前 issuer DID 配到自己的 trusted issuer 列表，否则中心化 UCAN 会被当成缺少 proof chain 的非可信 token。
-- 如果 `totpAuth.enabled=true`，建议一并检查 `totpAuth.portalBaseUrl` 和 `totpAuth.verifyPath`，确保返回给前端的验证地址指向实际部署域名。
-
-密钥收敛建议：
-- `config.js` 中的 `auth.jwtSecret` / `ucanIssuer.privateKey` / `totpAuth.totpMasterKey` 建议保持空值。
-- 使用 `run/secrets.enc.json` + 启动时输入密码，避免明文落盘与密钥环境变量注入。
-- 测试环境自动化更新可通过 `NODE_SECRETS_PASSWORD` 或 `SECRETS_PASSWORD_FILE` 非交互启动；生产环境更建议使用受权限保护的密码文件或主机密钥管理。
-- 若中心化签发或 TOTP 已启用但密钥未就绪，服务会在启动前直接失败。
-
-前端：
 ```bash
 cd web
 cp .env.template .env
 npm install
-npm run dev
+npm run dev -- --port 8991
 ```
-默认地址：`http://localhost:5173`
 
-`web/.env` 里最关键的是：
-- `VITE_NODE_API_ENDPOINT=http://localhost:8100`
-- `VITE_WEBDAV_BASE_URL=<你的 WebDAV 地址>`
+确认 `web/.env` 至少包含：
 
-其余 UCAN 相关变量默认可不填：
-- API 默认从 `VITE_NODE_API_ENDPOINT` 推导 audience，并使用 `app:all:<当前前端 host> + invoke`
-- WebDAV 默认从 `VITE_WEBDAV_BASE_URL` 推导 audience，并使用 `app:all:<当前前端 host> + write`
+```dotenv
+VITE_NODE_API_ENDPOINT=http://localhost:8100
+```
 
-### WebDAV 存储
-当前服务端不再提供上传/下载接口。前端通过 `@yeying-community/web3-bs` 直接访问 WebDAV，并使用登录得到的 UCAN 作为 Bearer Token。
+访问 <http://localhost:8991>。Vite 会将 `/api` 请求代理至后端，常规前后端开发不需要额外配置 Nginx。
 
-前端常用环境变量（由 Vite 读取）：
-- `VITE_WEBDAV_BASE_URL`：WebDAV 基础地址
-- `VITE_WEBDAV_PREFIX`：可选前缀路径
-- `VITE_WEBDAV_PUBLIC_BASE`：可选公开访问前缀（未设置时回退为 `VITE_WEBDAV_BASE_URL + VITE_WEBDAV_PREFIX`）
-- `VITE_WEBDAV_AVATAR`：默认头像路径（可选）
-
-## 部署脚本
-
-项目根目录提供两个部署相关脚本：
+## 常用命令
 
 ```bash
-bash scripts/starter.sh
-bash scripts/starter.sh stop
-bash scripts/starter.sh restart
-
-bash scripts/package.sh
-bash scripts/package.sh v1.0.1
+npm test                         # 后端测试
+npm run build                    # 编译后端到 dist/
+npm run build:web                # 构建前端到 web/dist/
+npm run build:all                # 构建前后端
+npm run openapi:check            # 校验 OpenAPI 生成文件
+npm audit --omit=dev --audit-level=high
 ```
 
-- `scripts/starter.sh` 支持 `start` / `stop` / `restart`，默认无参数等价于 `start`
-- `scripts/package.sh` 输出到 `output/`，并按 `<project>-<tag>-<short-hash>.tar.gz` 命名
-- 安装包内包含后端构建产物、`config.js.template`、`web/dist` 静态资源和 `scripts/starter.sh`
-- 解压安装包后，进入目录执行 `bash scripts/starter.sh` 即可启动；若包内存在 `web/dist`，后端会自动托管前端静态资源
-- 注意：`scripts/starter.sh` 面向生产/类生产启动；本地联调建议继续使用 `npm run dev`
+`dist/` 是后端 TypeScript 编译产物，使用 `node dist/server.js` 运行；`web/dist/` 是 Vite 生成的浏览器静态资源。两者都属于生产发布包，不能相互替代。
 
-### 健康检查
+## 文档
 
-项目提供统一健康检查入口，默认执行就绪检查：
+- [文档总览](./docs/README.md)
+- [生产环境部署手册](./docs/生产环境部署手册.md)
+- [运行配置](./docs/运行配置.md)
+- [节点架构 V1](./docs/节点架构V1.md) 与 [节点架构 V2](./docs/节点架构V2.md)
+- [Node 使用指南](./docs/Node使用指南.md)
+- [OpenAPI 3.1](./docs/openapi/node.openapi.yaml)
 
-```bash
-./scripts/health-check.sh
-./scripts/health-check.sh --level all
-./scripts/health-check.sh --level all --format json
-```
+## 生产发布
 
-检查层级：
-
-- `liveness`：检查 PID 文件对应进程（使用外部进程管理时跳过）以及公共健康接口。
-- `readiness`：检查服务进程和公共健康接口是否已经可以响应请求。
-- `dependency`：使用当前 `config.js` 对数据库执行只读 `SELECT 1`。
-- `all`：依次执行存活、就绪和依赖检查。
-
-数据库是 Node 的必需依赖，数据库检查失败会返回 `FAIL`。当前没有被健康检查标记为可选并允许降级的外部依赖。命令行参数、环境变量、输出格式和退出码遵循社区的 `HEALTH_CHECK.md` 规范；可使用 `HEALTH_BASE_URL`、`HEALTH_CONFIG` 等环境变量覆盖默认配置。
-
-### 生产密钥初始化（推荐）
-为避免密钥明文写入 `config.js`，可使用内置脚本生成并加密保存：
-
-```bash
-node scripts/init-secrets.cjs
-SECRETS_FILE=run/secrets.enc.json bash scripts/starter.sh restart
-```
-
-- `init-secrets.cjs` 会生成 `JWT_SECRET`、`UCAN_ISSUER_PRIVATE_KEY`、`UCAN_ISSUER_DID`、`TOTP_AUTH_TOTP_MASTER_KEY`
-- 启动时默认提示输入密码，Node 进程内解密密钥并仅驻留内存
-- 自动化更新测试环境时，可用环境变量非交互启动：
-  ```bash
-  NODE_SECRETS_PASSWORD='your-secrets-password' \
-  SECRETS_FILE=run/secrets.enc.json \
-  bash scripts/starter.sh restart
-  ```
-- 也可以使用密码文件，避免密码出现在命令历史中：
-  ```bash
-  printf '%s' 'your-secrets-password' > /secure/path/node-secrets-password
-  chmod 600 /secure/path/node-secrets-password
-
-  SECRETS_PASSWORD_FILE=/secure/path/node-secrets-password \
-  SECRETS_FILE=run/secrets.enc.json \
-  bash scripts/starter.sh restart
-  ```
-- 详细说明见：`docs/加密启动.md`
-
-### 查看 UCAN Issuer DID
-
-有两种常用方式：
-
-1. 从加密密钥文件读取
-
-```bash
-node scripts/unlock-secrets.cjs --file run/secrets.enc.json | grep '^UCAN_ISSUER_DID='
-```
-
-如果不指定 `--file`，默认读取 `run/secrets.enc.json`。
-
-2. 从运行中服务读取当前生效值
-
-```bash
-curl http://127.0.0.1:8100/api/v1/public/auth/central/issuer
-```
-
-返回结果中的 `data.issuerDid` 就是当前服务实际使用的 DID。
-
-建议：
-- 以 `/api/v1/public/auth/central/issuer` 返回的 `data.issuerDid` 作为当前生效 issuer DID。
-- 若显式配置 `ucanIssuer.did` / `UCAN_ISSUER_DID`，必须与 `UCAN_ISSUER_PRIVATE_KEY` 匹配；服务启动时会校验，不匹配会失败。
-- 将当前生效 DID 同步到 Router `ucan.trusted_issuer_dids`，避免 Router 拒绝中心化 UCAN。
-
-![alt text](image.png)
-
-![alt text](container.png)
-
-![alt text](images.png)
+生产部署不要直接执行开发模式。使用发布包、`scripts/starter.sh`、加密密钥文件和反向代理；完整步骤、Nginx 配置、升级与回滚说明见[生产环境部署手册](./docs/生产环境部署手册.md)。
