@@ -14,7 +14,7 @@ const connectToWallet = async () => {
 </script>
 
 <template>
-  <div class="mx-auto pt-10 sm:pt-16 lg:pt-40">
+  <div class="mx-auto pt-10 sm:pt-16 lg:pt-32">
     <div class="text-center">
       <div class="text-center flex justify-center">
         <div
@@ -22,11 +22,11 @@ const connectToWallet = async () => {
           {{ $t('home_hero_title_prefix') }}
         </div>
       </div>
-      <div class="mt-10 px-5 lg:px-0 lg:px-0 text-lg font-body">{{ $t('home_hero_description') }}
+      <div class="mt-10 px-5 lg:px-0 text-lg font-body">{{ $t('home_hero_description') }}
       </div>
       <div class="mt-14 flex items-center justify-center gap-x-6">
         <button type="button" @click="connectToWallet"
-                class="mx-2.5 font-body rounded-full bg-blue-600 px-3 sm:px-8 py-2.5 py-2.5 text-base sm:text-xl text-white shadow-sm hover:bg-blue-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600">
+                class="mx-2.5 font-body rounded-full bg-blue-600 px-3 sm:px-8 py-2.5 text-base sm:text-xl text-white shadow-sm hover:bg-blue-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600">
           {{ $t('home_connect_wallet') }}
         </button>
       </div>

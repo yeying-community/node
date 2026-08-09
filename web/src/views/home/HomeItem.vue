@@ -1,5 +1,5 @@
 <template>
-  <div class="mx-auto max-w-5xl pt-20 lg:pt-80">
+  <div class="mx-auto max-w-5xl pt-20 lg:pt-28">
     <div class="text-center text-3xl font-display font-semibold tracking-tight text-black-900 sm:text-5xl">{{ $t('home_advantages_title') }}</div>
     <dl class="grid px-5 mt-8 sm:mt-11 grid-cols-1 gap-x-6 gap-y-6 lg:max-w-none lg:grid-cols-2">
       <div v-for="feature in itemList" :key="feature.title"

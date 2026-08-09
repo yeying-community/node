@@ -10,6 +10,7 @@ import {
   PassportAuditLogDO,
   PassportAuthorizationCodeDO,
   PassportAuthorizationRequestDO,
+  PassportEmailVerificationChallengeDO,
   PassportPasskeyCredentialDO,
   PassportSubjectDO,
   PassportWebauthnChallengeDO,
@@ -24,6 +25,7 @@ import {
   buildActionSignatureMessage,
   getActionSignatureErrorStatus,
 } from '../../auth/actionSignature'
+import { deliverPassportEmailVerification } from './passportEmailDelivery'
 
 export type PassportStatus = {
   enabled: true
@@ -43,6 +45,7 @@ export type PassportAuthorizationRequestView = {
   redirectUri: string
   state: string
   codeChallengeMethod: string
+  scopes: string[]
   createdAt: string
   expiresAt: string
   verifyUrl: string
@@ -62,11 +65,32 @@ export type PassportAuthorizationApproveResult = {
 export type PassportAuthorizationExchangeResult = {
   requestId: string
   subjectId: string
-  walletAddress: string
+  walletAddress?: string
   appId: string
   redirectUri: string
   state: string
   issuedAt: string
+  scopes: string[]
+  claims: {
+    subjectId: string
+    walletAddress?: string
+    email?: string
+    emailVerified?: boolean
+    emailVerifiedAt?: string
+  }
+}
+
+export type PassportEmailVerificationDelivery = (input: {
+  email: string
+  code: string
+  verificationId: string
+  expiresAt: string
+}) => Promise<void>
+
+export type PassportEmailVerificationRequestResult = {
+  verificationId: string
+  emailHint: string
+  expiresAt: string
 }
 
 export type PassportWalletUnbindRequest = {
@@ -118,6 +142,62 @@ const DEFAULT_VERIFY_PATH = '/passport/authorize'
 const PKCE_REGEX = /^[A-Za-z0-9._~-]{43,128}$/
 const WALLET_UNBIND_ACTION = 'passport_wallet_unbind'
 const DEFAULT_WALLET_UNBIND_TTL_MS = 5 * 60 * 1000
+const DEFAULT_AUTHORIZATION_SCOPES = ['identity.basic', 'identity.wallet']
+const ALLOWED_AUTHORIZATION_SCOPES = new Set(['identity.basic', 'identity.wallet', 'identity.email'])
+const EMAIL_VERIFICATION_TTL_MS = 10 * 60 * 1000
+const EMAIL_VERIFICATION_RESEND_INTERVAL_MS = 60 * 1000
+const EMAIL_VERIFICATION_MAX_ATTEMPTS = 5
+
+function parseAuthorizationScopes(input: unknown): string[] {
+  const values = Array.isArray(input)
+    ? input
+    : typeof input === 'string'
+      ? input.split(/[\s,]+/)
+      : input == null
+        ? DEFAULT_AUTHORIZATION_SCOPES
+        : []
+  const scopes = Array.from(new Set(values.map((value) => normalizeString(value)).filter(Boolean)))
+  for (const scope of scopes) {
+    if (!ALLOWED_AUTHORIZATION_SCOPES.has(scope)) {
+      throw new PassportError(400, 'PASSPORT_SCOPE_UNSUPPORTED', `Unsupported scope: ${scope}`)
+    }
+  }
+  return scopes
+}
+
+function parseStoredAuthorizationScopes(input: unknown): string[] {
+  const raw = normalizeString(input)
+  if (!raw) return DEFAULT_AUTHORIZATION_SCOPES
+  try {
+    const parsed = JSON.parse(raw)
+    return parseAuthorizationScopes(Array.isArray(parsed) ? parsed : [])
+  } catch {
+    // A malformed persisted value must not broaden the returned claims.
+    return []
+  }
+}
+
+function normalizeEmail(input: unknown): string {
+  const email = normalizeString(input).toLowerCase()
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || email.length > 320) {
+    throw new PassportError(400, 'PASSPORT_EMAIL_INVALID', 'Invalid email address')
+  }
+  return email
+}
+
+function maskEmail(email: string): string {
+  const [local, domain] = email.split('@')
+  if (!local || !domain) return ''
+  return `${local.slice(0, 1)}***@${domain}`
+}
+
+function generateEmailVerificationCode(): string {
+  return String(crypto.randomInt(0, 1_000_000)).padStart(6, '0')
+}
+
+function hashEmailVerificationCode(verificationId: string, code: string): string {
+  return crypto.createHash('sha256').update(`${verificationId}:${code}`).digest('hex')
+}
 
 function normalizeAddress(input: unknown): string {
   const value = String(input || '').trim()
@@ -338,6 +418,7 @@ function toRequestView(
     redirectUri: record.redirectUri,
     state: record.state || '',
     codeChallengeMethod: record.codeChallengeMethod || 'S256',
+    scopes: parseStoredAuthorizationScopes(record.scopesJson),
     createdAt: record.createdAt,
     expiresAt: record.expiresAt,
     verifyUrl: buildVerifyUrl(record.requestId),
@@ -349,10 +430,16 @@ function toRequestView(
 export class PassportService {
   private manager: PassportManager
   private applicationService: ApplicationService
+  private emailVerificationDelivery: PassportEmailVerificationDelivery | null
 
-  constructor(manager = new PassportManager(), applicationService = new ApplicationService()) {
+  constructor(
+    manager = new PassportManager(),
+    applicationService = new ApplicationService(),
+    emailVerificationDelivery: PassportEmailVerificationDelivery | null = deliverPassportEmailVerification,
+  ) {
     this.manager = manager
     this.applicationService = applicationService
+    this.emailVerificationDelivery = emailVerificationDelivery
   }
 
   getStatus(): PassportStatus {
@@ -365,6 +452,93 @@ export class PassportService {
       },
       subjectModel: 'passport_subject',
     }
+  }
+
+  async requestEmailVerification(input: {
+    subjectId: unknown
+    email: unknown
+  }): Promise<PassportEmailVerificationRequestResult> {
+    const subjectId = normalizeString(input.subjectId)
+    const email = normalizeEmail(input.email)
+    const subject = await this.manager.getSubject(subjectId)
+    if (!subject || subject.status !== 'active') {
+      throw new PassportError(404, 'PASSPORT_SUBJECT_NOT_FOUND', 'Passport subject not found')
+    }
+    if (!this.emailVerificationDelivery) {
+      throw new PassportError(503, 'PASSPORT_EMAIL_DELIVERY_UNAVAILABLE', 'Email verification delivery is not configured')
+    }
+    const latest = (await this.manager.listEmailVerificationChallenges(subjectId))[0]
+    if (latest && latest.status === 'pending' && Date.now() - parseTime(latest.createdAt) < EMAIL_VERIFICATION_RESEND_INTERVAL_MS) {
+      throw new PassportError(429, 'PASSPORT_EMAIL_VERIFICATION_TOO_FREQUENT', 'Please wait before requesting another code')
+    }
+    const nowMs = Date.now()
+    const now = toIso(nowMs)
+    const verificationId = generateId('pev')
+    const code = generateEmailVerificationCode()
+    const challenge = new PassportEmailVerificationChallengeDO()
+    challenge.verificationId = verificationId
+    challenge.subjectId = subjectId
+    challenge.email = email
+    challenge.codeHash = hashEmailVerificationCode(verificationId, code)
+    challenge.attempts = 0
+    challenge.status = 'pending'
+    challenge.createdAt = now
+    challenge.expiresAt = toIso(nowMs + EMAIL_VERIFICATION_TTL_MS)
+    challenge.verifiedAt = ''
+    await this.manager.saveEmailVerificationChallenge(challenge)
+    try {
+      await this.emailVerificationDelivery({ email, code, verificationId, expiresAt: challenge.expiresAt })
+    } catch {
+      challenge.status = 'delivery_failed'
+      await this.manager.saveEmailVerificationChallenge(challenge)
+      throw new PassportError(503, 'PASSPORT_EMAIL_DELIVERY_FAILED', 'Unable to deliver verification email')
+    }
+    await this.writeAudit({ subjectId, action: 'email_verification_requested' })
+    return { verificationId, emailHint: maskEmail(email), expiresAt: challenge.expiresAt }
+  }
+
+  async confirmEmailVerification(input: {
+    subjectId: unknown
+    verificationId: unknown
+    code: unknown
+  }): Promise<{ subjectId: string; email: string; emailVerifiedAt: string }> {
+    const subjectId = normalizeString(input.subjectId)
+    const verificationId = normalizeString(input.verificationId)
+    const code = normalizeString(input.code)
+    if (!verificationId || !/^\d{6}$/.test(code)) {
+      throw new PassportError(400, 'PASSPORT_EMAIL_VERIFICATION_INVALID', 'Invalid verification code')
+    }
+    const challenge = await this.manager.getEmailVerificationChallenge(verificationId)
+    if (!challenge || challenge.subjectId !== subjectId || challenge.status !== 'pending') {
+      throw new PassportError(400, 'PASSPORT_EMAIL_VERIFICATION_INVALID', 'Invalid verification code')
+    }
+    if (Date.now() > parseTime(challenge.expiresAt)) {
+      challenge.status = 'expired'
+      await this.manager.saveEmailVerificationChallenge(challenge)
+      throw new PassportError(410, 'PASSPORT_EMAIL_VERIFICATION_EXPIRED', 'Verification code expired')
+    }
+    const actual = hashEmailVerificationCode(verificationId, code)
+    if (!crypto.timingSafeEqual(Buffer.from(actual), Buffer.from(challenge.codeHash))) {
+      challenge.attempts += 1
+      if (challenge.attempts >= EMAIL_VERIFICATION_MAX_ATTEMPTS) challenge.status = 'failed'
+      await this.manager.saveEmailVerificationChallenge(challenge)
+      throw new PassportError(400, 'PASSPORT_EMAIL_VERIFICATION_INVALID', 'Invalid verification code')
+    }
+    const subject = await this.manager.getSubject(subjectId)
+    if (!subject || subject.status !== 'active') {
+      throw new PassportError(404, 'PASSPORT_SUBJECT_NOT_FOUND', 'Passport subject not found')
+    }
+    const now = getCurrentUtcString()
+    challenge.status = 'verified'
+    challenge.verifiedAt = now
+    await this.manager.saveEmailVerificationChallenge(challenge)
+    subject.email = challenge.email
+    subject.emailStatus = 'verified'
+    subject.emailVerifiedAt = now
+    subject.updatedAt = now
+    await this.manager.saveSubject(subject)
+    await this.writeAudit({ subjectId, action: 'email_verified' })
+    return { subjectId, email: subject.email, emailVerifiedAt: now }
   }
 
   private async writeAudit(input: {
@@ -539,6 +713,7 @@ export class PassportService {
     code.state = input.request.state
     code.codeChallenge = input.request.codeChallenge
     code.codeChallengeMethod = input.request.codeChallengeMethod || 'S256'
+    code.scopesJson = input.request.scopesJson
     code.createdAt = now
     code.expiresAt = toIso(nowMs + clampTtlMs(input.codeTtlMs, DEFAULT_CODE_TTL_MS, MIN_CODE_TTL_MS, MAX_CODE_TTL_MS))
     code.used = false
@@ -824,8 +999,8 @@ export class PassportService {
       rpID: status.rpId,
       rpName: status.rpName,
       userID: Buffer.from(subject.subjectId, 'utf8'),
-      userName: subject.subjectId,
-      userDisplayName: subject.walletAddress,
+      userName: maskAddress(subject.walletAddress),
+      userDisplayName: '夜莺社区身份',
       timeout: status.timeoutMs,
       attestationType: 'none',
       excludeCredentials: credentials
@@ -927,7 +1102,7 @@ export class PassportService {
     entity.signCount = String(info.credential?.counter || info.counter || 0)
     entity.aaguid = String(info.aaguid || '')
     entity.transports = JSON.stringify(info.credential?.transports || [])
-    entity.deviceName = normalizeString(input.deviceName) || 'Passkey Device'
+    entity.deviceName = normalizeString(input.deviceName) || '未命名登录设备'
     entity.rpId = status.rpId
     entity.userHandle = subject.subjectId
     entity.createdAt = existed?.createdAt || now
@@ -1082,11 +1257,13 @@ export class PassportService {
     state?: unknown
     codeChallenge: unknown
     codeChallengeMethod?: unknown
+    scopes?: unknown
     requestTtlMs?: unknown
   }): Promise<PassportAuthorizationRequestView> {
     const { app, redirectUri } = await this.getAuthorizedApp(input.appId, input.redirectUri)
     const codeChallenge = validateCodeChallenge(input.codeChallenge)
     const codeChallengeMethod = validateCodeChallengeMethod(input.codeChallengeMethod)
+    const scopes = parseAuthorizationScopes(input.scopes)
     const ttlMs = clampTtlMs(input.requestTtlMs, DEFAULT_REQUEST_TTL_MS, MIN_REQUEST_TTL_MS, MAX_REQUEST_TTL_MS)
     const nowMs = Date.now()
     const now = toIso(nowMs)
@@ -1097,6 +1274,7 @@ export class PassportService {
     entity.state = normalizeString(input.state)
     entity.codeChallenge = codeChallenge
     entity.codeChallengeMethod = codeChallengeMethod
+    entity.scopesJson = JSON.stringify(scopes)
     entity.subjectId = ''
     entity.walletAddress = ''
     entity.status = 'pending'
@@ -1177,14 +1355,30 @@ export class PassportService {
       appId: record.appId,
       action: 'authorize_exchanged',
     })
+    const scopes = parseStoredAuthorizationScopes(record.scopesJson)
+    const subject = await this.manager.getSubject(record.subjectId)
+    const claims: PassportAuthorizationExchangeResult['claims'] = {
+      subjectId: record.subjectId,
+    }
+    if (scopes.includes('identity.wallet') && record.walletAddress) {
+      claims.walletAddress = record.walletAddress
+    }
+    if (scopes.includes('identity.email')) {
+      const emailVerified = subject?.emailStatus === 'verified' && Boolean(subject.email)
+      claims.email = emailVerified ? subject!.email : ''
+      claims.emailVerified = emailVerified
+      claims.emailVerifiedAt = emailVerified ? subject!.emailVerifiedAt || '' : ''
+    }
     return {
       requestId: record.requestId,
       subjectId: record.subjectId,
-      walletAddress: record.walletAddress,
+      ...(scopes.includes('identity.wallet') && record.walletAddress ? { walletAddress: record.walletAddress } : {}),
       appId: record.appId,
       redirectUri: record.redirectUri,
       state: record.state || '',
       issuedAt: now,
+      scopes,
+      claims,
     }
   }
 }

@@ -69,6 +69,7 @@ function createHarness() {
   const webauthnChallenges = new Map<string, any>()
   const requests = new Map<string, any>()
   const codes = new Map<string, any>()
+  const emailChallenges = new Map<string, any>()
   const auditLogs: any[] = []
 
   const manager = {
@@ -77,6 +78,15 @@ function createHarness() {
       subjects.set(subject.subjectId, subject)
       return subject
     },
+    saveEmailVerificationChallenge: async (challenge: any) => {
+      emailChallenges.set(challenge.verificationId, challenge)
+      return challenge
+    },
+    getEmailVerificationChallenge: async (verificationId: string) => emailChallenges.get(verificationId) || null,
+    listEmailVerificationChallenges: async (subjectId: string) =>
+      Array.from(emailChallenges.values())
+        .filter((item) => item.subjectId === subjectId)
+        .sort((left, right) => right.createdAt.localeCompare(left.createdAt)),
     getWalletBinding: async (chain: string, address: string) => walletBindings.get(`${chain}:${address}`) || null,
     listWalletBindings: async (subjectId: string) =>
       Array.from(walletBindings.values()).filter((item) => item.subjectId === subjectId),
@@ -126,7 +136,7 @@ function createHarness() {
   }
 
   const service = new PassportService(manager as any, applicationService as any)
-  return { service, subjects, walletBindings, passkeys, webauthnChallenges, requests, codes, auditLogs }
+  return { service, subjects, walletBindings, passkeys, webauthnChallenges, requests, codes, emailChallenges, auditLogs, manager, applicationService }
 }
 
 describe('PassportService', () => {
@@ -219,7 +229,7 @@ describe('PassportService', () => {
     expect(registered).toMatchObject({
       subjectId: registerRequest.subjectId,
       credentialId: Buffer.from('credential-1').toString('base64url'),
-      deviceName: 'Passkey Device',
+      deviceName: '未命名登录设备',
     })
     expect(passkeys.size).toBe(1)
 
@@ -361,5 +371,101 @@ describe('PassportService', () => {
 
     const bindings = await service.listBindingsByWallet(walletAddress)
     expect(bindings).toEqual({ subjectId: '', walletBindings: [] })
+  })
+
+  it('persists requested scopes and releases verified email only to an email-scoped application', async () => {
+    const { service, subjects, codes } = createHarness()
+    const walletAddress = '0xAbC0000000000000000000000000000000000001'
+    const emailPkce = createPkcePair()
+    const emailRequest = await service.createAuthorizationRequest({
+      appId: 'project-app',
+      redirectUri: 'https://project.example/passport/callback',
+      codeChallenge: emailPkce.challenge,
+      scopes: ['identity.basic', 'identity.email'],
+    })
+    const emailApproved = await service.approveAuthorizationRequest({
+      requestId: emailRequest.requestId,
+      walletAddress,
+    })
+    const subject = subjects.get(emailApproved.subjectId)
+    subject.email = 'person@example.com'
+    subject.emailStatus = 'verified'
+    subject.emailVerifiedAt = '2026-08-09T00:00:00.000Z'
+
+    const emailExchanged = await service.exchangeAuthorizationCode({
+      code: emailApproved.authorizationCode,
+      appId: 'project-app',
+      redirectUri: 'https://project.example/passport/callback',
+      codeVerifier: emailPkce.verifier,
+    })
+    expect(emailRequest.scopes).toEqual(['identity.basic', 'identity.email'])
+    expect(codes.get(emailApproved.authorizationCode).scopesJson).toBe(JSON.stringify(emailRequest.scopes))
+    expect(emailExchanged.walletAddress).toBeUndefined()
+    expect(emailExchanged.claims).toEqual({
+      subjectId: emailApproved.subjectId,
+      email: 'person@example.com',
+      emailVerified: true,
+      emailVerifiedAt: '2026-08-09T00:00:00.000Z',
+    })
+
+    const walletPkce = createPkcePair()
+    const walletRequest = await service.createAuthorizationRequest({
+      appId: 'project-app',
+      redirectUri: 'https://project.example/passport/callback',
+      codeChallenge: walletPkce.challenge,
+    })
+    const walletApproved = await service.approveAuthorizationRequest({
+      requestId: walletRequest.requestId,
+      walletAddress,
+    })
+    const walletExchanged = await service.exchangeAuthorizationCode({
+      code: walletApproved.authorizationCode,
+      appId: 'project-app',
+      redirectUri: 'https://project.example/passport/callback',
+      codeVerifier: walletPkce.verifier,
+    })
+    expect(walletRequest.scopes).toEqual(['identity.basic', 'identity.wallet'])
+    expect(walletExchanged.claims).toEqual({
+      subjectId: walletApproved.subjectId,
+      walletAddress: walletAddress.toLowerCase(),
+    })
+  })
+
+  it('rejects unsupported authorization scopes', async () => {
+    const { service } = createHarness()
+    const pkce = createPkcePair()
+    await expect(service.createAuthorizationRequest({
+      appId: 'project-app',
+      redirectUri: 'https://project.example/passport/callback',
+      codeChallenge: pkce.challenge,
+      scopes: ['identity.basic', 'identity.admin'],
+    })).rejects.toThrow('Unsupported scope: identity.admin')
+  })
+
+  it('verifies an email for a Passport subject without persisting the plaintext code', async () => {
+    const harness = createHarness()
+    const delivered: Array<{ code: string }> = []
+    const service = new PassportService(harness.manager as any, harness.applicationService as any, async (message) => {
+      delivered.push({ code: message.code })
+    })
+    const subject = await service.ensureWalletSubject('0xAbC0000000000000000000000000000000000001')
+    const requested = await service.requestEmailVerification({
+      subjectId: subject.subjectId,
+      email: 'Person@Example.com',
+    })
+    expect(requested.emailHint).toBe('p***@example.com')
+    expect(delivered).toHaveLength(1)
+    expect(JSON.stringify(Array.from(harness.emailChallenges.values()))).not.toContain(delivered[0].code)
+
+    const confirmed = await service.confirmEmailVerification({
+      subjectId: subject.subjectId,
+      verificationId: requested.verificationId,
+      code: delivered[0].code,
+    })
+    expect(confirmed.email).toBe('person@example.com')
+    expect(harness.subjects.get(subject.subjectId)).toMatchObject({
+      email: 'person@example.com',
+      emailStatus: 'verified',
+    })
   })
 })

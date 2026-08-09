@@ -3,6 +3,7 @@ import {
   PassportAuditLogDO,
   PassportAuthorizationCodeDO,
   PassportAuthorizationRequestDO,
+  PassportEmailVerificationChallengeDO,
   PassportPasskeyCredentialDO,
   PassportSubjectDO,
   PassportWebauthnChallengeDO,
@@ -18,6 +19,7 @@ export class PassportManager {
   private authorizationRequestRepository: Repository<PassportAuthorizationRequestDO>
   private authorizationCodeRepository: Repository<PassportAuthorizationCodeDO>
   private auditLogRepository: Repository<PassportAuditLogDO>
+  private emailVerificationChallengeRepository: Repository<PassportEmailVerificationChallengeDO>
 
   constructor() {
     const ds = SingletonDataSource.get()
@@ -28,6 +30,7 @@ export class PassportManager {
     this.authorizationRequestRepository = ds.getRepository(PassportAuthorizationRequestDO)
     this.authorizationCodeRepository = ds.getRepository(PassportAuthorizationCodeDO)
     this.auditLogRepository = ds.getRepository(PassportAuditLogDO)
+    this.emailVerificationChallengeRepository = ds.getRepository(PassportEmailVerificationChallengeDO)
   }
 
   async getSubject(subjectId: string) {
@@ -36,6 +39,21 @@ export class PassportManager {
 
   async saveSubject(subject: PassportSubjectDO) {
     return await this.subjectRepository.save(subject)
+  }
+
+  async saveEmailVerificationChallenge(challenge: PassportEmailVerificationChallengeDO) {
+    return await this.emailVerificationChallengeRepository.save(challenge)
+  }
+
+  async getEmailVerificationChallenge(verificationId: string) {
+    return await this.emailVerificationChallengeRepository.findOneBy({ verificationId })
+  }
+
+  async listEmailVerificationChallenges(subjectId: string) {
+    return await this.emailVerificationChallengeRepository.find({
+      where: { subjectId },
+      order: { createdAt: 'DESC' },
+    })
   }
 
   async getWalletBinding(chain: string, address: string) {
