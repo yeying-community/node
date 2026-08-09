@@ -46,11 +46,11 @@
               </div>
               <div class="summary-identity">
                 <span class="summary-label">{{ mt('subjectId') }}</span>
-                <span class="path-text">{{ passportPasskeyBinding?.subjectId || '-' }}</span>
+                <span>{{ passportPasskeyBinding?.subjectId ? mt('passkeyListTitle') : '-' }}</span>
               </div>
               <div class="summary-identity">
-                <span class="summary-label">{{ mt('walletAddress') }}</span>
-                <span class="path-text">{{ passportPasskeyBinding?.walletAddress || currentAccount || '-' }}</span>
+                <span class="summary-label">{{ mt('walletAddressShort') }}</span>
+                <span class="path-text">{{ walletAddressDisplay }}</span>
               </div>
             </div>
 
@@ -62,7 +62,6 @@
             <div class="credential-list">
               <div class="credential-list-head">
                 <span>{{ mt('deviceName') }}</span>
-                <span>{{ mt('credentialId') }}</span>
                 <span>{{ mt('transports') }}</span>
                 <span>{{ mt('createdAt') }}</span>
                 <span>{{ mt('status') }}</span>
@@ -78,7 +77,6 @@
                     {{ mt('revokedAt') }}：{{ credential.revokedAt }}
                   </div>
                 </div>
-                <div class="credential-cell credential-detail path-text">{{ credential.credentialId }}</div>
                 <div class="credential-cell credential-transports">{{ credential.transports?.join(', ') || '-' }}</div>
                 <div class="credential-cell credential-created">{{ credential.createdAt || '-' }}</div>
                 <div class="credential-cell credential-status">
@@ -644,7 +642,7 @@ function mt(key: MyConfigMessageKey): string {
 
 const PASSKEY_TEST_HISTORY_KEY = 'passport:passkey:test-history';
 const TOTP_TEST_HISTORY_KEY = 'passport:totp:test-history';
-const LEGACY_PASSKEY_DEVICE_NAME = 'passkey-device';
+const LEGACY_PASSKEY_DEVICE_NAMES = new Set(['passkey-device', 'Passkey Device']);
 
 const authTab = ref('passkey');
 const passkeyTestDialogVisible = ref(false);
@@ -701,6 +699,18 @@ const activePasskeyCount = computed(() =>
 const revokedPasskeyCount = computed(() =>
   passkeyCredentials.value.filter((item) => Boolean(String(item.revokedAt || '').trim())).length
 );
+
+const walletAddressDisplay = computed(() => {
+  const address = String(passportPasskeyBinding.value?.walletAddress || currentAccount.value || '').trim();
+  return formatAddress(address);
+});
+
+function formatAddress(address: string): string {
+  const value = String(address || '').trim();
+  if (!value) return '-';
+  if (value.length <= 12) return value;
+  return `${value.slice(0, 6)}...${value.slice(-4)}`;
+}
 
 async function parseEnvelope<T>(response: Response, fallbackMessage: string): Promise<T> {
   const text = await response.text();
@@ -869,7 +879,7 @@ function createDefaultPasskeyDeviceName(): string {
 
 function getCredentialDeviceName(credential: PasskeyCredentialRecord): string {
   const deviceName = String(credential.deviceName || '').trim();
-  if (!deviceName || deviceName === LEGACY_PASSKEY_DEVICE_NAME) {
+  if (!deviceName || LEGACY_PASSKEY_DEVICE_NAMES.has(deviceName)) {
     return mt('defaultPasskeyDeviceName');
   }
   return deviceName;
@@ -1877,7 +1887,7 @@ watch(
   .credential-list-head,
   .credential-row {
     display: grid;
-    grid-template-columns: minmax(140px, 1fr) minmax(220px, 1.6fr) minmax(110px, 0.8fr) minmax(150px, 1fr) 86px 128px;
+    grid-template-columns: minmax(160px, 1.3fr) minmax(110px, 0.8fr) minmax(150px, 1fr) 86px 128px;
     gap: 12px;
     align-items: center;
   }
@@ -2443,7 +2453,7 @@ watch(
 
     .credential-list-head,
     .credential-row {
-      grid-template-columns: minmax(120px, 1fr) minmax(180px, 1.4fr) 96px minmax(120px, 1fr) 74px 128px;
+      grid-template-columns: minmax(130px, 1.2fr) 96px minmax(120px, 1fr) 74px 128px;
       gap: 10px;
     }
 

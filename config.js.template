@@ -242,5 +242,17 @@ module.exports = {
       maxFiles: '14d',
       zippedArchive: true
     }
+  },
+  // Required before enabling Passport email verification delivery.
+  // Keep credentials outside source control in the deployed configuration.
+  mail: {
+    host: 'smtp.example.com',
+    port: 465,
+    secure: true,
+    from: 'YeYing Passport <no-reply@example.com>',
+    auth: {
+      user: 'user@example.com',
+      pass: 'CHANGE_ME'
+    }
   }
 }

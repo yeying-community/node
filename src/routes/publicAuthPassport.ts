@@ -100,6 +100,37 @@ export function registerPublicAuthPassportRoutes(app: Express) {
     }
   })
 
+  app.post(`${BASE_PATH}/email/verification/request`, async (req: Request, res: Response) => {
+    try {
+      const walletAddress = requireBearerSubject(req)
+      const binding = await service.ensureWalletSubject(walletAddress)
+      const result = await service.requestEmailVerification({
+        subjectId: binding.subjectId,
+        email: req.body?.email,
+      })
+      res.json(ok(result))
+    } catch (error) {
+      const mapped = mapPassportError(error)
+      res.status(mapped.status).json(fail(mapped.status, mapped.message))
+    }
+  })
+
+  app.post(`${BASE_PATH}/email/verification/confirm`, async (req: Request, res: Response) => {
+    try {
+      const walletAddress = requireBearerSubject(req)
+      const binding = await service.ensureWalletSubject(walletAddress)
+      const result = await service.confirmEmailVerification({
+        subjectId: binding.subjectId,
+        verificationId: req.body?.verificationId,
+        code: req.body?.code,
+      })
+      res.json(ok(result))
+    } catch (error) {
+      const mapped = mapPassportError(error)
+      res.status(mapped.status).json(fail(mapped.status, mapped.message))
+    }
+  })
+
   app.get(`${BASE_PATH}/bindings`, async (req: Request, res: Response) => {
     try {
       const address = requireBearerSubject(req)
@@ -213,6 +244,7 @@ export function registerPublicAuthPassportRoutes(app: Express) {
         state: req.body?.state,
         codeChallenge: req.body?.codeChallenge ?? req.body?.code_challenge,
         codeChallengeMethod: req.body?.codeChallengeMethod ?? req.body?.code_challenge_method,
+        scopes: req.body?.scopes ?? req.body?.scope,
         requestTtlMs: req.body?.requestTtlMs,
       })
       res.json(ok(result))

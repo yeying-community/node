@@ -27,6 +27,26 @@ const router: Router = createRouter({
     routes
 })
 
+const staleChunkReloadPrefix = 'stale-chunk-reload:'
+router.onError((error) => {
+    const message = error instanceof Error ? error.message : String(error)
+    const isStaleChunk =
+        message.includes('Failed to fetch dynamically imported module') ||
+        message.includes('Importing a module script failed') ||
+        message.includes('error loading dynamically imported module')
+    if (!isStaleChunk) {
+        return
+    }
+
+    const moduleUrl = message.match(/https?:\/\/\S+\.js/)?.[0] || window.location.pathname
+    const reloadKey = `${staleChunkReloadPrefix}${moduleUrl}`
+    if (sessionStorage.getItem(reloadKey)) {
+        return
+    }
+    sessionStorage.setItem(reloadKey, '1')
+    window.location.reload()
+})
+
 setupRouter(router)
 app.use(router)
 

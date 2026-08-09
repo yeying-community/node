@@ -16,6 +16,17 @@ export interface AppRuntimeConfig {
     corsAllowedOrigins?: string[]
 }
 
+export interface MailRuntimeConfig {
+    host?: string
+    port?: number
+    secure?: boolean
+    from?: string
+    auth?: {
+        user?: string
+        pass?: string
+    }
+}
+
 export interface SecretsRuntimeConfig {
     file?: string
 }

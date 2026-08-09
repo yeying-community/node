@@ -2,112 +2,42 @@
   <header class="inset-x-0 top-0 z-10 flex justify-center header">
     <nav
       class="flex items-center justify-between py-4 w-full px-5 lg:px-2 xl:w-5/6"
-      aria-label="全局导航"
+      aria-label="节点导航"
     >
-      <div class="flex lg:flex-1 items-center cursor-pointer" @click="changeRouter('/')">
+      <div class="flex items-center cursor-pointer" @click="changeRouter('/')">
         <img class="w-28 h-8 mr-2" src="../../assets/img/logo.svg" />
       </div>
-      <div class="flex lg:hidden">
+      <div class="flex items-center justify-end gap-3">
+        <Language style="transform: translateY(10%)" />
         <button
           type="button"
-          class="-m-2.5 inline-flex items-center justify-center rounded-md p-2.5 text-gray-700"
-          @click="menuDrawerOpen = true"
+          class="font-body rounded-full bg-blue-600 px-4 py-2 text-sm text-white shadow-sm hover:bg-blue-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600 sm:px-6 sm:text-base"
+          @click="connectToWallet"
         >
-          <span class="sr-only">打开主菜单</span>
-          <span class="iconfont icon-horizon scale-125" />
+          {{ $t('home_connect_wallet') }}
         </button>
       </div>
-      <div class="hidden lg:flex lg:gap-x-12 font-body text-base">
-        <span
-          class="cursor-pointer opacity-85"
-          :class="item.name == selectName ? 'text-blue-600' : ''"
-          v-for="item in navigation"
-          :key="item.title"
-          @click="changeRouter(item.to)"
-          >{{ item.title }}</span
-        >
-      </div>
-      <div class="hidden items-center lg:flex lg:flex-1 lg:justify-end ml-3">
-        <Language style="transform: translateY(10%)" />
-      </div>
     </nav>
-    <Dialog class="lg:hidden" @close="menuDrawerOpen = false" :open="menuDrawerOpen">
-      <div class="fixed inset-0 z-50" />
-      <DialogPanel
-        class="fixed inset-y-0 right-0 z-50 w-full overflow-y-auto bg-white px-6 py-6 h-screen sm:max-w-sm sm:ring-1 sm:ring-gray-900/10"
-      >
-        <div class="flex items-center justify-between">
-          <a href="#" class="-m-1.5 p-1.5">
-            <span class="sr-only">YeYing</span>
-            <img class="h-8 w-auto" src="../../assets/img/logo.svg" alt="" />
-          </a>
-          <button
-            type="button"
-            class="-m-2.5 rounded-md p-2.5 text-gray-700"
-            @click="menuDrawerOpen = false"
-          >
-            <span class="iconfont icon-close" />
-          </button>
-        </div>
-        <div class="mt-6 flow-root">
-          <div class="-my-6 divide-y divide-gray-500/10">
-            <div class="space-y-2 py-6">
-              <span
-                href="#"
-                @click="() => changeRouter(item.to)"
-                v-for="item in navigation"
-                :key="item.name"
-                class="block px-3 py-2 text-base/7 font-body text-gray-900 hover:bg-gray-50"
-                :style="{ color: item.name == selectName ? 'blue' : '' }"
-                >{{ item.title }}</span
-              >
-            </div>
-            <div class="py-6">
-              <Language style="transform: translateY(40%)" />
-            </div>
-          </div>
-        </div>
-      </DialogPanel>
-    </Dialog>
   </header>
 </template>
+
 <script lang="ts" setup>
-import { ref, watch, getCurrentInstance } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import Language from "@/components/common/Language.vue";
-import { Dialog, DialogPanel } from "@headlessui/vue";
+import { connectWallet } from "@/plugins/auth";
 
-const route = useRoute();
-const selectName = ref("home");
-const { proxy } = getCurrentInstance();
-const { $t } = proxy;
 const router = useRouter();
+const route = useRoute();
 
-// 监听路由变化
-watch(
-  () => route,
-  (newRoute, oldRoute) => {
-    if (newRoute?.name) {
-      selectName.value = newRoute.name;
-    }
-  },
-  { deep: true, immediate: true }
-);
-const navigation = [
-  { title: $t("h_solution"), to: "/solution", name: "solution" },
-  { title: $t("h_doc"), to: "" },
-  { title: $t("h_blog"), to: "" },
-  { title: $t("h_about"), to: "" },
-];
-const menuDrawerOpen = ref(false);
+const changeRouter = async (url: string) => {
+  await router.push(url);
+};
 
-const changeRouter = async (url) => {
-  router.push(url);
-  if (url && menuDrawerOpen.value) {
-    menuDrawerOpen.value = false;
-  }
+const connectToWallet = async () => {
+  await connectWallet(router, route);
 };
 </script>
+
 <style scoped>
 .header {
   backdrop-filter: blur(10px);

@@ -16,12 +16,17 @@ import {
     TotpSubjectSecretDO,
     CustodyKeyRecordDO,
     PassportSubjectDO,
+    PassportEmailVerificationChallengeDO,
     PassportWalletBindingDO,
     PassportPasskeyCredentialDO,
     PassportWebauthnChallengeDO,
     PassportAuthorizationRequestDO,
     PassportAuthorizationCodeDO,
     PassportAuditLogDO,
+    ScopedGrantDO,
+    ScopedGrantTokenDO,
+    ScopedGrantRevocationDO,
+    ScopedGrantAuditLogDO,
     NotificationDO,
     NotificationInboxDO,
     NotificationWebhookDO,
@@ -46,6 +51,7 @@ import { registerPublicAuthRoutes } from './routes/publicAuth';
 import { registerPublicAuthCentralRoutes } from './routes/publicAuthCentral';
 import { registerPublicAuthTotpRoutes } from './routes/publicAuthTotp';
 import { registerPublicAuthPassportRoutes } from './routes/publicAuthPassport';
+import { registerPublicAuthGrantRoutes } from './routes/publicAuthGrants';
 import { registerPublicProfileRoute } from './routes/privateProfile';
 import { registerPublicApplicationRoutes } from './routes/public/applications';
 import { registerPublicAuditRoutes } from './routes/public/audits';
@@ -77,8 +83,11 @@ import { AddAppReleases20260723110000 } from './migrations/20260723110000-add-ap
 import { AddAppRuntimeTasks20260724100000 } from './migrations/20260724100000-add-app-runtime-tasks';
 import { AddRuntimeTaskPayload20260726100000 } from './migrations/20260726100000-add-runtime-task-payload';
 import { AddPassportIdentity20260803100000 } from './migrations/20260803100000-add-passport-identity';
+import { AddPassportSubjectEmailAndScopes20260809090000 } from './migrations/20260809090000-add-passport-subject-email-and-scopes';
+import { AddPassportEmailVerificationChallenges20260809093000 } from './migrations/20260809093000-add-passport-email-verification-challenges';
 import { EnforcePassportPasskeyIdentity20260803110000 } from './migrations/20260803110000-enforce-passport-passkey-identity';
 import { RepairPassportWebauthnChallenges20260803120000 } from './migrations/20260803120000-repair-passport-webauthn-challenges';
+import { AddScopedGrants20260808090000 } from './migrations/20260808090000-add-scoped-grants';
 import { getConfig } from './config/runtime';
 import { startActionRequestCleanupJobs } from './domain/service/actionRequestCleanup';
 import { startMpcCleanupJobs } from './domain/service/mpcCleanup';
@@ -138,7 +147,18 @@ function registerWebStaticRoutes(app: Express, webDistDir: string) {
         return
     }
 
-    app.use(express.static(webDistDir, { index: false }))
+    app.use(express.static(webDistDir, {
+        index: false,
+        setHeaders(res, filePath) {
+            if (path.basename(filePath) === 'index.html') {
+                res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate')
+                return
+            }
+            if (filePath.includes(`${path.sep}static${path.sep}`)) {
+                res.setHeader('Cache-Control', 'public, max-age=31536000, immutable')
+            }
+        }
+    }))
     app.use((req: Request, res: Response, next) => {
         if (req.method !== 'GET' && req.method !== 'HEAD') {
             next()
@@ -152,6 +172,7 @@ function registerWebStaticRoutes(app: Express, webDistDir: string) {
             next()
             return
         }
+        res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate')
         res.sendFile(path.join(webDistDir, 'index.html'), (error) => {
             if (error) {
                 next(error)
@@ -261,12 +282,17 @@ builder.entities([
     TotpSubjectSecretDO,
     CustodyKeyRecordDO,
     PassportSubjectDO,
+    PassportEmailVerificationChallengeDO,
     PassportWalletBindingDO,
     PassportPasskeyCredentialDO,
     PassportWebauthnChallengeDO,
     PassportAuthorizationRequestDO,
     PassportAuthorizationCodeDO,
     PassportAuditLogDO,
+    ScopedGrantDO,
+    ScopedGrantTokenDO,
+    ScopedGrantRevocationDO,
+    ScopedGrantAuditLogDO,
     NotificationDO,
     NotificationInboxDO,
     NotificationWebhookDO,
@@ -303,7 +329,10 @@ builder.migrations([
     AddRuntimeTaskPayload20260726100000,
     AddPassportIdentity20260803100000,
     EnforcePassportPasskeyIdentity20260803110000,
-    RepairPassportWebauthnChallenges20260803120000
+    RepairPassportWebauthnChallenges20260803120000,
+    AddScopedGrants20260808090000,
+    AddPassportSubjectEmailAndScopes20260809090000,
+    AddPassportEmailVerificationChallenges20260809093000
 ])
 
 builder.build().initialize().then(async (conn) => {
@@ -345,6 +374,7 @@ builder.build().initialize().then(async (conn) => {
     registerPublicAuthCentralRoutes(app);
     registerPublicAuthTotpRoutes(app);
     registerPublicAuthPassportRoutes(app);
+    registerPublicAuthGrantRoutes(app);
     registerPublicHealthRoute(app);
     registerPublicProfileRoute(app);
     registerPublicApplicationRoutes(app);

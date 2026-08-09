@@ -121,11 +121,52 @@ export class PassportSubjectDO {
     @Column({ length: 128, name: 'primary_wallet_address', default: '' })
     primaryWalletAddress!: string
 
+    @Column({ length: 320, default: '' })
+    email!: string
+
+    @Column({ length: 32, name: 'email_status', default: 'unverified' })
+    emailStatus!: string
+
+    @Column({ length: 64, name: 'email_verified_at', default: '' })
+    emailVerifiedAt!: string
+
     @Column({ length: 64, name: 'created_at', default: '' })
     createdAt!: string
 
     @Column({ length: 64, name: 'updated_at', default: '' })
     updatedAt!: string
+}
+
+@Entity('passport_email_verification_challenges')
+@Index('idx_passport_email_verification_subject_created', ['subjectId', 'createdAt'])
+@Index('idx_passport_email_verification_expires', ['status', 'expiresAt'])
+export class PassportEmailVerificationChallengeDO {
+    @PrimaryColumn({ length: 128, name: 'verification_id' })
+    verificationId!: string
+
+    @Column({ length: 128, name: 'subject_id' })
+    subjectId!: string
+
+    @Column({ length: 320 })
+    email!: string
+
+    @Column({ length: 128, name: 'code_hash' })
+    codeHash!: string
+
+    @Column({ type: 'int', default: 0 })
+    attempts!: number
+
+    @Column({ length: 32, default: 'pending' })
+    status!: string
+
+    @Column({ length: 64, name: 'created_at', default: '' })
+    createdAt!: string
+
+    @Column({ length: 64, name: 'expires_at', default: '' })
+    expiresAt!: string
+
+    @Column({ length: 64, name: 'verified_at', default: '' })
+    verifiedAt!: string
 }
 
 @Entity('passport_wallet_bindings')
@@ -255,6 +296,9 @@ export class PassportAuthorizationRequestDO {
     @Column({ length: 16, name: 'code_challenge_method', default: 'S256' })
     codeChallengeMethod!: string
 
+    @Column({ type: 'text', name: 'scopes_json', default: '["identity.basic","identity.wallet"]' })
+    scopesJson!: string
+
     @Column({ length: 128, name: 'subject_id', default: '' })
     subjectId!: string
 
@@ -307,6 +351,9 @@ export class PassportAuthorizationCodeDO {
     @Column({ length: 16, name: 'code_challenge_method', default: 'S256' })
     codeChallengeMethod!: string
 
+    @Column({ type: 'text', name: 'scopes_json', default: '["identity.basic","identity.wallet"]' })
+    scopesJson!: string
+
     @Column({ length: 64, name: 'created_at', default: '' })
     createdAt!: string
 
@@ -344,6 +391,124 @@ export class PassportAuditLogDO {
 
     @Column({ length: 32, default: 'info' })
     level!: string
+
+    @Column({ type: 'text', name: 'metadata_json', default: '{}' })
+    metadataJson!: string
+
+    @Column({ length: 64, name: 'created_at', default: '' })
+    createdAt!: string
+}
+
+@Entity('scoped_grants')
+@Index('idx_scoped_grants_subject_status', ['subjectId', 'status'])
+@Index('idx_scoped_grants_app_status', ['appId', 'status'])
+export class ScopedGrantDO {
+    @PrimaryColumn({ length: 128, name: 'grant_id' })
+    grantId!: string
+
+    @Column({ length: 128, name: 'subject_id' })
+    subjectId!: string
+
+    @Column({ length: 128, name: 'app_id' })
+    appId!: string
+
+    @Column({ length: 512 })
+    audience!: string
+
+    @Column({ type: 'text', name: 'capabilities_json', default: '[]' })
+    capabilitiesJson!: string
+
+    @Column({ length: 64, default: 'active' })
+    status!: string
+
+    @Column({ length: 64, name: 'created_at', default: '' })
+    createdAt!: string
+
+    @Column({ length: 64, name: 'updated_at', default: '' })
+    updatedAt!: string
+
+    @Column({ length: 64, name: 'expires_at', default: '' })
+    expiresAt!: string
+
+    @Column({ length: 64, name: 'revoked_at', default: '' })
+    revokedAt!: string
+}
+
+@Entity('scoped_grant_tokens')
+@Index('idx_scoped_grant_tokens_grant', ['grantId'])
+@Index('idx_scoped_grant_tokens_status_expires', ['status', 'expiresAt'])
+export class ScopedGrantTokenDO {
+    @PrimaryColumn({ length: 128, name: 'token_id' })
+    tokenId!: string
+
+    @Column({ length: 128, name: 'grant_id' })
+    grantId!: string
+
+    @Column({ length: 128, name: 'token_hash' })
+    tokenHash!: string
+
+    @Column({ length: 512 })
+    audience!: string
+
+    @Column({ type: 'text', name: 'capabilities_json', default: '[]' })
+    capabilitiesJson!: string
+
+    @Column({ length: 64, default: 'active' })
+    status!: string
+
+    @Column({ length: 64, name: 'created_at', default: '' })
+    createdAt!: string
+
+    @Column({ length: 64, name: 'expires_at', default: '' })
+    expiresAt!: string
+
+    @Column({ length: 64, name: 'revoked_at', default: '' })
+    revokedAt!: string
+}
+
+@Entity('scoped_grant_revocations')
+@Index('idx_scoped_grant_revocations_grant', ['grantId'])
+export class ScopedGrantRevocationDO {
+    @PrimaryGeneratedColumn('uuid')
+    uid!: string
+
+    @Column({ length: 128, name: 'grant_id' })
+    grantId!: string
+
+    @Column({ length: 128, name: 'token_id', default: '' })
+    tokenId!: string
+
+    @Column({ length: 128, name: 'actor_subject_id', default: '' })
+    actorSubjectId!: string
+
+    @Column({ length: 64, name: 'revoked_at', default: '' })
+    revokedAt!: string
+
+    @Column({ type: 'text', name: 'reason', default: '' })
+    reason!: string
+}
+
+@Entity('scoped_grant_audit_logs')
+@Index('idx_scoped_grant_audit_grant_created', ['grantId', 'createdAt'])
+@Index('idx_scoped_grant_audit_subject_created', ['subjectId', 'createdAt'])
+export class ScopedGrantAuditLogDO {
+    @PrimaryGeneratedColumn('uuid')
+    uid!: string
+
+    @Column({ length: 128, name: 'grant_id', default: '' })
+    grantId!: string
+
+    @Column({ length: 128, name: 'token_id', default: '' })
+    tokenId!: string
+
+    @Column({ length: 128, name: 'subject_id', default: '' })
+    subjectId!: string
+
+    @Column({ length: 128, name: 'app_id', default: '' })
+    appId!: string
+
+    @Column({ length: 64 })
+    action!: string
 
     @Column({ type: 'text', name: 'metadata_json', default: '{}' })
     metadataJson!: string
