@@ -15,6 +15,7 @@ import {
   convertMpcSessionTo
 } from '../model/mpc'
 import { publishMpcEvent } from './mpcEvents'
+import { NotificationService, safelyRunNotificationTask } from './notification'
 
 export type CreateMpcSessionInput = {
   id?: string
@@ -81,9 +82,11 @@ function extractEthAddress(identity: string): string | null {
 export class MpcService {
   private logger: Logger = SingletonLogger.get()
   private manager: MpcManager
+  private notificationService: NotificationService
 
   constructor() {
     this.manager = new MpcManager()
+    this.notificationService = new NotificationService()
   }
 
   private nowEpoch(): string {
@@ -129,6 +132,51 @@ export class MpcService {
       const errMsg = error instanceof Error ? error.message : 'unknown'
       this.logger.warn(`mpc event publish failed: ${errMsg}`)
     }
+  }
+
+  private async notifySessionInvited(session: MpcSession, actor: string) {
+    if (session.type !== 'keygen') {
+      return
+    }
+    const actorAddress = normalizeAddress(actor || '')
+    const recipients = Array.from(
+      new Set(
+        session.participants
+          .map((participant) => normalizeAddress(participant || ''))
+          .filter((participant) => participant && participant !== actorAddress)
+      )
+    )
+    if (recipients.length === 0) {
+      return
+    }
+
+    await safelyRunNotificationTask(async () => {
+      await this.notificationService.create({
+        type: 'mpc.keygen.invited',
+        source: 'mpc',
+        subjectType: 'mpc.session',
+        subjectId: session.id,
+        actor: actorAddress,
+        audienceType: 'wallet-address',
+        recipients,
+        level: 'info',
+        title: 'MPC 钱包创建邀请',
+        body: '你被邀请参与 MPC 钱包密钥生成。',
+        payload: {
+          sessionId: session.id,
+          walletId: session.walletId,
+          sessionType: session.type,
+          threshold: session.threshold,
+          participants: session.participants,
+          curve: session.curve,
+          keyVersion: session.keyVersion,
+          shareVersion: session.shareVersion,
+          inviter: actorAddress,
+          expiresAt: session.expiresAt || '',
+        },
+        expiresAt: session.expiresAt || undefined,
+      })
+    })
   }
 
   private isExpired(expiresAt?: string) {
@@ -199,6 +247,7 @@ export class MpcService {
       status: session.status,
       round: session.round
     })
+    await this.notifySessionInvited(session, actor)
     return convertMpcSessionFrom(sessionDO)
   }
 
