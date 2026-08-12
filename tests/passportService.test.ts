@@ -11,6 +11,10 @@ vi.mock('../src/config/runtime', () => ({
       'passportAuth.passkey.origin': 'https://project.example',
       'passportAuth.passkey.timeoutMs': 60000,
       'passportAuth.passkey.challengeTtlMs': 120000,
+      'passportAuth.portalBaseUrl': 'https://node.example',
+      'passportAuth.assertionSecret': 'test-passport-assertion-secret-123456',
+      'passportAuth.assertionTtlMs': 300000,
+      'auth.jwtSecret': 'test-jwt-secret-test-jwt-secret-123456',
     }
     return values[key]
   }),
@@ -218,6 +222,12 @@ describe('PassportService', () => {
       walletAddress,
       deviceName: 'MacBook',
     })
+    expect(webauthnMock.generateRegistrationOptions).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        userName: 'YeYing · 0xabc000...000001',
+        userDisplayName: 'YeYing · 0xabc000...000001',
+      }),
+    )
     expect(registerRequest.passkeyRequest.requestId).toMatch(/^pwc_/)
     expect(webauthnChallenges.size).toBe(1)
 
@@ -429,6 +439,91 @@ describe('PassportService', () => {
       subjectId: walletApproved.subjectId,
       walletAddress: walletAddress.toLowerCase(),
     })
+  })
+
+  it('issues and introspects a scoped wallet Passport assertion', async () => {
+    const { service, subjects, auditLogs } = createHarness()
+    const wallet = new Wallet('0x59c6995e998f97a5a0044966f0945389dc9e86dae441fb518eaed14f99d11d72')
+    const binding = await service.ensureWalletSubject(wallet.address)
+    const subject = subjects.get(binding.subjectId)
+    subject.email = 'Person@Example.com'
+    subject.emailStatus = 'verified'
+    subject.emailVerifiedAt = '2026-08-09T00:00:00.000Z'
+
+    const nonce = 'login-nonce-1'
+    const message = [
+      'Sign to login Project',
+      '',
+      `Address: ${wallet.address.toLowerCase()}`,
+      `Nonce: ${nonce}`,
+    ].join('\n')
+    const result = await service.createWalletAssertion({
+      address: wallet.address,
+      message,
+      signature: await wallet.signMessage(message),
+      appId: 'project-app',
+      audience: 'https://project.example',
+      nonce,
+      scope: ['identity.basic', 'identity.wallet', 'identity.email'],
+    })
+
+    expect(result.assertionType).toBe('jwt')
+    expect(result.passportAssertion).toBeTruthy()
+    expect(result.claims).toMatchObject({
+      iss: 'https://node.example',
+      sub: binding.subjectId,
+      subjectId: binding.subjectId,
+      aud: 'https://project.example/',
+      appId: 'project-app',
+      nonce,
+      authMethod: 'wallet',
+      walletAddress: wallet.address.toLowerCase(),
+      scope: ['identity.basic', 'identity.wallet', 'identity.email'],
+      email: 'person@example.com',
+      emailVerified: true,
+      emailVerifiedAt: '2026-08-09T00:00:00.000Z',
+    })
+
+    const introspected = service.introspectWalletAssertion(result.passportAssertion)
+    expect(introspected.active).toBe(true)
+    expect(introspected.claims).toMatchObject({
+      sub: binding.subjectId,
+      subjectId: binding.subjectId,
+      appId: 'project-app',
+      walletAddress: wallet.address.toLowerCase(),
+      email: 'person@example.com',
+      emailVerified: true,
+    })
+    expect(auditLogs.map((item) => item.action)).toEqual(
+      expect.arrayContaining(['wallet_bound', 'wallet_assertion_issued']),
+    )
+  })
+
+  it('rejects wallet Passport assertions with invalid signature or denied audience', async () => {
+    const { service } = createHarness()
+    const wallet = new Wallet('0x59c6995e998f97a5a0044966f0945389dc9e86dae441fb518eaed14f99d11d72')
+    await service.ensureWalletSubject(wallet.address)
+    const message = 'Sign to login Project'
+
+    await expect(service.createWalletAssertion({
+      address: wallet.address,
+      message,
+      signature: await Wallet.createRandom().signMessage(message),
+      appId: 'project-app',
+      audience: 'https://project.example',
+      nonce: 'login-nonce-2',
+      scope: ['identity.basic'],
+    })).rejects.toThrow('Invalid signature')
+
+    await expect(service.createWalletAssertion({
+      address: wallet.address,
+      message,
+      signature: await wallet.signMessage(message),
+      appId: 'project-app',
+      audience: 'https://evil.example',
+      nonce: 'login-nonce-3',
+      scope: ['identity.basic'],
+    })).rejects.toThrow('audience is not allowed')
   })
 
   it('rejects unsupported authorization scopes', async () => {

@@ -312,4 +312,35 @@ export function registerPublicAuthPassportRoutes(app: Express) {
       res.status(mapped.status).json(fail(mapped.status, mapped.message))
     }
   })
+
+  app.post(`${BASE_PATH}/assertions/wallet`, async (req: Request, res: Response) => {
+    try {
+      const result = await service.createWalletAssertion({
+        address: req.body?.address,
+        message: req.body?.message,
+        signature: req.body?.signature,
+        appId: req.body?.appId,
+        audience: req.body?.audience,
+        nonce: req.body?.nonce,
+        scopes: req.body?.scopes ?? req.body?.scope,
+        origin: req.body?.origin,
+        requestId: req.body?.requestId,
+        ttlMs: req.body?.ttlMs,
+      })
+      res.json(ok(result))
+    } catch (error) {
+      const mapped = mapPassportError(error)
+      res.status(mapped.status).json(fail(mapped.status, mapped.message))
+    }
+  })
+
+  app.post(`${BASE_PATH}/assertions/introspect`, async (req: Request, res: Response) => {
+    try {
+      const assertion = req.body?.assertion ?? req.body?.passportAssertion ?? req.body?.token
+      res.json(ok(service.introspectWalletAssertion(assertion)))
+    } catch (error) {
+      const mapped = mapPassportError(error)
+      res.status(mapped.status).json(fail(mapped.status, mapped.message))
+    }
+  })
 }
