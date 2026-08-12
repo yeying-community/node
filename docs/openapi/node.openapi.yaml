@@ -665,6 +665,56 @@ paths:
           application/json:
             schema:
               $ref: "#/components/schemas/PassportAuthorizeExchangeRequest"
+  /api/v1/public/auth/passport/assertions/wallet:
+    post:
+      tags:
+        - Passport
+      summary: 签发 Wallet-backed Passport assertion
+      operationId: post_api_v1_public_auth_passport_assertions_wallet
+      security: []
+      parameters: []
+      responses:
+        "200":
+          $ref: "#/components/responses/Success"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PassportWalletAssertionRequest"
+  /api/v1/public/auth/passport/assertions/introspect:
+    post:
+      tags:
+        - Passport
+      summary: 在线校验 Passport assertion
+      operationId: post_api_v1_public_auth_passport_assertions_introspect
+      security: []
+      parameters: []
+      responses:
+        "200":
+          $ref: "#/components/responses/Success"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PassportAssertionIntrospectRequest"
   /api/v1/public/auth/totp/status:
     get:
       tags:
@@ -2231,6 +2281,11 @@ components:
         address:
           type: string
           pattern: ^0x[0-9a-fA-F]{40}$
+        scope:
+          type: array
+          items:
+            type: string
+          description: 可选 Passport identity scope。
     AuthVerifyRequest:
       type: object
       required:
@@ -2363,6 +2418,58 @@ components:
           type: string
           minLength: 43
           maxLength: 128
+    PassportWalletAssertionRequest:
+      type: object
+      required:
+        - address
+        - message
+        - signature
+        - appId
+        - audience
+        - nonce
+      properties:
+        address:
+          type: string
+          pattern: ^0x[0-9a-fA-F]{40}$
+        message:
+          type: string
+          description: Wallet 对本次登录意图签名的原文。
+        signature:
+          type: string
+          description: 钱包 personal_sign 签名。
+        appId:
+          type: string
+          description: Node 应用中心登记的应用 UID。
+        audience:
+          type: string
+          format: uri
+          description: DApp 后端或站点 audience，必须匹配应用 redirectUris 策略。
+        nonce:
+          type: string
+          description: DApp 后端生成并保存的一次性登录 nonce。
+        scope:
+          type: array
+          items:
+            type: string
+        scopes:
+          type: array
+          items:
+            type: string
+        origin:
+          type: string
+        requestId:
+          type: string
+        ttlMs:
+          type: integer
+    PassportAssertionIntrospectRequest:
+      type: object
+      properties:
+        assertion:
+          type: string
+        passportAssertion:
+          type: string
+        token:
+          type: string
     CustodyStatus:
       type: object
       properties:

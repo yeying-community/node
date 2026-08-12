@@ -87,7 +87,10 @@ const document = {
       },
       AuthChallengeRequest: {
         type: 'object', required: ['address'],
-        properties: { address: { type: 'string', pattern: '^0x[0-9a-fA-F]{40}$' } },
+        properties: {
+          address: { type: 'string', pattern: '^0x[0-9a-fA-F]{40}$' },
+          scope: { type: 'array', items: { type: 'string' }, description: '可选 Passport identity scope。' },
+        },
       },
       AuthVerifyRequest: {
         type: 'object', required: ['address', 'signature'],
@@ -175,6 +178,31 @@ const document = {
           redirectUri: { type: 'string', format: 'uri' },
           codeVerifier: { type: 'string', minLength: 43, maxLength: 128 },
           code_verifier: { type: 'string', minLength: 43, maxLength: 128 },
+        },
+      },
+      PassportWalletAssertionRequest: {
+        type: 'object',
+        required: ['address', 'message', 'signature', 'appId', 'audience', 'nonce'],
+        properties: {
+          address: { type: 'string', pattern: '^0x[0-9a-fA-F]{40}$' },
+          message: { type: 'string', description: 'Wallet 对本次登录意图签名的原文。' },
+          signature: { type: 'string', description: '钱包 personal_sign 签名。' },
+          appId: { type: 'string', description: 'Node 应用中心登记的应用 UID。' },
+          audience: { type: 'string', format: 'uri', description: 'DApp 后端或站点 audience，必须匹配应用 redirectUris 策略。' },
+          nonce: { type: 'string', description: 'DApp 后端生成并保存的一次性登录 nonce。' },
+          scope: { type: 'array', items: { type: 'string' } },
+          scopes: { type: 'array', items: { type: 'string' } },
+          origin: { type: 'string' },
+          requestId: { type: 'string' },
+          ttlMs: { type: 'integer' },
+        },
+      },
+      PassportAssertionIntrospectRequest: {
+        type: 'object',
+        properties: {
+          assertion: { type: 'string' },
+          passportAssertion: { type: 'string' },
+          token: { type: 'string' },
         },
       },
       CustodyStatus: {
@@ -299,6 +327,8 @@ const operations = [
   ['post', '/api/v1/public/auth/passport/authorize/challenge', 'Passport', '创建 Passport Passkey assertion challenge', 'none', 'PassportAuthorizeChallengeRequest'],
   ['post', '/api/v1/public/auth/passport/authorize/approve', 'Passport', '确认 Passport 授权请求', 'none', 'PassportAuthorizeApproveRequest'],
   ['post', '/api/v1/public/auth/passport/authorize/exchange', 'Passport', '兑换 Passport 授权码', 'none', 'PassportAuthorizeExchangeRequest'],
+  ['post', '/api/v1/public/auth/passport/assertions/wallet', 'Passport', '签发 Wallet-backed Passport assertion', 'none', 'PassportWalletAssertionRequest'],
+  ['post', '/api/v1/public/auth/passport/assertions/introspect', 'Passport', '在线校验 Passport assertion', 'none', 'PassportAssertionIntrospectRequest'],
   ['get', '/api/v1/public/auth/totp/status', 'TOTP', '查询 TOTP 服务状态', 'none'],
   ['get', '/api/v1/public/auth/totp/totp/provision', 'TOTP', '获取当前身份 TOTP 配置', 'bearer'],
   ['post', '/api/v1/public/auth/totp/bind/request', 'TOTP', '创建 TOTP 绑定请求', 'bearer'],

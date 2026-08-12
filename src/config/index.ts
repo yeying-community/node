@@ -99,6 +99,8 @@ export interface PassportPasskeyRuntimeConfig {
 export interface PassportAuthRuntimeConfig {
     verifyPath?: string
     portalBaseUrl?: string
+    assertionSecret?: string
+    assertionTtlMs?: number
     passkey?: PassportPasskeyRuntimeConfig
 }
 
