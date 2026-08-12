@@ -190,7 +190,11 @@ async function writeClipboardText(value: string) {
 }
 
 const go = async (url: string) => {
-    router.push(url)
+    try {
+        await router.push(url)
+    } catch (error) {
+        notifyError(`页面跳转失败：${error instanceof Error ? error.message : String(error)}`)
+    }
 }
 
 const showDevEntry = computed(() => String(route.path || '').startsWith('/market'))
@@ -209,11 +213,15 @@ const submitMarketSearch = () => {
 }
 
 const goDeveloperEntry = async () => {
-    if (showMarketSearch.value) {
-        await router.push('/market/dev/my-apps')
-        return
+    try {
+        if (showMarketSearch.value) {
+            await router.push('/market/dev/my-apps')
+            return
+        }
+        await router.push('/market/')
+    } catch (error) {
+        notifyError(`页面跳转失败：${error instanceof Error ? error.message : String(error)}`)
     }
-    await router.push('/market/')
 }
 
 function openHelpDoc() {
