@@ -1,6 +1,6 @@
 import IndexView from '@/views/IndexView.vue'
-import { initializeProviders } from '@/plugins/account'
 import { ensureWalletSession } from '@/plugins/auth'
+import { notifyError } from '@/utils/message'
 
 export const routes = [
     {
@@ -98,14 +98,19 @@ export const routes = [
 export const setupRouter = (router) => {
     router.beforeEach(async (to, from, next) => {
         const isHome = to.path === '/' || to.name === 'home' || to.name === 'index'
-        if (!to.meta.public && !isHome) {
-            const ok = await ensureWalletSession({ redirect: false })
-            if (!ok) {
-                next({ path: '/' })
-                return
+        try {
+            if (!to.meta.public && !isHome) {
+                const ok = await ensureWalletSession({ redirect: false })
+                if (!ok) {
+                    next({ path: '/' })
+                    return
+                }
             }
+            next()
+        } catch (error) {
+            const message = error instanceof Error ? error.message : String(error)
+            notifyError(`恢复钱包登录状态失败：${message}`)
+            next(false)
         }
-        await initializeProviders()
-        next()
     })
 }

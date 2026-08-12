@@ -42,6 +42,7 @@
 import { getCurrentInstance, onMounted, ref, watch } from "vue";
 import { useRouter, useRoute } from "vue-router";
 import { Tickets, Document, Setting, Bell, Expand, Fold } from "@element-plus/icons-vue";
+import { notifyError } from '@/utils/message';
 
 const SIDEBAR_COLLAPSED_KEY = "market:sidebar:collapsed";
 
@@ -99,8 +100,12 @@ watch(
   { deep: true, immediate: true }
 );
 
-const changeRouter = (url: string) => {
-  router.push(url);
+const changeRouter = async (url: string) => {
+  try {
+    await router.push(url);
+  } catch (error) {
+    notifyError(`页面跳转失败：${error instanceof Error ? error.message : String(error)}`);
+  }
 };
 
 const toggleCollapse = () => {
