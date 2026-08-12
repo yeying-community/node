@@ -1436,6 +1436,37 @@ paths:
           application/json:
             schema:
               $ref: "#/components/schemas/MpcJoinRequest"
+  /api/v1/public/mpc/sessions/{sessionId}/cancel:
+    post:
+      tags:
+        - MPC
+      summary: 取消未完成的 MPC Keygen 会话
+      operationId: post_api_v1_public_mpc_sessions_sessionId_cancel
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: sessionId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          $ref: "#/components/responses/Success"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SignedActionFields"
   /api/v1/public/mpc/sessions/{sessionId}/messages:
     post:
       tags:
