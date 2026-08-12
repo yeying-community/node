@@ -14,6 +14,7 @@ BASE_URL="${HEALTH_BASE_URL:-}"
 CONFIG_PATH="${HEALTH_CONFIG:-${APP_CONFIG_PATH:-$PROJECT_DIR/config.js}}"
 QUIET=false
 VERBOSE=false
+LOGFILE=""
 
 PROJECT_NAME="node"
 PROJECT_VERSION="unknown"
@@ -30,6 +31,47 @@ CHECK_NAMES=()
 CHECK_STATUSES=()
 CHECK_DURATIONS=()
 CHECK_MESSAGES=()
+
+init_log_file() {
+  local logfile_name=$1
+  local logfile_dir="/opt/logs"
+
+  LOGFILE="${logfile_dir}/${logfile_name}"
+  mkdir -p "$logfile_dir"
+  touch "$LOGFILE"
+
+  local filesize=0
+  filesize=$(stat -c "%s" "$LOGFILE" 2>/dev/null || echo 0)
+  if [[ "$filesize" -ge 1048576 ]]; then
+    printf 'clear old logs at %s to avoid log file too big\n' "$(date)" > "$LOGFILE"
+  fi
+}
+
+log() {
+  local message
+  message="[$(date '+%Y-%m-%d %H:%M:%S')] $*"
+  if [[ "${FORMAT:-text}" == "json" || "${QUIET:-false}" == true ]]; then
+    printf '%b\n' "$message" >> "$LOGFILE"
+  else
+    printf '%b\n' "$message" | tee -a "$LOGFILE"
+  fi
+}
+
+log_err() {
+  printf '%b\n' "[$(date '+%Y-%m-%d %H:%M:%S')] $*" | tee -a "$LOGFILE" >&2
+}
+
+log_file() {
+  printf '%b\n' "[$(date '+%Y-%m-%d %H:%M:%S')] $*" >> "$LOGFILE"
+}
+
+finish_log() {
+  local rc=$?
+  [[ -n "$LOGFILE" ]] && log_file "health check command exited with code $rc"
+}
+
+init_log_file "health-check-node.log"
+trap finish_log EXIT
 
 usage() {
   cat <<'EOF'
@@ -54,13 +96,13 @@ EOF
 }
 
 usage_error() {
-  printf 'ERROR: %s\n' "$1" >&2
-  printf 'Run with --help for usage.\n' >&2
+  log_err "ERROR: $1"
+  log_err "Run with --help for usage."
   exit 2
 }
 
 framework_error() {
-  printf 'ERROR: %s\n' "$1" >&2
+  log_err "ERROR: $1"
   exit 3
 }
 
@@ -136,6 +178,7 @@ RUN_DIR="${RUN_DIR:-$PROJECT_DIR/run}"
 PID_FILE="${PID_FILE:-$RUN_DIR/node.pid}"
 STARTED_AT="$(node -e 'process.stdout.write(new Date().toISOString())')"
 START_MS="$(node -e 'process.stdout.write(String(Date.now()))')"
+log_file "health check started: project=$PROJECT_NAME version=$PROJECT_VERSION environment=$ENVIRONMENT level=$LEVEL format=$FORMAT timeout=${TIMEOUT}s retries=$RETRIES interval=${INTERVAL}s base_url=$BASE_URL config=$CONFIG_PATH pid_file=$PID_FILE"
 
 now_ms() {
   node -e 'process.stdout.write(String(Date.now()))'
@@ -167,6 +210,7 @@ add_result() {
     display_status="$(printf '%s' "$status" | tr '[:lower:]' '[:upper:]')"
     printf '[%s] %s: %s (%s ms)\n' "$display_status" "$name" "$message" "$duration"
   fi
+  log_file "check result: status=$status name=$name duration_ms=$duration message=$message"
 }
 
 retry_check() {
@@ -191,7 +235,10 @@ retry_check() {
       HAD_FRAMEWORK_ERROR=true
     fi
     if (( attempt < max_attempts )); then
-      [[ "$VERBOSE" == true ]] && printf 'Retrying %s (%d/%d): %s\n' "$name" "$attempt" "$max_attempts" "$(sanitize_message "$output")" >&2
+      local retry_message
+      retry_message="Retrying $name ($attempt/$max_attempts): $(sanitize_message "$output")"
+      log_file "$retry_message"
+      [[ "$VERBOSE" == true ]] && printf '%s\n' "$retry_message" >&2
       sleep "$INTERVAL"
     fi
   done
@@ -294,6 +341,7 @@ elif (( WARNED > 0 )); then
 else
   OVERALL_STATUS="pass"
 fi
+log_file "health check completed: status=$OVERALL_STATUS passed=$PASSED warned=$WARNED failed=$FAILED skipped=$SKIPPED duration_ms=$DURATION_MS"
 
 if [[ "$FORMAT" == text ]]; then
   printf 'RESULT status=%s passed=%d warned=%d failed=%d skipped=%d duration_ms=%d\n' \
