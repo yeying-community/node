@@ -58,6 +58,7 @@ export type MpcSessionDetail = MpcSession & {
 }
 
 const SESSION_TYPES = new Set(['keygen', 'sign', 'refresh'])
+const CANCELLABLE_SESSION_STATUSES = new Set(['created', 'invited'])
 
 function normalizeAddress(value: string) {
   return value.trim().toLowerCase()
@@ -179,6 +180,52 @@ export class MpcService {
     })
   }
 
+  private async notifySessionCancelled(session: MpcSession, actor: string) {
+    if (session.type !== 'keygen') {
+      return
+    }
+    const actorAddress = normalizeAddress(actor || '')
+    const recipients = Array.from(
+      new Set(
+        session.participants
+          .map((participant) => normalizeAddress(participant || ''))
+          .filter((participant) => participant && participant !== actorAddress)
+      )
+    )
+    if (recipients.length === 0) {
+      return
+    }
+
+    await safelyRunNotificationTask(async () => {
+      await this.notificationService.create({
+        type: 'mpc.keygen.cancelled',
+        source: 'mpc',
+        subjectType: 'mpc.session',
+        subjectId: session.id,
+        actor: actorAddress,
+        audienceType: 'wallet-address',
+        recipients,
+        level: 'info',
+        title: 'MPC 钱包创建已取消',
+        body: '发起人已取消 MPC 钱包密钥生成。',
+        payload: {
+          sessionId: session.id,
+          walletId: session.walletId,
+          sessionType: session.type,
+          threshold: session.threshold,
+          participants: session.participants,
+          curve: session.curve,
+          keyVersion: session.keyVersion,
+          shareVersion: session.shareVersion,
+          inviter: actorAddress,
+          cancelledBy: actorAddress,
+          cancelledAt: this.nowEpoch(),
+        },
+        expiresAt: session.expiresAt || undefined,
+      })
+    })
+  }
+
   private isExpired(expiresAt?: string) {
     if (!expiresAt) return false
     const numeric = Number(expiresAt)
@@ -251,6 +298,42 @@ export class MpcService {
     return convertMpcSessionFrom(sessionDO)
   }
 
+  async cancelSession(sessionId: string, actor: string): Promise<MpcSession> {
+    const sessionDO = await this.manager.getSession(sessionId)
+    if (!sessionDO) {
+      throw new Error('SESSION_NOT_FOUND')
+    }
+    const session = convertMpcSessionFrom(sessionDO)
+    if (session.type !== 'keygen') {
+      throw new Error('SESSION_NOT_CANCELLABLE')
+    }
+    const actorAddress = normalizeAddress(actor)
+    const participants = session.participants.map((participant) => normalizeAddress(participant || ''))
+    if (!actorAddress || participants[0] !== actorAddress) {
+      throw new Error('FORBIDDEN')
+    }
+    if (session.status === 'cancelled') {
+      return session
+    }
+    if (!CANCELLABLE_SESSION_STATUSES.has(session.status)) {
+      throw new Error('SESSION_NOT_CANCELLABLE')
+    }
+
+    const updatedDO = await this.manager.updateSession(sessionId, { status: 'cancelled' })
+    const updated = updatedDO ? convertMpcSessionFrom(updatedDO) : { ...session, status: 'cancelled' }
+    await this.writeAuditLog(updated.walletId, updated.id, 'session-cancelled', actor, 'session cancelled', {
+      type: updated.type,
+      threshold: updated.threshold,
+      participants: updated.participants,
+    })
+    this.emitEvent(updated.id, 'session-update', {
+      status: updated.status,
+      round: updated.round,
+    })
+    await this.notifySessionCancelled(updated, actor)
+    return updated
+  }
+
   async getSession(sessionId: string, actor: string): Promise<MpcSessionDetail> {
     const sessionDO = await this.manager.getSession(sessionId)
     if (!sessionDO) {
@@ -281,6 +364,9 @@ export class MpcService {
     }
 
     const session = convertMpcSessionFrom(sessionDO)
+    if (session.status === 'cancelled') {
+      throw new Error('SESSION_CANCELLED')
+    }
     if (session.participants.length > 0 && !session.participants.includes(input.participantId)) {
       throw new Error('PARTICIPANT_NOT_ALLOWED')
     }

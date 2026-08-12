@@ -81,6 +81,10 @@ function mapMpcError(error: unknown): { status: number; message: string } {
       return { status: 409, message: 'Session already exists' }
     case 'SESSION_EXPIRED':
       return { status: 410, message: 'Session expired' }
+    case 'SESSION_CANCELLED':
+      return { status: 409, message: 'Session cancelled' }
+    case 'SESSION_NOT_CANCELLABLE':
+      return { status: 409, message: 'Session is not cancellable' }
     case 'FORBIDDEN':
       return { status: 403, message: 'Forbidden' }
     case 'PARTICIPANT_NOT_ALLOWED':
@@ -236,6 +240,41 @@ export function registerPublicMpcRoutes(app: Express) {
             user.address
           )
           return { status: 200, body: ok(joined) }
+        },
+        onError: (error) => {
+          const mapped = mapMpcError(error)
+          return { status: mapped.status, body: fail(mapped.status, mapped.message) }
+        }
+      })
+      res.status(result.status).json(result.body)
+    } catch (error) {
+      const mapped = mapMpcError(error)
+      res.status(mapped.status).json(fail(mapped.status, mapped.message))
+    }
+  })
+
+  app.post('/api/v1/public/mpc/sessions/:sessionId/cancel', async (req: Request, res: Response) => {
+    try {
+      const user = getRequestUser()
+      if (!user?.address) {
+        res.status(401).json(fail(401, 'Missing access token'))
+        return
+      }
+      requireMpcUcan(req)
+      await ensureUserActive(user.address)
+      await ensureUserCanWriteBusinessData(user.address)
+      const sessionId = req.params.sessionId
+      const body = req.body || {}
+      const result = await executeSignedAction({
+        raw: body,
+        action: 'mpc_session_cancel',
+        actor: user.address,
+        payload: {
+          sessionId,
+        },
+        execute: async () => {
+          const session = await service.cancelSession(sessionId, user.address)
+          return { status: 200, body: ok(session) }
         },
         onError: (error) => {
           const mapped = mapMpcError(error)
