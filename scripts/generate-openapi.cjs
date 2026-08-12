@@ -357,6 +357,7 @@ const operations = [
   ['post', '/api/v1/admin/audits/{uid}/reject', 'Admin', '驳回审核', 'bearer'],
   ['post', '/api/v1/public/mpc/sessions', 'MPC', '创建 MPC 会话', 'bearer', 'MpcSessionCreateRequest'],
   ['post', '/api/v1/public/mpc/sessions/{sessionId}/join', 'MPC', '加入 MPC 会话', 'bearer', 'MpcJoinRequest'],
+  ['post', '/api/v1/public/mpc/sessions/{sessionId}/cancel', 'MPC', '取消未完成的 MPC Keygen 会话', 'bearer', 'SignedActionFields'],
   ['post', '/api/v1/public/mpc/sessions/{sessionId}/messages', 'MPC', '发送 MPC 消息', 'bearer'],
   ['get', '/api/v1/public/mpc/sessions/{sessionId}/messages', 'MPC', '拉取 MPC 消息', 'bearer'],
   ['get', '/api/v1/public/mpc/sessions/{sessionId}', 'MPC', '查询 MPC 会话', 'bearer'],

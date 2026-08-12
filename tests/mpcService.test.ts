@@ -3,6 +3,7 @@ import { mockClass } from './support/mockClass'
 const managerMocks = {
   getSession: vi.fn(),
   saveSession: vi.fn(),
+  updateSession: vi.fn(),
   saveAuditLog: vi.fn(),
 }
 
@@ -40,6 +41,23 @@ describe('MpcService notifications', () => {
 
     managerMocks.getSession.mockResolvedValue(null)
     managerMocks.saveSession.mockImplementation(async (session) => session)
+    managerMocks.updateSession.mockImplementation(async (sessionId, patch) => ({
+      id: sessionId,
+      type: 'keygen',
+      walletId: 'mpc-wallet-1',
+      threshold: 2,
+      participants: JSON.stringify([
+        '0x1111111111111111111111111111111111111111',
+        '0x2222222222222222222222222222222222222222',
+      ]),
+      status: patch.status,
+      round: 0,
+      curve: 'secp256k1',
+      keyVersion: 0,
+      shareVersion: 0,
+      createdAt: '1',
+      expiresAt: '1893456000000',
+    }))
     managerMocks.saveAuditLog.mockResolvedValue(undefined)
     notificationCreateMock.mockResolvedValue({ uid: 'notification-1' })
   })
@@ -128,5 +146,61 @@ describe('MpcService notifications', () => {
 
     expect(session.id).toBe('session-2')
     expect(notificationCreateMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('lets the keygen initiator cancel a pending session and notifies invited participants', async () => {
+    const actor = '0x1111111111111111111111111111111111111111'
+    const invited = '0x2222222222222222222222222222222222222222'
+    managerMocks.getSession.mockResolvedValue({
+      id: 'session-1',
+      type: 'keygen',
+      walletId: 'mpc-wallet-1',
+      threshold: 2,
+      participants: JSON.stringify([actor, invited]),
+      status: 'created',
+      round: 0,
+      curve: 'secp256k1',
+      keyVersion: 1,
+      shareVersion: 1,
+      createdAt: '1',
+      expiresAt: '1893456000000',
+    })
+    const service = new MpcService()
+
+    const cancelled = await service.cancelSession('session-1', actor)
+
+    expect(cancelled.status).toBe('cancelled')
+    expect(managerMocks.updateSession).toHaveBeenCalledWith('session-1', { status: 'cancelled' })
+    expect(notificationCreateMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: 'mpc.keygen.cancelled',
+        source: 'mpc',
+        subjectId: 'session-1',
+        recipients: [invited],
+        title: 'MPC 钱包创建已取消',
+      })
+    )
+  })
+
+  it('rejects cancellation by a non-initiator', async () => {
+    const actor = '0x1111111111111111111111111111111111111111'
+    const invited = '0x2222222222222222222222222222222222222222'
+    managerMocks.getSession.mockResolvedValue({
+      id: 'session-1',
+      type: 'keygen',
+      walletId: 'mpc-wallet-1',
+      threshold: 2,
+      participants: JSON.stringify([actor, invited]),
+      status: 'created',
+      round: 0,
+      curve: 'secp256k1',
+      keyVersion: 1,
+      shareVersion: 1,
+      createdAt: '1',
+      expiresAt: '1893456000000',
+    })
+    const service = new MpcService()
+
+    await expect(service.cancelSession('session-1', invited)).rejects.toThrow('FORBIDDEN')
   })
 })

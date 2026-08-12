@@ -21,6 +21,7 @@ const cancelAuditMock = vi.fn()
 const queryAuditMock = vi.fn()
 const saveUserStateMock = vi.fn()
 const createMpcSessionMock = vi.fn()
+const cancelMpcSessionMock = vi.fn()
 const joinMpcSessionMock = vi.fn()
 const sendMpcMessageMock = vi.fn()
 
@@ -211,6 +212,19 @@ vi.doMock('../src/domain/service/mpc', () => ({
         },
       }
     },
+    cancelSession: async (sessionId: string, actor: string) => {
+      cancelMpcSessionMock(sessionId, actor)
+      const session = mpcSessionStore.get(sessionId)
+      if (!session) {
+        throw new Error('SESSION_NOT_FOUND')
+      }
+      const cancelled = {
+        ...session,
+        status: 'cancelled',
+      }
+      mpcSessionStore.set(sessionId, cancelled)
+      return cancelled
+    },
     sendMessage: async (sessionId: string, input: any, actor: string) => {
       sendMpcMessageMock(sessionId, input, actor)
       const session = mpcSessionStore.get(sessionId)
@@ -327,6 +341,7 @@ describe('signed action routes', () => {
     queryAuditMock.mockClear()
     saveUserStateMock.mockClear()
     createMpcSessionMock.mockClear()
+    cancelMpcSessionMock.mockClear()
     joinMpcSessionMock.mockClear()
     sendMpcMessageMock.mockClear()
     auditSearchResult = {
