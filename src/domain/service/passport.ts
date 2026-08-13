@@ -77,6 +77,9 @@ export type PassportAuthorizationExchangeResult = {
   scopes: string[]
   claims: {
     subjectId: string
+    username?: string
+    usernameVerified?: boolean
+    usernameVerifiedAt?: string
     walletAddress?: string
     email?: string
     emailVerified?: boolean
@@ -134,6 +137,9 @@ export type PassportWalletAssertionClaims = {
   authMethod: 'wallet'
   walletAddress: string
   scope: string[]
+  username?: string
+  usernameVerified?: boolean
+  usernameVerifiedAt?: string
   email?: string
   emailVerified?: boolean
   emailVerifiedAt?: string
@@ -181,7 +187,7 @@ const DEFAULT_ASSERTION_TTL_MS = 5 * 60 * 1000
 const MIN_ASSERTION_TTL_MS = 30 * 1000
 const MAX_ASSERTION_TTL_MS = 30 * 60 * 1000
 const DEFAULT_AUTHORIZATION_SCOPES = ['identity.basic', 'identity.wallet']
-const ALLOWED_AUTHORIZATION_SCOPES = new Set(['identity.basic', 'identity.wallet', 'identity.email'])
+const ALLOWED_AUTHORIZATION_SCOPES = new Set(['identity.basic', 'identity.wallet', 'identity.username', 'identity.email'])
 const EMAIL_VERIFICATION_TTL_MS = 10 * 60 * 1000
 const EMAIL_VERIFICATION_RESEND_INTERVAL_MS = 60 * 1000
 const EMAIL_VERIFICATION_MAX_ATTEMPTS = 5
@@ -223,6 +229,14 @@ function normalizeEmail(input: unknown): string {
     throw new PassportError(400, 'PASSPORT_EMAIL_INVALID', 'Invalid email address')
   }
   return email
+}
+
+function normalizeUsername(input: unknown): string {
+  const username = normalizeString(input).toLowerCase()
+  if (!/^[a-z0-9][a-z0-9._-]*$/.test(username) || username.length < 3 || username.length > 32) {
+    throw new PassportError(400, 'PASSPORT_USERNAME_INVALID', 'Username must be 3-32 lowercase letters, numbers, dots, underscores, or hyphens')
+  }
+  return username
 }
 
 function maskEmail(email: string): string {
@@ -664,6 +678,22 @@ export class PassportService {
     return { subjectId, email: subject.email, emailVerifiedAt: now }
   }
 
+  async setUsername(input: { subjectId: unknown; username: unknown }): Promise<{ subjectId: string; username: string; usernameVerifiedAt: string }> {
+    const subjectId = normalizeString(input.subjectId)
+    const username = normalizeUsername(input.username)
+    const subject = await this.manager.getSubject(subjectId)
+    if (!subject || subject.status !== 'active') throw new PassportError(404, 'PASSPORT_SUBJECT_NOT_FOUND', 'Passport subject not found')
+    const existing = await this.manager.getSubjectByUsername(username)
+    if (existing && existing.subjectId !== subjectId) throw new PassportError(409, 'PASSPORT_USERNAME_TAKEN', 'Username is already in use')
+    const now = getCurrentUtcString()
+    subject.username = username
+    subject.usernameVerifiedAt = now
+    subject.updatedAt = now
+    await this.manager.saveSubject(subject)
+    await this.writeAudit({ subjectId, action: 'username_verified' })
+    return { subjectId, username, usernameVerifiedAt: now }
+  }
+
   private async writeAudit(input: {
     subjectId?: string
     walletAddress?: string
@@ -985,6 +1015,11 @@ export class PassportService {
       claims.emailVerified = subject.subject.emailStatus === 'verified' && !!claims.email
       claims.emailVerifiedAt = claims.emailVerified ? normalizeString(subject.subject.emailVerifiedAt) : ''
     }
+    if (scope.includes('identity.username')) {
+      claims.username = normalizeString(subject.subject.username)
+      claims.usernameVerified = !!claims.username && !!normalizeString(subject.subject.usernameVerifiedAt)
+      claims.usernameVerifiedAt = claims.usernameVerified ? normalizeString(subject.subject.usernameVerifiedAt) : ''
+    }
     const payload = {
       ...claims,
       iat: nowSec,
@@ -1045,6 +1080,11 @@ export class PassportService {
         claims.email = normalizeString(decoded.email).toLowerCase()
         claims.emailVerified = decoded.emailVerified === true
         claims.emailVerifiedAt = normalizeString(decoded.emailVerifiedAt)
+      }
+      if (scope.includes('identity.username')) {
+        claims.username = normalizeString(decoded.username)
+        claims.usernameVerified = decoded.usernameVerified === true
+        claims.usernameVerifiedAt = normalizeString(decoded.usernameVerifiedAt)
       }
       return { active: true, claims }
     } catch (error) {
@@ -1642,6 +1682,12 @@ export class PassportService {
       claims.email = emailVerified ? subject!.email : ''
       claims.emailVerified = emailVerified
       claims.emailVerifiedAt = emailVerified ? subject!.emailVerifiedAt || '' : ''
+    }
+    if (scopes.includes('identity.username')) {
+      const usernameVerified = Boolean(subject?.username && subject.usernameVerifiedAt)
+      claims.username = usernameVerified ? subject!.username : ''
+      claims.usernameVerified = usernameVerified
+      claims.usernameVerifiedAt = usernameVerified ? subject!.usernameVerifiedAt || '' : ''
     }
     return {
       requestId: record.requestId,

@@ -248,6 +248,8 @@ function generateDefaultSecrets() {
     JWT_SECRET: crypto.randomBytes(32).toString('hex'),
     UCAN_ISSUER_PRIVATE_KEY: issuerSeed,
     UCAN_ISSUER_DID: deriveDidFromSeedHex(issuerSeed),
+    IDENTITY_ISSUER_PRIVATE_KEY: issuerSeed,
+    IDENTITY_ISSUER_DID: 'did:web:localhost:8100',
     TOTP_AUTH_TOTP_MASTER_KEY: crypto.randomBytes(32).toString('hex'),
   };
 }
@@ -263,4 +265,3 @@ module.exports = {
   generateDefaultSecrets,
   deriveDidFromSeedHex,
 };
-

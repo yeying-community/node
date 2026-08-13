@@ -170,6 +170,13 @@ module.exports = {
       challengeTtlMs: 2 * 60 * 1000
     }
   },
+  identityIssuer: {
+    enabled: true,
+    // 非敏感配置；DID 和私钥从 secrets.file 解密得到。
+    baseUrl: 'https://node.example',
+    keyId: 'identity-issuer-1',
+    usernameNamespace: 'node.yeying.pub'
+  },
   audit: {
     // List of approver wallet addresses.
     approvers: [''],

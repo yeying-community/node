@@ -77,7 +77,7 @@ prepare_secrets_password_file() {
     return 0
   fi
 
-  info "检测到加密密钥文件: $SECRETS_FILE（将由 Node 进程内解密）"
+  info "检测到加密密钥文件: ${SECRETS_FILE}（将由 Node 进程内解密）"
   if [[ -n "${NODE_SECRETS_PASSWORD:-}" || -n "$SECRETS_PASSWORD_FILE" || -n "${NODE_SECRETS_PASSWORD_FILE:-}" ]]; then
     return 0
   fi
@@ -172,6 +172,7 @@ start_app() {
       APP_CONFIG_PATH="$CONFIG_PATH" \
       WEB_DIST_DIR="$WEB_DIST_PATH" \
       SECRETS_FILE="$SECRETS_FILE" \
+      NODE_SECRETS_PASSWORD="${NODE_SECRETS_PASSWORD:-}" \
       NODE_SECRETS_PASSWORD_FILE="${SECRETS_PASSWORD_FILE:-${NODE_SECRETS_PASSWORD_FILE:-}}" \
       node dist/server.js >>"$LOG_FILE" 2>&1 &
     echo $! > "$PID_FILE"

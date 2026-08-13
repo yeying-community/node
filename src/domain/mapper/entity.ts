@@ -121,6 +121,12 @@ export class PassportSubjectDO {
     @Column({ length: 128, name: 'primary_wallet_address', default: '' })
     primaryWalletAddress!: string
 
+    @Column({ length: 32, default: '' })
+    username!: string
+
+    @Column({ length: 64, name: 'username_verified_at', default: '' })
+    usernameVerifiedAt!: string
+
     @Column({ length: 320, default: '' })
     email!: string
 
@@ -135,6 +141,84 @@ export class PassportSubjectDO {
 
     @Column({ length: 64, name: 'updated_at', default: '' })
     updatedAt!: string
+}
+
+@Entity('identity_account_links')
+@Index('uidx_identity_account_link', ['identityDid', 'chainKey', 'accountId'], { unique: true })
+export class IdentityAccountLinkDO {
+    @PrimaryGeneratedColumn('uuid') uid!: string
+    @Column({ length: 128, name: 'identity_did' }) identityDid!: string
+    @Column({ length: 64, name: 'chain_key' }) chainKey!: string
+    @Column({ length: 128, name: 'account_id' }) accountId!: string
+    @Column({ length: 64, default: 'active' }) status!: string
+    @Column({ length: 64, name: 'verified_at' }) verifiedAt!: string
+    @Column({ length: 64, name: 'revoked_at', default: '' }) revokedAt!: string
+}
+
+@Entity('identity_account_link_challenges')
+@Index('idx_identity_link_challenge_expires', ['status', 'expiresAt'])
+export class IdentityAccountLinkChallengeDO {
+    @PrimaryColumn({ length: 128 }) nonce!: string
+    @Column({ length: 128, name: 'identity_did' }) identityDid!: string
+    @Column({ length: 64, name: 'chain_key' }) chainKey!: string
+    @Column({ length: 128, name: 'account_id' }) accountId!: string
+    @Column({ length: 64, name: 'issued_at' }) issuedAt!: string
+    @Column({ length: 64, name: 'expires_at' }) expiresAt!: string
+    @Column({ length: 32, default: 'pending' }) status!: string
+    @Column({ length: 64, name: 'consumed_at', default: '' }) consumedAt!: string
+}
+
+@Entity('identity_verification_transactions')
+@Index('idx_identity_verification_expires', ['status', 'expiresAt'])
+export class IdentityVerificationTransactionDO {
+    @PrimaryColumn({ length: 128, name: 'verification_id' }) verificationId!: string
+    @Column({ length: 128, name: 'identity_did' }) identityDid!: string
+    @Column({ type: 'text', name: 'types_json' }) typesJson!: string
+    @Column({ length: 320, default: '' }) email!: string
+    @Column({ length: 128, name: 'username', default: '' }) username!: string
+    @Column({ length: 128, name: 'email_code_hash', default: '' }) emailCodeHash!: string
+    @Column({ type: 'integer', default: 0 }) attempts!: number
+    @Column({ length: 32, default: 'pending' }) status!: string
+    @Column({ length: 64, name: 'expires_at' }) expiresAt!: string
+    @Column({ length: 64, name: 'created_at' }) createdAt!: string
+    @Column({ length: 64, name: 'completed_at', default: '' }) completedAt!: string
+}
+
+@Entity('identity_usernames')
+@Index('uidx_identity_username_namespace_value', ['namespace', 'normalizedUsername'], { unique: true })
+export class IdentityUsernameDO {
+    @PrimaryGeneratedColumn('uuid') uid!: string
+    @Column({ length: 128 }) namespace!: string
+    @Column({ length: 32, name: 'normalized_username' }) normalizedUsername!: string
+    @Column({ length: 128, name: 'identity_did' }) identityDid!: string
+    @Column({ length: 32, default: 'reserved' }) status!: string
+    @Column({ length: 64, name: 'reserved_until', default: '' }) reservedUntil!: string
+    @Column({ length: 64, name: 'created_at' }) createdAt!: string
+    @Column({ length: 64, name: 'updated_at' }) updatedAt!: string
+}
+
+@Entity('identity_credentials')
+@Index('idx_identity_credential_subject', ['identityDid', 'credentialType'])
+export class IdentityCredentialDO {
+    @PrimaryColumn({ length: 320, name: 'credential_id' }) credentialId!: string
+    @Column({ length: 128, name: 'identity_did' }) identityDid!: string
+    @Column({ length: 64, name: 'credential_type' }) credentialType!: string
+    @Column({ type: 'text' }) token!: string
+    @Column({ length: 32, default: 'active' }) status!: string
+    @Column({ length: 64, name: 'issued_at' }) issuedAt!: string
+    @Column({ length: 64, name: 'expires_at' }) expiresAt!: string
+    @Column({ length: 64, name: 'revoked_at', default: '' }) revokedAt!: string
+}
+
+@Entity('identity_audit_logs')
+@Index('idx_identity_audit_identity_created', ['identityDid', 'createdAt'])
+export class IdentityAuditLogDO {
+    @PrimaryGeneratedColumn('uuid') uid!: string
+    @Column({ length: 128, name: 'identity_did', default: '' }) identityDid!: string
+    @Column({ length: 64 }) action!: string
+    @Column({ length: 32, default: 'success' }) outcome!: string
+    @Column({ type: 'text', name: 'metadata_json', default: '{}' }) metadataJson!: string
+    @Column({ length: 64, name: 'created_at' }) createdAt!: string
 }
 
 @Entity('passport_email_verification_challenges')

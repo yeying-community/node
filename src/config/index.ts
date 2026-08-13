@@ -104,6 +104,13 @@ export interface PassportAuthRuntimeConfig {
     passkey?: PassportPasskeyRuntimeConfig
 }
 
+export interface IdentityIssuerRuntimeConfig {
+    enabled?: boolean
+    baseUrl?: string
+    keyId?: string
+    usernameNamespace?: string
+}
+
 export interface AuditRuntimeConfig {
     approvers?: string[]
     requiredApprovals?: number

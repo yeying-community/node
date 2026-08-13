@@ -37,6 +37,10 @@ export class PassportManager {
     return await this.subjectRepository.findOneBy({ subjectId })
   }
 
+  async getSubjectByUsername(username: string) {
+    return await this.subjectRepository.findOneBy({ username })
+  }
+
   async saveSubject(subject: PassportSubjectDO) {
     return await this.subjectRepository.save(subject)
   }

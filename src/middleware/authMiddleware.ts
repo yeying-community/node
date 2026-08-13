@@ -84,7 +84,7 @@ const authenticateToken = (req: Request, res: Response, next: NextFunction) => {
     return runWithRequestContext(undefined, () => next());
   }
 
-  if (PUBLIC_ROUTES.includes(req.path) || req.path.startsWith('/public/auth/')) {
+  if (PUBLIC_ROUTES.includes(req.path) || req.path.startsWith('/public/auth/') || req.path.startsWith('/public/identity/')) {
     return runWithRequestContext(undefined, () => next());
   }
 

@@ -78,6 +78,8 @@ function createHarness() {
 
   const manager = {
     getSubject: async (subjectId: string) => subjects.get(subjectId) || null,
+    getSubjectByUsername: async (username: string) =>
+      Array.from(subjects.values()).find((item: any) => item.username === username) || null,
     saveSubject: async (subject: any) => {
       subjects.set(subject.subjectId, subject)
       return subject
@@ -439,6 +441,34 @@ describe('PassportService', () => {
       subjectId: walletApproved.subjectId,
       walletAddress: walletAddress.toLowerCase(),
     })
+  })
+
+  it('registers a wallet-authenticated username and releases it only to a username-scoped application', async () => {
+    const { service } = createHarness()
+    const walletAddress = '0xAbC0000000000000000000000000000000000001'
+    const binding = await service.ensureWalletSubject(walletAddress)
+    await expect(service.setUsername({ subjectId: binding.subjectId, username: 'Alice.Dev' })).resolves.toMatchObject({
+      username: 'alice.dev',
+      usernameVerifiedAt: expect.any(String),
+    })
+    const duplicate = await service.ensureWalletSubject('0xAbC0000000000000000000000000000000000002')
+    await expect(service.setUsername({ subjectId: duplicate.subjectId, username: 'alice.dev' })).rejects.toThrow('Username is already in use')
+
+    const pkce = createPkcePair()
+    const request = await service.createAuthorizationRequest({
+      appId: 'project-app',
+      redirectUri: 'https://project.example/passport/callback',
+      codeChallenge: pkce.challenge,
+      scopes: ['identity.basic', 'identity.username'],
+    })
+    const approved = await service.approveAuthorizationRequest({ requestId: request.requestId, walletAddress })
+    const exchanged = await service.exchangeAuthorizationCode({
+      code: approved.authorizationCode,
+      appId: 'project-app',
+      redirectUri: 'https://project.example/passport/callback',
+      codeVerifier: pkce.verifier,
+    })
+    expect(exchanged.claims).toMatchObject({ username: 'alice.dev', usernameVerified: true })
   })
 
   it('issues and introspects a scoped wallet Passport assertion', async () => {
