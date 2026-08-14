@@ -38,6 +38,12 @@ module.exports = {
   secrets: {
     // 加密密钥文件路径。支持相对路径（相对当前项目目录）。
     // 所有业务密钥均从此加密文件解密，不能写入本配置。
+    // 核心密钥：
+    // - ISSUER_PRIVATE_KEY：Node 对外统一 Issuer 的 Ed25519 私钥，用于签发 UCAN、Passport
+    //   和身份凭证；其公钥、kid 和 DID 是对外身份的一部分。
+    // - NODE_KEY_DERIVATION_SECRET：Node 内部用途的密钥派生根，不是 Issuer 私钥，也不是
+    //   某个业务模块的最终密钥。JWT、TOTP 存储、Passport assertion 和 Webhook 分别使用
+    //   固定用途上下文从它派生，避免在配置中维护多份内部密钥。不能从 config.js 读取或填写。
     file: 'run/secrets.enc.json',
     // 启动时读取并立即删除的一次性口令文件。生产无人值守时由受管密钥系统创建；
     // 本地 dev:secure 或 starter.sh 在文件不存在时才提示输入。
@@ -64,7 +70,8 @@ module.exports = {
     schema: 'node'
   },
   auth: {
-    // JWT is signed with the unified issuer key; NODE_KEY_DERIVATION_SECRET derives internal symmetric keys.
+    // JWT uses a symmetric key derived from NODE_KEY_DERIVATION_SECRET with the 'jwt-signing' context;
+    // it is separate from ISSUER_PRIVATE_KEY and is never written to config.js.
     accessTtlMs: 15 * 60 * 1000,
     refreshTtlMs: 7 * 24 * 60 * 60 * 1000,
     challengeTtlMs: 5 * 60 * 1000,
@@ -108,7 +115,8 @@ module.exports = {
     // Identity credentials use the same issuer and key; no separate identity key is configured.
   },
   totpAuth: {
-    // TOTP storage key is derived from NODE_KEY_DERIVATION_SECRET.
+    // TOTP storage key is derived from NODE_KEY_DERIVATION_SECRET with the 'totp-storage' context;
+    // do not configure a separate TOTP master key.
     // Enable the authenticator-code login bridge. Enabling it requires NODE_KEY_DERIVATION_SECRET.
     enabled: false,
     // Authenticator issuer display name.

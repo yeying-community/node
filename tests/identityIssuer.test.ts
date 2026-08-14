@@ -3,7 +3,7 @@ import { vi } from 'vitest'
 
 const seed = '11'.repeat(32)
 vi.mock('../src/security/secretVault', () => ({
-  getRuntimeSecret: (name: string) => name === 'ISSUER_PRIVATE_KEY' ? seed : name === 'PASSPORT_ISSUER_DID' ? 'did:web:node.example' : ''
+  getRuntimeSecret: (name: string) => name === 'ISSUER_PRIVATE_KEY' ? seed : ''
 }))
 vi.mock('../src/config/runtime', () => ({
   getConfig: (key: string) => ({ 'issuer.baseUrl': 'https://node.example' } as Record<string, unknown>)[key]
