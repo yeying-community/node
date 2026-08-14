@@ -21,18 +21,14 @@ export interface MailRuntimeConfig {
     port?: number
     secure?: boolean
     from?: string
-    auth?: {
-        user?: string
-        pass?: string
-    }
 }
 
 export interface SecretsRuntimeConfig {
     file?: string
+    passwordFile?: string
 }
 
 export interface AuthRuntimeConfig {
-    jwtSecret: string
     accessTtlMs: number
     refreshTtlMs: number
     challengeTtlMs: number
@@ -65,8 +61,6 @@ export interface UcanIssuerCapabilityConfig {
 export interface UcanIssuerRuntimeConfig {
     enabled?: boolean
     mode?: UcanIssuerMode
-    did?: string
-    privateKey?: string
     sessionTtlMs?: number
     tokenTtlMs?: number
     defaultAudience?: string
@@ -84,7 +78,6 @@ export interface TotpAuthRuntimeConfig {
     codePeriodSec?: number
     codeWindow?: number
     maxAttempts?: number
-    totpMasterKey?: string
 }
 
 export interface PassportPasskeyRuntimeConfig {
@@ -99,9 +92,13 @@ export interface PassportPasskeyRuntimeConfig {
 export interface PassportAuthRuntimeConfig {
     verifyPath?: string
     portalBaseUrl?: string
-    assertionSecret?: string
     assertionTtlMs?: number
     passkey?: PassportPasskeyRuntimeConfig
+}
+
+export interface IdentityIssuerRuntimeConfig {
+    enabled?: boolean
+    usernameNamespace?: string
 }
 
 export interface AuditRuntimeConfig {
@@ -132,7 +129,6 @@ export interface NotificationRuntimeConfig {
     webhookMaxAttempts?: number
     webhookRetryBaseDelayMs?: number
     webhookRetryMaxDelayMs?: number
-    webhookMasterKey?: string
 }
 
 export interface RedisRuntimeConfig {
@@ -140,7 +136,6 @@ export interface RedisRuntimeConfig {
     host?: string
     port?: number
     username?: string
-    password?: string
     db?: number
     keyPrefix?: string
     channel?: string

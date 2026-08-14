@@ -2,6 +2,7 @@ import * as crypto from 'crypto';
 import type { UcanIssuerMode } from '../config';
 import { getConfig } from '../config/runtime';
 import { getRuntimeSecret } from '../security/secretVault';
+import { getNodeIssuerDid, getNodeIssuerPrivateKey } from '../security/nodeIssuer';
 
 export type UcanCapability = {
   with?: string;
@@ -279,29 +280,17 @@ function clampSessionTtlMs(value: unknown, fallback: number): number {
 
 function loadIssuerRuntime(): IssuerRuntimeState {
   const enabled = parseBoolean(
-    process.env.UCAN_ISSUER_ENABLED ?? getConfig<boolean>('ucanIssuer.enabled'),
+    getConfig<boolean>('issuer.ucan.enabled'),
     false
   );
-  const mode = parseIssuerMode(process.env.UCAN_ISSUER_MODE ?? getConfig<string>('ucanIssuer.mode'));
-  const runtimeDid = getRuntimeSecret('UCAN_ISSUER_DID');
-  const runtimePrivateKey = getRuntimeSecret('UCAN_ISSUER_PRIVATE_KEY');
-  const configuredDid = String(
-    runtimeDid || process.env.UCAN_ISSUER_DID || getConfig<string>('ucanIssuer.did') || ''
-  ).trim();
-  const privateKeyRaw = String(
-    runtimePrivateKey ||
-      process.env.UCAN_ISSUER_PRIVATE_KEY ||
-      getConfig<string>('ucanIssuer.privateKey') ||
-      ''
-  ).trim();
+  const mode = parseIssuerMode(getConfig<string>('issuer.ucan.mode'));
+  const configuredDid = getNodeIssuerDid();
   const defaultAudience = String(
-    process.env.UCAN_ISSUER_DEFAULT_AUDIENCE ??
-      getConfig<string>('ucanIssuer.defaultAudience') ??
+    getConfig<string>('issuer.ucan.defaultAudience') ??
       DEFAULT_UCAN_AUD
   ).trim();
   const defaultCapabilities = parseCapabilityList(
-    process.env.UCAN_ISSUER_DEFAULT_CAPABILITIES ??
-      getConfig<unknown>('ucanIssuer.defaultCapabilities')
+    getConfig<unknown>('issuer.ucan.defaultCapabilities')
   );
 
   const runtime: IssuerRuntimeState = {
@@ -310,11 +299,11 @@ function loadIssuerRuntime(): IssuerRuntimeState {
     did: configuredDid,
     ready: false,
     sessionTtlMs: parsePositiveNumber(
-      process.env.UCAN_ISSUER_SESSION_TTL_MS ?? getConfig<number>('ucanIssuer.sessionTtlMs'),
+      getConfig<number>('issuer.ucan.sessionTtlMs'),
       DEFAULT_SESSION_TTL_MS
     ),
     tokenTtlMs: parsePositiveNumber(
-      process.env.UCAN_ISSUER_TOKEN_TTL_MS ?? getConfig<number>('ucanIssuer.tokenTtlMs'),
+      getConfig<number>('issuer.ucan.tokenTtlMs'),
       DEFAULT_TOKEN_TTL_MS
     ),
     defaultAudience: defaultAudience || DEFAULT_UCAN_AUD,
@@ -331,18 +320,9 @@ function loadIssuerRuntime(): IssuerRuntimeState {
     runtime.ready = true;
     return runtime;
   }
-  if (!privateKeyRaw) {
-    runtime.error = 'UCAN issuer private key is required when issue mode is enabled';
-    return runtime;
-  }
-
   try {
-    const privateKey = parseIssuerPrivateKey(privateKeyRaw);
+    const privateKey = getNodeIssuerPrivateKey();
     const derivedDid = deriveDidFromPrivateKey(privateKey);
-    if (configuredDid && configuredDid !== derivedDid) {
-      runtime.error = 'UCAN issuer DID does not match the configured private key';
-      return runtime;
-    }
     runtime.did = configuredDid || derivedDid;
     runtime.privateKey = privateKey;
     runtime.ready = true;

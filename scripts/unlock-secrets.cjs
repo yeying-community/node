@@ -6,13 +6,13 @@ function printUsage() {
   process.stdout.write(
     [
       'Usage:',
-      '  node scripts/unlock-secrets.cjs [--file run/secrets.enc.json] [--print-env]',
+      '  node scripts/unlock-secrets.cjs [--file run/secrets.enc.json]',
       '',
       'Description:',
-      '  解密本地密钥文件，并输出 KEY=VALUE 列表（默认行为）。',
+      '  验证密钥仓可解密，并仅输出密钥名称与数量，不输出任何明文值。',
       '',
       'Password Input:',
-      '  默认交互输入；也可通过环境变量 NODE_SECRETS_PASSWORD 提供。',
+      '  仅支持交互输入，不从环境变量读取口令。',
       '',
     ].join('\n')
   );
@@ -21,7 +21,6 @@ function printUsage() {
 function parseArgs(argv) {
   const options = {
     file: path.join('run', 'secrets.enc.json'),
-    printEnv: true,
     help: false,
   };
 
@@ -29,10 +28,6 @@ function parseArgs(argv) {
     const token = argv[index];
     if (token === '--help' || token === '-h') {
       options.help = true;
-      continue;
-    }
-    if (token === '--print-env') {
-      options.printEnv = true;
       continue;
     }
     if (token === '--file' || token === '-f') {
@@ -72,14 +67,12 @@ async function run() {
   }
   const vault = loadVault(options.file);
   const secrets = decryptSecrets(vault, password);
-  if (!options.printEnv) {
-    return;
-  }
+  process.stdout.write(`Vault is readable: ${path.resolve(options.file)}\n`);
+  process.stdout.write(`Secret keys (${Object.keys(secrets).length}):\n`);
   Object.keys(secrets)
     .sort()
     .forEach((key) => {
-      const value = String(secrets[key] ?? '');
-      process.stdout.write(`${key}=${value}\n`);
+      process.stdout.write(`  - ${key}\n`);
     });
 }
 
@@ -88,4 +81,3 @@ run().catch((error) => {
   process.stderr.write(`ERROR: ${message}\n`);
   process.exit(1);
 });
-

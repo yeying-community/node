@@ -15,10 +15,10 @@ function printUsage() {
       '',
       'Description:',
       '  生成生产密钥并加密保存到本地文件（默认 run/secrets.enc.json）。',
-      '  默认会生成：JWT_SECRET / UCAN_ISSUER_PRIVATE_KEY / UCAN_ISSUER_DID / TOTP_AUTH_TOTP_MASTER_KEY。',
+      '  默认会生成应用密钥；数据库、Redis、SMTP等外部凭据请使用 secrets:set 写入。',
       '',
       'Password Input:',
-      '  默认交互输入；也可通过环境变量 NODE_SECRETS_PASSWORD 提供。',
+      '  默认交互输入；生产环境建议使用 secrets.passwordFile。',
       '',
     ].join('\n')
   );
@@ -93,11 +93,11 @@ async function run() {
       process.stdout.write(`  - ${key}\n`);
     });
   process.stdout.write('\nRecommended config alignment (non-secret):\n');
-  process.stdout.write('  - ucanIssuer.enabled = true\n');
-  process.stdout.write('  - ucanIssuer.mode = hybrid (or issue)\n');
+  process.stdout.write('  - issuer.ucan.enabled = true\n');
+  process.stdout.write('  - issuer.ucan.mode = hybrid (or issue)\n');
   process.stdout.write('  - totpAuth.enabled = true\n');
-  process.stdout.write('\nStart with password prompt:\n');
-  process.stdout.write(`  SECRETS_FILE=${filePath} bash scripts/starter.sh restart\n`);
+  process.stdout.write('\nSet config.js secrets.file to this path, then start:\n');
+  process.stdout.write('  bash scripts/starter.sh restart\n');
 }
 
 run().catch((error) => {
@@ -105,4 +105,3 @@ run().catch((error) => {
   process.stderr.write(`ERROR: ${message}\n`);
   process.exit(1);
 });
-

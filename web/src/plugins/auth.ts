@@ -42,6 +42,7 @@ const AUTH_MANUAL_LOGOUT_KEY = 'authManualLogout';
 const LOGIN_COMPLETION_WAIT_MS = 60000;
 const LOGIN_COMPLETION_POLL_MS = 300;
 const LOGIN_ROUTE_READY_WAIT_MS = 3000;
+const WALLET_ACCOUNT_REQUEST_TIMEOUT_MS = 60000;
 
 let cachedProvider: Eip1193Provider | null = null;
 let providerWatcherReady = false;
@@ -135,7 +136,13 @@ async function requestWalletAccounts(provider: Eip1193Provider) {
     return await accountRequestInFlight.promise;
   }
 
-  const promise = requestAccounts({ provider });
+  const request = requestAccounts({ provider });
+  const timeout = new Promise<string[]>((_, reject) => {
+    window.setTimeout(() => {
+      reject(new Error('Wallet approval timed out after 60 seconds'));
+    }, WALLET_ACCOUNT_REQUEST_TIMEOUT_MS);
+  });
+  const promise = Promise.race([request, timeout]);
   accountRequestInFlight = { provider, promise };
   try {
     return await promise;
@@ -869,7 +876,7 @@ export async function connectWallet(router: any, route: any) {
       } else if (walletError.type === 'userRejected') {
         notifyError(`用户拒绝了连接请求。${walletError.message}`);
       } else if (walletError.type === 'disconnected' || walletError.type === 'timeout') {
-        notifyError(`钱包连接已断开，请恢复钱包后重试。${walletError.message}`);
+        notifyError(`钱包未在规定时间内响应。请打开钱包扩展，解锁并确认连接请求后重试。${walletError.message}`);
       } else {
         notifyError(`连接失败，请检查钱包状态。${walletError.message}`);
       }

@@ -12,12 +12,22 @@ vi.mock('../src/config/runtime', () => ({
       'passportAuth.passkey.timeoutMs': 60000,
       'passportAuth.passkey.challengeTtlMs': 120000,
       'passportAuth.portalBaseUrl': 'https://node.example',
-      'passportAuth.assertionSecret': 'test-passport-assertion-secret-123456',
       'passportAuth.assertionTtlMs': 300000,
-      'auth.jwtSecret': 'test-jwt-secret-test-jwt-secret-123456',
     }
     return values[key]
   }),
+}))
+
+vi.mock('../src/security/secretVault', () => ({
+  getDerivedRuntimeSecret: () => '',
+  getRuntimeSecret: (name: string) =>
+    name === 'PASSPORT_ASSERTION_SECRET' ? 'test-passport-assertion-secret-123456' : '',
+}))
+
+vi.mock('../src/security/nodeIssuer', () => ({
+  getNodeIssuerDid: () => 'did:web:node.example',
+  signNodeJwt: (payload: Record<string, unknown>) => `${Buffer.from(JSON.stringify({ alg: 'EdDSA' })).toString('base64url')}.${Buffer.from(JSON.stringify(payload)).toString('base64url')}.signature`,
+  verifyNodeJwt: (token: string) => JSON.parse(Buffer.from(token.split('.')[1], 'base64url').toString('utf8')),
 }))
 
 const webauthnMock = vi.hoisted(() => ({
@@ -78,6 +88,8 @@ function createHarness() {
 
   const manager = {
     getSubject: async (subjectId: string) => subjects.get(subjectId) || null,
+    getSubjectByUsername: async (username: string) =>
+      Array.from(subjects.values()).find((item: any) => item.username === username) || null,
     saveSubject: async (subject: any) => {
       subjects.set(subject.subjectId, subject)
       return subject
@@ -441,6 +453,34 @@ describe('PassportService', () => {
     })
   })
 
+  it('registers a wallet-authenticated username and releases it only to a username-scoped application', async () => {
+    const { service } = createHarness()
+    const walletAddress = '0xAbC0000000000000000000000000000000000001'
+    const binding = await service.ensureWalletSubject(walletAddress)
+    await expect(service.setUsername({ subjectId: binding.subjectId, username: 'Alice.Dev' })).resolves.toMatchObject({
+      username: 'alice.dev',
+      usernameVerifiedAt: expect.any(String),
+    })
+    const duplicate = await service.ensureWalletSubject('0xAbC0000000000000000000000000000000000002')
+    await expect(service.setUsername({ subjectId: duplicate.subjectId, username: 'alice.dev' })).rejects.toThrow('Username is already in use')
+
+    const pkce = createPkcePair()
+    const request = await service.createAuthorizationRequest({
+      appId: 'project-app',
+      redirectUri: 'https://project.example/passport/callback',
+      codeChallenge: pkce.challenge,
+      scopes: ['identity.basic', 'identity.username'],
+    })
+    const approved = await service.approveAuthorizationRequest({ requestId: request.requestId, walletAddress })
+    const exchanged = await service.exchangeAuthorizationCode({
+      code: approved.authorizationCode,
+      appId: 'project-app',
+      redirectUri: 'https://project.example/passport/callback',
+      codeVerifier: pkce.verifier,
+    })
+    expect(exchanged.claims).toMatchObject({ username: 'alice.dev', usernameVerified: true })
+  })
+
   it('issues and introspects a scoped wallet Passport assertion', async () => {
     const { service, subjects, auditLogs } = createHarness()
     const wallet = new Wallet('0x59c6995e998f97a5a0044966f0945389dc9e86dae441fb518eaed14f99d11d72')
@@ -470,7 +510,7 @@ describe('PassportService', () => {
     expect(result.assertionType).toBe('jwt')
     expect(result.passportAssertion).toBeTruthy()
     expect(result.claims).toMatchObject({
-      iss: 'https://node.example',
+      iss: 'did:web:node.example',
       sub: binding.subjectId,
       subjectId: binding.subjectId,
       aud: 'https://project.example/',

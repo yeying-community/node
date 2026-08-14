@@ -3,7 +3,7 @@ import * as jwt from 'jsonwebtoken';
 import type { JwtPayload } from 'jsonwebtoken';
 import { verifyMessage } from 'ethers';
 import { getConfig } from '../config/runtime';
-import { getRuntimeSecret } from '../security/secretVault';
+import { getDerivedRuntimeSecret, getRuntimeSecret } from '../security/secretVault';
 
 export type ChallengeRecord = {
   address: string;
@@ -33,17 +33,13 @@ type RefreshSession = {
   expiresAt: number;
 };
 
-const INSECURE_JWT_SECRET = 'replace-this-in-production';
 const MIN_JWT_SECRET_LENGTH = 32;
 
 function resolveJwtSecret(): string {
-  const runtimeSecret = getRuntimeSecret('JWT_SECRET');
-  const raw = String(
-    runtimeSecret || process.env.JWT_SECRET || getConfig<string>('auth.jwtSecret') || INSECURE_JWT_SECRET
-  ).trim();
-  if (!raw || raw === INSECURE_JWT_SECRET) {
+  const raw = getRuntimeSecret('JWT_SECRET') || getDerivedRuntimeSecret('JWT_SECRET', 'jwt-signing');
+  if (!raw) {
     throw new Error(
-      'JWT secret is not configured. Set auth.jwtSecret (or JWT_SECRET env) to a random value.'
+      'JWT_SECRET is not configured in secrets.enc.json.'
     );
   }
   if (raw.length < MIN_JWT_SECRET_LENGTH) {
@@ -67,15 +63,15 @@ export function assertJwtSecretReady(): void {
   getJwtSecret();
 }
 const ACCESS_TTL_MS = parseNumber(
-  process.env.ACCESS_TTL_MS ?? getConfig<number>('auth.accessTtlMs'),
+  getConfig<number>('auth.accessTtlMs'),
   15 * 60 * 1000
 );
 const REFRESH_TTL_MS = parseNumber(
-  process.env.REFRESH_TTL_MS ?? getConfig<number>('auth.refreshTtlMs'),
+  getConfig<number>('auth.refreshTtlMs'),
   7 * 24 * 60 * 60 * 1000
 );
 const CHALLENGE_TTL_MS = parseNumber(
-  process.env.AUTH_CHALLENGE_TTL_MS ?? getConfig<number>('auth.challengeTtlMs'),
+  getConfig<number>('auth.challengeTtlMs'),
   5 * 60 * 1000
 );
 

@@ -1,5 +1,6 @@
 import nodemailer from 'nodemailer'
 import { getConfig } from '../../config/runtime'
+import { getRuntimeSecret } from '../../security/secretVault'
 import type { PassportEmailVerificationDelivery } from './passport'
 
 type MailConfig = {
@@ -7,7 +8,6 @@ type MailConfig = {
   port?: number
   secure?: boolean
   from?: string
-  auth?: { user?: string; pass?: string }
 }
 
 function escapeHtml(value: string): string {
@@ -66,10 +66,10 @@ function getMailConfig(): Required<Pick<MailConfig, 'host' | 'port' | 'secure' |
   const config = getConfig<MailConfig>('mail') || {}
   const host = String(config.host || '').trim()
   const port = Number(config.port)
-  const user = String(config.auth?.user || '').trim()
-  const pass = String(config.auth?.pass || '').trim()
+  const user = getRuntimeSecret('MAIL_SMTP_USER')
+  const pass = getRuntimeSecret('MAIL_SMTP_PASSWORD')
   const from = String(config.from || user).trim()
-  if (!host || host === 'smtp.example.com' || !Number.isInteger(port) || port <= 0 || !from || (user && !pass) || (!user && pass) || pass === 'CHANGE_ME') {
+  if (!host || host === 'smtp.example.com' || !Number.isInteger(port) || port <= 0 || !from || (user && !pass) || (!user && pass)) {
     throw new Error('Passport email delivery is not configured')
   }
   return { host, port, secure: Boolean(config.secure), from, ...(user ? { auth: { user, pass } } : {}) }

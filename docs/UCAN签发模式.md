@@ -104,17 +104,17 @@
 
 `config.js` / 环境变量：
 
-- `ucanIssuer.enabled` / `UCAN_ISSUER_ENABLED`
-- `ucanIssuer.mode` / `UCAN_ISSUER_MODE`
+- `issuer.ucan.enabled` / `UCAN_ISSUER_ENABLED`
+- `issuer.ucan.mode` / `UCAN_ISSUER_MODE`
   - `verify`（仅校验，默认）
   - `issue`（仅签发路径与中心化校验）
   - `hybrid`（钱包校验 + 中心化签发/校验）
-- `ucanIssuer.did` / `UCAN_ISSUER_DID`
-- `ucanIssuer.privateKey` / `UCAN_ISSUER_PRIVATE_KEY`（建议从密钥管理系统注入）
-- `ucanIssuer.sessionTtlMs` / `UCAN_ISSUER_SESSION_TTL_MS`
-- `ucanIssuer.tokenTtlMs` / `UCAN_ISSUER_TOKEN_TTL_MS`
-- `ucanIssuer.defaultAudience` / `UCAN_ISSUER_DEFAULT_AUDIENCE`
-- `ucanIssuer.defaultCapabilities` / `UCAN_ISSUER_DEFAULT_CAPABILITIES`
+- `issuer.ucan.did` / `UCAN_ISSUER_DID`
+- `ISSUER_PRIVATE_KEY`（统一 Node Issuer 私钥，从 `secrets.enc.json` 读取）
+- `issuer.ucan.sessionTtlMs` / `UCAN_ISSUER_SESSION_TTL_MS`
+- `issuer.ucan.tokenTtlMs` / `UCAN_ISSUER_TOKEN_TTL_MS`
+- `issuer.ucan.defaultAudience` / `UCAN_ISSUER_DEFAULT_AUDIENCE`
+- `issuer.ucan.defaultCapabilities` / `UCAN_ISSUER_DEFAULT_CAPABILITIES`
 - `totpAuth.enabled` / `TOTP_AUTH_ENABLED`
 - `totpAuth.issuerName` / `TOTP_AUTH_ISSUER_NAME`
 - `totpAuth.verifyPath` / `TOTP_AUTH_VERIFY_PATH`
@@ -130,7 +130,7 @@
   - `appId` 必须为应用市场 `AppId`（`applications.uid`），`redirectUri` 必须命中该字段
 
 说明：
-- `mode=issue|hybrid` 时，必须配置 `UCAN_ISSUER_PRIVATE_KEY`；`UCAN_ISSUER_DID` 可留空由私钥推导。
+- `mode=issue|hybrid` 时，必须配置 `ISSUER_PRIVATE_KEY`；Issuer DID 从 `issuer.baseUrl` 派生。
 - 若显式配置 `UCAN_ISSUER_DID`，启动时会校验它是否等于私钥推导 DID，不匹配会启动失败。
 - Router 等消费中心化 UCAN 的下游服务必须把 Node 当前 issuer DID 配为 trusted issuer。
 
@@ -195,7 +195,7 @@
 - 登录总文档：`登录授权.md`
 - 权限/签名：`权限与签名.md`
 - 接口总览：`接口说明.md`
-- 运行配置：`运行配置.md`
+- 运行配置：根目录 `config.js.template`
 
 ## 11. 维护约定（长期）
 - 涉及以下任一变更，必须先更新本文档再发布：

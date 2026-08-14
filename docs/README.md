@@ -18,7 +18,7 @@ Node 在社区生态中的定位以 [社区产品关系与开发边界](https://
 | 层级 | 文档 | 维护目的 |
 | --- | --- | --- |
 | 总览 | [节点架构V1.md](./节点架构V1.md)、[节点架构V2.md](./节点架构V2.md)、[项目概览.md](./项目概览.md)、[系统架构.md](./系统架构.md) | 描述 Node 的生态定位、已实现能力、未实现能力和架构演进方向 |
-| 使用与接口 | [生产环境部署手册.md](./生产环境部署手册.md)、[Node使用指南.md](./Node使用指南.md)、[接口说明.md](./接口说明.md)、[运行配置.md](./运行配置.md)、[openapi/README.md](./openapi/README.md) | 面向部署、联调、SDK 生成和运维配置 |
+| 使用与接口 | [生产环境部署手册.md](./生产环境部署手册.md)、[Node使用指南.md](./Node使用指南.md)、[接口说明.md](./接口说明.md)、[openapi/README.md](./openapi/README.md) | 面向部署、联调、SDK 生成和运维配置；运行参数以根目录 `config.js.template` 注释为准 |
 | 身份授权 | [登录授权.md](./登录授权.md)、[UCAN签发模式.md](./UCAN签发模式.md)、[UCAN权限设计规划.md](./UCAN权限设计规划.md)、[权限与签名.md](./权限与签名.md) | 维护 SIWE、JWT、UCAN、TOTP、Passkey、业务写签名和权限边界 |
 | 业务域 | [业务流程.md](./业务流程.md)、[数据结构.md](./数据结构.md)、[通知中心.md](./通知中心.md)、[加密启动.md](./加密启动.md) | 维护应用、审核、通知、托管密钥、MPC 等具体业务设计 |
 | 应用发布 | [YeYing-Application-Protocol-v1.md](./YeYing-Application-Protocol-v1.md)、[YeYing-AppStore-Developer-Manual.md](./YeYing-AppStore-Developer-Manual.md) | 维护 release bundle、发布审核、制品校验和开发者接入说明 |

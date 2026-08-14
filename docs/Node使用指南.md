@@ -80,7 +80,8 @@ ucan: {
   with: 'app:all:node.example.com',
   can: 'invoke'
 },
-ucanIssuer: {
+issuer: {
+  ucan: {
   enabled: true,
   mode: 'hybrid',
   defaultAudience: 'did:web:node.example.com'
@@ -127,14 +128,12 @@ passportAuth: {
 
 ```bash
 npm run secrets:init
-SECRETS_FILE=run/secrets.enc.json bash scripts/starter.sh restart
+bash scripts/starter.sh restart
 ```
 
 自动化部署可使用受权限保护的密码文件：
 
 ```bash
-SECRETS_PASSWORD_FILE=/secure/node-secrets-password \
-SECRETS_FILE=run/secrets.enc.json \
 bash scripts/starter.sh restart
 ```
 

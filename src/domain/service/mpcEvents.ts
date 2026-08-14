@@ -3,6 +3,7 @@ import { v4 as uuidv4 } from 'uuid'
 import { SingletonLogger } from '../facade/logger'
 import { getConfig } from '../../config/runtime'
 import { RedisRuntimeConfig } from '../../config'
+import { getRuntimeSecret } from '../../security/secretVault'
 
 export type MpcEvent = {
   type: string
@@ -49,8 +50,8 @@ function buildRedisOptions(config: RedisRuntimeConfig) {
   const options: RedisOptions = {
     host: config.host || '127.0.0.1',
     port: config.port ?? 6379,
-    username: config.username || undefined,
-    password: config.password || undefined,
+    username: getRuntimeSecret('REDIS_USERNAME') || undefined,
+    password: getRuntimeSecret('REDIS_PASSWORD') || undefined,
     db: config.db ?? 0,
     keyPrefix: config.keyPrefix || undefined
   }

@@ -9,9 +9,13 @@ module.exports = {
     env: 'dev',
     // HTTP server port.
     port: 8100,
-    // Exact browser origins allowed to send credentialed cross-origin requests.
-    // Production deployments must set this list or CORS_ALLOWED_ORIGINS.
-    corsAllowedOrigins: ['http://localhost:5173']
+    // Browser Origin allowlist for credentialed cross-origin API requests.
+    // Each item must be an exact origin: protocol + host + optional port. Do not add paths,
+    // wildcards, or '*'. Examples: 'https://node.example.com', 'http://localhost:8991'.
+    // Required in production when a browser page is served from a different origin than Node.
+    // Same-origin /api requests do not need an entry. Development also allows localhost and
+    // 127.0.0.1 automatically, but listing the expected frontend origin keeps the setup explicit.
+    corsAllowedOrigins: ['http://localhost:8991']
   },
   // YeYing Project AppStore adapter. The configured instance must exist in project_instances.
   projectAdapter: {
@@ -33,20 +37,23 @@ module.exports = {
   },
   secrets: {
     // 加密密钥文件路径。支持相对路径（相对当前项目目录）。
-    // 运行时优先级：SECRETS_FILE env > secrets.file > run/secrets.enc.json
-    file: 'run/secrets.enc.json'
+    // 所有业务密钥均从此加密文件解密，不能写入本配置。
+    file: 'run/secrets.enc.json',
+    // 启动时读取并立即删除的一次性口令文件。生产无人值守时由受管密钥系统创建；
+    // 本地 dev:secure 或 starter.sh 在文件不存在时才提示输入。
+    passwordFile: 'run/.secrets-password'
   },
   database: {
+    // Secrets loaded from secrets.enc.json: DATABASE_USERNAME, DATABASE_PASSWORD.
     // 支持 postgres / mysql。
     // 推荐 postgres；mysql 使用实体自动建表（synchronize）。
     // mysql | postgres
     type: 'postgres',
-    // Database name
+    // Database name. Credentials are DATABASE_USERNAME/DATABASE_PASSWORD in secrets.enc.json.
     database: 'node',
     host: '127.0.0.1',
     port: 5432,
-    username: 'postgres',
-    password: 'CHANGE_ME',
+    // username/password are loaded from DATABASE_USERNAME/DATABASE_PASSWORD.
     // postgres: 应保持 false，走 migration。
     // mysql: 可设为 true（首次自动建表）。
     synchronize: false,
@@ -57,13 +64,7 @@ module.exports = {
     schema: 'node'
   },
   auth: {
-    // JWT secret used by SIWE login.
-    // Generate your own secret on this machine:
-    //   openssl rand -hex 32
-    // or:
-    //   node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
-    // 推荐留空并通过加密密钥文件或环境变量 JWT_SECRET 注入。
-    jwtSecret: '',
+    // JWT is signed with the unified issuer key; NODE_KEY_DERIVATION_SECRET derives internal symmetric keys.
     accessTtlMs: 15 * 60 * 1000,
     refreshTtlMs: 7 * 24 * 60 * 60 * 1000,
     challengeTtlMs: 5 * 60 * 1000,
@@ -82,40 +83,33 @@ module.exports = {
     cleanupIntervalMs: 15 * 60 * 1000
   },
   ucan: {
-    // UCAN audience (should match Node API URL host).
+    // UCAN audience. It must match the audience used by clients and normally identifies this Node API.
     aud: 'did:web:localhost:8100',
     // Recommended localhost wildcard for local dev across different frontend ports.
     with: 'app:all:localhost-*',
     can: 'invoke'
   },
-  ucanIssuer: {
-    // Enable centralized issuer mode.
-    // Central issuer endpoints: /api/v1/public/auth/central/*
-    enabled: false,
-    // verify | issue | hybrid
-    // verify: wallet UCAN verify only
-    // issue: centralized UCAN issue + verify centralized issuer only
-    // hybrid: wallet UCAN verify + centralized UCAN issue/verify
-    mode: 'verify',
-    // did:key of centralized issuer. Optional; when set, it must match private key derived DID.
-    // Downstream services such as Router must trust the current issuer DID.
-    // 可通过加密密钥文件或环境变量 UCAN_ISSUER_DID 注入。
-    did: '',
-    // Ed25519 private key (PEM / base64 seed / hex seed). Keep empty in template.
-    // 推荐通过加密密钥文件或环境变量 UCAN_ISSUER_PRIVATE_KEY 注入。
-    privateKey: '',
-    // Session TTL for /auth/central/session
-    sessionTtlMs: 5 * 60 * 1000,
-    // UCAN TTL for /auth/central/issue
-    tokenTtlMs: 10 * 60 * 1000,
-    // Default audience/capability if request body does not provide.
-    defaultAudience: 'did:web:localhost:8100',
-    defaultCapabilities: [
-      { with: 'app:all:localhost-*', can: 'invoke' }
-    ]
+  issuer: {
+    // Unified Node issuer. DID is derived from this URL; the signing key is ISSUER_PRIVATE_KEY.
+    baseUrl: 'https://node.example.com',
+    ucan: {
+      // Secret loaded from secrets.enc.json: ISSUER_PRIVATE_KEY.
+      // Enable centralized issuer mode. issue only trusts this issuer; hybrid accepts wallet and issuer UCAN.
+      enabled: false,
+      // verify | issue | hybrid
+      mode: 'verify',
+      sessionTtlMs: 5 * 60 * 1000,
+      tokenTtlMs: 10 * 60 * 1000,
+      defaultAudience: 'did:web:localhost:8100',
+      defaultCapabilities: [
+        { with: 'app:all:localhost-*', can: 'invoke' }
+      ]
+    },
+    // Identity credentials use the same issuer and key; no separate identity key is configured.
   },
   totpAuth: {
-    // Enable totp TOTP login bridge for centralized UCAN flow.
+    // TOTP storage key is derived from NODE_KEY_DERIVATION_SECRET.
+    // Enable the authenticator-code login bridge. Enabling it requires NODE_KEY_DERIVATION_SECRET.
     enabled: false,
     // Authenticator issuer display name.
     issuerName: 'YeYing Node',
@@ -134,27 +128,25 @@ module.exports = {
     maxAttempts: 5,
     // totp authorize 仅支持已发布应用（appId = applications.uid）。
     // 回调地址从应用发布字段 redirectUris 读取并做严格匹配。
-    // TOTP 随机密钥会加密后存库，totpMasterKey 用作加密主密钥。
+    // TOTP 随机密钥会加密后存库，主密钥由 secrets.enc.json 提供。
     // Generate your own key on this machine:
     //   openssl rand -hex 32
     // or:
     //   node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
     // Required when enabled. Supports plain text / base64 / hex.
-    // 推荐通过加密密钥文件或环境变量 TOTP_AUTH_TOTP_MASTER_KEY 注入。
-    totpMasterKey: ''
   },
   passportAuth: {
+    // New Passport assertions use ISSUER_PRIVATE_KEY; old symmetric assertions are migration-only.
     // Node-hosted Passport authorization page path. Example: /passport/authorize
     verifyPath: '/passport/authorize',
     // Base URL used to build Passport verifyUrl in authorize request response.
     portalBaseUrl: 'http://127.0.0.1:8100',
     // Short-lived Passport assertion secret for Wallet-backed DApp login.
-    // 推荐留空并通过加密密钥文件或环境变量 PASSPORT_ASSERTION_SECRET 注入。
-    assertionSecret: '',
     // Short-lived Passport assertion TTL for Wallet-backed DApp login.
     assertionTtlMs: 5 * 60 * 1000,
     passkey: {
-      // Enable Passport Passkey registration and authorization confirmation.
+      // Enable Passport Passkey registration and authorization confirmation. rpId must be the current
+      // domain or its registrable parent; origin must exactly match the browser page origin.
       enabled: false,
       // Relying Party ID. Prefer a dedicated local hostname such as
       // 'passport.localhost' so Passport credentials are not mixed with
@@ -194,6 +186,7 @@ module.exports = {
     ucanCan: 'write'
   },
   notification: {
+    // Webhook storage key is derived from NODE_KEY_DERIVATION_SECRET.
     // Enable background webhook delivery worker.
     webhookDeliveryEnabled: true,
     // Poll interval for pending webhook deliveries.
@@ -211,16 +204,14 @@ module.exports = {
     // Retry delay ceiling.
     webhookRetryMaxDelayMs: 10 * 60 * 1000,
     // Optional secret master key for encrypting webhook signing secrets.
-    // 推荐通过加密密钥文件或环境变量 NOTIFICATION_WEBHOOK_MASTER_KEY 注入。
-    webhookMasterKey: ''
   },
   redis: {
-    // Enable redis pub/sub for MPC events
+    // Optional secrets loaded from secrets.enc.json: REDIS_USERNAME, REDIS_PASSWORD.
+    // Enable Redis pub/sub and optional Streams for MPC events. Credentials, when required, are
+    // REDIS_USERNAME/REDIS_PASSWORD in secrets.enc.json; traditional requirepass uses only REDIS_PASSWORD.
     enabled: false,
     host: '127.0.0.1',
     port: 6379,
-    username: '',
-    password: '',
     db: 0,
     keyPrefix: '',
     channel: 'mpc_events',
@@ -251,15 +242,13 @@ module.exports = {
     }
   },
   // Required before enabling Passport email verification delivery.
-  // Keep credentials outside source control in the deployed configuration.
+  // SMTP credentials are MAIL_SMTP_USER/MAIL_SMTP_PASSWORD in secrets.enc.json. host, port and from
+  // are non-sensitive delivery parameters. Leave host as smtp.example.com to disable real delivery.
   mail: {
+    // Optional secrets loaded from secrets.enc.json: MAIL_SMTP_USER, MAIL_SMTP_PASSWORD.
     host: 'smtp.example.com',
     port: 465,
     secure: true,
     from: 'YeYing Passport <no-reply@example.com>',
-    auth: {
-      user: 'user@example.com',
-      pass: 'CHANGE_ME'
-    }
   }
 }

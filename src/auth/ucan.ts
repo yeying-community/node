@@ -1,6 +1,7 @@
 import * as crypto from 'crypto';
 import { verifyMessage } from 'ethers';
 import { getConfig } from '../config/runtime';
+import { getNodeIssuerDid } from '../security/nodeIssuer';
 
 export type UcanCapability = {
   with?: string;
@@ -38,19 +39,16 @@ type UcanTokenPayload = {
 };
 
 const DEFAULT_PORT = parseNumber(
-  process.env.APP_PORT ?? getConfig<number>('app.port'),
+  getConfig<number>('app.port'),
   8100
 );
 const UCAN_AUD =
-  process.env.UCAN_AUD ||
   getConfig<string>('ucan.aud') ||
   `did:web:localhost:${DEFAULT_PORT}`;
 const UCAN_WITH =
-  process.env.UCAN_WITH ||
   getConfig<string>('ucan.with') ||
   'app:all:localhost-*';
 const UCAN_CAN =
-  process.env.UCAN_CAN ||
   getConfig<string>('ucan.can') ||
   'invoke';
 const REQUIRED_UCAN_CAP: UcanCapability = {
@@ -58,15 +56,13 @@ const REQUIRED_UCAN_CAP: UcanCapability = {
   can: UCAN_CAN
 };
 const UCAN_ISSUER_ENABLED = parseBoolean(
-  process.env.UCAN_ISSUER_ENABLED ?? getConfig<boolean>('ucanIssuer.enabled'),
+  getConfig<boolean>('issuer.ucan.enabled'),
   false
 );
 const UCAN_ISSUER_MODE = parseIssuerMode(
-  process.env.UCAN_ISSUER_MODE ?? getConfig<string>('ucanIssuer.mode')
+  getConfig<string>('issuer.ucan.mode')
 );
-const UCAN_ISSUER_DID = String(
-  process.env.UCAN_ISSUER_DID ?? getConfig<string>('ucanIssuer.did') ?? ''
-).trim();
+const UCAN_ISSUER_DID = getNodeIssuerDid();
 
 const BASE58_ALPHABET = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz';
 

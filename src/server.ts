@@ -39,7 +39,8 @@ import {
     ProjectInstanceDO,
     ProjectAppInstallationDO,
     AppReleaseDO,
-    AppRuntimeTaskDO
+    AppRuntimeTaskDO,
+    IdentityAccountLinkDO, IdentityAccountLinkChallengeDO, IdentityVerificationTransactionDO, IdentityUsernameDO, IdentityCredentialDO, IdentityAuditLogDO
 } from './domain/mapper/entity'
 import { SingletonDataSource } from './domain/facade/datasource';
 import { LoggerConfig, LoggerService } from './infrastructure/logger';
@@ -59,6 +60,11 @@ import { registerPublicHealthRoute } from './routes/public/health';
 import { registerPublicMpcRoutes } from './routes/public/mpc';
 import { registerPublicCustodyRoutes } from './routes/public/custody';
 import { registerPublicNotificationRoutes } from './routes/public/notifications';
+import { registerPublicIdentityRoutes } from './routes/publicIdentity';
+import { registerPublicIdentityAccountLinkRoutes } from './routes/publicIdentityAccountLinks';
+import { IdentityEmailService } from './domain/service/identityEmail';
+import { registerPublicIdentityEmailRoutes } from './routes/publicIdentityEmail';
+import { deliverPassportEmailVerification } from './domain/service/passportEmailDelivery';
 import { registerAdminAuditRoutes } from './routes/admin/audits';
 import { registerAdminUserRoutes } from './routes/admin/users';
 import { InitSchema20260126120000 } from './migrations/20260126120000-init-schema';
@@ -85,6 +91,9 @@ import { AddRuntimeTaskPayload20260726100000 } from './migrations/20260726100000
 import { AddPassportIdentity20260803100000 } from './migrations/20260803100000-add-passport-identity';
 import { AddPassportSubjectEmailAndScopes20260809090000 } from './migrations/20260809090000-add-passport-subject-email-and-scopes';
 import { AddPassportEmailVerificationChallenges20260809093000 } from './migrations/20260809093000-add-passport-email-verification-challenges';
+import { AddPassportUsername20260812230000 } from './migrations/20260812230000-add-passport-username';
+import { AddWalletIdentityState20260813090000 } from './migrations/20260813090000-add-wallet-identity-state';
+import { AddWalletIdentityLinkChallenges20260813100000 } from './migrations/20260813100000-add-wallet-identity-link-challenges';
 import { EnforcePassportPasskeyIdentity20260803110000 } from './migrations/20260803110000-enforce-passport-passkey-identity';
 import { RepairPassportWebauthnChallenges20260803120000 } from './migrations/20260803120000-repair-passport-webauthn-challenges';
 import { AddScopedGrants20260808090000 } from './migrations/20260808090000-add-scoped-grants';
@@ -97,7 +106,7 @@ import { SingletonLogger } from './domain/facade/logger';
 import { getCentralIssuerStatus } from './auth/ucanIssuer';
 import { getTotpAuthStatus } from './auth/totpAuth';
 import { getPasskeyAuthStatus } from './auth/passportPasskeyAuth';
-import { initializeRuntimeSecrets } from './security/secretVault';
+import { getRequiredRuntimeSecret, initializeRuntimeSecrets } from './security/secretVault';
 import { assertJwtSecretReady } from './auth/siwe';
 
 // 初始化日志
@@ -224,7 +233,7 @@ function assertSecurityPreflight(): void {
         issuerStatus.mode === 'issue' || issuerStatus.mode === 'hybrid'
     if (issuerStatus.enabled && issueModeEnabled && !issuerStatus.ready) {
         errors.push(
-            `中心化 UCAN 签发未就绪: ${issuerStatus.error || '缺少有效 UCAN_ISSUER_PRIVATE_KEY/UCAN_ISSUER_DID'}`
+            `中心化 UCAN 签发未就绪: ${issuerStatus.error || '缺少有效 ISSUER_PRIVATE_KEY'}`
         )
     }
 
@@ -251,13 +260,6 @@ const configPort = getConfig<number>('app.port')
 if (typeof configPort === 'number' && Number.isFinite(configPort)) {
     port = configPort
 }
-if (process.env.APP_PORT) {
-    const envPort = Number(process.env.APP_PORT)
-    if (Number.isFinite(envPort) && envPort > 0) {
-        port = envPort
-    }
-}
-
 initializeRuntimeSecrets()
 assertSecurityPreflight()
 
@@ -269,6 +271,8 @@ if (databaseConfig.type !== 'postgres' && databaseConfig.type !== 'mysql') {
 const usePostgresMigrations = databaseConfig.type === 'postgres'
 const builder = new DataSourceBuilder({
     ...databaseConfig,
+    username: getRequiredRuntimeSecret('DATABASE_USERNAME'),
+    password: getRequiredRuntimeSecret('DATABASE_PASSWORD'),
     synchronize: usePostgresMigrations ? false : Boolean(databaseConfig.synchronize ?? true)
 })
 builder.entities([
@@ -305,7 +309,13 @@ builder.entities([
     ProjectInstanceDO,
     ProjectAppInstallationDO,
     AppReleaseDO,
-    AppRuntimeTaskDO
+    AppRuntimeTaskDO,
+    IdentityAccountLinkDO,
+    IdentityAccountLinkChallengeDO,
+    IdentityVerificationTransactionDO,
+    IdentityUsernameDO,
+    IdentityCredentialDO,
+    IdentityAuditLogDO
 ])
 builder.migrations([
     InitSchema20260126120000,
@@ -332,7 +342,10 @@ builder.migrations([
     RepairPassportWebauthnChallenges20260803120000,
     AddScopedGrants20260808090000,
     AddPassportSubjectEmailAndScopes20260809090000,
-    AddPassportEmailVerificationChallenges20260809093000
+    AddPassportEmailVerificationChallenges20260809093000,
+    AddPassportUsername20260812230000,
+    AddWalletIdentityState20260813090000,
+    AddWalletIdentityLinkChallenges20260813100000
 ])
 
 builder.build().initialize().then(async (conn) => {
@@ -371,6 +384,11 @@ builder.build().initialize().then(async (conn) => {
 
 
     registerPublicAuthRoutes(app);
+    registerPublicIdentityRoutes(app);
+    registerPublicIdentityAccountLinkRoutes(app);
+    registerPublicIdentityEmailRoutes(app, new IdentityEmailService(async ({ email, code, expiresAt }) => {
+        await deliverPassportEmailVerification({ email, code, verificationId: `identity-${Date.now()}`, expiresAt });
+    }));
     registerPublicAuthCentralRoutes(app);
     registerPublicAuthTotpRoutes(app);
     registerPublicAuthPassportRoutes(app);

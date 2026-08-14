@@ -100,6 +100,17 @@ export function registerPublicAuthPassportRoutes(app: Express) {
     }
   })
 
+  app.put(`${BASE_PATH}/username`, async (req: Request, res: Response) => {
+    try {
+      const walletAddress = requireBearerSubject(req)
+      const binding = await service.ensureWalletSubject(walletAddress)
+      res.json(ok(await service.setUsername({ subjectId: binding.subjectId, username: req.body?.username })))
+    } catch (error) {
+      const mapped = mapPassportError(error)
+      res.status(mapped.status).json(fail(mapped.status, mapped.message))
+    }
+  })
+
   app.post(`${BASE_PATH}/email/verification/request`, async (req: Request, res: Response) => {
     try {
       const walletAddress = requireBearerSubject(req)

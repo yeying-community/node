@@ -29,7 +29,8 @@ import {
   getActionSignatureErrorStatus,
 } from '../../auth/actionSignature'
 import { deliverPassportEmailVerification } from './passportEmailDelivery'
-import { getRuntimeSecret } from '../../security/secretVault'
+import { getDerivedRuntimeSecret, getRuntimeSecret } from '../../security/secretVault'
+import { getNodeIssuerDid, signNodeJwt, verifyNodeJwt } from '../../security/nodeIssuer'
 
 export type PassportStatus = {
   enabled: true
@@ -77,6 +78,9 @@ export type PassportAuthorizationExchangeResult = {
   scopes: string[]
   claims: {
     subjectId: string
+    username?: string
+    usernameVerified?: boolean
+    usernameVerifiedAt?: string
     walletAddress?: string
     email?: string
     emailVerified?: boolean
@@ -134,6 +138,9 @@ export type PassportWalletAssertionClaims = {
   authMethod: 'wallet'
   walletAddress: string
   scope: string[]
+  username?: string
+  usernameVerified?: boolean
+  usernameVerifiedAt?: string
   email?: string
   emailVerified?: boolean
   emailVerifiedAt?: string
@@ -181,11 +188,10 @@ const DEFAULT_ASSERTION_TTL_MS = 5 * 60 * 1000
 const MIN_ASSERTION_TTL_MS = 30 * 1000
 const MAX_ASSERTION_TTL_MS = 30 * 60 * 1000
 const DEFAULT_AUTHORIZATION_SCOPES = ['identity.basic', 'identity.wallet']
-const ALLOWED_AUTHORIZATION_SCOPES = new Set(['identity.basic', 'identity.wallet', 'identity.email'])
+const ALLOWED_AUTHORIZATION_SCOPES = new Set(['identity.basic', 'identity.wallet', 'identity.username', 'identity.email'])
 const EMAIL_VERIFICATION_TTL_MS = 10 * 60 * 1000
 const EMAIL_VERIFICATION_RESEND_INTERVAL_MS = 60 * 1000
 const EMAIL_VERIFICATION_MAX_ATTEMPTS = 5
-const INSECURE_JWT_SECRET = 'replace-this-in-production'
 const MIN_JWT_SECRET_LENGTH = 32
 
 function parseAuthorizationScopes(input: unknown): string[] {
@@ -223,6 +229,14 @@ function normalizeEmail(input: unknown): string {
     throw new PassportError(400, 'PASSPORT_EMAIL_INVALID', 'Invalid email address')
   }
   return email
+}
+
+function normalizeUsername(input: unknown): string {
+  const username = normalizeString(input).toLowerCase()
+  if (!/^[a-z0-9][a-z0-9._-]*$/.test(username) || username.length < 3 || username.length > 32) {
+    throw new PassportError(400, 'PASSPORT_USERNAME_INVALID', 'Username must be 3-32 lowercase letters, numbers, dots, underscores, or hyphens')
+  }
+  return username
 }
 
 function maskEmail(email: string): string {
@@ -386,20 +400,12 @@ function getPortalBaseUrl(): string {
 }
 
 function getPassportAssertionIssuer(): string {
-  return getPortalBaseUrl() || 'yeying-passport'
+  return getNodeIssuerDid()
 }
 
 function getPassportAssertionSecret(): string {
-  const raw = normalizeString(
-    getRuntimeSecret('PASSPORT_ASSERTION_SECRET') ||
-      getRuntimeSecret('JWT_SECRET') ||
-      process.env.PASSPORT_ASSERTION_SECRET ||
-      process.env.JWT_SECRET ||
-      getConfig<string>('passportAuth.assertionSecret') ||
-      getConfig<string>('auth.jwtSecret') ||
-      INSECURE_JWT_SECRET
-  )
-  if (!raw || raw === INSECURE_JWT_SECRET) {
+  const raw = getRuntimeSecret('PASSPORT_ASSERTION_SECRET') || getDerivedRuntimeSecret('PASSPORT_ASSERTION_SECRET', 'passport-assertion')
+  if (!raw) {
     throw new PassportError(
       500,
       'PASSPORT_ASSERTION_SECRET_MISSING',
@@ -418,7 +424,7 @@ function getPassportAssertionSecret(): string {
 
 function getPassportAssertionTtlMs(ttlMsInput?: unknown): number {
   return clampTtlMs(
-    ttlMsInput ?? process.env.PASSPORT_ASSERTION_TTL_MS ?? getConfig<number>('passportAuth.assertionTtlMs'),
+    ttlMsInput ?? getConfig<number>('passportAuth.assertionTtlMs'),
     DEFAULT_ASSERTION_TTL_MS,
     MIN_ASSERTION_TTL_MS,
     MAX_ASSERTION_TTL_MS,
@@ -662,6 +668,22 @@ export class PassportService {
     await this.manager.saveSubject(subject)
     await this.writeAudit({ subjectId, action: 'email_verified' })
     return { subjectId, email: subject.email, emailVerifiedAt: now }
+  }
+
+  async setUsername(input: { subjectId: unknown; username: unknown }): Promise<{ subjectId: string; username: string; usernameVerifiedAt: string }> {
+    const subjectId = normalizeString(input.subjectId)
+    const username = normalizeUsername(input.username)
+    const subject = await this.manager.getSubject(subjectId)
+    if (!subject || subject.status !== 'active') throw new PassportError(404, 'PASSPORT_SUBJECT_NOT_FOUND', 'Passport subject not found')
+    const existing = await this.manager.getSubjectByUsername(username)
+    if (existing && existing.subjectId !== subjectId) throw new PassportError(409, 'PASSPORT_USERNAME_TAKEN', 'Username is already in use')
+    const now = getCurrentUtcString()
+    subject.username = username
+    subject.usernameVerifiedAt = now
+    subject.updatedAt = now
+    await this.manager.saveSubject(subject)
+    await this.writeAudit({ subjectId, action: 'username_verified' })
+    return { subjectId, username, usernameVerifiedAt: now }
   }
 
   private async writeAudit(input: {
@@ -985,15 +1007,17 @@ export class PassportService {
       claims.emailVerified = subject.subject.emailStatus === 'verified' && !!claims.email
       claims.emailVerifiedAt = claims.emailVerified ? normalizeString(subject.subject.emailVerifiedAt) : ''
     }
+    if (scope.includes('identity.username')) {
+      claims.username = normalizeString(subject.subject.username)
+      claims.usernameVerified = !!claims.username && !!normalizeString(subject.subject.usernameVerifiedAt)
+      claims.usernameVerifiedAt = claims.usernameVerified ? normalizeString(subject.subject.usernameVerifiedAt) : ''
+    }
     const payload = {
       ...claims,
       iat: nowSec,
       exp,
     }
-    const passportAssertion = jwt.sign(payload, getPassportAssertionSecret(), {
-      algorithm: 'HS256',
-      noTimestamp: true,
-    })
+    const passportAssertion = signNodeJwt(payload)
     await this.writeAudit({
       subjectId: subject.subjectId,
       walletAddress: address,
@@ -1021,9 +1045,11 @@ export class PassportService {
       return { active: false, error: 'PASSPORT_ASSERTION_MISSING' }
     }
     try {
-      const decoded = jwt.verify(assertion, getPassportAssertionSecret(), {
-        algorithms: ['HS256'],
-      }) as JwtPayload
+      const [encodedHeader] = assertion.split('.')
+      const header = encodedHeader ? JSON.parse(Buffer.from(encodedHeader, 'base64url').toString('utf8')) : {}
+      const decoded = header.alg === 'EdDSA'
+        ? verifyNodeJwt(assertion) as JwtPayload
+        : jwt.verify(assertion, getPassportAssertionSecret(), { algorithms: ['HS256'] }) as JwtPayload
       if (!decoded || decoded.authMethod !== 'wallet' || !decoded.sub) {
         return { active: false, error: 'PASSPORT_ASSERTION_INVALID' }
       }
@@ -1045,6 +1071,11 @@ export class PassportService {
         claims.email = normalizeString(decoded.email).toLowerCase()
         claims.emailVerified = decoded.emailVerified === true
         claims.emailVerifiedAt = normalizeString(decoded.emailVerifiedAt)
+      }
+      if (scope.includes('identity.username')) {
+        claims.username = normalizeString(decoded.username)
+        claims.usernameVerified = decoded.usernameVerified === true
+        claims.usernameVerifiedAt = normalizeString(decoded.usernameVerifiedAt)
       }
       return { active: true, claims }
     } catch (error) {
@@ -1642,6 +1673,12 @@ export class PassportService {
       claims.email = emailVerified ? subject!.email : ''
       claims.emailVerified = emailVerified
       claims.emailVerifiedAt = emailVerified ? subject!.emailVerifiedAt || '' : ''
+    }
+    if (scopes.includes('identity.username')) {
+      const usernameVerified = Boolean(subject?.username && subject.usernameVerifiedAt)
+      claims.username = usernameVerified ? subject!.username : ''
+      claims.usernameVerified = usernameVerified
+      claims.usernameVerifiedAt = usernameVerified ? subject!.usernameVerifiedAt || '' : ''
     }
     return {
       requestId: record.requestId,

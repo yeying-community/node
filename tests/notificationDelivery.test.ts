@@ -1,23 +1,18 @@
-import { afterEach, describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
+
+vi.mock('../src/security/secretVault', () => ({
+  getDerivedRuntimeSecret: () => '',
+  getRuntimeSecret: (name: string) =>
+    name === 'NOTIFICATION_WEBHOOK_MASTER_KEY' ? 'notification-webhook-master-key-for-test' : '',
+}))
 import {
   buildNotificationWebhookSignature,
   decryptNotificationWebhookSecret,
   encryptNotificationWebhookSecret,
 } from '../src/domain/service/notificationDelivery'
 
-const originalMasterKey = process.env.NOTIFICATION_WEBHOOK_MASTER_KEY
-
 describe('notification webhook delivery helpers', () => {
-  afterEach(() => {
-    if (originalMasterKey === undefined) {
-      delete process.env.NOTIFICATION_WEBHOOK_MASTER_KEY
-    } else {
-      process.env.NOTIFICATION_WEBHOOK_MASTER_KEY = originalMasterKey
-    }
-  })
-
   it('encrypts and decrypts webhook secret with the configured master key', () => {
-    process.env.NOTIFICATION_WEBHOOK_MASTER_KEY = 'notification-webhook-master-key-for-test'
     const ciphertext = encryptNotificationWebhookSecret('secret-value-123')
     expect(ciphertext).toMatch(/^v1\./)
     expect(ciphertext).not.toContain('secret-value-123')

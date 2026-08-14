@@ -28,7 +28,6 @@ Node 依赖 PostgreSQL 或 MySQL，开发环境推荐 PostgreSQL。以下示例�
 ```bash
 git clone git@github.com:yeying-community/deployer.git
 cd deployer/middleware/postgresql
-cp .env.template .env
 docker compose up -d
 ./database.sh create-db -d node -u node_user
 ```
@@ -50,26 +49,72 @@ database: {
   host: '127.0.0.1',
   port: 5432,
   database: 'node',
-  username: 'node_user',
-  password: '<local-password>',
   schema: 'node',
   synchronize: false
 }
 ```
 
-通过环境变量提供本地 JWT 密钥后启动热更新服务：
+初始化本地密钥仓后启动热更新服务：
 
 ```bash
-JWT_SECRET="$(openssl rand -hex 32)" npm run dev
+npm run secrets:init
+npm run dev:secure
 ```
 
 后端地址：<http://localhost:8100>。健康检查：<http://localhost:8100/api/v1/public/health>。
 
-需要模拟生产的加密密钥启动方式时，先执行 `npm run secrets:init`，然后使用：
+使用 `npm run secrets:set DATABASE_USERNAME`、`npm run secrets:set DATABASE_PASSWORD` 写入本地数据库凭据。
+
+### 密钥仓运维
+
+后端只有两类配置来源：`config.js` 保存非敏感运行参数，`secrets.enc.json` 保存全部敏感凭据。密钥仓使用 `AES-256-GCM + PBKDF2` 加密，文件权限固定为 `0600`；任何运维脚本均通过交互终端读取口令，不接收环境变量、命令行参数或标准输出中的明文密钥。
+
+`config.js` 需要明确密钥仓位置和启动时一次性口令文件位置：
+
+```js
+secrets: {
+  file: 'run/secrets.enc.json',
+  passwordFile: 'run/.secrets-password'
+}
+```
+
+初始化只应执行一次。它生成统一 Issuer 私钥 `ISSUER_PRIVATE_KEY` 和内部派生根 `NODE_KEY_DERIVATION_SECRET`，不会擅自生成数据库、Redis 或 SMTP 的外部凭据：
 
 ```bash
-npm run dev:secure
+npm run secrets:init
 ```
+
+将外部凭据逐项交互写入或轮换。每次更新都会先解密、以新的随机 salt/iv 重新加密，然后原子替换密钥仓文件：
+
+```bash
+npm run secrets:set DATABASE_USERNAME
+npm run secrets:set DATABASE_PASSWORD
+npm run secrets:set ISSUER_PRIVATE_KEY
+npm run secrets:set NODE_KEY_DERIVATION_SECRET
+npm run secrets:set REDIS_USERNAME
+npm run secrets:set REDIS_PASSWORD
+npm run secrets:set MAIL_SMTP_USER
+npm run secrets:set MAIL_SMTP_PASSWORD
+```
+
+若是从旧版 `config.js` 迁移，不要手工复制或输出密码，使用下列命令将其中的数据库、Redis、SMTP 和应用密钥写入 vault，成功后自动从 `config.js` 删除：
+
+```bash
+npm run secrets:migrate-config
+```
+
+启动前执行安全检查。该命令只显示密钥名和校验结果，绝不显示密钥值：
+
+```bash
+npm run secrets:verify
+npm run secrets:unlock
+```
+
+`secrets:verify` 会按当前 `config.js` 检查数据库、JWT，以及已启用的 UCAN、TOTP、通知功能所需密钥。`secrets:unlock` 仅用于确认 vault 可解密并列出键名。不要使用重定向、截图或日志记录这些命令的交互过程。
+
+新配置下，JWT、TOTP、Passport assertion 和 Webhook 加密密钥优先从 `NODE_KEY_DERIVATION_SECRET` 按用途派生；如果 vault 中仍有旧的显式密钥，会优先使用旧值，保证迁移期间历史数据和登录态不失效。`ISSUER_PRIVATE_KEY` 的公钥自动生成 Issuer `kid`，Issuer DID 从 `issuer.baseUrl` 派生。
+
+生产更新顺序：备份现有 `secrets.enc.json` 到受保护的主机级备份系统，停止服务或在维护窗口中执行 `secrets:set`，执行 `secrets:verify`，然后通过 `bash scripts/starter.sh restart` 重启。不得重新执行 `secrets:init --force` 覆盖生产 vault，否则 JWT、UCAN、TOTP、Passport 和 Webhook 加密数据会失去与历史数据的兼容性。
 
 ### 3. 启动前端
 
@@ -77,12 +122,11 @@ npm run dev:secure
 
 ```bash
 cd web
-cp .env.template .env
 npm install
 npm run dev -- --port 8991
 ```
 
-确认 `web/.env` 至少包含：
+前端默认代理到 `http://localhost:8100`。只有需要覆盖 Vite 的公开构建参数时，才在 `web/.env` 设置：
 
 ```dotenv
 VITE_NODE_API_ENDPOINT=http://localhost:8100
@@ -107,7 +151,7 @@ npm audit --omit=dev --audit-level=high
 
 - [文档总览](./docs/README.md)
 - [生产环境部署手册](./docs/生产环境部署手册.md)
-- [运行配置](./docs/运行配置.md)
+- [配置模板](./config.js.template)
 - [节点架构 V1](./docs/节点架构V1.md) 与 [节点架构 V2](./docs/节点架构V2.md)
 - [Node 使用指南](./docs/Node使用指南.md)
 - [OpenAPI 3.1](./docs/openapi/node.openapi.yaml)
