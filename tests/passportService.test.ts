@@ -12,12 +12,22 @@ vi.mock('../src/config/runtime', () => ({
       'passportAuth.passkey.timeoutMs': 60000,
       'passportAuth.passkey.challengeTtlMs': 120000,
       'passportAuth.portalBaseUrl': 'https://node.example',
-      'passportAuth.assertionSecret': 'test-passport-assertion-secret-123456',
       'passportAuth.assertionTtlMs': 300000,
-      'auth.jwtSecret': 'test-jwt-secret-test-jwt-secret-123456',
     }
     return values[key]
   }),
+}))
+
+vi.mock('../src/security/secretVault', () => ({
+  getDerivedRuntimeSecret: () => '',
+  getRuntimeSecret: (name: string) =>
+    name === 'PASSPORT_ASSERTION_SECRET' ? 'test-passport-assertion-secret-123456' : '',
+}))
+
+vi.mock('../src/security/nodeIssuer', () => ({
+  getNodeIssuerDid: () => 'did:web:node.example',
+  signNodeJwt: (payload: Record<string, unknown>) => `${Buffer.from(JSON.stringify({ alg: 'EdDSA' })).toString('base64url')}.${Buffer.from(JSON.stringify(payload)).toString('base64url')}.signature`,
+  verifyNodeJwt: (token: string) => JSON.parse(Buffer.from(token.split('.')[1], 'base64url').toString('utf8')),
 }))
 
 const webauthnMock = vi.hoisted(() => ({
@@ -500,7 +510,7 @@ describe('PassportService', () => {
     expect(result.assertionType).toBe('jwt')
     expect(result.passportAssertion).toBeTruthy()
     expect(result.claims).toMatchObject({
-      iss: 'https://node.example',
+      iss: 'did:web:node.example',
       sub: binding.subjectId,
       subjectId: binding.subjectId,
       aud: 'https://project.example/',

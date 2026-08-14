@@ -5,7 +5,7 @@ import { getConfig } from '../config/runtime';
 import { SingletonDataSource } from '../domain/facade/datasource';
 import { SingletonLogger } from '../domain/facade/logger';
 import { TotpSubjectSecretDO } from '../domain/mapper/entity';
-import { getRuntimeSecret } from '../security/secretVault';
+import { getDerivedRuntimeSecret, getRuntimeSecret } from '../security/secretVault';
 
 export type TotpBindRequestStatus = 'pending' | 'used' | 'expired' | 'revoked';
 
@@ -248,7 +248,7 @@ function clampMaxAttempts(value: unknown): number {
 
 function loadTotpAuthRuntime(): TotpAuthRuntimeState {
   const enabled = parseBoolean(
-    process.env.TOTP_AUTH_ENABLED ?? getConfig<boolean>('totpAuth.enabled'),
+    getConfig<boolean>('totpAuth.enabled'),
     false
   );
 
@@ -256,33 +256,32 @@ function loadTotpAuthRuntime(): TotpAuthRuntimeState {
     enabled,
     ready: false,
     issuerName: String(
-      process.env.TOTP_AUTH_ISSUER_NAME ??
-        getConfig<string>('totpAuth.issuerName') ??
+      getConfig<string>('totpAuth.issuerName') ??
         DEFAULT_ISSUER_NAME
     ).trim() || DEFAULT_ISSUER_NAME,
     verifyPath: normalizeVerifyPath(
-      process.env.TOTP_AUTH_VERIFY_PATH ?? getConfig<string>('totpAuth.verifyPath')
+      getConfig<string>('totpAuth.verifyPath')
     ),
     portalBaseUrl:
       normalizeBaseUrl(
-        process.env.TOTP_AUTH_PORTAL_BASE_URL ?? getConfig<string>('totpAuth.portalBaseUrl')
+        getConfig<string>('totpAuth.portalBaseUrl')
       ) || DEFAULT_PORTAL_BASE_URL,
     requestTtlMs: clampRequestTtlMs(
-      process.env.TOTP_AUTH_REQUEST_TTL_MS ?? getConfig<number>('totpAuth.requestTtlMs'),
+      getConfig<number>('totpAuth.requestTtlMs'),
       DEFAULT_REQUEST_TTL_MS
     ),
     codeDigits: clampDigits(
-      process.env.TOTP_AUTH_CODE_DIGITS ?? getConfig<number>('totpAuth.codeDigits')
+      getConfig<number>('totpAuth.codeDigits')
     ),
     codePeriodSec: parsePositiveNumber(
-      process.env.TOTP_AUTH_CODE_PERIOD_SEC ?? getConfig<number>('totpAuth.codePeriodSec'),
+      getConfig<number>('totpAuth.codePeriodSec'),
       DEFAULT_CODE_PERIOD_SEC
     ),
     codeWindow: clampWindow(
-      process.env.TOTP_AUTH_CODE_WINDOW ?? getConfig<number>('totpAuth.codeWindow')
+      getConfig<number>('totpAuth.codeWindow')
     ),
     maxAttempts: clampMaxAttempts(
-      process.env.TOTP_AUTH_MAX_ATTEMPTS ?? getConfig<number>('totpAuth.maxAttempts')
+      getConfig<number>('totpAuth.maxAttempts')
     ),
   };
 
@@ -290,12 +289,7 @@ function loadTotpAuthRuntime(): TotpAuthRuntimeState {
     return runtime;
   }
 
-  const masterKeyRaw = String(
-    getRuntimeSecret('TOTP_AUTH_TOTP_MASTER_KEY') ||
-      process.env.TOTP_AUTH_TOTP_MASTER_KEY ||
-      getConfig<string>('totpAuth.totpMasterKey') ||
-      ''
-  ).trim();
+  const masterKeyRaw = getRuntimeSecret('TOTP_AUTH_TOTP_MASTER_KEY') || getDerivedRuntimeSecret('TOTP_AUTH_TOTP_MASTER_KEY', 'totp-storage');
   if (!masterKeyRaw) {
     runtime.error = 'TOTP_AUTH_TOTP_MASTER_KEY is required when totp auth is enabled';
     return runtime;

@@ -3,7 +3,7 @@ import { v4 as uuidv4 } from 'uuid'
 import { getCurrentUtcString } from '../../common/date'
 import { NotificationRuntimeConfig } from '../../config'
 import { getConfig } from '../../config/runtime'
-import { getRuntimeSecret } from '../../security/secretVault'
+import { getDerivedRuntimeSecret, getRuntimeSecret } from '../../security/secretVault'
 import { SingletonDataSource } from '../facade/datasource'
 import { SingletonLogger } from '../facade/logger'
 import { NotificationDO, NotificationDeliveryDO, NotificationWebhookDO } from '../mapper/entity'
@@ -39,14 +39,9 @@ function fromBase64Url(input: string): Buffer {
 }
 
 function resolveWebhookSecretMasterKey(): Buffer {
-  const configured = String(
-    getRuntimeSecret('NOTIFICATION_WEBHOOK_MASTER_KEY') ||
-      process.env.NOTIFICATION_WEBHOOK_MASTER_KEY ||
-      getConfig<string>('notification.webhookMasterKey') ||
-      ''
-  ).trim()
+  const configured = getRuntimeSecret('NOTIFICATION_WEBHOOK_MASTER_KEY') || getDerivedRuntimeSecret('NOTIFICATION_WEBHOOK_MASTER_KEY', 'notification-webhook')
   if (!configured) {
-    throw new Error('NOTIFICATION_WEBHOOK_MASTER_KEY is required when webhook secret is used')
+    throw new Error('NOTIFICATION_WEBHOOK_MASTER_KEY is required in secrets.enc.json when webhook secret is used')
   }
   return Buffer.from(configured, 'utf8')
 }

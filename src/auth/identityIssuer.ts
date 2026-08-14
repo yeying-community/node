@@ -1,40 +1,21 @@
 import * as crypto from 'crypto'
 import { getConfig } from '../config/runtime'
-import { getRuntimeSecret } from '../security/secretVault'
+import { getNodeIssuerDid, getNodeIssuerJwk, getNodeIssuerKeyId, signNodeBytes } from '../security/nodeIssuer'
 import { SingletonDataSource } from '../domain/facade/datasource'
 import { IdentityCredentialDO } from '../domain/mapper/entity'
 
-const PKCS8_PREFIX = Buffer.from('302e020100300506032b657004220420', 'hex')
-const SPKI_PREFIX = Buffer.from('302a300506032b6570032100', 'hex')
 
 function base64url(value: Buffer | string) {
   return Buffer.from(value).toString('base64url')
 }
 
-function privateKey() {
-  const raw = getRuntimeSecret('IDENTITY_ISSUER_PRIVATE_KEY')
-  if (!raw) throw new Error('IDENTITY_ISSUER_PRIVATE_KEY is not configured')
-  if (raw.includes('BEGIN')) return crypto.createPrivateKey(raw.replace(/\\n/g, '\n'))
-  const seed = Buffer.from(raw.replace(/^0x/i, ''), /^[0-9a-f]{64}$/i.test(raw.replace(/^0x/i, '')) ? 'hex' : 'base64')
-  if (seed.length !== 32) throw new Error('IDENTITY_ISSUER_PRIVATE_KEY must be an Ed25519 seed or PEM')
-  return crypto.createPrivateKey({ key: Buffer.concat([PKCS8_PREFIX, seed]), format: 'der', type: 'pkcs8' })
-}
-
-function publicKey() {
-  const der = crypto.createPublicKey(privateKey()).export({ format: 'der', type: 'spki' }) as Buffer
-  if (!der.subarray(0, SPKI_PREFIX.length).equals(SPKI_PREFIX)) throw new Error('Identity issuer key must be Ed25519')
-  return der.subarray(SPKI_PREFIX.length)
-}
-
 export function getIdentityIssuerDid() {
-  const configured = getRuntimeSecret('IDENTITY_ISSUER_DID')
-  if (!configured) throw new Error('IDENTITY_ISSUER_DID is not configured')
-  return configured
+  return getNodeIssuerDid()
 }
 
 export function getIdentityIssuerMetadata() {
   const issuer = getIdentityIssuerDid()
-  const baseUrl = String(getConfig<string>('identityIssuer.baseUrl') || '').trim().replace(/\/$/, '')
+  const baseUrl = String(getConfig<string>('issuer.baseUrl') || '').trim().replace(/\/$/, '')
   return {
     issuer,
     jwks_uri: `${baseUrl}/.well-known/jwks.json`,
@@ -45,9 +26,7 @@ export function getIdentityIssuerMetadata() {
 export function getIdentityIssuerJwks() {
   return {
     keys: [{
-      kty: 'OKP', crv: 'Ed25519', x: base64url(publicKey()),
-      kid: String(getConfig<string>('identityIssuer.keyId') || 'identity-issuer-1'),
-      use: 'sig', alg: 'EdDSA'
+      ...getNodeIssuerJwk()
     }]
   }
 }
@@ -70,9 +49,9 @@ export function issueIdentityCredential(input: {
     jti: credentialId,
     vc: { '@context': ['https://www.w3.org/2018/credentials/v1'], type: ['VerifiableCredential', input.type], credentialSubject: { id: subject, ...input.claim } }
   }
-  const header = { alg: 'EdDSA', typ: 'JWT', kid: String(getConfig<string>('identityIssuer.keyId') || 'identity-issuer-1') }
+  const header = { alg: 'EdDSA', typ: 'JWT', kid: getNodeIssuerKeyId() }
   const signingInput = `${base64url(JSON.stringify(header))}.${base64url(JSON.stringify(payload))}`
-  return `${signingInput}.${base64url(crypto.sign(null, Buffer.from(signingInput), privateKey()))}`
+  return `${signingInput}.${base64url(signNodeBytes(Buffer.from(signingInput)))}`
 }
 
 export async function getCredentialStatus(credentialId: string) {

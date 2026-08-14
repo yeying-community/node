@@ -10,7 +10,7 @@ type Challenge = { id: string; identity: string; account: { chainKey: string; ad
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 const TTL_MS = 10 * 60 * 1000
 const MAX_ATTEMPTS = 5
-const NAMESPACE = String(getConfig<string>('identityIssuer.usernameNamespace') || 'node.yeying.pub')
+const NAMESPACE = String(getConfig<string>('issuer.identity.usernameNamespace') || 'node.yeying.pub')
 
 function requireDataSource() {
   const ds = SingletonDataSource.get()

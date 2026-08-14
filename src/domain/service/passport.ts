@@ -29,7 +29,8 @@ import {
   getActionSignatureErrorStatus,
 } from '../../auth/actionSignature'
 import { deliverPassportEmailVerification } from './passportEmailDelivery'
-import { getRuntimeSecret } from '../../security/secretVault'
+import { getDerivedRuntimeSecret, getRuntimeSecret } from '../../security/secretVault'
+import { getNodeIssuerDid, signNodeJwt, verifyNodeJwt } from '../../security/nodeIssuer'
 
 export type PassportStatus = {
   enabled: true
@@ -191,7 +192,6 @@ const ALLOWED_AUTHORIZATION_SCOPES = new Set(['identity.basic', 'identity.wallet
 const EMAIL_VERIFICATION_TTL_MS = 10 * 60 * 1000
 const EMAIL_VERIFICATION_RESEND_INTERVAL_MS = 60 * 1000
 const EMAIL_VERIFICATION_MAX_ATTEMPTS = 5
-const INSECURE_JWT_SECRET = 'replace-this-in-production'
 const MIN_JWT_SECRET_LENGTH = 32
 
 function parseAuthorizationScopes(input: unknown): string[] {
@@ -400,20 +400,12 @@ function getPortalBaseUrl(): string {
 }
 
 function getPassportAssertionIssuer(): string {
-  return getPortalBaseUrl() || 'yeying-passport'
+  return getNodeIssuerDid()
 }
 
 function getPassportAssertionSecret(): string {
-  const raw = normalizeString(
-    getRuntimeSecret('PASSPORT_ASSERTION_SECRET') ||
-      getRuntimeSecret('JWT_SECRET') ||
-      process.env.PASSPORT_ASSERTION_SECRET ||
-      process.env.JWT_SECRET ||
-      getConfig<string>('passportAuth.assertionSecret') ||
-      getConfig<string>('auth.jwtSecret') ||
-      INSECURE_JWT_SECRET
-  )
-  if (!raw || raw === INSECURE_JWT_SECRET) {
+  const raw = getRuntimeSecret('PASSPORT_ASSERTION_SECRET') || getDerivedRuntimeSecret('PASSPORT_ASSERTION_SECRET', 'passport-assertion')
+  if (!raw) {
     throw new PassportError(
       500,
       'PASSPORT_ASSERTION_SECRET_MISSING',
@@ -432,7 +424,7 @@ function getPassportAssertionSecret(): string {
 
 function getPassportAssertionTtlMs(ttlMsInput?: unknown): number {
   return clampTtlMs(
-    ttlMsInput ?? process.env.PASSPORT_ASSERTION_TTL_MS ?? getConfig<number>('passportAuth.assertionTtlMs'),
+    ttlMsInput ?? getConfig<number>('passportAuth.assertionTtlMs'),
     DEFAULT_ASSERTION_TTL_MS,
     MIN_ASSERTION_TTL_MS,
     MAX_ASSERTION_TTL_MS,
@@ -1025,10 +1017,7 @@ export class PassportService {
       iat: nowSec,
       exp,
     }
-    const passportAssertion = jwt.sign(payload, getPassportAssertionSecret(), {
-      algorithm: 'HS256',
-      noTimestamp: true,
-    })
+    const passportAssertion = signNodeJwt(payload)
     await this.writeAudit({
       subjectId: subject.subjectId,
       walletAddress: address,
@@ -1056,9 +1045,11 @@ export class PassportService {
       return { active: false, error: 'PASSPORT_ASSERTION_MISSING' }
     }
     try {
-      const decoded = jwt.verify(assertion, getPassportAssertionSecret(), {
-        algorithms: ['HS256'],
-      }) as JwtPayload
+      const [encodedHeader] = assertion.split('.')
+      const header = encodedHeader ? JSON.parse(Buffer.from(encodedHeader, 'base64url').toString('utf8')) : {}
+      const decoded = header.alg === 'EdDSA'
+        ? verifyNodeJwt(assertion) as JwtPayload
+        : jwt.verify(assertion, getPassportAssertionSecret(), { algorithms: ['HS256'] }) as JwtPayload
       if (!decoded || decoded.authMethod !== 'wallet' || !decoded.sub) {
         return { active: false, error: 'PASSPORT_ASSERTION_INVALID' }
       }

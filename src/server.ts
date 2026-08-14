@@ -106,7 +106,7 @@ import { SingletonLogger } from './domain/facade/logger';
 import { getCentralIssuerStatus } from './auth/ucanIssuer';
 import { getTotpAuthStatus } from './auth/totpAuth';
 import { getPasskeyAuthStatus } from './auth/passportPasskeyAuth';
-import { initializeRuntimeSecrets } from './security/secretVault';
+import { getRequiredRuntimeSecret, initializeRuntimeSecrets } from './security/secretVault';
 import { assertJwtSecretReady } from './auth/siwe';
 
 // 初始化日志
@@ -233,7 +233,7 @@ function assertSecurityPreflight(): void {
         issuerStatus.mode === 'issue' || issuerStatus.mode === 'hybrid'
     if (issuerStatus.enabled && issueModeEnabled && !issuerStatus.ready) {
         errors.push(
-            `中心化 UCAN 签发未就绪: ${issuerStatus.error || '缺少有效 UCAN_ISSUER_PRIVATE_KEY/UCAN_ISSUER_DID'}`
+            `中心化 UCAN 签发未就绪: ${issuerStatus.error || '缺少有效 ISSUER_PRIVATE_KEY'}`
         )
     }
 
@@ -260,13 +260,6 @@ const configPort = getConfig<number>('app.port')
 if (typeof configPort === 'number' && Number.isFinite(configPort)) {
     port = configPort
 }
-if (process.env.APP_PORT) {
-    const envPort = Number(process.env.APP_PORT)
-    if (Number.isFinite(envPort) && envPort > 0) {
-        port = envPort
-    }
-}
-
 initializeRuntimeSecrets()
 assertSecurityPreflight()
 
@@ -278,6 +271,8 @@ if (databaseConfig.type !== 'postgres' && databaseConfig.type !== 'mysql') {
 const usePostgresMigrations = databaseConfig.type === 'postgres'
 const builder = new DataSourceBuilder({
     ...databaseConfig,
+    username: getRequiredRuntimeSecret('DATABASE_USERNAME'),
+    password: getRequiredRuntimeSecret('DATABASE_PASSWORD'),
     synchronize: usePostgresMigrations ? false : Boolean(databaseConfig.synchronize ?? true)
 })
 builder.entities([
