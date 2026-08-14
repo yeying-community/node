@@ -131,6 +131,16 @@ function saveVault(filePath, vault, force = false) {
   return absolutePath;
 }
 
+function replaceVault(filePath, vault) {
+  const absolutePath = path.resolve(filePath);
+  fs.mkdirSync(path.dirname(absolutePath), { recursive: true });
+  const temporaryPath = `${absolutePath}.${process.pid}.${Date.now()}.tmp`;
+  fs.writeFileSync(temporaryPath, `${JSON.stringify(vault, null, 2)}\n`, { mode: 0o600 });
+  fs.chmodSync(temporaryPath, 0o600);
+  fs.renameSync(temporaryPath, absolutePath);
+  return absolutePath;
+}
+
 function promptHidden(question) {
   return new Promise((resolve, reject) => {
     if (!process.stdin.isTTY || typeof process.stdin.setRawMode !== 'function') {
@@ -178,12 +188,7 @@ function promptHidden(question) {
 }
 
 async function readPassword(options = {}) {
-  const envName = String(options.envName || 'NODE_SECRETS_PASSWORD').trim();
   const promptText = String(options.promptText || '请输入密钥文件密码').trim();
-  const fromEnv = String(process.env[envName] || '');
-  if (fromEnv) {
-    return fromEnv;
-  }
   return promptHidden(promptText);
 }
 
@@ -245,12 +250,8 @@ function deriveDidFromSeedHex(seedHex) {
 function generateDefaultSecrets() {
   const issuerSeed = crypto.randomBytes(32).toString('hex');
   return {
-    JWT_SECRET: crypto.randomBytes(32).toString('hex'),
-    UCAN_ISSUER_PRIVATE_KEY: issuerSeed,
-    UCAN_ISSUER_DID: deriveDidFromSeedHex(issuerSeed),
-    IDENTITY_ISSUER_PRIVATE_KEY: issuerSeed,
-    IDENTITY_ISSUER_DID: 'did:web:localhost:8100',
-    TOTP_AUTH_TOTP_MASTER_KEY: crypto.randomBytes(32).toString('hex'),
+    ISSUER_PRIVATE_KEY: issuerSeed,
+    NODE_KEY_DERIVATION_SECRET: crypto.randomBytes(32).toString('hex'),
   };
 }
 
@@ -261,6 +262,7 @@ module.exports = {
   decryptSecrets,
   loadVault,
   saveVault,
+  replaceVault,
   readPassword,
   generateDefaultSecrets,
   deriveDidFromSeedHex,

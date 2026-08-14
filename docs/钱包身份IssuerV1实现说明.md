@@ -19,14 +19,15 @@ IDENTITY_ISSUER_DID
 IDENTITY_ISSUER_PRIVATE_KEY
 ```
 
-以下非敏感项放在 `config.js` 的 `identityIssuer`：
+以下非敏感项放在 `config.js` 的 `issuer.identity`：
 
 ```js
-identityIssuer: {
+issuer: {
+  identity: {
   enabled: true,
   baseUrl: 'http://localhost:8100',
-  keyId: 'identity-issuer-dev-1',
   usernameNamespace: 'node.yeying.pub'
+  }
 }
 ```
 

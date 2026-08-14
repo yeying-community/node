@@ -113,7 +113,6 @@ copy_release_files() {
   cp -R "$WORKTREE_DIR/web/dist" "$release_root/web/dist"
   cp "$WORKTREE_DIR/package.json" "$release_root/package.json"
   cp "$WORKTREE_DIR/package-lock.json" "$release_root/package-lock.json"
-  cp "$WORKTREE_DIR/.env.template" "$release_root/.env.template"
   cp "$WORKTREE_DIR/config.js.template" "$release_root/config.js.template"
   cp "$WORKTREE_DIR/README.md" "$release_root/README.md"
   cp "$WORKTREE_DIR/scripts/starter.sh" "$release_root/scripts/starter.sh"
@@ -121,14 +120,19 @@ copy_release_files() {
   cp "$WORKTREE_DIR/scripts/init-secrets.cjs" "$release_root/scripts/init-secrets.cjs"
   cp "$WORKTREE_DIR/scripts/unlock-secrets.cjs" "$release_root/scripts/unlock-secrets.cjs"
   cp "$WORKTREE_DIR/scripts/secret-vault.cjs" "$release_root/scripts/secret-vault.cjs"
-  cp "$WORKTREE_DIR/docs/运行配置.md" "$release_root/docs/运行配置.md"
+  cp "$WORKTREE_DIR/scripts/set-secret.cjs" "$release_root/scripts/set-secret.cjs"
+  cp "$WORKTREE_DIR/scripts/verify-secrets.cjs" "$release_root/scripts/verify-secrets.cjs"
+  cp "$WORKTREE_DIR/scripts/migrate-config-secrets.cjs" "$release_root/scripts/migrate-config-secrets.cjs"
   chmod +x \
     "$release_root/scripts/starter.sh" \
     "$release_root/scripts/health-check.sh"
   chmod +x \
     "$release_root/scripts/init-secrets.cjs" \
     "$release_root/scripts/unlock-secrets.cjs" \
-    "$release_root/scripts/secret-vault.cjs"
+    "$release_root/scripts/secret-vault.cjs" \
+    "$release_root/scripts/set-secret.cjs" \
+    "$release_root/scripts/verify-secrets.cjs" \
+    "$release_root/scripts/migrate-config-secrets.cjs"
 }
 
 create_tarball() {

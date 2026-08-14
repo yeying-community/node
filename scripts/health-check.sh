@@ -110,20 +110,13 @@ if [[ -f "$PROJECT_DIR/package.json" ]]; then
   PROJECT_VERSION="$(node -e 'const p=require(process.argv[1]); process.stdout.write(String(p.version || "unknown"))' "$PROJECT_DIR/package.json")"
 fi
 
-if [[ -f "$PROJECT_DIR/.env" ]]; then
-  set -a
-  # shellcheck disable=SC1091
-  source "$PROJECT_DIR/.env"
-  set +a
-fi
-
 if [[ "$CONFIG_PATH" != /* ]]; then
   CONFIG_PATH="$PROJECT_DIR/$CONFIG_PATH"
 fi
 
 if [[ -z "$BASE_URL" ]]; then
-  APP_PORT_VALUE="${APP_PORT:-}"
-  if [[ -z "$APP_PORT_VALUE" && -f "$CONFIG_PATH" ]]; then
+  APP_PORT_VALUE=""
+  if [[ -f "$CONFIG_PATH" ]]; then
     APP_PORT_VALUE="$(node -e 'const p=process.argv[1]; const c=require(p); process.stdout.write(String(c?.app?.port || ""))' "$CONFIG_PATH" 2>/dev/null || true)"
   fi
   APP_PORT_VALUE="${APP_PORT_VALUE:-8100}"

@@ -13,7 +13,10 @@
     "openapi:generate": "node scripts/generate-openapi.cjs",
     "openapi:check": "node scripts/generate-openapi.cjs --check",
     "secrets:init": "node scripts/init-secrets.cjs",
+    "secrets:set": "node scripts/set-secret.cjs",
     "secrets:unlock": "node scripts/unlock-secrets.cjs",
+    "secrets:verify": "node scripts/verify-secrets.cjs",
+    "secrets:migrate-config": "node scripts/migrate-config-secrets.cjs",
     "package:release": "bash scripts/package.sh",
     "start": "node dist/server.js",
     "dev": "nodemon --watch 'src/**/*' -e ts --exec 'ts-node src/server.ts'"

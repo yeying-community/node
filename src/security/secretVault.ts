@@ -26,10 +26,6 @@ function deriveKey(password: string, salt: Buffer): Buffer {
 }
 
 function resolveVaultFilePath(): string {
-  const configuredFromEnv = String(process.env.SECRETS_FILE ?? '').trim();
-  if (configuredFromEnv) {
-    return path.resolve(configuredFromEnv);
-  }
   const configuredFromConfig = String(getConfig<string>('secrets.file') ?? '').trim();
   if (configuredFromConfig) {
     return path.resolve(configuredFromConfig);
@@ -55,18 +51,13 @@ function readPasswordFromFile(filePathInput: string): string {
 }
 
 function resolveVaultPassword(): string {
-  const inline = String(process.env.NODE_SECRETS_PASSWORD ?? '').trim();
-  if (inline) {
-    return inline;
-  }
-
-  const passwordFile = String(process.env.NODE_SECRETS_PASSWORD_FILE ?? '').trim();
+  const passwordFile = String(getConfig<string>('secrets.passwordFile') ?? '').trim();
   if (passwordFile) {
     return readPasswordFromFile(passwordFile);
   }
 
   throw new Error(
-    'SECRETS_FILE exists but password is missing. Set NODE_SECRETS_PASSWORD or NODE_SECRETS_PASSWORD_FILE.'
+    'Secrets vault password is missing. Configure secrets.passwordFile with a protected one-time password file.'
   );
 }
 
@@ -134,10 +125,29 @@ export function initializeRuntimeSecrets(): void {
     runtimeSecrets.set(name, value);
   });
 
-  delete process.env.NODE_SECRETS_PASSWORD;
-  delete process.env.NODE_SECRETS_PASSWORD_FILE;
 }
 
 export function getRuntimeSecret(name: string): string {
   return String(runtimeSecrets.get(name) ?? '').trim();
+}
+
+export function getRequiredRuntimeSecret(name: string): string {
+  const value = getRuntimeSecret(name);
+  if (!value) {
+    throw new Error(`${name} is required in secrets.enc.json`);
+  }
+  return value;
+}
+
+export function getDerivedRuntimeSecret(name: string, context: string): string {
+  const root = getRuntimeSecret('NODE_KEY_DERIVATION_SECRET');
+  if (!root) return '';
+  const derived = crypto.hkdfSync(
+    'sha256',
+    Buffer.from(root, 'utf8'),
+    Buffer.from('yeying-node-key-derivation:v1', 'utf8'),
+    Buffer.from(context, 'utf8'),
+    32
+  );
+  return Buffer.from(derived).toString('hex');
 }

@@ -64,7 +64,7 @@ Node 至少涉及两个不同身份，不能混用：
 | 身份 | 配置 | 出现位置 | 语义 |
 | --- | --- | --- | --- |
 | Node API Audience DID | `ucan.aud` / `UCAN_AUD` | token `aud` | 这张 UCAN 是发给哪个资源服务消费的 |
-| Node Issuer DID | `ucanIssuer.did` / `UCAN_ISSUER_DID` | token `iss` | 这张 UCAN 是由哪个中心化签发者签发的 |
+| Node Issuer DID | `issuer.ucan.did` / `UCAN_ISSUER_DID` | token `iss` | 这张 UCAN 是由哪个中心化签发者签发的 |
 
 如果 Node 给自己签发访问 Node API 的 UCAN，典型结构是：
 
@@ -603,12 +603,12 @@ ucan: {
 
 保留现有配置：
 
-- `ucanIssuer.enabled`
-- `ucanIssuer.mode`
-- `ucanIssuer.did`
-- `ucanIssuer.privateKey`
-- `ucanIssuer.defaultAudience`
-- `ucanIssuer.defaultCapabilities`
+- `issuer.ucan.enabled`
+- `issuer.ucan.mode`
+- `issuer.ucan.did`
+- `issuer.ucan.privateKey`
+- `issuer.ucan.defaultAudience`
+- `issuer.ucan.defaultCapabilities`
 - `mpc.ucanWith`
 - `mpc.ucanCan`
 
@@ -657,7 +657,7 @@ ucan: {
 
 - 对机器到机器、DApp 到 Node 的接口开启 `strictRoutePolicy`。
 - 人机后台页面可继续支持 JWT，但关键写操作仍要求 action signature。
-- 文档更新 `README.md`、`docs/运行配置.md`、`docs/接口说明.md`。
+- 文档更新 `README.md`、`config.js.template`、`docs/接口说明.md`。
 
 验收：
 

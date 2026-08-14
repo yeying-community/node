@@ -10,10 +10,15 @@ export interface AppConfig {
   auth: AuthRuntimeConfig
   idempotency?: IdempotencyRuntimeConfig
   ucan: UcanRuntimeConfig
-  ucanIssuer?: UcanIssuerRuntimeConfig
+  issuer?: {
+    baseUrl?: string
+    enabled?: boolean
+    mode?: string
+    identity?: IdentityIssuerRuntimeConfig
+    ucan?: UcanIssuerRuntimeConfig
+  }
   totpAuth?: TotpAuthRuntimeConfig
   passportAuth?: PassportAuthRuntimeConfig
-  identityIssuer?: IdentityIssuerRuntimeConfig
   audit?: AuditRuntimeConfig
   mpc?: MpcRuntimeConfig
   custody?: CustodyRuntimeConfig

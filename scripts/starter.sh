@@ -3,7 +3,6 @@ set -euo pipefail
 
 ACTION="${1:-start}"
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-ENV_FILE="$ROOT_DIR/.env"
 RUN_DIR="${RUN_DIR:-$ROOT_DIR/run}"
 LOG_DIR="${LOG_DIR:-$ROOT_DIR/logs}"
 PID_FILE="${PID_FILE:-$RUN_DIR/node.pid}"
@@ -12,20 +11,9 @@ CONFIG_PATH="${APP_CONFIG_PATH:-$ROOT_DIR/config.js}"
 WEB_DIST_PATH="${WEB_DIST_DIR:-$ROOT_DIR/web/dist}"
 NODE_ENV_VALUE="${NODE_ENV:-production}"
 START_WAIT_SECONDS="${START_WAIT_SECONDS:-3}"
-SECRETS_FILE="${SECRETS_FILE:-$RUN_DIR/secrets.enc.json}"
-SECRETS_PASSWORD_FILE="${SECRETS_PASSWORD_FILE:-}"
+SECRETS_FILE=""
+SECRETS_PASSWORD_FILE=""
 TEMP_SECRETS_PASSWORD_FILE=""
-
-load_env_file() {
-  if [[ ! -f "$ENV_FILE" ]]; then
-    return 0
-  fi
-
-  set -a
-  # shellcheck disable=SC1090
-  source "$ENV_FILE"
-  set +a
-}
 
 cleanup_temp_secrets_password_file() {
   if [[ -n "$TEMP_SECRETS_PASSWORD_FILE" && -f "$TEMP_SECRETS_PASSWORD_FILE" ]]; then
@@ -47,8 +35,6 @@ require_command() {
   command -v "$cmd" >/dev/null 2>&1 || fail "缺少命令: $cmd"
 }
 
-load_env_file
-
 ensure_runtime_dirs() {
   mkdir -p "$RUN_DIR" "$LOG_DIR" "$ROOT_DIR/data"
 }
@@ -68,6 +54,20 @@ ensure_config() {
   info "已自动生成配置文件: $CONFIG_PATH"
 }
 
+load_secrets_config() {
+  local values
+  values="$(node - "$CONFIG_PATH" "$ROOT_DIR" <<'NODE'
+const path = require('path')
+const config = require(path.resolve(process.argv[2]))
+const secrets = config.secrets || {}
+const rootDir = path.resolve(process.argv[3])
+process.stdout.write(`${path.resolve(rootDir, secrets.file || 'run/secrets.enc.json')}\n${path.resolve(rootDir, secrets.passwordFile || 'run/.secrets-password')}\n`)
+NODE
+)"
+  SECRETS_FILE="$(printf '%s\n' "$values" | sed -n '1p')"
+  SECRETS_PASSWORD_FILE="$(printf '%s\n' "$values" | sed -n '2p')"
+}
+
 ensure_build_artifacts() {
   [[ -f "$ROOT_DIR/dist/server.js" ]] || fail "未找到后端构建产物: $ROOT_DIR/dist/server.js"
 }
@@ -78,17 +78,18 @@ prepare_secrets_password_file() {
   fi
 
   info "检测到加密密钥文件: ${SECRETS_FILE}（将由 Node 进程内解密）"
-  if [[ -n "${NODE_SECRETS_PASSWORD:-}" || -n "$SECRETS_PASSWORD_FILE" || -n "${NODE_SECRETS_PASSWORD_FILE:-}" ]]; then
+  if [[ -f "$SECRETS_PASSWORD_FILE" ]]; then
     return 0
   fi
 
   if [[ ! -t 0 ]]; then
-    fail "缺少密钥文件密码。请设置 NODE_SECRETS_PASSWORD 或 SECRETS_PASSWORD_FILE。"
+    fail "缺少密钥文件密码。请通过交互输入提供密码。"
   fi
 
   mkdir -p "$RUN_DIR"
-  local temp_password_file
-  temp_password_file="$(mktemp "$RUN_DIR/.node-secrets-password.XXXXXX")"
+  local temp_password_file="$SECRETS_PASSWORD_FILE"
+  rm -f "$temp_password_file"
+  touch "$temp_password_file"
   chmod 600 "$temp_password_file"
 
   local password=''
@@ -147,6 +148,7 @@ start_app() {
   require_command node
   ensure_runtime_dirs
   ensure_config
+  load_secrets_config
   ensure_build_artifacts
 
   if ! runtime_dependencies_ready; then
@@ -171,9 +173,6 @@ start_app() {
       NODE_ENV="$NODE_ENV_VALUE" \
       APP_CONFIG_PATH="$CONFIG_PATH" \
       WEB_DIST_DIR="$WEB_DIST_PATH" \
-      SECRETS_FILE="$SECRETS_FILE" \
-      NODE_SECRETS_PASSWORD="${NODE_SECRETS_PASSWORD:-}" \
-      NODE_SECRETS_PASSWORD_FILE="${SECRETS_PASSWORD_FILE:-${NODE_SECRETS_PASSWORD_FILE:-}}" \
       node dist/server.js >>"$LOG_FILE" 2>&1 &
     echo $! > "$PID_FILE"
   )

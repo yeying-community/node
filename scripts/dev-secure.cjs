@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 const { spawn } = require('child_process');
 const path = require('path');
+const fs = require('fs');
 const { readPassword } = require('./secret-vault.cjs');
 
 function parseArgs(argv) {
@@ -24,7 +25,7 @@ function parseArgs(argv) {
           '',
           'Description:',
           '  输入密钥文件口令后启动 npm run dev（进程内解密）。',
-          '  默认密文路径优先级：--file > SECRETS_FILE > config.js secrets.file > run/secrets.enc.json',
+          '  密文文件和一次性密码文件均由 config.js 的 secrets 配置决定。',
           '',
         ].join('\n')
       );
@@ -38,15 +39,24 @@ function parseArgs(argv) {
 
 async function run() {
   const options = parseArgs(process.argv.slice(2));
-  const password = await readPassword({ promptText: '请输入密钥文件密码' });
-  if (!password) {
-    throw new Error('密码不能为空');
+  const configPath = path.resolve(process.cwd(), process.env.APP_CONFIG_PATH || 'config.js');
+  // eslint-disable-next-line import/no-dynamic-require, global-require
+  const config = require(configPath);
+  const configuredVault = String(config?.secrets?.file || 'run/secrets.enc.json');
+  const passwordFile = path.resolve(String(config?.secrets?.passwordFile || 'run/.secrets-password'));
+  if (options.file && path.resolve(options.file) !== path.resolve(configuredVault)) {
+    throw new Error('--file must match config.js secrets.file');
   }
-
-  const env = { ...process.env, NODE_SECRETS_PASSWORD: password };
-  if (options.file) {
-    env.SECRETS_FILE = path.resolve(options.file);
+  if (!fs.existsSync(passwordFile)) {
+    const password = await readPassword({ promptText: '请输入密钥文件密码' });
+    if (!password) {
+      throw new Error('密码不能为空');
+    }
+    fs.mkdirSync(path.dirname(passwordFile), { recursive: true });
+    fs.writeFileSync(passwordFile, password, { mode: 0o600 });
+    fs.chmodSync(passwordFile, 0o600);
   }
+  const env = { ...process.env };
 
   const child = spawn('npm', ['run', 'dev'], {
     cwd: process.cwd(),
