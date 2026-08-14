@@ -12,9 +12,10 @@
         <button
           type="button"
           class="font-body rounded-full bg-blue-600 px-4 py-2 text-sm text-white shadow-sm hover:bg-blue-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600 sm:px-6 sm:text-base"
+          :disabled="isConnecting"
           @click="connectToWallet"
         >
-          {{ $t('home_connect_wallet') }}
+          {{ isConnecting ? '连接中...' : $t('home_connect_wallet') }}
         </button>
       </div>
     </nav>
@@ -22,19 +23,27 @@
 </template>
 
 <script lang="ts" setup>
+import { ref } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import Language from "@/components/common/Language.vue";
 import { connectWallet } from "@/plugins/auth";
 
 const router = useRouter();
 const route = useRoute();
+const isConnecting = ref(false);
 
 const changeRouter = async (url: string) => {
   await router.push(url);
 };
 
 const connectToWallet = async () => {
-  await connectWallet(router, route);
+  if (isConnecting.value) return;
+  isConnecting.value = true;
+  try {
+    await connectWallet(router, route);
+  } finally {
+    isConnecting.value = false;
+  }
 };
 </script>
 
@@ -42,5 +51,10 @@ const connectToWallet = async () => {
 .header {
   backdrop-filter: blur(10px);
   position: fixed;
+}
+
+button:disabled {
+  cursor: wait;
+  opacity: 0.7;
 }
 </style>
