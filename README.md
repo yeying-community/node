@@ -95,13 +95,22 @@ npm run secrets:set REDIS_USERNAME
 npm run secrets:set REDIS_PASSWORD
 npm run secrets:set MAIL_SMTP_USER
 npm run secrets:set MAIL_SMTP_PASSWORD
+npm run secrets:remove LEGACY_KEY
 ```
 
-若是从旧版 `config.js` 迁移，不要手工复制或输出密码，使用下列命令将其中的数据库、Redis、SMTP 和应用密钥写入 vault，成功后自动从 `config.js` 删除：
+若是从旧版 `config.js` 迁移，不要手工复制或输出密码，使用下列命令将其中的数据库、Redis 和 SMTP 凭据写入 vault，成功后自动从 `config.js` 删除。Issuer 私钥和派生根不支持从配置文件迁移，必须使用 `secrets:set` 写入 vault：
 
 ```bash
 npm run secrets:migrate-config
 ```
+
+将旧 vault 一次迁移到统一 Issuer 和派生根，并重加密已有的 TOTP 与 Webhook 密文：
+
+```bash
+npm run secrets:migrate
+```
+
+该命令会先创建带时间戳的 vault 备份；JWT 和短期 Passport assertion 会失效，用户需要重新登录。生产执行前仍应完成数据库备份并停止服务。
 
 启动前执行安全检查。该命令只显示密钥名和校验结果，绝不显示密钥值：
 
@@ -110,11 +119,13 @@ npm run secrets:verify
 npm run secrets:unlock
 ```
 
-`secrets:verify` 会按当前 `config.js` 检查数据库、JWT，以及已启用的 UCAN、TOTP、通知功能所需密钥。`secrets:unlock` 仅用于确认 vault 可解密并列出键名。不要使用重定向、截图或日志记录这些命令的交互过程。
+`secrets:verify` 会按当前 `config.js` 检查数据库、统一 Issuer 和派生根，以及已启用功能所需的外部凭据。`secrets:unlock` 仅用于确认 vault 可解密并列出键名。不要使用重定向、截图或日志记录这些命令的交互过程。
 
-新配置下，JWT、TOTP、Passport assertion 和 Webhook 加密密钥优先从 `NODE_KEY_DERIVATION_SECRET` 按用途派生；如果 vault 中仍有旧的显式密钥，会优先使用旧值，保证迁移期间历史数据和登录态不失效。`ISSUER_PRIVATE_KEY` 的公钥自动生成 Issuer `kid`，Issuer DID 从 `issuer.baseUrl` 派生。
+清理旧密钥前先备份 `secrets.enc.json`，确认新版本已使用 `ISSUER_PRIVATE_KEY` 和 `NODE_KEY_DERIVATION_SECRET` 正常运行，再逐项执行 `npm run secrets:remove KEY`。命令会要求再次输入键名确认，并且不会显示密钥值。不要删除仍用于历史数据解密或历史凭证验证的密钥，除非已经完成数据迁移或确认全部过期。
 
-生产更新顺序：备份现有 `secrets.enc.json` 到受保护的主机级备份系统，停止服务或在维护窗口中执行 `secrets:set`，执行 `secrets:verify`，然后通过 `bash scripts/starter.sh restart` 重启。不得重新执行 `secrets:init --force` 覆盖生产 vault，否则 JWT、UCAN、TOTP、Passport 和 Webhook 加密数据会失去与历史数据的兼容性。
+新配置下，JWT、TOTP、Passport assertion 和 Webhook 加密密钥都从 `NODE_KEY_DERIVATION_SECRET` 按用途派生。`ISSUER_PRIVATE_KEY` 的公钥自动生成 Issuer `kid`，Issuer DID 从 `issuer.baseUrl` 派生。
+
+生产更新顺序：备份现有 `secrets.enc.json` 到受保护的主机级备份系统，停止服务或在维护窗口中执行 `secrets:set` / `secrets:remove`，执行 `secrets:verify`，然后通过 `bash scripts/starter.sh restart` 重启。不得重新执行 `secrets:init --force` 覆盖生产 vault。
 
 ### 3. 启动前端
 

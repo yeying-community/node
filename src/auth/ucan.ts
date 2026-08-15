@@ -62,7 +62,7 @@ const UCAN_ISSUER_ENABLED = parseBoolean(
 const UCAN_ISSUER_MODE = parseIssuerMode(
   getConfig<string>('issuer.ucan.mode')
 );
-const UCAN_ISSUER_DID = getNodeIssuerDid();
+const nodeIssuerDid = getNodeIssuerDid();
 
 const BASE58_ALPHABET = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz';
 
@@ -405,10 +405,10 @@ function isCentralVerificationEnabled(): boolean {
 }
 
 function isTrustedCentralIssuerDid(did: string): boolean {
-  if (!did || !UCAN_ISSUER_DID) {
+  if (!did || !nodeIssuerDid) {
     return false;
   }
-  return did === UCAN_ISSUER_DID;
+  return did === nodeIssuerDid;
 }
 
 function normalizeSubject(subject: string): string {

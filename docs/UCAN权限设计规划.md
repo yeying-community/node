@@ -27,7 +27,7 @@ Node 只接受 Invocation UCAN：
 - `cap` 必须包含当前接口需要的最小能力。
 - `exp/nbf` 必须有效。
 - 钱包模式下，Invocation 的 proof chain 必须能回到 Root UCAN，且下游能力不能超过上游。
-- 中心化模式下，`iss` 必须等于配置的 `UCAN_ISSUER_DID`，`sub` 才是最终用户主体。
+- 中心化模式下，`iss` 必须等于 Node 统一 Issuer DID，`sub` 才是最终用户主体。
 
 ## 3. Node 作为中心化 UCAN Issuer
 
@@ -64,7 +64,7 @@ Node 至少涉及两个不同身份，不能混用：
 | 身份 | 配置 | 出现位置 | 语义 |
 | --- | --- | --- | --- |
 | Node API Audience DID | `ucan.aud` / `UCAN_AUD` | token `aud` | 这张 UCAN 是发给哪个资源服务消费的 |
-| Node Issuer DID | `issuer.ucan.did` / `UCAN_ISSUER_DID` | token `iss` | 这张 UCAN 是由哪个中心化签发者签发的 |
+| Node Issuer DID | `issuer.baseUrl` 派生 | token `iss` | 这张 UCAN 是由哪个中心化签发者签发的 |
 
 如果 Node 给自己签发访问 Node API 的 UCAN，典型结构是：
 
@@ -228,7 +228,7 @@ Node 可以签发给自己消费的 UCAN，但必须把两个动作分开看：
 
 验证时不应该因为 token 是“自己签的”就跳过能力校验。中心化 UCAN 仍必须满足：
 
-- `iss == UCAN_ISSUER_DID`
+- `iss == Node 统一 Issuer DID`
 - `aud == UCAN_AUD`
 - `sub` 非空且规范化
 - `cap` 覆盖当前路由要求
@@ -606,7 +606,7 @@ ucan: {
 - `issuer.ucan.enabled`
 - `issuer.ucan.mode`
 - `issuer.ucan.did`
-- `issuer.ucan.privateKey`
+- `ISSUER_PRIVATE_KEY`（仅从 `secrets.enc.json` 读取）
 - `issuer.ucan.defaultAudience`
 - `issuer.ucan.defaultCapabilities`
 - `mpc.ucanWith`

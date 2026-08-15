@@ -6,7 +6,7 @@ const PKCS8_PREFIX = Buffer.from('302e020100300506032b657004220420', 'hex')
 const SPKI_PREFIX = Buffer.from('302a300506032b6570032100', 'hex')
 
 function loadPrivateKey() {
-  const raw = getRuntimeSecret('ISSUER_PRIVATE_KEY') || getRuntimeSecret('UCAN_ISSUER_PRIVATE_KEY')
+  const raw = getRuntimeSecret('ISSUER_PRIVATE_KEY')
   if (!raw) throw new Error('ISSUER_PRIVATE_KEY is not configured in secrets.enc.json')
   if (raw.includes('BEGIN')) return crypto.createPrivateKey(raw.replace(/\\n/g, '\n'))
   const normalized = raw.replace(/^0x/i, '')
@@ -30,9 +30,7 @@ export function getNodeIssuerKeyId() {
 }
 
 export function getNodeIssuerDid() {
-  const configured = getRuntimeSecret('PASSPORT_ISSUER_DID')
-  if (configured) return configured
-  const baseUrl = String(getConfig<string>('issuer.baseUrl') || getConfig<string>('issuer.identity.baseUrl') || '').trim()
+  const baseUrl = String(getConfig<string>('issuer.baseUrl') || '').trim()
   if (!baseUrl) throw new Error('issuer.baseUrl is required to derive the Node issuer DID')
   const url = new URL(baseUrl)
   return `did:web:${url.host}`

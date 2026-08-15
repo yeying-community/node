@@ -16,12 +16,6 @@ const MIGRATIONS = [
   ['REDIS_PASSWORD', ['redis', 'password']],
   ['MAIL_SMTP_USER', ['mail', 'auth', 'user']],
   ['MAIL_SMTP_PASSWORD', ['mail', 'auth', 'pass']],
-  ['JWT_SECRET', ['auth', 'jwtSecret']],
-  ['UCAN_ISSUER_DID', ['issuer', 'ucan', 'did']],
-  ['ISSUER_PRIVATE_KEY', ['issuer', 'ucan', 'privateKey']],
-  ['TOTP_AUTH_TOTP_MASTER_KEY', ['totpAuth', 'totpMasterKey']],
-  ['PASSPORT_ASSERTION_SECRET', ['passportAuth', 'assertionSecret']],
-  ['NOTIFICATION_WEBHOOK_MASTER_KEY', ['notification', 'webhookMasterKey']],
 ];
 
 function parseArgs(argv) {

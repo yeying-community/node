@@ -3,7 +3,7 @@ import * as jwt from 'jsonwebtoken';
 import type { JwtPayload } from 'jsonwebtoken';
 import { verifyMessage } from 'ethers';
 import { getConfig } from '../config/runtime';
-import { getDerivedRuntimeSecret, getRuntimeSecret } from '../security/secretVault';
+import { getDerivedRuntimeSecret } from '../security/secretVault';
 
 export type ChallengeRecord = {
   address: string;
@@ -33,30 +33,30 @@ type RefreshSession = {
   expiresAt: number;
 };
 
-const MIN_JWT_SECRET_LENGTH = 32;
+const MIN_DERIVED_SECRET_LENGTH = 32;
 
 function resolveJwtSecret(): string {
-  const raw = getRuntimeSecret('JWT_SECRET') || getDerivedRuntimeSecret('JWT_SECRET', 'jwt-signing');
+  const raw = getDerivedRuntimeSecret('jwt-signing');
   if (!raw) {
     throw new Error(
-      'JWT_SECRET is not configured in secrets.enc.json.'
+      'NODE_KEY_DERIVATION_SECRET is not configured in secrets.enc.json.'
     );
   }
-  if (raw.length < MIN_JWT_SECRET_LENGTH) {
+  if (raw.length < MIN_DERIVED_SECRET_LENGTH) {
     throw new Error(
-      `JWT secret is too short. Use at least ${MIN_JWT_SECRET_LENGTH} characters.`
+      `Derived JWT secret is too short. Use at least ${MIN_DERIVED_SECRET_LENGTH} characters.`
     );
   }
   return raw;
 }
 
-let JWT_SECRET_CACHE = '';
+let jwtSigningSecretCache = '';
 
 function getJwtSecret(): string {
-  if (!JWT_SECRET_CACHE) {
-    JWT_SECRET_CACHE = resolveJwtSecret();
+  if (!jwtSigningSecretCache) {
+    jwtSigningSecretCache = resolveJwtSecret();
   }
-  return JWT_SECRET_CACHE;
+  return jwtSigningSecretCache;
 }
 
 export function assertJwtSecretReady(): void {

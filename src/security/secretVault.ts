@@ -139,7 +139,7 @@ export function getRequiredRuntimeSecret(name: string): string {
   return value;
 }
 
-export function getDerivedRuntimeSecret(name: string, context: string): string {
+export function getDerivedRuntimeSecret(context: string): string {
   const root = getRuntimeSecret('NODE_KEY_DERIVATION_SECRET');
   if (!root) return '';
   const derived = crypto.hkdfSync(

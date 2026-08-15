@@ -29,7 +29,7 @@ import {
   getActionSignatureErrorStatus,
 } from '../../auth/actionSignature'
 import { deliverPassportEmailVerification } from './passportEmailDelivery'
-import { getDerivedRuntimeSecret, getRuntimeSecret } from '../../security/secretVault'
+import { getDerivedRuntimeSecret } from '../../security/secretVault'
 import { getNodeIssuerDid, signNodeJwt, verifyNodeJwt } from '../../security/nodeIssuer'
 
 export type PassportStatus = {
@@ -192,7 +192,7 @@ const ALLOWED_AUTHORIZATION_SCOPES = new Set(['identity.basic', 'identity.wallet
 const EMAIL_VERIFICATION_TTL_MS = 10 * 60 * 1000
 const EMAIL_VERIFICATION_RESEND_INTERVAL_MS = 60 * 1000
 const EMAIL_VERIFICATION_MAX_ATTEMPTS = 5
-const MIN_JWT_SECRET_LENGTH = 32
+const MIN_DERIVED_SECRET_LENGTH = 32
 
 function parseAuthorizationScopes(input: unknown): string[] {
   const values = Array.isArray(input)
@@ -404,19 +404,19 @@ function getPassportAssertionIssuer(): string {
 }
 
 function getPassportAssertionSecret(): string {
-  const raw = getRuntimeSecret('PASSPORT_ASSERTION_SECRET') || getDerivedRuntimeSecret('PASSPORT_ASSERTION_SECRET', 'passport-assertion')
+  const raw = getDerivedRuntimeSecret('passport-assertion')
   if (!raw) {
     throw new PassportError(
       500,
-      'PASSPORT_ASSERTION_SECRET_MISSING',
-      'Passport assertion secret is not configured',
+      'NODE_KEY_DERIVATION_SECRET_MISSING',
+      'NODE_KEY_DERIVATION_SECRET is not configured',
     )
   }
-  if (raw.length < MIN_JWT_SECRET_LENGTH) {
+  if (raw.length < MIN_DERIVED_SECRET_LENGTH) {
     throw new PassportError(
       500,
-      'PASSPORT_ASSERTION_SECRET_TOO_SHORT',
-      `Passport assertion secret must be at least ${MIN_JWT_SECRET_LENGTH} characters`,
+      'NODE_KEY_DERIVATION_SECRET_TOO_SHORT',
+      `Derived Passport assertion secret must be at least ${MIN_DERIVED_SECRET_LENGTH} characters`,
     )
   }
   return raw

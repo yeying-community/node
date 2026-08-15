@@ -29,7 +29,8 @@ Node 不保存钱包明文密钥。托管接口只接受客户端加密后的 `c
 ```bash
 cp config.js.template config.js
 npm ci
-JWT_SECRET=$(openssl rand -hex 32) npm run dev
+npm run secrets:init
+npm run dev:secure
 ```
 
 默认地址：

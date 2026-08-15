@@ -19,9 +19,8 @@ vi.mock('../src/config/runtime', () => ({
 }))
 
 vi.mock('../src/security/secretVault', () => ({
-  getDerivedRuntimeSecret: () => '',
-  getRuntimeSecret: (name: string) =>
-    name === 'PASSPORT_ASSERTION_SECRET' ? 'test-passport-assertion-secret-123456' : '',
+  getDerivedRuntimeSecret: () => 'test-passport-assertion-secret-123456',
+  getRuntimeSecret: () => '',
 }))
 
 vi.mock('../src/security/nodeIssuer', () => ({
