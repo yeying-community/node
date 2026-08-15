@@ -1,0 +1,8 @@
+# BACKUP_CONF_FLAG: 取值为 "True" 或 "False"。为 "True" 时进行配置文件备份，默认值为 "True"。
+BACKUP_CONF_FLAG="True"
+
+# BACKUP_CONF_PREFIX: 备份文件前缀，可能为空。测试环境配置为 "test-"。
+BACKUP_CONF_PREFIX=""
+
+# BACKUP_CONF_SUFFIX: 备份文件后缀，默认值为 ".conf.tar.gz.gpg"。
+BACKUP_CONF_SUFFIX=".conf.tar.gz.gpg"

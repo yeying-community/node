@@ -8,3 +8,5 @@ data/start.log
 .DS_Store
 config.js
 output
+scripts/backup.conf
+scripts/.passphrase-file
