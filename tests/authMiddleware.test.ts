@@ -8,6 +8,7 @@ vi.mock('../src/config/runtime', () => ({
     if (key === 'mpc') {
       return { ucanWith: 'mpc', ucanCan: 'coordinate' }
     }
+    if (key === 'issuer.baseUrl') return 'http://localhost:8100'
     return undefined
   }),
 }))
