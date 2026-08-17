@@ -1,9 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 
 vi.mock('../src/security/secretVault', () => ({
-  getDerivedRuntimeSecret: () => '',
-  getRuntimeSecret: (name: string) =>
-    name === 'NOTIFICATION_WEBHOOK_MASTER_KEY' ? 'notification-webhook-master-key-for-test' : '',
+  getDerivedRuntimeSecret: () => 'notification-webhook-master-key-for-test',
 }))
 import {
   buildNotificationWebhookSignature,

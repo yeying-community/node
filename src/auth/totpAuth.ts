@@ -5,7 +5,7 @@ import { getConfig } from '../config/runtime';
 import { SingletonDataSource } from '../domain/facade/datasource';
 import { SingletonLogger } from '../domain/facade/logger';
 import { TotpSubjectSecretDO } from '../domain/mapper/entity';
-import { getDerivedRuntimeSecret, getRuntimeSecret } from '../security/secretVault';
+import { getDerivedRuntimeSecret } from '../security/secretVault';
 
 export type TotpBindRequestStatus = 'pending' | 'used' | 'expired' | 'revoked';
 
@@ -289,9 +289,9 @@ function loadTotpAuthRuntime(): TotpAuthRuntimeState {
     return runtime;
   }
 
-  const masterKeyRaw = getRuntimeSecret('TOTP_AUTH_TOTP_MASTER_KEY') || getDerivedRuntimeSecret('TOTP_AUTH_TOTP_MASTER_KEY', 'totp-storage');
+  const masterKeyRaw = getDerivedRuntimeSecret('totp-storage');
   if (!masterKeyRaw) {
-    runtime.error = 'TOTP_AUTH_TOTP_MASTER_KEY is required when totp auth is enabled';
+    runtime.error = 'NODE_KEY_DERIVATION_SECRET is required when totp auth is enabled';
     return runtime;
   }
 

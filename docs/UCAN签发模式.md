@@ -15,7 +15,7 @@
   - 中心化签发接口：`/api/v1/public/auth/central/issuer|session|issue|revoke`
   - 手机桥接签发接口：`/api/v1/public/auth/totp/status|totp/provision|bind/request|bind/approve`
   - 手机地址授权接口：`/api/v1/public/auth/totp/authorize/request|approve|exchange`
-  - 中心化 UCAN 校验分支：支持 `UCAN_ISSUER_DID` 信任 + `mode` 分支（`verify|issue|hybrid`）
+  - 中心化 UCAN 校验分支：支持 Node 统一 Issuer 信任 + `mode` 分支（`verify|issue|hybrid`）
   - 第三方应用多后端签发：`authorize/exchange` 后可通过 `central/session|issue` 按后端动态签发 UCAN
 - 未实现（后续阶段）：
   - key rotation（active/next）
@@ -109,8 +109,9 @@
   - `verify`（仅校验，默认）
   - `issue`（仅签发路径与中心化校验）
   - `hybrid`（钱包校验 + 中心化签发/校验）
-- `issuer.ucan.did` / `UCAN_ISSUER_DID`
+- `issuer.baseUrl`（用于派生统一 Node Issuer DID）
 - `ISSUER_PRIVATE_KEY`（统一 Node Issuer 私钥，从 `secrets.enc.json` 读取）
+- `NODE_KEY_DERIVATION_SECRET`（从 `secrets.enc.json` 读取，用于派生业务密钥）
 - `issuer.ucan.sessionTtlMs` / `UCAN_ISSUER_SESSION_TTL_MS`
 - `issuer.ucan.tokenTtlMs` / `UCAN_ISSUER_TOKEN_TTL_MS`
 - `issuer.ucan.defaultAudience` / `UCAN_ISSUER_DEFAULT_AUDIENCE`
@@ -125,13 +126,11 @@
 - `totpAuth.codePeriodSec` / `TOTP_AUTH_CODE_PERIOD_SEC`
 - `totpAuth.codeWindow` / `TOTP_AUTH_CODE_WINDOW`
 - `totpAuth.maxAttempts` / `TOTP_AUTH_MAX_ATTEMPTS`
-- `totpAuth.totpMasterKey` / `TOTP_AUTH_TOTP_MASTER_KEY`
 - 应用发布字段：`redirectUris`
   - `appId` 必须为应用市场 `AppId`（`applications.uid`），`redirectUri` 必须命中该字段
 
 说明：
 - `mode=issue|hybrid` 时，必须配置 `ISSUER_PRIVATE_KEY`；Issuer DID 从 `issuer.baseUrl` 派生。
-- 若显式配置 `UCAN_ISSUER_DID`，启动时会校验它是否等于私钥推导 DID，不匹配会启动失败。
 - Router 等消费中心化 UCAN 的下游服务必须把 Node 当前 issuer DID 配为 trusted issuer。
 
 ## 6. 服务端验证逻辑（第三方无感）
@@ -148,7 +147,7 @@
 
 模式分派：
 - 钱包模式：`Root(SIWE) -> Delegation -> Invocation`
-- 中心化模式：信任 `UCAN_ISSUER_DID`，校验 `aud/cap/exp/nbf/sub`
+- 中心化模式：信任 Node 统一 Issuer DID，校验 `aud/cap/exp/nbf/sub`
 
 ## 7. 安全与风控基线
 

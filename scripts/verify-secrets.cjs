@@ -15,13 +15,13 @@ function parseArgs(argv) {
 }
 
 function requiredKeys(config) {
-  const keys = ['DATABASE_USERNAME', 'DATABASE_PASSWORD', 'ISSUER_PRIVATE_KEY|UCAN_ISSUER_PRIVATE_KEY'];
+  const keys = ['DATABASE_USERNAME', 'DATABASE_PASSWORD', 'ISSUER_PRIVATE_KEY'];
   const issuer = config.issuer?.ucan || {};
   if (issuer.enabled && ['issue', 'hybrid'].includes(issuer.mode)) {
-    keys.push('ISSUER_PRIVATE_KEY|UCAN_ISSUER_PRIVATE_KEY');
+    keys.push('ISSUER_PRIVATE_KEY');
   }
   if (config.auth) {
-    keys.push('NODE_KEY_DERIVATION_SECRET|JWT_SECRET');
+    keys.push('NODE_KEY_DERIVATION_SECRET');
   }
   return keys;
 }

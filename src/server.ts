@@ -240,7 +240,7 @@ function assertSecurityPreflight(): void {
     const totpStatus = getTotpAuthStatus()
     if (totpStatus.enabled && !totpStatus.ready) {
         errors.push(
-            `TOTP 授权未就绪: ${totpStatus.error || '缺少有效 TOTP_AUTH_TOTP_MASTER_KEY'}`
+            `TOTP 授权未就绪: ${totpStatus.error || '缺少有效 NODE_KEY_DERIVATION_SECRET'}`
         )
     }
     const passkeyStatus = getPasskeyAuthStatus()
