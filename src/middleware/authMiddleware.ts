@@ -47,8 +47,22 @@ function getMountedRoutePath(req: Pick<Request, 'baseUrl' | 'path'>): string {
   return `${baseUrl}${requestPath.startsWith('/') ? requestPath : `/${requestPath}`}`;
 }
 
-export function getRouteRequiredUcanCapabilities(req: Pick<Request, 'baseUrl' | 'path'>) {
+export function getRouteRequiredUcanCapabilities(
+  req: Pick<Request, 'baseUrl' | 'path'> & Partial<Pick<Request, 'query'>>
+) {
   const routePath = getMountedRoutePath(req);
+  const notificationSource = String(req.query?.source || '').trim().toLowerCase();
+  if (routePath === '/api/v1/public/notifications' && notificationSource === 'mpc') {
+    const config = (getConfig<MpcRuntimeConfig>('mpc') || {}) as MpcRuntimeConfig;
+    const resource = String(config.ucanWith || '').trim();
+    const action = String(config.ucanCan || '').trim();
+    return [
+      {
+        with: resource || '*',
+        can: action || '*',
+      },
+    ];
+  }
   if (!routePath.startsWith('/api/v1/public/mpc')) {
     if (!routePath.startsWith('/api/v1/public/custody')) {
       return null;

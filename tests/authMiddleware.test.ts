@@ -34,6 +34,16 @@ describe('auth middleware route capabilities', () => {
     ).toEqual([{ with: 'mpc', can: 'coordinate' }])
   })
 
+  it('uses MPC capability for MPC-scoped notification reads', () => {
+    expect(
+      getRouteRequiredUcanCapabilities({
+        baseUrl: '/api/v1',
+        path: '/public/notifications',
+        query: { source: 'mpc' },
+      }),
+    ).toEqual([{ with: 'mpc', can: 'coordinate' }])
+  })
+
   it('falls back to the global capability for unrelated routes', () => {
     expect(
       getRouteRequiredUcanCapabilities({
