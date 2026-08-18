@@ -5,6 +5,11 @@ const path = require('path');
 const ROOT_DIR = process.cwd();
 const ROUTES_DIR = path.join(ROOT_DIR, 'src', 'routes');
 const EXPECTED_PREFIX = '/api/v1/';
+// OpenID Credential Issuer discovery endpoints are required to live at the origin root.
+const ROOT_PROTOCOL_ROUTES = new Set([
+  '/.well-known/jwks.json',
+  '/.well-known/openid-credential-issuer',
+]);
 const HTTP_METHOD_PATTERN = /(?:^|\s)app\.(get|post|put|patch|delete|all)\s*\(\s*([^,\n]+)/g;
 const CONST_STRING_PATTERN = /const\s+([A-Za-z0-9_]+)\s*=\s*['"]([^'"]+)['"]/g;
 
@@ -70,7 +75,7 @@ function main() {
       if (!resolvedPath) {
         continue;
       }
-      if (!resolvedPath.startsWith(EXPECTED_PREFIX)) {
+      if (!resolvedPath.startsWith(EXPECTED_PREFIX) && !ROOT_PROTOCOL_ROUTES.has(resolvedPath)) {
         violations.push({
           filePath,
           method,

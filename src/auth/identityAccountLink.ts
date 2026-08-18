@@ -12,13 +12,13 @@ function b64url(value: string) {
   return Buffer.from(value, 'base64url')
 }
 
-function canonicalize(value: unknown): string {
+export function canonicalizeIdentityValue(value: unknown): string {
   if (value === null) return 'null'
   if (typeof value === 'string' || typeof value === 'boolean') return JSON.stringify(value)
   if (typeof value === 'number') return JSON.stringify(Object.is(value, -0) ? 0 : value)
-  if (Array.isArray(value)) return `[${value.map(canonicalize).join(',')}]`
+  if (Array.isArray(value)) return `[${value.map(canonicalizeIdentityValue).join(',')}]`
   if (value && typeof value === 'object') {
-    return `{${Object.keys(value as object).sort().map(key => `${JSON.stringify(key)}:${canonicalize((value as Record<string, unknown>)[key])}`).join(',')}}`
+    return `{${Object.keys(value as object).sort().map(key => `${JSON.stringify(key)}:${canonicalizeIdentityValue((value as Record<string, unknown>)[key])}`).join(',')}}`
   }
   throw new Error('Unsupported canonical value')
 }
@@ -57,7 +57,7 @@ function requireDataSource() {
   return ds
 }
 
-function verifyIdentityController(document: any, expectedIdentity: string) {
+export function verifyIdentityController(document: any, expectedIdentity: string) {
   if (document?.id !== expectedIdentity || !document?.proof?.proofValue) throw new Error('IDENTITY_DOCUMENT_INVALID')
   const method = String(document.proof.verificationMethod || '')
   const controller = document.controllers?.find((item: any) => `${expectedIdentity}#${item.controllerId}` === method && item.status === 'active' && item.purposes?.includes('manage'))
@@ -66,7 +66,7 @@ function verifyIdentityController(document: any, expectedIdentity: string) {
   if (rawPublic.length !== 32) throw new Error('IDENTITY_DOCUMENT_INVALID')
   const publicKey = crypto.createPublicKey({ key: Buffer.concat([ED25519_SPKI_PREFIX, rawPublic]), format: 'der', type: 'spki' })
   const { proof, ...unsigned } = document
-  const valid = crypto.verify(null, Buffer.from(canonicalize(unsigned)), publicKey, b64url(proof.proofValue))
+  const valid = crypto.verify(null, Buffer.from(canonicalizeIdentityValue(unsigned)), publicKey, b64url(proof.proofValue))
   if (!valid) throw new Error('IDENTITY_DOCUMENT_INVALID')
 }
 

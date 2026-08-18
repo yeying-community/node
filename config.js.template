@@ -187,12 +187,6 @@ module.exports = {
     ucanWith: 'mpc',
     ucanCan: 'coordinate'
   },
-  custody: {
-    // 密钥托管只保存客户端加密后的密钥快照；启用前必须为当前钱包地址绑定 passkey。
-    enabled: true,
-    ucanWith: 'custody',
-    ucanCan: 'write'
-  },
   notification: {
     // Webhook storage key is derived from NODE_KEY_DERIVATION_SECRET.
     // Enable background webhook delivery worker.

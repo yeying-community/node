@@ -1,5 +1,17 @@
 import { Wallet } from 'ethers'
 import { generateKeyPairSync, sign } from 'node:crypto'
+import { vi } from 'vitest'
+import { SingletonDataSource } from '../src/domain/facade/datasource'
+import { createInMemoryDataSource } from './helpers/inMemoryDataSource'
+
+vi.mock('../src/config/runtime', () => ({ getConfig: (key: string) => key === 'issuer.identity.usernameNamespace' ? 'node.yeying.pub' : undefined }))
+vi.mock('../src/auth/identityIssuer', () => ({
+  issueIdentityCredential: (input: any) => {
+    const now = Math.floor(Date.now() / 1000)
+    return `header.${Buffer.from(JSON.stringify({ iat: now, exp: now + 7 * 86400, sub: input.subject })).toString('base64url')}.signature`
+  }
+}))
+SingletonDataSource.set(createInMemoryDataSource())
 
 process.env.IDENTITY_ISSUER_DID = 'did:web:node.example'
 process.env.IDENTITY_ISSUER_PRIVATE_KEY = '22'.repeat(32)

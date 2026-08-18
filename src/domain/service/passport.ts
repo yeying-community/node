@@ -31,6 +31,7 @@ import {
 import { deliverPassportEmailVerification } from './passportEmailDelivery'
 import { getDerivedRuntimeSecret } from '../../security/secretVault'
 import { getNodeIssuerDid, signNodeJwt, verifyNodeJwt } from '../../security/nodeIssuer'
+import { issueCustodyRecoveryToken } from '../../auth/custodyRecoveryToken'
 
 export type PassportStatus = {
   enabled: true
@@ -76,6 +77,7 @@ export type PassportAuthorizationExchangeResult = {
   state: string
   issuedAt: string
   scopes: string[]
+  custodyRecovery?: { token: string; expiresAt: number }
   claims: {
     subjectId: string
     username?: string
@@ -188,7 +190,13 @@ const DEFAULT_ASSERTION_TTL_MS = 5 * 60 * 1000
 const MIN_ASSERTION_TTL_MS = 30 * 1000
 const MAX_ASSERTION_TTL_MS = 30 * 60 * 1000
 const DEFAULT_AUTHORIZATION_SCOPES = ['identity.basic', 'identity.wallet']
-const ALLOWED_AUTHORIZATION_SCOPES = new Set(['identity.basic', 'identity.wallet', 'identity.username', 'identity.email'])
+const ALLOWED_AUTHORIZATION_SCOPES = new Set([
+  'identity.basic',
+  'identity.wallet',
+  'identity.username',
+  'identity.email',
+  'custody.recovery',
+])
 const EMAIL_VERIFICATION_TTL_MS = 10 * 60 * 1000
 const EMAIL_VERIFICATION_RESEND_INTERVAL_MS = 60 * 1000
 const EMAIL_VERIFICATION_MAX_ATTEMPTS = 5
@@ -1661,6 +1669,15 @@ export class PassportService {
       action: 'authorize_exchanged',
     })
     const scopes = parseStoredAuthorizationScopes(record.scopesJson)
+    let custodyRecovery: PassportAuthorizationExchangeResult['custodyRecovery']
+    if (scopes.includes('custody.recovery')) {
+      custodyRecovery = issueCustodyRecoveryToken({
+        subjectId: record.subjectId,
+        walletAddress: record.walletAddress,
+        appId: record.appId,
+        requestId: record.requestId,
+      })
+    }
     const subject = await this.manager.getSubject(record.subjectId)
     const claims: PassportAuthorizationExchangeResult['claims'] = {
       subjectId: record.subjectId,
@@ -1689,6 +1706,7 @@ export class PassportService {
       state: record.state || '',
       issuedAt: now,
       scopes,
+      ...(custodyRecovery ? { custodyRecovery } : {}),
       claims,
     }
   }

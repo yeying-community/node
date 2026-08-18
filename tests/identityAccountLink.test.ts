@@ -1,4 +1,8 @@
 import { Wallet } from 'ethers'
+import { SingletonDataSource } from '../src/domain/facade/datasource'
+import { createInMemoryDataSource } from './helpers/inMemoryDataSource'
+
+SingletonDataSource.set(createInMemoryDataSource())
 
 const identityKey = await crypto.subtle.generateKey({ name: 'Ed25519' }, true, ['sign', 'verify'])
 const publicJwk = await crypto.subtle.exportKey('jwk', identityKey.publicKey)

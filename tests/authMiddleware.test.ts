@@ -8,6 +8,7 @@ vi.mock('../src/config/runtime', () => ({
     if (key === 'mpc') {
       return { ucanWith: 'mpc', ucanCan: 'coordinate' }
     }
+    if (key === 'issuer.baseUrl') return 'http://localhost:8100'
     return undefined
   }),
 }))
@@ -29,6 +30,16 @@ describe('auth middleware route capabilities', () => {
       getRouteRequiredUcanCapabilities({
         baseUrl: '/api/v1',
         path: '/public/mpc/sessions',
+      }),
+    ).toEqual([{ with: 'mpc', can: 'coordinate' }])
+  })
+
+  it('uses MPC capability for MPC-scoped notification reads', () => {
+    expect(
+      getRouteRequiredUcanCapabilities({
+        baseUrl: '/api/v1',
+        path: '/public/notifications',
+        query: { source: 'mpc' },
       }),
     ).toEqual([{ with: 'mpc', can: 'coordinate' }])
   })

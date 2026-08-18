@@ -483,6 +483,42 @@ export class PassportAuditLogDO {
     createdAt!: string
 }
 
+@Entity('identity_authorization_requests')
+@Index('idx_identity_authorization_request_status_expires', ['status', 'expiresAt'])
+export class IdentityAuthorizationRequestDO {
+    @PrimaryColumn({ length: 128, name: 'request_id' }) requestId!: string
+    @Column({ length: 128, name: 'app_id' }) appId!: string
+    @Column({ type: 'text', name: 'redirect_uri' }) redirectUri!: string
+    @Column({ length: 256, default: '' }) state!: string
+    @Column({ length: 256, name: 'code_challenge' }) codeChallenge!: string
+    @Column({ length: 16, name: 'code_challenge_method', default: 'S256' }) codeChallengeMethod!: string
+    @Column({ type: 'text', name: 'scopes_json' }) scopesJson!: string
+    @Column({ length: 128 }) nonce!: string
+    @Column({ length: 128, name: 'identity_did', default: '' }) identityDid!: string
+    @Column({ length: 32, default: 'pending' }) status!: string
+    @Column({ length: 64, name: 'created_at' }) createdAt!: string
+    @Column({ length: 64, name: 'updated_at' }) updatedAt!: string
+    @Column({ length: 64, name: 'expires_at' }) expiresAt!: string
+    @Column({ length: 64, name: 'approved_at', default: '' }) approvedAt!: string
+}
+
+@Entity('identity_authorization_codes')
+@Index('idx_identity_authorization_code_request', ['requestId'])
+export class IdentityAuthorizationCodeDO {
+    @PrimaryColumn({ length: 128, name: 'code' }) code!: string
+    @Column({ length: 128, name: 'request_id' }) requestId!: string
+    @Column({ length: 128, name: 'app_id' }) appId!: string
+    @Column({ type: 'text', name: 'redirect_uri' }) redirectUri!: string
+    @Column({ length: 256, default: '' }) state!: string
+    @Column({ length: 256, name: 'code_challenge' }) codeChallenge!: string
+    @Column({ type: 'text', name: 'scopes_json' }) scopesJson!: string
+    @Column({ length: 128, name: 'identity_did' }) identityDid!: string
+    @Column({ length: 64, name: 'issued_at' }) issuedAt!: string
+    @Column({ length: 64, name: 'expires_at' }) expiresAt!: string
+    @Column({ type: 'boolean', default: false }) used!: boolean
+    @Column({ length: 64, name: 'used_at', default: '' }) usedAt!: string
+}
+
 @Entity('scoped_grants')
 @Index('idx_scoped_grants_subject_status', ['subjectId', 'status'])
 @Index('idx_scoped_grants_app_status', ['appId', 'status'])

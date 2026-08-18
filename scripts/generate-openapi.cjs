@@ -365,6 +365,8 @@ const operations = [
   ['get', '/api/v1/public/custody/status', 'Custody', '查询通行证和托管状态', 'bearer'],
   ['get', '/api/v1/public/custody/secrets', 'Custody', '列出托管记录', 'bearer'],
   ['get', '/api/v1/public/custody/secrets/{walletId}', 'Custody', '获取托管密文', 'bearer'],
+  ['get', '/api/v1/public/custody/recovery/secrets', 'Custody Recovery', '使用一次性恢复令牌列出托管记录', 'bearer'],
+  ['get', '/api/v1/public/custody/recovery/secrets/{walletId}', 'Custody Recovery', '使用一次性恢复令牌获取托管密文', 'bearer'],
   ['post', '/api/v1/public/custody/secrets', 'Custody', '上传或更新托管密文', 'bearer', 'CustodyUpsertRequest'],
   ['delete', '/api/v1/public/custody/secrets/{walletId}', 'Custody', '删除托管记录', 'bearer'],
   ['get', '/api/v1/public/notifications', 'Notifications', '查询通知列表', 'bearer'],
