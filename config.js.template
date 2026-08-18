@@ -191,7 +191,9 @@ module.exports = {
     // 密钥托管只保存客户端加密后的密钥快照；启用前必须为当前钱包地址绑定 passkey。
     enabled: true,
     ucanWith: 'custody',
-    ucanCan: 'write'
+    ucanCan: 'write',
+    // Only this registered Passport application may request custody.recovery.
+    recoveryAppId: 'wallet-recovery'
   },
   notification: {
     // Webhook storage key is derived from NODE_KEY_DERIVATION_SECRET.

@@ -1683,6 +1683,51 @@ paths:
           $ref: "#/components/responses/Forbidden"
         "409":
           $ref: "#/components/responses/Conflict"
+  /api/v1/public/custody/recovery/secrets:
+    get:
+      tags:
+        - Custody Recovery
+      summary: 使用一次性恢复令牌列出托管记录
+      operationId: get_api_v1_public_custody_recovery_secrets
+      security:
+        - bearerAuth: []
+      parameters: []
+      responses:
+        "200":
+          $ref: "#/components/responses/Success"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+  /api/v1/public/custody/recovery/secrets/{walletId}:
+    get:
+      tags:
+        - Custody Recovery
+      summary: 使用一次性恢复令牌获取托管密文
+      operationId: get_api_v1_public_custody_recovery_secrets_walletId
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: walletId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          $ref: "#/components/responses/Success"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
   /api/v1/public/notifications:
     get:
       tags:
