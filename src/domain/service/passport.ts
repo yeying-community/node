@@ -31,6 +31,7 @@ import {
 import { deliverPassportEmailVerification } from './passportEmailDelivery'
 import { getDerivedRuntimeSecret } from '../../security/secretVault'
 import { getNodeIssuerDid, signNodeJwt, verifyNodeJwt } from '../../security/nodeIssuer'
+import { issueCustodyRecoveryToken } from '../../auth/custodyRecoveryToken'
 
 export type PassportStatus = {
   enabled: true
@@ -76,6 +77,7 @@ export type PassportAuthorizationExchangeResult = {
   state: string
   issuedAt: string
   scopes: string[]
+  custodyRecovery?: { token: string; expiresAt: number }
   claims: {
     subjectId: string
     username?: string
@@ -1661,6 +1663,19 @@ export class PassportService {
       action: 'authorize_exchanged',
     })
     const scopes = parseStoredAuthorizationScopes(record.scopesJson)
+    let custodyRecovery: PassportAuthorizationExchangeResult['custodyRecovery']
+    if (scopes.includes('custody.recovery')) {
+      const recoveryAppId = String(getConfig<string>('custody.recoveryAppId') || '').trim()
+      if (!recoveryAppId || record.appId !== recoveryAppId) {
+        throw new PassportError(403, 'PASSPORT_CUSTODY_RECOVERY_APP_DENIED', 'App cannot request custody recovery')
+      }
+      custodyRecovery = issueCustodyRecoveryToken({
+        subjectId: record.subjectId,
+        walletAddress: record.walletAddress,
+        appId: record.appId,
+        requestId: record.requestId,
+      })
+    }
     const subject = await this.manager.getSubject(record.subjectId)
     const claims: PassportAuthorizationExchangeResult['claims'] = {
       subjectId: record.subjectId,
@@ -1689,6 +1704,7 @@ export class PassportService {
       state: record.state || '',
       issuedAt: now,
       scopes,
+      ...(custodyRecovery ? { custodyRecovery } : {}),
       claims,
     }
   }

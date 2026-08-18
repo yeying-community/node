@@ -3,6 +3,12 @@ import { fail, ok } from '../../auth/envelope'
 import { getRequestUser } from '../../common/requestContext'
 import { ensureUserActive, ensureUserCanWriteBusinessData } from '../../common/permission'
 import { CustodyService } from '../../domain/service/custody'
+import { consumeCustodyRecoveryToken, verifyCustodyRecoveryToken } from '../../auth/custodyRecoveryToken'
+
+function recoveryToken(req: Request): string {
+  const [scheme, value] = String(req.headers.authorization || '').trim().split(' ')
+  return scheme?.toLowerCase() === 'bearer' ? String(value || '') : ''
+}
 
 function mapCustodyError(error: unknown): { status: number; message: string } {
   const message = error instanceof Error ? error.message : 'Custody request failed'
@@ -38,6 +44,28 @@ function requireUserAddress(): string {
 
 export function registerPublicCustodyRoutes(app: Express) {
   const service = new CustodyService()
+
+  app.get('/api/v1/public/custody/recovery/secrets', async (req: Request, res: Response) => {
+    const claims = verifyCustodyRecoveryToken(recoveryToken(req))
+    if (!claims) return void res.status(401).json(fail(401, 'Invalid or expired recovery token'))
+    try {
+      res.json(ok({ records: await service.listRecords(claims.address) }))
+    } catch (error) {
+      const mapped = mapCustodyError(error)
+      res.status(mapped.status).json(fail(mapped.status, mapped.message))
+    }
+  })
+
+  app.get('/api/v1/public/custody/recovery/secrets/:walletId', async (req: Request, res: Response) => {
+    const claims = consumeCustodyRecoveryToken(recoveryToken(req))
+    if (!claims) return void res.status(401).json(fail(401, 'Invalid, expired, or used recovery token'))
+    try {
+      res.json(ok(await service.getRecord(claims.address, req.params.walletId)))
+    } catch (error) {
+      const mapped = mapCustodyError(error)
+      res.status(mapped.status).json(fail(mapped.status, mapped.message))
+    }
+  })
 
   app.get('/api/v1/public/custody/status', async (_req: Request, res: Response) => {
     try {
@@ -108,4 +136,3 @@ export function registerPublicCustodyRoutes(app: Express) {
     }
   })
 }
-
