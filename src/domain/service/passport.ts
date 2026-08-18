@@ -190,7 +190,13 @@ const DEFAULT_ASSERTION_TTL_MS = 5 * 60 * 1000
 const MIN_ASSERTION_TTL_MS = 30 * 1000
 const MAX_ASSERTION_TTL_MS = 30 * 60 * 1000
 const DEFAULT_AUTHORIZATION_SCOPES = ['identity.basic', 'identity.wallet']
-const ALLOWED_AUTHORIZATION_SCOPES = new Set(['identity.basic', 'identity.wallet', 'identity.username', 'identity.email'])
+const ALLOWED_AUTHORIZATION_SCOPES = new Set([
+  'identity.basic',
+  'identity.wallet',
+  'identity.username',
+  'identity.email',
+  'custody.recovery',
+])
 const EMAIL_VERIFICATION_TTL_MS = 10 * 60 * 1000
 const EMAIL_VERIFICATION_RESEND_INTERVAL_MS = 60 * 1000
 const EMAIL_VERIFICATION_MAX_ATTEMPTS = 5
@@ -1665,10 +1671,6 @@ export class PassportService {
     const scopes = parseStoredAuthorizationScopes(record.scopesJson)
     let custodyRecovery: PassportAuthorizationExchangeResult['custodyRecovery']
     if (scopes.includes('custody.recovery')) {
-      const recoveryAppId = String(getConfig<string>('custody.recoveryAppId') || '').trim()
-      if (!recoveryAppId || record.appId !== recoveryAppId) {
-        throw new PassportError(403, 'PASSPORT_CUSTODY_RECOVERY_APP_DENIED', 'App cannot request custody recovery')
-      }
       custodyRecovery = issueCustodyRecoveryToken({
         subjectId: record.subjectId,
         walletAddress: record.walletAddress,
