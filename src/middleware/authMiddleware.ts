@@ -11,7 +11,7 @@ import {
 } from '../auth/ucan';
 import { runWithRequestContext } from '../common/requestContext';
 import { getConfig } from '../config/runtime';
-import { CustodyRuntimeConfig, MpcRuntimeConfig } from '../config';
+import { MpcRuntimeConfig } from '../config';
 import { SingletonLogger } from '../domain/facade/logger';
 
 const PUBLIC_ROUTES = [
@@ -67,15 +67,10 @@ export function getRouteRequiredUcanCapabilities(
     if (!routePath.startsWith('/api/v1/public/custody')) {
       return null;
     }
-    const config = (getConfig<CustodyRuntimeConfig>('custody') || {}) as CustodyRuntimeConfig;
-    const resource = String(config.ucanWith || 'custody').trim();
-    const action = String(config.ucanCan || 'write').trim();
-    return [
-      {
-        with: resource || '*',
-        can: action || '*',
-      },
-    ];
+    if (routePath.startsWith('/api/v1/public/custody/recovery')) {
+      return [];
+    }
+    return [{ with: 'custody', can: 'write' }];
   }
   const config = (getConfig<MpcRuntimeConfig>('mpc') || {}) as MpcRuntimeConfig;
   const resource = String(config.ucanWith || '').trim();
