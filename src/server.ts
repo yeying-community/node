@@ -40,7 +40,7 @@ import {
     ProjectAppInstallationDO,
     AppReleaseDO,
     AppRuntimeTaskDO,
-    IdentityAccountLinkDO, IdentityAccountLinkChallengeDO, IdentityVerificationTransactionDO, IdentityUsernameDO, IdentityCredentialDO, IdentityAuditLogDO
+    IdentityAccountLinkDO, IdentityAccountLinkChallengeDO, IdentityVerificationTransactionDO, IdentityUsernameDO, IdentityCredentialDO, IdentityAuditLogDO, IdentityAuthorizationRequestDO, IdentityAuthorizationCodeDO
 } from './domain/mapper/entity'
 import { SingletonDataSource } from './domain/facade/datasource';
 import { LoggerConfig, LoggerService } from './infrastructure/logger';
@@ -64,6 +64,7 @@ import { registerPublicIdentityRoutes } from './routes/publicIdentity';
 import { registerPublicIdentityAccountLinkRoutes } from './routes/publicIdentityAccountLinks';
 import { IdentityEmailService } from './domain/service/identityEmail';
 import { registerPublicIdentityEmailRoutes } from './routes/publicIdentityEmail';
+import { registerPublicIdentityAuthorizationRoutes } from './routes/publicIdentityAuthorization';
 import { deliverPassportEmailVerification } from './domain/service/passportEmailDelivery';
 import { registerAdminAuditRoutes } from './routes/admin/audits';
 import { registerAdminUserRoutes } from './routes/admin/users';
@@ -94,6 +95,7 @@ import { AddPassportEmailVerificationChallenges20260809093000 } from './migratio
 import { AddPassportUsername20260812230000 } from './migrations/20260812230000-add-passport-username';
 import { AddWalletIdentityState20260813090000 } from './migrations/20260813090000-add-wallet-identity-state';
 import { AddWalletIdentityLinkChallenges20260813100000 } from './migrations/20260813100000-add-wallet-identity-link-challenges';
+import { AddIdentityAuthorization20260818120000 } from './migrations/20260818120000-add-identity-authorization';
 import { EnforcePassportPasskeyIdentity20260803110000 } from './migrations/20260803110000-enforce-passport-passkey-identity';
 import { RepairPassportWebauthnChallenges20260803120000 } from './migrations/20260803120000-repair-passport-webauthn-challenges';
 import { AddScopedGrants20260808090000 } from './migrations/20260808090000-add-scoped-grants';
@@ -315,7 +317,9 @@ builder.entities([
     IdentityVerificationTransactionDO,
     IdentityUsernameDO,
     IdentityCredentialDO,
-    IdentityAuditLogDO
+    IdentityAuditLogDO,
+    IdentityAuthorizationRequestDO,
+    IdentityAuthorizationCodeDO
 ])
 builder.migrations([
     InitSchema20260126120000,
@@ -345,7 +349,8 @@ builder.migrations([
     AddPassportEmailVerificationChallenges20260809093000,
     AddPassportUsername20260812230000,
     AddWalletIdentityState20260813090000,
-    AddWalletIdentityLinkChallenges20260813100000
+    AddWalletIdentityLinkChallenges20260813100000,
+    AddIdentityAuthorization20260818120000
 ])
 
 builder.build().initialize().then(async (conn) => {
@@ -389,6 +394,7 @@ builder.build().initialize().then(async (conn) => {
     registerPublicIdentityEmailRoutes(app, new IdentityEmailService(async ({ email, code, expiresAt }) => {
         await deliverPassportEmailVerification({ email, code, verificationId: `identity-${Date.now()}`, expiresAt });
     }));
+    registerPublicIdentityAuthorizationRoutes(app);
     registerPublicAuthCentralRoutes(app);
     registerPublicAuthTotpRoutes(app);
     registerPublicAuthPassportRoutes(app);

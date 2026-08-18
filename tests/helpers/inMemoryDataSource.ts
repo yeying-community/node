@@ -24,6 +24,7 @@ export function createInMemoryDataSource() {
         return row
       },
       async findOneBy(where: Row) { return rows.find(row => matches(row, where)) || null },
+      async findBy(where: Row) { return rows.filter(row => matches(row, where)) },
       async update(where: Row, values: Row) {
         let affected = 0
         rows.forEach(row => { if (matches(row, where)) { Object.assign(row, values); affected += 1 } })
