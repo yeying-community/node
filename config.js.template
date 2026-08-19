@@ -45,8 +45,8 @@ module.exports = {
     //   某个业务模块的最终密钥。JWT、TOTP 存储、Passport assertion 和 Webhook 分别使用
     //   固定用途上下文从它派生，避免在配置中维护多份内部密钥。不能从 config.js 读取或填写。
     file: 'run/secrets.enc.json',
-    // 启动时读取并立即删除的一次性口令文件。生产无人值守时由受管密钥系统创建；
-    // 本地 dev:secure 或 starter.sh 在文件不存在时才提示输入。
+    // 密码文件路径。开发/测试环境会保留并复用；生产环境由 starter.sh 交互输入，
+    // 仅使用启动期间的临时文件并在启动后清理。
     passwordFile: 'run/.secrets-password'
   },
   database: {
