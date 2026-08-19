@@ -9,6 +9,9 @@ import { MpcRuntimeConfig, RedisRuntimeConfig } from '../../config'
 import { MpcService } from '../../domain/service/mpc'
 import { createMpcStreamReader, readMpcEventStream, subscribeMpcEvents } from '../../domain/service/mpcEvents'
 
+const DEFAULT_MPC_UCAN_WITH = 'mpc'
+const DEFAULT_MPC_UCAN_CAN = 'coordinate'
+
 function normalizeStringArray(input: unknown): string[] {
   if (Array.isArray(input)) {
     return input.map((item) => String(item).trim()).filter(Boolean)
@@ -55,11 +58,8 @@ function requireMpcUcan(req: Request) {
     throw new Error('UCAN token required')
   }
   const config = (getConfig<MpcRuntimeConfig>('mpc') || {}) as MpcRuntimeConfig
-  const resource = (config.ucanWith || '').trim()
-  const action = (config.ucanCan || '').trim()
-  if (!resource && !action) {
-    return
-  }
+  const resource = (config.ucanWith || DEFAULT_MPC_UCAN_WITH).trim()
+  const action = (config.ucanCan || DEFAULT_MPC_UCAN_CAN).trim()
   verifyUcanInvocationWithCap(token, [
     {
       with: resource || '*',
