@@ -303,6 +303,7 @@ const document = {
 const operations = [
   ['get', '/api/v1/public/health', 'Health', '健康检查', 'none'],
   ['get', '/api/v1/public/healthCheck', 'Health', '兼容健康检查', 'none'],
+  ['get', '/api/v1/public/ready', 'Health', '数据库就绪检查', 'none'],
   ['post', '/api/v1/public/auth/challenge', 'Auth', '创建 SIWE 登录挑战', 'none', 'AuthChallengeRequest'],
   ['post', '/api/v1/public/auth/verify', 'Auth', '验证钱包签名并签发 JWT', 'none', 'AuthVerifyRequest'],
   ['post', '/api/v1/public/auth/refresh', 'Auth', '刷新访问令牌', 'cookie'],

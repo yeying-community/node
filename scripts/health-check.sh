@@ -218,40 +218,15 @@ check_http_health() {
 }
 
 check_database() {
-  [[ -f "$CONFIG_PATH" ]] || { printf 'config file not found: %s' "$CONFIG_PATH"; return 1; }
-  (
-    cd "$PROJECT_DIR"
-    HEALTH_DB_CONFIG="$CONFIG_PATH" HEALTH_DB_TIMEOUT="$TIMEOUT" node <<'NODE'
-const configPath = process.env.HEALTH_DB_CONFIG;
-const timeoutMs = Number(process.env.HEALTH_DB_TIMEOUT) * 1000;
-let DataSource;
-try { ({ DataSource } = require('typeorm')); } catch { process.stderr.write('runtime dependency is missing: typeorm'); process.exit(3); }
-let config;
-try { const loaded = require(configPath); config = loaded.default || loaded; } catch { process.stderr.write('unable to load health-check config'); process.exit(1); }
-const db = config && config.database;
-if (!db || !['postgres', 'mysql'].includes(db.type)) { process.stderr.write('database config must use postgres or mysql'); process.exit(1); }
-const options = { ...db, entities: [], migrations: [], synchronize: false, logging: false };
-if (db.type === 'postgres') options.connectTimeoutMS = timeoutMs;
-if (db.type === 'mysql') options.connectTimeout = timeoutMs;
-const source = new DataSource(options);
-let timeoutId;
-const timeout = new Promise((_, reject) => {
-  timeoutId = setTimeout(() => reject(Object.assign(new Error('database check timed out'), { timeout: true })), timeoutMs);
-});
-(async () => {
-  try {
-    await Promise.race([(async () => { await source.initialize(); await source.query('SELECT 1'); })(), timeout]);
-    await source.destroy();
-  } catch (error) {
-    if (source.isInitialized) await source.destroy().catch(() => {});
-    process.stderr.write(error && error.timeout ? 'database check timed out' : 'database read-only query failed');
-    process.exit(error && error.timeout ? 124 : 1);
-  } finally {
-    clearTimeout(timeoutId);
-  }
-})().catch(() => { process.stderr.write('database check framework error'); process.exit(3); });
-NODE
-  )
+  local body
+  body="$(curl --silent --show-error --fail --max-time "$TIMEOUT" --connect-timeout "$TIMEOUT" "$BASE_URL/api/v1/public/ready")" || return $?
+  HEALTH_READY_BODY="$body" node -e '
+    const raw = process.env.HEALTH_READY_BODY || "";
+    let value;
+    try { value = JSON.parse(raw); } catch { process.stderr.write("readiness endpoint returned invalid JSON"); process.exit(1); }
+    const payload = value?.data ?? value;
+    if (payload?.status !== "ok" || payload?.database !== "ok") { process.stderr.write("database is not ready"); process.exit(1); }
+  '
 }
 
 run_liveness() {
