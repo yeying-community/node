@@ -2,6 +2,7 @@ import { Wallet } from 'ethers'
 import { generateKeyPairSync, sign } from 'node:crypto'
 import { vi } from 'vitest'
 import { SingletonDataSource } from '../src/domain/facade/datasource'
+import { IdentityUsernameDO } from '../src/domain/mapper/entity'
 import { createInMemoryDataSource } from './helpers/inMemoryDataSource'
 
 vi.mock('../src/config/runtime', () => ({ getConfig: (key: string) => key === 'issuer.identity.usernameNamespace' ? 'node.yeying.pub' : undefined }))
@@ -65,12 +66,18 @@ describe('identity email credential', () => {
     expect(result.credentials.map(item => item.type)).toEqual(['username', 'email'])
   })
 
-  it('reserves usernames and rejects concurrent claims', async () => {
+  it('allows the same identity to retry a username and rejects another identity', async () => {
     const wallet = Wallet.createRandom()
     const link = await issueAccountLinkChallenge({ identity, account: { chainKey: 'eip155:1', address: wallet.address } })
     await verifyAccountLink({ identityDocument: document, identity, account: link.account, nonce: link.nonce, issuedAt: link.issuedAt, expiresAt: link.expiresAt, accountSignature: await wallet.signMessage(link.message) })
     const service = new IdentityEmailService(async () => {})
     await service.request({ types: ['username'], identity, account: link.account, email: 'alice@example.com', username: 'reserved_name' } as any)
-    await expect(service.request({ types: ['username'], identity, account: link.account, email: 'alice@example.com', username: 'Reserved_Name' } as any)).rejects.toThrow('IDENTITY_USERNAME_TAKEN')
+    await expect(service.request({ types: ['username'], identity, account: link.account, email: 'alice@example.com', username: 'Reserved_Name' } as any)).resolves.toMatchObject({ username: 'reserved_name' })
+
+    await SingletonDataSource.get().getRepository(IdentityUsernameDO).update(
+      { namespace: 'node.yeying.pub', normalizedUsername: 'reserved_name' },
+      { identityDid: `${identity}_other` }
+    )
+    await expect(service.request({ types: ['username'], identity, account: link.account, email: 'other@example.com', username: 'reserved_name' } as any)).rejects.toThrow('IDENTITY_USERNAME_TAKEN')
   })
 })
