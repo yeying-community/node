@@ -21,6 +21,7 @@ const PUBLIC_ROUTES = [
   '/public/auth/logout',
   '/public/health',
   '/public/healthCheck',
+  '/public/ready',
 ];
 
 type AuthUser = {
