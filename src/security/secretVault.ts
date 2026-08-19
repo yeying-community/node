@@ -33,16 +33,24 @@ function resolveVaultFilePath(): string {
   return path.resolve(process.cwd(), 'run', 'secrets.enc.json');
 }
 
+function isProductionEnvironment(): boolean {
+  const configured = String(getConfig<string>('app.env') ?? '').trim().toLowerCase();
+  const runtime = String(process.env.NODE_ENV ?? '').trim().toLowerCase();
+  return configured === 'production' || runtime === 'production';
+}
+
 function readPasswordFromFile(filePathInput: string): string {
   const filePath = path.resolve(filePathInput);
   if (!fs.existsSync(filePath)) {
     throw new Error(`Secrets password file not found: ${filePath}`);
   }
   const value = fs.readFileSync(filePath, 'utf8').trim();
-  try {
-    fs.unlinkSync(filePath);
-  } catch {
-    // ignore cleanup errors
+  if (isProductionEnvironment()) {
+    try {
+      fs.unlinkSync(filePath);
+    } catch {
+      // ignore cleanup errors
+    }
   }
   if (!value) {
     throw new Error('Secrets password file is empty');

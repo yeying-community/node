@@ -21,6 +21,10 @@ cleanup_temp_secrets_password_file() {
   fi
 }
 
+is_production_environment() {
+  [[ "${NODE_ENV_VALUE,,}" == "production" ]]
+}
+
 info() {
   printf '%s\n' "$*"
 }
@@ -79,7 +83,9 @@ prepare_secrets_password_file() {
 
   info "检测到加密密钥文件: ${SECRETS_FILE}（将由 Node 进程内解密）"
   if [[ -f "$SECRETS_PASSWORD_FILE" ]]; then
-    return 0
+    if ! is_production_environment; then
+      return 0
+    fi
   fi
 
   if [[ ! -t 0 ]]; then
