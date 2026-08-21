@@ -39,6 +39,12 @@ export class MpcManager {
     return await this.sessionRepository.findOneBy({ id })
   }
 
+  async listSessions() {
+    return await this.sessionRepository.find({
+      order: { createdAt: 'DESC' }
+    })
+  }
+
   async updateSession(id: string, patch: Partial<MpcSessionDO>) {
     await this.sessionRepository.update({ id }, patch)
     return await this.getSession(id)

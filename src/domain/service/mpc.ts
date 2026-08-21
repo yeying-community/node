@@ -53,6 +53,30 @@ export type MpcMessagePage = {
   nextCursor?: string
 }
 
+export type MpcInviteListItem = {
+  uid: string
+  type: 'mpc.keygen.invited'
+  source: 'mpc'
+  subjectType: 'mpc.session'
+  subjectId: string
+  actor: string
+  title: string
+  payload: {
+    sessionId: string
+    name: string
+    walletId: string
+    sessionType: string
+    threshold: number
+    participants: string[]
+    curve: string
+    keyVersion: number
+    shareVersion: number
+    inviter: string
+    expiresAt: string
+  }
+  session: MpcSession
+}
+
 export type MpcSessionDetail = MpcSession & {
   joinedParticipants: MpcSessionParticipant[]
   joinedCount: number
@@ -245,6 +269,59 @@ export class MpcService {
       return true
     }
     return addresses.some((address) => normalizeAddress(address) === normalized)
+  }
+
+  async listInvites(actor: string, pageInput = 1, pageSizeInput = 20) {
+    const actorAddress = normalizeAddress(actor || '')
+    const page = Math.max(Number.isFinite(pageInput) ? Math.floor(pageInput) : 1, 1)
+    const pageSize = Math.min(Math.max(Number.isFinite(pageSizeInput) ? Math.floor(pageSizeInput) : 20, 1), 100)
+    const sessions = (await this.manager.listSessions())
+      .map(convertMpcSessionFrom)
+      .filter((session) => {
+        if (session.type !== 'keygen') return false
+        if (session.status === 'cancelled' || session.status === 'expired') return false
+        const participants = session.participants.map((participant) => normalizeAddress(participant || ''))
+        if (!participants.includes(actorAddress)) return false
+        return participants[0] !== actorAddress
+      })
+
+    const total = sessions.length
+    const items = sessions.slice((page - 1) * pageSize, page * pageSize).map((session): MpcInviteListItem => {
+      const participants = session.participants.map((participant) => normalizeAddress(participant || '')).filter(Boolean)
+      const inviter = participants[0] || ''
+      return {
+        uid: session.id,
+        type: 'mpc.keygen.invited',
+        source: 'mpc',
+        subjectType: 'mpc.session',
+        subjectId: session.id,
+        actor: inviter,
+        title: session.name,
+        payload: {
+          sessionId: session.id,
+          name: session.name,
+          walletId: session.walletId,
+          sessionType: session.type,
+          threshold: session.threshold,
+          participants: session.participants,
+          curve: session.curve,
+          keyVersion: session.keyVersion,
+          shareVersion: session.shareVersion,
+          inviter,
+          expiresAt: session.expiresAt || '',
+        },
+        session,
+      }
+    })
+
+    return {
+      items,
+      page: {
+        total,
+        page,
+        pageSize,
+      },
+    }
   }
 
   async createSession(input: CreateMpcSessionInput, actor: string): Promise<MpcSession> {

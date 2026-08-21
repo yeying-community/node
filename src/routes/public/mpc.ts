@@ -133,6 +133,25 @@ function mapMpcError(error: unknown): { status: number; message: string } {
 export function registerPublicMpcRoutes(app: Express) {
   const service = new MpcService()
 
+  app.get('/api/v1/public/mpc/invites', async (req: Request, res: Response) => {
+    try {
+      const user = getRequestUser()
+      if (!user?.address) {
+        res.status(401).json(fail(401, 'Missing access token'))
+        return
+      }
+      requireMpcUcan(req)
+      await ensureUserActive(user.address)
+      const page = parseNumber(req.query.page) || 1
+      const pageSize = parseNumber(req.query.pageSize) || 20
+      const response = await service.listInvites(user.address, page, pageSize)
+      res.json(ok(response))
+    } catch (error) {
+      const mapped = mapMpcError(error)
+      res.status(mapped.status).json(fail(mapped.status, mapped.message))
+    }
+  })
+
   app.post('/api/v1/public/mpc/sessions', async (req: Request, res: Response) => {
     try {
       const user = getRequestUser()

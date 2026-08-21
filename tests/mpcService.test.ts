@@ -2,6 +2,7 @@ import { mockClass } from './support/mockClass'
 
 const managerMocks = {
   getSession: vi.fn(),
+  listSessions: vi.fn(),
   saveSession: vi.fn(),
   updateSession: vi.fn(),
   saveAuditLog: vi.fn(),
@@ -40,6 +41,7 @@ describe('MpcService notifications', () => {
     notificationCreateMock.mockReset()
 
     managerMocks.getSession.mockResolvedValue(null)
+    managerMocks.listSessions.mockResolvedValue([])
     managerMocks.saveSession.mockImplementation(async (session) => session)
     managerMocks.updateSession.mockImplementation(async (sessionId, patch) => ({
       id: sessionId,
@@ -111,6 +113,60 @@ describe('MpcService notifications', () => {
         expiresAt: '1893456000000',
       })
     )
+  })
+
+  it('lists MPC keygen invites from session records for invited participants', async () => {
+    const actor = '0x2222222222222222222222222222222222222222'
+    const inviter = '0x1111111111111111111111111111111111111111'
+    managerMocks.listSessions.mockResolvedValue([
+      {
+        id: 'session-1',
+        name: '团队金库',
+        type: 'keygen',
+        walletId: 'mpc-wallet-1',
+        threshold: 2,
+        participants: JSON.stringify([inviter, actor]),
+        status: 'ready',
+        round: 0,
+        curve: 'secp256k1',
+        keyVersion: 1,
+        shareVersion: 1,
+        createdAt: '2',
+        expiresAt: '',
+      },
+      {
+        id: 'session-owned',
+        name: '发起者钱包',
+        type: 'keygen',
+        walletId: 'mpc-wallet-2',
+        threshold: 1,
+        participants: JSON.stringify([actor, inviter]),
+        status: 'created',
+        round: 0,
+        curve: 'secp256k1',
+        keyVersion: 1,
+        shareVersion: 1,
+        createdAt: '1',
+        expiresAt: '',
+      },
+    ])
+    const service = new MpcService()
+
+    const result = await service.listInvites(actor)
+
+    expect(result.items).toHaveLength(1)
+    expect(result.items[0]).toEqual(expect.objectContaining({
+      uid: 'session-1',
+      subjectId: 'session-1',
+      actor: inviter,
+      title: '团队金库',
+    }))
+    expect(result.items[0].payload).toEqual(expect.objectContaining({
+      sessionId: 'session-1',
+      name: '团队金库',
+      walletId: 'mpc-wallet-1',
+      inviter,
+    }))
   })
 
   it('does not create invite notifications for non-keygen sessions', async () => {
