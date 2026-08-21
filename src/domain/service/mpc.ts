@@ -11,6 +11,8 @@ import {
   convertMpcMessageTo,
   convertMpcParticipantFrom,
   convertMpcParticipantTo,
+  convertMpcSignRequestFrom,
+  convertMpcSignRequestTo,
   convertMpcSessionFrom,
   convertMpcSessionTo
 } from '../model/mpc'
@@ -61,6 +63,15 @@ export type CompleteMpcKeygenInput = {
   }
 }
 
+export type CreateMpcSignRequestInput = {
+  id?: string
+  walletId: string
+  sessionId: string
+  payloadType: string
+  payloadHash: string
+  chainId?: number
+}
+
 export type MpcMessagePage = {
   messages: MpcMessage[]
   nextCursor?: string
@@ -97,6 +108,7 @@ export type MpcSessionDetail = MpcSession & {
 
 const SESSION_TYPES = new Set(['keygen', 'sign', 'refresh'])
 const CANCELLABLE_SESSION_STATUSES = new Set(['created', 'invited'])
+const SIGN_PAYLOAD_TYPES = new Set(['message', 'transaction', 'typed_data'])
 
 function normalizeAddress(value: string) {
   return value.trim().toLowerCase()
@@ -695,6 +707,63 @@ export class MpcService {
       joinedParticipants: participants,
       joinedCount: participants.length,
     }
+  }
+
+  async createSignRequest(input: CreateMpcSignRequestInput, actor: string) {
+    if (!input.walletId) {
+      throw new Error('MISSING_WALLET_ID')
+    }
+    if (!input.sessionId) {
+      throw new Error('SESSION_NOT_FOUND')
+    }
+    const payloadType = String(input.payloadType || '').trim()
+    if (!SIGN_PAYLOAD_TYPES.has(payloadType)) {
+      throw new Error('INVALID_SIGN_PAYLOAD_TYPE')
+    }
+    const payloadHash = String(input.payloadHash || '').trim()
+    if (!payloadHash) {
+      throw new Error('MISSING_SIGN_PAYLOAD_HASH')
+    }
+    const sessionDO = await this.manager.getSession(input.sessionId)
+    if (!sessionDO) {
+      throw new Error('SESSION_NOT_FOUND')
+    }
+    const session = convertMpcSessionFrom(sessionDO)
+    if (session.walletId !== input.walletId) {
+      throw new Error('FORBIDDEN')
+    }
+    const participants = (await this.manager.listParticipants(input.sessionId)).map(convertMpcParticipantFrom)
+    if (!this.ensureActorAccess(participants, actor)) {
+      throw new Error('FORBIDDEN')
+    }
+
+    const requestId = input.id || uuidv4()
+    const existing = await this.manager.getSignRequest(requestId)
+    if (existing) {
+      return convertMpcSignRequestFrom(existing)
+    }
+    const now = this.nowEpoch()
+    const request = convertMpcSignRequestTo({
+      id: requestId,
+      walletId: input.walletId,
+      sessionId: input.sessionId,
+      initiator: normalizeAddress(actor),
+      payloadType,
+      payloadHash,
+      chainId: Number(input.chainId || 0),
+      status: 'pending',
+      approvals: [],
+      createdAt: now,
+    })
+    const saved = await this.manager.saveSignRequest(request)
+    await this.writeAuditLog(input.walletId, input.sessionId, 'sign-request-created', actor, 'sign request created', {
+      requestId,
+      payloadType,
+      payloadHash,
+      chainId: Number(input.chainId || 0),
+    })
+    this.emitEvent(input.sessionId, 'sign-request', convertMpcSignRequestFrom(saved))
+    return convertMpcSignRequestFrom(saved)
   }
 
   async fetchMessages(

@@ -105,6 +105,10 @@ export class MpcManager {
     return await this.signRequestRepository.save(request)
   }
 
+  async getSignRequest(id: string) {
+    return await this.signRequestRepository.findOneBy({ id })
+  }
+
   async saveAuditLog(log: MpcAuditLogDO) {
     return await this.auditRepository.save(log)
   }

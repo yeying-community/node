@@ -95,6 +95,8 @@ function mapMpcError(error: unknown): { status: number; message: string } {
       return { status: 403, message: 'Identity mismatch' }
     case 'INVALID_SESSION_TYPE':
       return { status: 400, message: 'Invalid session type' }
+    case 'INVALID_SIGN_PAYLOAD_TYPE':
+      return { status: 400, message: 'Invalid sign payload type' }
     case 'INVALID_THRESHOLD':
       return { status: 400, message: 'Invalid threshold' }
     case 'MISSING_WALLET_ID':
@@ -105,6 +107,8 @@ function mapMpcError(error: unknown): { status: number; message: string } {
       return { status: 400, message: 'Missing participants' }
     case 'MISSING_KEYGEN_RESULT':
       return { status: 400, message: 'Missing keygen result' }
+    case 'MISSING_SIGN_PAYLOAD_HASH':
+      return { status: 400, message: 'Missing sign payload hash' }
     case 'THRESHOLD_EXCEEDS_PARTICIPANTS':
       return { status: 400, message: 'Threshold exceeds participant count' }
     case 'Missing access token':
@@ -373,6 +377,61 @@ export function registerPublicMpcRoutes(app: Express) {
             user.address
           )
           return { status: 200, body: ok(session) }
+        },
+        onError: (error) => {
+          const mapped = mapMpcError(error)
+          return { status: mapped.status, body: fail(mapped.status, mapped.message) }
+        }
+      })
+      res.status(result.status).json(result.body)
+    } catch (error) {
+      const mapped = mapMpcError(error)
+      res.status(mapped.status).json(fail(mapped.status, mapped.message))
+    }
+  })
+
+  app.post('/api/v1/public/mpc/sign-requests', async (req: Request, res: Response) => {
+    try {
+      const user = getRequestUser()
+      if (!user?.address) {
+        res.status(401).json(fail(401, 'Missing access token'))
+        return
+      }
+      requireMpcUcan(req)
+      await ensureUserActive(user.address)
+      await ensureUserCanWriteBusinessData(user.address)
+      const body = req.body || {}
+      const requestId = String(body.id || body.requestId || '').trim()
+      const walletId = String(body.walletId || '').trim()
+      const sessionId = String(body.sessionId || '').trim()
+      const payloadType = String(body.payloadType || '').trim()
+      const payloadHash = String(body.payloadHash || '').trim()
+      const chainId = parseNumber(body.chainId)
+      const result = await executeSignedAction({
+        raw: body,
+        action: 'mpc_sign_request_create',
+        actor: user.address,
+        payload: {
+          requestId,
+          walletId,
+          sessionId,
+          payloadType,
+          payloadHash,
+          chainId,
+        },
+        execute: async () => {
+          const request = await service.createSignRequest(
+            {
+              id: requestId || undefined,
+              walletId,
+              sessionId,
+              payloadType,
+              payloadHash,
+              chainId,
+            },
+            user.address
+          )
+          return { status: 200, body: ok(request) }
         },
         onError: (error) => {
           const mapped = mapMpcError(error)
