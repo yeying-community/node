@@ -22,13 +22,12 @@
                 <div class="section-hint">{{ mt('passkeyManageHint') }}</div>
               </div>
               <div class="passport-head-actions">
-                <el-button :disabled="!passkeyStatus?.enabled || !passkeyStatus?.ready" @click="loadPasskeyCredentials">{{ mt('refreshCredentials') }}</el-button>
                 <el-button @click="goPasskeyTestHistory">{{ mt('testHistory') }}</el-button>
                 <el-button :disabled="!passkeyStatus?.enabled || !passkeyStatus?.ready" type="success" plain @click="openPasskeyTestDialog">
                   {{ mt('testPasskey') }}
                 </el-button>
-                <el-button :disabled="!passkeyStatus?.enabled || !passkeyStatus?.ready" type="primary" @click="registerPasskey">
-                  {{ mt('registerPasskey') }}
+                <el-button type="primary" @click="registerPasskey">
+                  {{ mt('manageInWallet') }}
                 </el-button>
               </div>
             </div>
@@ -37,40 +36,28 @@
 
             <div class="passport-summary-grid">
               <div class="summary-metric">
-                <span class="summary-label">{{ mt('activeCredentials') }}</span>
-                <strong>{{ activePasskeyCount }}</strong>
+                <span class="summary-label">{{ mt('serviceSwitch') }}</span>
+                <strong>{{ passkeyStatus ? (passkeyStatus.enabled ? mt('enabled') : mt('disabled')) : '-' }}</strong>
               </div>
               <div class="summary-metric">
-                <span class="summary-label">{{ mt('revokedCredentials') }}</span>
-                <strong>{{ revokedPasskeyCount }}</strong>
+                <span class="summary-label">{{ mt('serviceReady') }}</span>
+                <strong>{{ passkeyStatus ? (passkeyStatus.ready ? mt('ready') : mt('notReady')) : '-' }}</strong>
               </div>
               <div class="summary-identity">
-                <span class="summary-label">{{ mt('subjectId') }}</span>
-                <span>{{ passportPasskeyBinding?.subjectId ? mt('passkeyListTitle') : '-' }}</span>
+                <span class="summary-label">{{ mt('rpId') }}</span>
+                <span>{{ passkeyStatus?.rpId || '-' }}</span>
               </div>
               <div class="summary-identity">
-                <span class="summary-label">{{ mt('walletAddressShort') }}</span>
-                <span class="path-text">{{ walletAddressDisplay }}</span>
+                <span class="summary-label">{{ mt('origin') }}</span>
+                <span class="path-text">{{ passkeyStatus?.origin || '-' }}</span>
               </div>
-            </div>
-
-            <div class="register-inline">
-              <span class="label">{{ mt('deviceName') }}</span>
-              <el-input v-model="passkeyDeviceName" :placeholder="mt('devicePlaceholder')" />
             </div>
 
             <div class="credential-list">
-              <div class="credential-list-head">
-                <span>{{ mt('deviceName') }}</span>
-                <span>{{ mt('transports') }}</span>
-                <span>{{ mt('createdAt') }}</span>
-                <span>{{ mt('status') }}</span>
-                <span>{{ mt('actions') }}</span>
+              <div class="credential-empty compact-empty">
+                {{ mt('passkeyManagedInWallet') }}
               </div>
-              <div v-if="!passkeyCredentials.length" class="credential-empty compact-empty">
-                {{ mt('noPasskeyCredentials') }}
-              </div>
-              <div v-for="credential in passkeyCredentials" :key="credential.credentialId" class="credential-row">
+              <div v-for="credential in passkeyCredentials" v-show="false" :key="credential.credentialId" class="credential-row">
                 <div class="credential-cell credential-device">
                   <div class="credential-name">{{ getCredentialDeviceName(credential) }}</div>
                   <div v-if="credential.revokedAt" class="credential-revoked-mobile">
@@ -935,7 +922,7 @@ async function loadTotpStatus() {
 async function loadPasskeyStatus() {
   try {
     const status = await getJson<{ passkey: PasskeyStatus }>(
-      '/api/v1/public/auth/passport/status',
+      '/api/v1/public/identity/status',
       mt('loadPasskeyStatusFailed')
     );
     passkeyStatus.value = status.passkey;
@@ -1005,92 +992,13 @@ async function loadTotpProvision(options: { silent?: boolean; force?: boolean } 
 }
 
 async function loadPasskeyCredentials() {
-  try {
-    ensurePasskeyReady();
-    const result = await getAuthJson<PassportPasskeyCredentialListResult>(
-      '/api/v1/public/auth/passport/passkey/credentials',
-      mt('loadPasskeyCredentialsFailed')
-    );
-    passportPasskeyBinding.value = result;
-    passkeyCredentials.value = result.credentials || [];
-  } catch (error) {
-    notifyError(String(error));
-  }
+  passportPasskeyBinding.value = null;
+  passkeyCredentials.value = [];
+  notifyInfo(mt('passkeyManagedInWallet'));
 }
 
 async function registerPasskey() {
-  try {
-    ensurePasskeyReady();
-    ensurePasskeySupported();
-    const request = await postAuthJson<PasskeyRegisterRequestResult>(
-      '/api/v1/public/auth/passport/passkey/register/request',
-      {
-        deviceName: String(passkeyDeviceName.value || '').trim() || undefined,
-      },
-      mt('createPasskeyRegisterFailed')
-    );
-
-    const passkeyRequest = request.passkeyRequest;
-    const publicKey: PublicKeyCredentialCreationOptions = {
-      challenge: base64UrlToUint8Array(passkeyRequest.challenge),
-      rp: passkeyRequest.rp,
-      user: {
-        id: base64UrlToUint8Array(passkeyRequest.user.id),
-        name: passkeyRequest.user.name,
-        displayName: passkeyRequest.user.displayName,
-      },
-      pubKeyCredParams: passkeyRequest.pubKeyCredParams,
-      timeout: passkeyRequest.timeout,
-      attestation: passkeyRequest.attestation,
-      excludeCredentials: (passkeyRequest.excludeCredentials || []).map((item) => ({
-        id: base64UrlToUint8Array(item.id),
-        type: item.type,
-        transports: item.transports as AuthenticatorTransport[] | undefined,
-      })),
-      authenticatorSelection: passkeyRequest.authenticatorSelection,
-    };
-
-    const credential = (await navigator.credentials.create({
-      publicKey,
-    })) as PublicKeyCredential | null;
-
-    if (!credential) {
-      throw new Error(mt('passkeyRegisterCancelled'));
-    }
-
-    const response = credential.response;
-    if (!(response instanceof AuthenticatorAttestationResponse)) {
-      throw new Error(mt('passkeyRegisterResponseInvalid'));
-    }
-
-    const transports =
-      typeof response.getTransports === 'function' ? response.getTransports() : undefined;
-
-    await postAuthJson<PasskeyCredentialRecord>(
-      '/api/v1/public/auth/passport/passkey/register/confirm',
-      {
-        requestId: request.passkeyRequest.requestId,
-        deviceName: String(passkeyDeviceName.value || '').trim() || undefined,
-        credential: {
-          id: credential.id,
-          rawId: arrayBufferToBase64Url(credential.rawId),
-          type: credential.type,
-          response: {
-            attestationObject: arrayBufferToBase64Url(response.attestationObject),
-            clientDataJSON: arrayBufferToBase64Url(response.clientDataJSON),
-            transports,
-          },
-          clientExtensionResults: credential.getClientExtensionResults(),
-        },
-      },
-      mt('confirmPasskeyRegisterFailed')
-    );
-
-    await loadPasskeyCredentials();
-    notifySuccess(mt('passkeyRegisterSuccess'));
-  } catch (error) {
-    notifyError(String(error));
-  }
+  notifyInfo(mt('passkeyManagedInWallet'));
 }
 
 function buildPasskeyTestDetail(): Record<string, unknown> {
@@ -1220,13 +1128,14 @@ async function createPasskeyAuthorizeRequestAction(): Promise<boolean> {
     const pkce = await createPkcePair();
     passkeyCodeVerifier.value = pkce.verifier;
     const result = await postJson<AuthorizeRequestResult>(
-      '/api/v1/public/auth/passport/authorize/request',
+      '/api/v1/public/identity/authorize/request',
       {
         appId,
         redirectUri,
         state: form.state || undefined,
         codeChallenge: pkce.challenge,
         codeChallengeMethod: 'S256',
+        scopes: ['identity.basic', 'identity.wallet', 'identity.username', 'identity.email'],
         requestTtlMs: form.requestTtlMs,
       },
       mt('createPasskeyAuthorizeRequestFailed')
@@ -1254,7 +1163,7 @@ async function queryPasskeyAuthorizeRequest() {
       return;
     }
     const result = await getJson<AuthorizeRequestResult>(
-      `/api/v1/public/auth/passport/authorize/request/${encodeURIComponent(requestId)}`,
+      `/api/v1/public/identity/authorize/request/${encodeURIComponent(requestId)}`,
       mt('queryPasskeyAuthorizeRequestFailed')
     );
     passkeyRequestResult.value = result;
@@ -1275,7 +1184,7 @@ async function approveAuthorizeRequestWithPasskey(): Promise<boolean> {
     }
 
     const challenge = await postJson<PasskeyAuthorizeChallengeResponse>(
-      '/api/v1/public/auth/passport/authorize/challenge',
+      '/api/v1/public/identity/authorize/challenge',
       { requestId },
       mt('createPasskeyChallengeFailed')
     );
@@ -1306,7 +1215,7 @@ async function approveAuthorizeRequestWithPasskey(): Promise<boolean> {
     }
 
     const result = await postJson<AuthorizeApproveResult>(
-      '/api/v1/public/auth/passport/authorize/approve',
+      '/api/v1/public/identity/authorize/approve',
       {
         requestId,
         passkeyRequestId: challenge.passkeyRequest.requestId,
@@ -1355,7 +1264,7 @@ async function exchangePasskeyAuthorizeCode(): Promise<boolean> {
       return false;
     }
     const result = await postJson<AuthorizeExchangeResult>(
-      '/api/v1/public/auth/passport/authorize/exchange',
+      '/api/v1/public/identity/authorize/exchange',
       { code, appId, redirectUri, codeVerifier },
       mt('exchangePasskeyCodeFailed')
     );
@@ -1370,44 +1279,13 @@ async function exchangePasskeyAuthorizeCode(): Promise<boolean> {
 }
 
 async function revokePasskeyCredentialAction(credentialId: string) {
-  try {
-    ensurePasskeyReady();
-    await postAuthJson(
-      '/api/v1/public/auth/passport/passkey/credentials/revoke',
-      { credentialId },
-      mt('revokePasskeyCredentialFailed')
-    );
-    await loadPasskeyCredentials();
-    notifySuccess(mt('passkeyCredentialRevoked'));
-  } catch (error) {
-    notifyError(String(error));
-  }
+  void credentialId;
+  notifyInfo(mt('passkeyManagedInWallet'));
 }
 
 async function renamePasskeyCredentialAction(credential: PasskeyCredentialRecord) {
-  try {
-    ensurePasskeyReady();
-    const result = await ElMessageBox.prompt(mt('renamePasskeyPrompt'), mt('renamePasskeyTitle'), {
-      confirmButtonText: mt('confirm'),
-      cancelButtonText: mt('cancel'),
-      inputValue: getCredentialDeviceName(credential),
-      inputPlaceholder: mt('devicePlaceholder'),
-      inputValidator: (value) => Boolean(String(value || '').trim()) || mt('deviceNameRequired'),
-    });
-    const deviceName = String(result.value || '').trim();
-    await postAuthJson(
-      '/api/v1/public/auth/passport/passkey/credentials/rename',
-      { credentialId: credential.credentialId, deviceName },
-      mt('renamePasskeyCredentialFailed')
-    );
-    await loadPasskeyCredentials();
-    notifySuccess(mt('passkeyCredentialRenamed'));
-  } catch (error) {
-    if (String((error as { action?: unknown })?.action || '') === 'cancel') {
-      return;
-    }
-    notifyError(String(error));
-  }
+  void credential;
+  notifyInfo(mt('passkeyManagedInWallet'));
 }
 
 async function createAuthorizeRequest() {
@@ -1653,9 +1531,6 @@ onMounted(async () => {
   await refreshStatuses();
   if (authTab.value === 'totp' && totpStatus.value?.enabled && totpStatus.value?.ready) {
     await loadTotpProvision({ silent: true });
-  }
-  if (passkeyStatus.value?.enabled && passkeyStatus.value?.ready) {
-    await loadPasskeyCredentials();
   }
 });
 

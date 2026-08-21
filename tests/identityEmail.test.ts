@@ -43,6 +43,7 @@ describe('identity email credential', () => {
     await expect(service.confirm({ types: ['email'], verificationId: request.verificationId, codes: { email: '000000' } })).rejects.toThrow('IDENTITY_EMAIL_VERIFICATION_INVALID')
     const result = await service.confirm({ types: ['email'], verificationId: request.verificationId, codes: { email: sent } })
     expect(result.credentials[0].credentialId).toContain('urn:yeying:credential:email:email_')
+    expect(result.credentials[0].type).toBe('EmailCredential')
     expect(result.types).toEqual(['email'])
   })
 
@@ -63,7 +64,7 @@ describe('identity email credential', () => {
     const request = await service.request({ types: ['email', 'username'], identity, account: link.account, email: 'alice@example.com', username: 'Alice_01' } as any)
     expect(request.username).toBe('alice_01')
     const result = await service.confirm({ types: ['email', 'username'], verificationId: request.verificationId, codes: { email: sent } })
-    expect(result.credentials.map(item => item.type)).toEqual(['username', 'email'])
+    expect(result.credentials.map(item => item.type)).toEqual(['UsernameCredential', 'EmailCredential'])
   })
 
   it('allows the same identity to retry a username and rejects another identity', async () => {

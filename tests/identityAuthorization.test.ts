@@ -33,11 +33,11 @@ describe('identity authorization', () => {
     const verifier = 'a'.repeat(43)
     const challenge = Buffer.from(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(verifier))).toString('base64url')
     const request = await service.create({ appId: 'project', redirectUri: 'https://project.example/auth/callback', codeChallenge: challenge, codeChallengeMethod: 'S256', scopes: ['identity.email'] })
-    await SingletonDataSource.get()!.getRepository(IdentityCredentialDO).save(Object.assign(new IdentityCredentialDO(), { credentialId: 'email-1', identityDid: identity, credentialType: 'email', token: 'credential', status: 'active', issuedAt: new Date().toISOString(), expiresAt: new Date(Date.now() + 60_000).toISOString(), revokedAt: '' }))
+    await SingletonDataSource.get()!.getRepository(IdentityCredentialDO).save(Object.assign(new IdentityCredentialDO(), { credentialId: 'email-1', identityDid: identity, credentialType: 'EmailCredential', token: 'credential', status: 'active', issuedAt: new Date().toISOString(), expiresAt: new Date(Date.now() + 60_000).toISOString(), revokedAt: '' }))
     const approved = await service.approve({ requestId: request.requestId, presentation: presentation(request) })
     const exchanged = await service.exchange({ code: approved.authorizationCode, appId: 'project', redirectUri: 'https://project.example/auth/callback', codeVerifier: verifier })
     expect(exchanged.did).toBe(identity)
-    expect(exchanged.credentials).toEqual([{ type: 'email', credentialId: 'email-1', credential: 'credential' }])
+    expect(exchanged.credentials).toEqual([{ type: 'EmailCredential', credentialId: 'email-1', credential: 'credential' }])
     await expect(service.exchange({ code: approved.authorizationCode, appId: 'project', redirectUri: 'https://project.example/auth/callback', codeVerifier: verifier })).rejects.toThrow('IDENTITY_AUTHORIZATION_CODE_INVALID')
   })
 

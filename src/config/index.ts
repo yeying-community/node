@@ -80,20 +80,19 @@ export interface TotpAuthRuntimeConfig {
     maxAttempts?: number
 }
 
-export interface PassportPasskeyRuntimeConfig {
+export interface IdentityPasskeyRuntimeConfig {
     enabled?: boolean
     rpId?: string
     rpName?: string
     origin?: string
+    origins?: string[]
     timeoutMs?: number
     challengeTtlMs?: number
 }
 
-export interface PassportAuthRuntimeConfig {
-    verifyPath?: string
+export interface IdentityAuthRuntimeConfig {
     portalBaseUrl?: string
-    assertionTtlMs?: number
-    passkey?: PassportPasskeyRuntimeConfig
+    passkey?: IdentityPasskeyRuntimeConfig
 }
 
 export interface IdentityIssuerRuntimeConfig {

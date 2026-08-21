@@ -22,8 +22,8 @@ export const routes = [
         component: () => import('../views/TotpAuthView.vue')
     },
     {
-        path: '/passport/authorize',
-        name: 'passportAuth',
+        path: '/identity/authorize',
+        name: 'identityAuth',
         meta: { public: true },
         component: () => import('../views/PassportAuthView.vue')
     },

@@ -129,7 +129,7 @@ export class IdentityEmailService {
           credentialStatus: { id: credentialId, type: 'YeyingCredentialStatusV1' }
         }
       })
-      credentials.push({ type: 'username', credentialId, credential })
+      credentials.push({ type: 'UsernameCredential', credentialId, credential })
     }
     if (challenge.types.includes('email')) {
       const credentialId = `urn:yeying:credential:email:${challenge.id}`
@@ -144,7 +144,7 @@ export class IdentityEmailService {
           credentialStatus: { id: credentialId, type: 'YeyingCredentialStatusV1' }
         }
       })
-      credentials.push({ type: 'email', credentialId, credential })
+      credentials.push({ type: 'EmailCredential', credentialId, credential })
     }
     {
       await ds.getRepository(IdentityVerificationTransactionDO).update({ verificationId: challenge.id }, { status: 'completed', completedAt: verifiedAt })

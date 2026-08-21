@@ -163,7 +163,7 @@ async function loadRequestInfo() {
   loadingRequest.value = true
   try {
     const response = await fetch(
-      apiUrl(`/api/v1/public/auth/passport/authorize/request/${encodeURIComponent(requestId.value)}`),
+      apiUrl(`/api/v1/public/identity/authorize/request/${encodeURIComponent(requestId.value)}`),
       {
         method: 'GET',
         credentials: 'include',
@@ -282,7 +282,7 @@ async function approveWithPasskey() {
 
   approving.value = true
   try {
-    const challengeResponse = await fetch(apiUrl('/api/v1/public/auth/passport/authorize/challenge'), {
+    const challengeResponse = await fetch(apiUrl('/api/v1/public/identity/authorize/challenge'), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       credentials: 'include',
@@ -293,7 +293,7 @@ async function approveWithPasskey() {
       t('passport_auth_challenge_failed')
     )
     const credential = await startAuthentication(challenge.passkeyRequest)
-    const approveResponse = await fetch(apiUrl('/api/v1/public/auth/passport/authorize/approve'), {
+    const approveResponse = await fetch(apiUrl('/api/v1/public/identity/authorize/approve'), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       credentials: 'include',
