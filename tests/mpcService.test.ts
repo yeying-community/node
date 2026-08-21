@@ -414,6 +414,7 @@ describe('MpcService notifications', () => {
         sessionId: 'session-1',
         payloadType: 'message',
         payloadHash: 'hash-1',
+        payload: { message: 'hello' },
         chainId: 0,
       },
       actor
@@ -426,6 +427,7 @@ describe('MpcService notifications', () => {
       initiator: actor,
       payloadType: 'message',
       payloadHash: 'hash-1',
+      payloadJson: '{"message":"hello"}',
       status: 'pending',
     }))
     expect(request).toEqual(expect.objectContaining({
@@ -434,6 +436,7 @@ describe('MpcService notifications', () => {
       sessionId: 'session-1',
       payloadType: 'message',
       payloadHash: 'hash-1',
+      payload: { message: 'hello' },
       status: 'pending',
     }))
   })
@@ -550,6 +553,7 @@ describe('MpcService notifications', () => {
         initiator: actor,
         payloadType: 'message',
         payloadHash: 'hash-1',
+        payloadJson: '{"message":"hello"}',
         chainId: 0,
         status: 'pending',
         approvals: '[]',
@@ -574,6 +578,7 @@ describe('MpcService notifications', () => {
     expect(result.items[0]).toEqual(expect.objectContaining({
       id: 'sign-request-1',
       status: 'pending',
+      payload: { message: 'hello' },
     }))
     expect(result.page.total).toBe(1)
   })

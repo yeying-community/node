@@ -69,6 +69,7 @@ export type CreateMpcSignRequestInput = {
   sessionId: string
   payloadType: string
   payloadHash: string
+  payload?: unknown
   chainId?: number
 }
 
@@ -765,6 +766,7 @@ export class MpcService {
       initiator: normalizeAddress(actor),
       payloadType,
       payloadHash,
+      payload: input.payload ?? {},
       chainId: Number(input.chainId || 0),
       status: 'pending',
       approvals: [],

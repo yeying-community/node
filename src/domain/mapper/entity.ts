@@ -1091,6 +1091,9 @@ export class MpcSignRequestDO {
     @Column({ length: 256, name: 'payload_hash' })
     payloadHash!: string
 
+    @Column('text', { name: 'payload_json', default: '{}' })
+    payloadJson!: string
+
     @Column({ type: 'int', name: 'chain_id', default: 0 })
     chainId!: number
 

@@ -56,6 +56,7 @@ export interface MpcSignRequest {
   initiator: string
   payloadType: string
   payloadHash: string
+  payload: unknown
   chainId: number
   status: string
   approvals: unknown
@@ -226,6 +227,11 @@ export function convertMpcSignRequestTo(request: Partial<MpcSignRequest>): MpcSi
   requestDO.initiator = request.initiator!
   requestDO.payloadType = request.payloadType!
   requestDO.payloadHash = request.payloadHash!
+  if (typeof request.payload === 'string') {
+    requestDO.payloadJson = request.payload
+  } else {
+    requestDO.payloadJson = JSON.stringify(request.payload ?? {})
+  }
   requestDO.chainId = request.chainId ?? 0
   requestDO.status = request.status || ''
   if (typeof request.approvals === 'string') {
@@ -252,6 +258,7 @@ export function convertMpcSignRequestFrom(requestDO: MpcSignRequestDO): MpcSignR
     initiator: requestDO.initiator,
     payloadType: requestDO.payloadType,
     payloadHash: requestDO.payloadHash,
+    payload: parseJsonValue(requestDO.payloadJson || '{}'),
     chainId: requestDO.chainId,
     status: requestDO.status,
     approvals: parseJsonValue(requestDO.approvals),

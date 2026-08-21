@@ -410,6 +410,7 @@ export function registerPublicMpcRoutes(app: Express) {
       const sessionId = String(body.sessionId || '').trim()
       const payloadType = String(body.payloadType || '').trim()
       const payloadHash = String(body.payloadHash || '').trim()
+      const signPayload = body.payload !== undefined ? body.payload : {}
       const chainId = parseNumber(body.chainId)
       const result = await executeSignedAction({
         raw: body,
@@ -421,6 +422,7 @@ export function registerPublicMpcRoutes(app: Express) {
           sessionId,
           payloadType,
           payloadHash,
+          payload: signPayload,
           chainId,
         },
         execute: async () => {
@@ -431,6 +433,7 @@ export function registerPublicMpcRoutes(app: Express) {
               sessionId,
               payloadType,
               payloadHash,
+              payload: signPayload,
               chainId,
             },
             user.address
