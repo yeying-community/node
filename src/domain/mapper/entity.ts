@@ -1001,6 +1001,9 @@ export class MpcSessionDO {
     @Column({ type: 'int', name: 'share_version' })
     shareVersion!: number
 
+    @Column({ type: 'text', name: 'result_json', default: '{}' })
+    resultJson!: string
+
     @Column({ length: 64, name: 'created_at' })
     createdAt!: string
 

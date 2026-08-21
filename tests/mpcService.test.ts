@@ -5,6 +5,8 @@ const managerMocks = {
   listSessions: vi.fn(),
   saveSession: vi.fn(),
   updateSession: vi.fn(),
+  getParticipant: vi.fn(),
+  listParticipants: vi.fn(),
   saveAuditLog: vi.fn(),
 }
 
@@ -58,9 +60,12 @@ describe('MpcService notifications', () => {
       curve: 'secp256k1',
       keyVersion: 0,
       shareVersion: 0,
+      resultJson: patch.resultJson || '{}',
       createdAt: '1',
       expiresAt: '1893456000000',
     }))
+    managerMocks.getParticipant.mockResolvedValue(null)
+    managerMocks.listParticipants.mockResolvedValue([])
     managerMocks.saveAuditLog.mockResolvedValue(undefined)
     notificationCreateMock.mockResolvedValue({ uid: 'notification-1' })
   })
@@ -266,5 +271,101 @@ describe('MpcService notifications', () => {
     const service = new MpcService()
 
     await expect(service.cancelSession('session-1', invited)).rejects.toThrow('FORBIDDEN')
+  })
+
+  it('completes keygen session and stores generated address result', async () => {
+    const actor = '0x1111111111111111111111111111111111111111'
+    const invited = '0x2222222222222222222222222222222222222222'
+    managerMocks.getSession.mockResolvedValue({
+      id: 'session-1',
+      name: '团队金库',
+      type: 'keygen',
+      walletId: 'mpc-wallet-1',
+      threshold: 1,
+      participants: JSON.stringify([actor, invited]),
+      status: 'rounds',
+      round: 1,
+      curve: 'secp256k1',
+      keyVersion: 1,
+      shareVersion: 1,
+      resultJson: '{}',
+      createdAt: '1',
+      expiresAt: '',
+    })
+    managerMocks.getParticipant.mockResolvedValue({
+      sessionId: 'session-1',
+      participantId: actor,
+      deviceId: 'device-1',
+      identity: `did:pkh:eth:${actor}`,
+      e2ePublicKey: 'x25519:key',
+      signingPublicKey: 'ed25519:key',
+      status: 'active',
+      joinedAt: '1',
+    })
+    managerMocks.listParticipants.mockResolvedValue([
+      {
+        sessionId: 'session-1',
+        participantId: actor,
+        deviceId: 'device-1',
+        identity: `did:pkh:eth:${actor}`,
+        e2ePublicKey: 'x25519:key',
+        signingPublicKey: 'ed25519:key',
+        status: 'active',
+        joinedAt: '1',
+      },
+    ])
+    managerMocks.updateSession.mockImplementation(async (sessionId, patch) => ({
+      id: sessionId,
+      name: '团队金库',
+      type: 'keygen',
+      walletId: 'mpc-wallet-1',
+      threshold: 1,
+      participants: JSON.stringify([actor, invited]),
+      status: patch.status,
+      round: 1,
+      curve: 'secp256k1',
+      keyVersion: patch.keyVersion,
+      shareVersion: patch.shareVersion,
+      resultJson: patch.resultJson,
+      createdAt: '1',
+      expiresAt: '',
+    }))
+    const service = new MpcService()
+
+    const completed = await service.completeKeygenSession(
+      'session-1',
+      {
+        participantId: actor,
+        result: {
+          address: '0x9999999999999999999999999999999999999999',
+          publicKey: '03abcdef',
+          keyVersion: 2,
+          shareVersion: 2,
+        },
+      },
+      actor
+    )
+
+    expect(managerMocks.updateSession).toHaveBeenCalledWith(
+      'session-1',
+      expect.objectContaining({
+        status: 'completed',
+        keyVersion: 2,
+        shareVersion: 2,
+      })
+    )
+    const patch = managerMocks.updateSession.mock.calls[0][1]
+    expect(JSON.parse(patch.resultJson)).toEqual(expect.objectContaining({
+      address: '0x9999999999999999999999999999999999999999',
+      publicKey: '03abcdef',
+      groupPublicKey: '03abcdef',
+      keyVersion: 2,
+      shareVersion: 2,
+    }))
+    expect(completed.status).toBe('completed')
+    expect(completed.result).toEqual(expect.objectContaining({
+      address: '0x9999999999999999999999999999999999999999',
+      publicKey: '03abcdef',
+    }))
   })
 })

@@ -103,6 +103,8 @@ function mapMpcError(error: unknown): { status: number; message: string } {
       return { status: 400, message: 'Missing wallet name' }
     case 'MISSING_PARTICIPANTS':
       return { status: 400, message: 'Missing participants' }
+    case 'MISSING_KEYGEN_RESULT':
+      return { status: 400, message: 'Missing keygen result' }
     case 'THRESHOLD_EXCEEDS_PARTICIPANTS':
       return { status: 400, message: 'Threshold exceeds participant count' }
     case 'Missing access token':
@@ -297,6 +299,79 @@ export function registerPublicMpcRoutes(app: Express) {
         },
         execute: async () => {
           const session = await service.cancelSession(sessionId, user.address)
+          return { status: 200, body: ok(session) }
+        },
+        onError: (error) => {
+          const mapped = mapMpcError(error)
+          return { status: mapped.status, body: fail(mapped.status, mapped.message) }
+        }
+      })
+      res.status(result.status).json(result.body)
+    } catch (error) {
+      const mapped = mapMpcError(error)
+      res.status(mapped.status).json(fail(mapped.status, mapped.message))
+    }
+  })
+
+  app.post('/api/v1/public/mpc/sessions/:sessionId/complete', async (req: Request, res: Response) => {
+    try {
+      const user = getRequestUser()
+      if (!user?.address) {
+        res.status(401).json(fail(401, 'Missing access token'))
+        return
+      }
+      requireMpcUcan(req)
+      await ensureUserActive(user.address)
+      await ensureUserCanWriteBusinessData(user.address)
+      const sessionId = req.params.sessionId
+      const body = req.body || {}
+      const participantId = String(body.participantId || '').trim()
+      const resultPayload = body.result && typeof body.result === 'object' ? body.result : {}
+      const address = String(resultPayload.address || '').trim()
+      const publicKey = String(resultPayload.publicKey || resultPayload.groupPublicKey || '').trim()
+      const groupPublicKey = String(resultPayload.groupPublicKey || publicKey).trim()
+      const chainCode = String(resultPayload.chainCode || '').trim()
+      const curve = String(resultPayload.curve || '').trim()
+      const keyVersion = parseNumber(resultPayload.keyVersion)
+      const shareVersion = parseNumber(resultPayload.shareVersion)
+      if (!participantId) {
+        res.status(400).json(fail(400, 'Missing participant info'))
+        return
+      }
+      const result = await executeSignedAction({
+        raw: body,
+        action: 'mpc_keygen_complete',
+        actor: user.address,
+        payload: {
+          sessionId,
+          participantId,
+          result: {
+            address,
+            publicKey,
+            groupPublicKey,
+            chainCode,
+            curve,
+            keyVersion,
+            shareVersion,
+          },
+        },
+        execute: async () => {
+          const session = await service.completeKeygenSession(
+            sessionId,
+            {
+              participantId,
+              result: {
+                address,
+                publicKey,
+                groupPublicKey,
+                chainCode,
+                curve,
+                keyVersion,
+                shareVersion,
+              },
+            },
+            user.address
+          )
           return { status: 200, body: ok(session) }
         },
         onError: (error) => {

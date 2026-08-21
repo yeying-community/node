@@ -48,6 +48,19 @@ export type SendMpcMessageInput = {
   envelope: unknown
 }
 
+export type CompleteMpcKeygenInput = {
+  participantId: string
+  result: {
+    address: string
+    publicKey: string
+    groupPublicKey?: string
+    chainCode?: string
+    curve?: string
+    keyVersion?: number
+    shareVersion?: number
+  }
+}
+
 export type MpcMessagePage = {
   messages: MpcMessage[]
   nextCursor?: string
@@ -604,6 +617,84 @@ export class MpcService {
     }
 
     return convertMpcMessageFrom(saved)
+  }
+
+  async completeKeygenSession(sessionId: string, input: CompleteMpcKeygenInput, actor: string): Promise<MpcSessionDetail> {
+    const sessionDO = await this.manager.getSession(sessionId)
+    if (!sessionDO) {
+      throw new Error('SESSION_NOT_FOUND')
+    }
+    if (this.isExpired(sessionDO.expiresAt)) {
+      if (sessionDO.status !== 'expired') {
+        await this.manager.updateSession(sessionId, { status: 'expired' })
+      }
+      throw new Error('SESSION_EXPIRED')
+    }
+
+    const session = convertMpcSessionFrom(sessionDO)
+    if (session.type !== 'keygen') {
+      throw new Error('INVALID_SESSION_TYPE')
+    }
+    const participantDO = await this.manager.getParticipant(sessionId, input.participantId)
+    if (!participantDO) {
+      throw new Error('PARTICIPANT_NOT_JOINED')
+    }
+    const identityAddress = extractEthAddress(participantDO.identity)
+    if (identityAddress && normalizeAddress(identityAddress) !== normalizeAddress(actor)) {
+      throw new Error('FORBIDDEN')
+    }
+
+    const address = String(input.result?.address || '').trim()
+    const publicKey = String(input.result?.publicKey || input.result?.groupPublicKey || '').trim()
+    if (!address || !publicKey) {
+      throw new Error('MISSING_KEYGEN_RESULT')
+    }
+
+    const result = {
+      address,
+      publicKey,
+      groupPublicKey: String(input.result.groupPublicKey || publicKey).trim(),
+      chainCode: String(input.result.chainCode || '').trim(),
+      curve: String(input.result.curve || session.curve || 'secp256k1').trim(),
+      keyVersion: input.result.keyVersion ?? session.keyVersion,
+      shareVersion: input.result.shareVersion ?? session.shareVersion,
+    }
+    const keyVersion = Number(result.keyVersion || session.keyVersion || 0)
+    const shareVersion = Number(result.shareVersion || session.shareVersion || 0)
+    const updatedDO = await this.manager.updateSession(sessionId, {
+      status: 'completed',
+      resultJson: JSON.stringify(result),
+      keyVersion,
+      shareVersion,
+    })
+    const updated = updatedDO ? convertMpcSessionFrom(updatedDO) : {
+      ...session,
+      status: 'completed',
+      result,
+      keyVersion,
+      shareVersion,
+    }
+
+    await this.writeAuditLog(updated.walletId, updated.id, 'keygen-completed', actor, 'keygen completed', {
+      participantId: input.participantId,
+      address,
+      publicKey,
+      keyVersion,
+      shareVersion,
+    })
+    this.emitEvent(updated.id, 'session-update', {
+      status: updated.status,
+      round: updated.round,
+      result,
+      keyVersion,
+      shareVersion,
+    })
+    const participants = (await this.manager.listParticipants(sessionId)).map(convertMpcParticipantFrom)
+    return {
+      ...updated,
+      joinedParticipants: participants,
+      joinedCount: participants.length,
+    }
   }
 
   async fetchMessages(

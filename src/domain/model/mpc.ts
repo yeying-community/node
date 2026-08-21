@@ -20,6 +20,7 @@ export interface MpcSession {
   curve: string
   keyVersion: number
   shareVersion: number
+  result?: unknown
   createdAt: string
   expiresAt: string
 }
@@ -114,6 +115,11 @@ export function convertMpcSessionTo(session: Partial<MpcSession>): MpcSessionDO 
   sessionDO.curve = session.curve || ''
   sessionDO.keyVersion = session.keyVersion ?? 0
   sessionDO.shareVersion = session.shareVersion ?? 0
+  if (typeof session.result === 'string') {
+    sessionDO.resultJson = session.result
+  } else {
+    sessionDO.resultJson = JSON.stringify(session.result ?? {})
+  }
   sessionDO.createdAt = session.createdAt || ''
   sessionDO.expiresAt = session.expiresAt || ''
   return sessionDO
@@ -132,6 +138,7 @@ export function convertMpcSessionFrom(sessionDO: MpcSessionDO): MpcSession {
     curve: sessionDO.curve,
     keyVersion: sessionDO.keyVersion,
     shareVersion: sessionDO.shareVersion,
+    result: parseJsonValue(sessionDO.resultJson || '{}'),
     createdAt: sessionDO.createdAt,
     expiresAt: sessionDO.expiresAt
   }
