@@ -7,6 +7,9 @@ const managerMocks = {
   updateSession: vi.fn(),
   getParticipant: vi.fn(),
   listParticipants: vi.fn(),
+  saveMessage: vi.fn(),
+  getMaxMessageSeq: vi.fn(),
+  queryMessages: vi.fn(),
   getSignRequest: vi.fn(),
   querySignRequests: vi.fn(),
   saveSignRequest: vi.fn(),
@@ -69,6 +72,9 @@ describe('MpcService notifications', () => {
     }))
     managerMocks.getParticipant.mockResolvedValue(null)
     managerMocks.listParticipants.mockResolvedValue([])
+    managerMocks.saveMessage.mockImplementation(async (message) => message)
+    managerMocks.getMaxMessageSeq.mockResolvedValue(0)
+    managerMocks.queryMessages.mockResolvedValue([])
     managerMocks.getSignRequest.mockResolvedValue(null)
     managerMocks.querySignRequests.mockResolvedValue([])
     managerMocks.saveSignRequest.mockImplementation(async (request) => request)
@@ -581,5 +587,136 @@ describe('MpcService notifications', () => {
       payload: { message: 'hello' },
     }))
     expect(result.page.total).toBe(1)
+  })
+
+  it('stores cggmp24 wire messages with server-assigned sequence', async () => {
+    const actor = '0x1111111111111111111111111111111111111111'
+    const recipient = '0x2222222222222222222222222222222222222222'
+    managerMocks.getSession.mockResolvedValue({
+      id: 'session-1',
+      name: '团队金库',
+      type: 'keygen',
+      walletId: 'mpc-wallet-1',
+      threshold: 2,
+      participants: JSON.stringify([actor, recipient]),
+      status: 'ready',
+      round: 0,
+      curve: 'secp256k1',
+      keyVersion: 0,
+      shareVersion: 0,
+      resultJson: '{}',
+      createdAt: '1',
+      expiresAt: '',
+    })
+    managerMocks.getParticipant.mockResolvedValue({
+      sessionId: 'session-1',
+      participantId: actor,
+      deviceId: 'device-1',
+      identity: `did:pkh:eth:${actor}`,
+      e2ePublicKey: 'x25519:key',
+      signingPublicKey: 'ed25519:key',
+      status: 'active',
+      joinedAt: '1',
+    })
+    managerMocks.getMaxMessageSeq.mockResolvedValue(3)
+    const service = new MpcService()
+
+    const result = await service.sendWireMessage(
+      'session-1',
+      {
+        protocol_version: 1,
+        engine: 'cggmp24',
+        session_id: 'session-1',
+        protocol: 'sign',
+        sequence: 99,
+        sender_index: 0,
+        audience: { 'one-party': { recipient_index: 1 } },
+        payload: { Round1b: { ciphertext: 'opaque' } },
+      },
+      actor
+    )
+
+    expect(result).toEqual(expect.objectContaining({
+      sessionId: 'session-1',
+      sender: '0',
+      receiver: '1',
+      type: 'sign',
+      round: 1,
+      seq: 4,
+    }))
+    expect(result.envelope).toEqual(expect.objectContaining({
+      protocol_version: 1,
+      engine: 'cggmp24',
+      session_id: 'session-1',
+      protocol: 'sign',
+      sequence: 4,
+      sender_index: 0,
+      audience: { 'one-party': { recipient_index: 1 } },
+      payload: { Round1b: { ciphertext: 'opaque' } },
+    }))
+    expect(managerMocks.saveMessage).toHaveBeenCalledWith(expect.objectContaining({
+      sessionId: 'session-1',
+      sender: '0',
+      receiver: '1',
+      seq: 4,
+    }))
+  })
+
+  it('fetches only messages visible to the requested participant index', async () => {
+    const actor = '0x1111111111111111111111111111111111111111'
+    const recipient = '0x2222222222222222222222222222222222222222'
+    managerMocks.getSession.mockResolvedValue({
+      id: 'session-1',
+      name: '团队金库',
+      type: 'keygen',
+      walletId: 'mpc-wallet-1',
+      threshold: 2,
+      participants: JSON.stringify([actor, recipient]),
+      status: 'rounds',
+      round: 1,
+      curve: 'secp256k1',
+      keyVersion: 0,
+      shareVersion: 0,
+      resultJson: '{}',
+      createdAt: '1',
+      expiresAt: '',
+    })
+    managerMocks.listParticipants.mockResolvedValue([
+      {
+        sessionId: 'session-1',
+        participantId: actor,
+        deviceId: 'device-1',
+        identity: `did:pkh:eth:${actor}`,
+        e2ePublicKey: 'x25519:key',
+        signingPublicKey: 'ed25519:key',
+        status: 'active',
+        joinedAt: '1',
+      },
+    ])
+    managerMocks.queryMessages.mockResolvedValue([
+      {
+        id: 'msg-2',
+        sessionId: 'session-1',
+        sender: '1',
+        receiver: '',
+        round: 1,
+        type: 'sign',
+        seq: 2,
+        envelope: '{"sequence":2}',
+        createdAt: '2',
+      },
+    ])
+    const service = new MpcService()
+
+    const result = await service.fetchMessages('session-1', actor, undefined, undefined, 20, 1, 0)
+
+    expect(managerMocks.queryMessages).toHaveBeenCalledWith(expect.objectContaining({
+      sessionId: 'session-1',
+      afterSeq: 1,
+      recipientIndex: 0,
+      limit: 20,
+    }))
+    expect(result.messages).toHaveLength(1)
+    expect(result.nextSequence).toBe(2)
   })
 })

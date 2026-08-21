@@ -97,6 +97,12 @@ function mapMpcError(error: unknown): { status: number; message: string } {
       return { status: 400, message: 'Invalid session type' }
     case 'INVALID_SIGN_PAYLOAD_TYPE':
       return { status: 400, message: 'Invalid sign payload type' }
+    case 'INVALID_MPC_MESSAGE':
+      return { status: 400, message: 'Invalid MPC message' }
+    case 'INVALID_MPC_MESSAGE_AUDIENCE':
+      return { status: 400, message: 'Invalid MPC message audience' }
+    case 'INVALID_MPC_PARTICIPANT_INDEX':
+      return { status: 400, message: 'Invalid MPC participant index' }
     case 'INVALID_THRESHOLD':
       return { status: 400, message: 'Invalid threshold' }
     case 'MISSING_WALLET_ID':
@@ -548,6 +554,45 @@ export function registerPublicMpcRoutes(app: Express) {
       const messageId = String(payload.id || '').trim()
       const sender = String(payload.from || '').trim()
       const messageType = String(payload.type || '').trim()
+      const isWireMessage =
+        payload &&
+        typeof payload === 'object' &&
+        ('protocol_version' in payload || 'protocolVersion' in payload) &&
+        'engine' in payload &&
+        'protocol' in payload &&
+        'audience' in payload &&
+        'payload' in payload
+      if (isWireMessage) {
+        const result = await executeSignedAction({
+          raw: rawSignature,
+          action: 'mpc_message_send',
+          actor: user.address,
+          payload: {
+            sessionId,
+            protocolVersion: (payload as Record<string, unknown>).protocol_version ?? (payload as Record<string, unknown>).protocolVersion,
+            engine: (payload as Record<string, unknown>).engine,
+            envelopeSessionId: (payload as Record<string, unknown>).session_id ?? (payload as Record<string, unknown>).sessionId,
+            protocol: (payload as Record<string, unknown>).protocol,
+            senderIndex: (payload as Record<string, unknown>).sender_index ?? (payload as Record<string, unknown>).senderIndex,
+            audience: (payload as Record<string, unknown>).audience,
+            messagePayload: (payload as Record<string, unknown>).payload,
+          },
+          execute: async () => {
+            const response = await service.sendWireMessage(
+              sessionId,
+              payload as Parameters<MpcService['sendWireMessage']>[1],
+              user.address
+            )
+            return { status: 200, body: ok(response) }
+          },
+          onError: (error) => {
+            const mapped = mapMpcError(error)
+            return { status: mapped.status, body: fail(mapped.status, mapped.message) }
+          }
+        })
+        res.status(result.status).json(result.body)
+        return
+      }
       if (!messageId) {
         res.status(400).json(fail(400, 'Missing message id'))
         return
@@ -609,9 +654,11 @@ export function registerPublicMpcRoutes(app: Express) {
       await ensureUserActive(user.address)
       const sessionId = req.params.sessionId
       const since = parseNumber(req.query.since)
+      const after = parseNumber(req.query.after)
+      const recipientIndex = parseNumber(req.query.recipientIndex)
       const cursor = req.query.cursor ? String(req.query.cursor) : undefined
       const limit = parseNumber(req.query.limit)
-      const response = await service.fetchMessages(sessionId, user.address, since, cursor, limit)
+      const response = await service.fetchMessages(sessionId, user.address, since, cursor, limit, after, recipientIndex)
       res.json(ok(response))
     } catch (error) {
       const mapped = mapMpcError(error)
