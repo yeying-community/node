@@ -109,6 +109,10 @@ function mapMpcError(error: unknown): { status: number; message: string } {
       return { status: 400, message: 'Missing keygen result' }
     case 'MISSING_SIGN_PAYLOAD_HASH':
       return { status: 400, message: 'Missing sign payload hash' }
+    case 'MISSING_SIGN_RESULT':
+      return { status: 400, message: 'Missing sign result' }
+    case 'SIGN_REQUEST_NOT_FOUND':
+      return { status: 404, message: 'Sign request not found' }
     case 'THRESHOLD_EXCEEDS_PARTICIPANTS':
       return { status: 400, message: 'Threshold exceeds participant count' }
     case 'Missing access token':
@@ -428,6 +432,55 @@ export function registerPublicMpcRoutes(app: Express) {
               payloadType,
               payloadHash,
               chainId,
+            },
+            user.address
+          )
+          return { status: 200, body: ok(request) }
+        },
+        onError: (error) => {
+          const mapped = mapMpcError(error)
+          return { status: mapped.status, body: fail(mapped.status, mapped.message) }
+        }
+      })
+      res.status(result.status).json(result.body)
+    } catch (error) {
+      const mapped = mapMpcError(error)
+      res.status(mapped.status).json(fail(mapped.status, mapped.message))
+    }
+  })
+
+  app.post('/api/v1/public/mpc/sign-requests/:requestId/complete', async (req: Request, res: Response) => {
+    try {
+      const user = getRequestUser()
+      if (!user?.address) {
+        res.status(401).json(fail(401, 'Missing access token'))
+        return
+      }
+      requireMpcUcan(req)
+      await ensureUserActive(user.address)
+      await ensureUserCanWriteBusinessData(user.address)
+      const body = req.body || {}
+      const requestId = String(req.params.requestId || body.requestId || '').trim()
+      const participantId = String(body.participantId || '').trim()
+      const signature = String(body.signature || '').trim()
+      const resultPayload = body.result !== undefined ? body.result : { signature }
+      const result = await executeSignedAction({
+        raw: body,
+        action: 'mpc_sign_request_complete',
+        actor: user.address,
+        payload: {
+          requestId,
+          participantId,
+          signature,
+          result: resultPayload,
+        },
+        execute: async () => {
+          const request = await service.completeSignRequest(
+            {
+              requestId,
+              participantId,
+              signature,
+              result: resultPayload,
             },
             user.address
           )

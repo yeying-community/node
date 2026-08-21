@@ -435,4 +435,78 @@ describe('MpcService notifications', () => {
       status: 'pending',
     }))
   })
+
+  it('completes MPC sign request for a participant', async () => {
+    const actor = '0x1111111111111111111111111111111111111111'
+    managerMocks.getSignRequest.mockResolvedValue({
+      id: 'sign-request-1',
+      walletId: 'mpc-wallet-1',
+      sessionId: 'session-1',
+      initiator: actor,
+      payloadType: 'message',
+      payloadHash: 'hash-1',
+      chainId: 0,
+      status: 'pending',
+      approvals: '[]',
+      signature: '',
+      resultJson: '{}',
+      completedAt: '',
+      createdAt: '1',
+    })
+    managerMocks.getSession.mockResolvedValue({
+      id: 'session-1',
+      name: '团队金库',
+      type: 'keygen',
+      walletId: 'mpc-wallet-1',
+      threshold: 1,
+      participants: JSON.stringify([actor]),
+      status: 'completed',
+      round: 1,
+      curve: 'secp256k1',
+      keyVersion: 2,
+      shareVersion: 2,
+      resultJson: '{"address":"0x9999999999999999999999999999999999999999","publicKey":"03abcdef"}',
+      createdAt: '1',
+      expiresAt: '',
+    })
+    managerMocks.listParticipants.mockResolvedValue([
+      {
+        sessionId: 'session-1',
+        participantId: actor,
+        deviceId: 'device-1',
+        identity: `did:pkh:eth:${actor}`,
+        e2ePublicKey: 'x25519:key',
+        signingPublicKey: 'ed25519:key',
+        status: 'active',
+        joinedAt: '1',
+      },
+    ])
+    const service = new MpcService()
+
+    const request = await service.completeSignRequest(
+      {
+        requestId: 'sign-request-1',
+        participantId: actor,
+        signature: '0xmpcsig',
+        result: { signature: '0xmpcsig', recoveryId: 1 },
+      },
+      actor
+    )
+
+    expect(managerMocks.saveSignRequest).toHaveBeenCalledWith(expect.objectContaining({
+      id: 'sign-request-1',
+      walletId: 'mpc-wallet-1',
+      sessionId: 'session-1',
+      status: 'completed',
+      signature: '0xmpcsig',
+      resultJson: '{"signature":"0xmpcsig","recoveryId":1}',
+    }))
+    expect(request).toEqual(expect.objectContaining({
+      id: 'sign-request-1',
+      status: 'completed',
+      signature: '0xmpcsig',
+      result: { signature: '0xmpcsig', recoveryId: 1 },
+    }))
+    expect(request.completedAt).toBeTruthy()
+  })
 })

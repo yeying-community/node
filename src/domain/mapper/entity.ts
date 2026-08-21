@@ -1100,6 +1100,15 @@ export class MpcSignRequestDO {
     @Column('text')
     approvals!: string
 
+    @Column('text', { default: '' })
+    signature!: string
+
+    @Column('text', { name: 'result_json', default: '{}' })
+    resultJson!: string
+
+    @Column({ length: 64, name: 'completed_at', default: '' })
+    completedAt!: string
+
     @Column({ length: 64, name: 'created_at' })
     createdAt!: string
 }

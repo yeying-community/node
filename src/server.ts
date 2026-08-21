@@ -86,6 +86,8 @@ import { AddIdentityAuthorization20260818120000 } from './migrations/20260818120
 import { AddIdentityPasskeyColumns20260820133000 } from './migrations/20260820133000-add-identity-passkey-columns';
 import { RepairIdentityPasskeyTables20260820143000 } from './migrations/20260820143000-repair-identity-passkey-tables';
 import { AddMpcSessionName20260821120000 } from './migrations/20260821120000-add-mpc-session-name';
+import { AddMpcSessionResult20260821133000 } from './migrations/20260821133000-add-mpc-session-result';
+import { AddMpcSignRequestResult20260821152000 } from './migrations/20260821152000-add-mpc-sign-request-result';
 import { AddScopedGrants20260808090000 } from './migrations/20260808090000-add-scoped-grants';
 import { getConfig } from './config/runtime';
 import { startActionRequestCleanupJobs } from './domain/service/actionRequestCleanup';
@@ -329,7 +331,9 @@ builder.migrations([
     AddIdentityAuthorization20260818120000,
     AddIdentityPasskeyColumns20260820133000,
     RepairIdentityPasskeyTables20260820143000,
-    AddMpcSessionName20260821120000
+    AddMpcSessionName20260821120000,
+    AddMpcSessionResult20260821133000,
+    AddMpcSignRequestResult20260821152000
 ])
 
 builder.build().initialize().then(async (conn) => {

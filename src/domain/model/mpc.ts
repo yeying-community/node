@@ -59,6 +59,9 @@ export interface MpcSignRequest {
   chainId: number
   status: string
   approvals: unknown
+  signature: string
+  result: unknown
+  completedAt: string
   createdAt: string
 }
 
@@ -230,6 +233,13 @@ export function convertMpcSignRequestTo(request: Partial<MpcSignRequest>): MpcSi
   } else {
     requestDO.approvals = JSON.stringify(request.approvals ?? [])
   }
+  requestDO.signature = request.signature || ''
+  if (typeof request.result === 'string') {
+    requestDO.resultJson = request.result
+  } else {
+    requestDO.resultJson = JSON.stringify(request.result ?? {})
+  }
+  requestDO.completedAt = request.completedAt || ''
   requestDO.createdAt = request.createdAt || ''
   return requestDO
 }
@@ -245,6 +255,9 @@ export function convertMpcSignRequestFrom(requestDO: MpcSignRequestDO): MpcSignR
     chainId: requestDO.chainId,
     status: requestDO.status,
     approvals: parseJsonValue(requestDO.approvals),
+    signature: requestDO.signature || '',
+    result: parseJsonValue(requestDO.resultJson || '{}'),
+    completedAt: requestDO.completedAt || '',
     createdAt: requestDO.createdAt
   }
 }

@@ -72,6 +72,13 @@ export type CreateMpcSignRequestInput = {
   chainId?: number
 }
 
+export type CompleteMpcSignRequestInput = {
+  requestId: string
+  participantId: string
+  signature: string
+  result?: unknown
+}
+
 export type MpcMessagePage = {
   messages: MpcMessage[]
   nextCursor?: string
@@ -764,6 +771,50 @@ export class MpcService {
     })
     this.emitEvent(input.sessionId, 'sign-request', convertMpcSignRequestFrom(saved))
     return convertMpcSignRequestFrom(saved)
+  }
+
+  async completeSignRequest(input: CompleteMpcSignRequestInput, actor: string) {
+    const requestId = String(input.requestId || '').trim()
+    if (!requestId) {
+      throw new Error('SIGN_REQUEST_NOT_FOUND')
+    }
+    const participantId = normalizeAddress(input.participantId || actor || '')
+    const signature = String(input.signature || '').trim()
+    if (!signature) {
+      throw new Error('MISSING_SIGN_RESULT')
+    }
+    const requestDO = await this.manager.getSignRequest(requestId)
+    if (!requestDO) {
+      throw new Error('SIGN_REQUEST_NOT_FOUND')
+    }
+    const request = convertMpcSignRequestFrom(requestDO)
+    const sessionDO = await this.manager.getSession(request.sessionId)
+    if (!sessionDO) {
+      throw new Error('SESSION_NOT_FOUND')
+    }
+    const participants = (await this.manager.listParticipants(request.sessionId)).map(convertMpcParticipantFrom)
+    if (!this.ensureActorAccess(participants, actor)) {
+      throw new Error('FORBIDDEN')
+    }
+    if (participantId && !participants.some((participant) => normalizeAddress(participant.participantId) === participantId)) {
+      throw new Error('PARTICIPANT_NOT_JOINED')
+    }
+    const now = this.nowEpoch()
+    const completed = convertMpcSignRequestTo({
+      ...request,
+      status: 'completed',
+      signature,
+      result: input.result ?? { signature },
+      completedAt: now,
+    })
+    const saved = await this.manager.saveSignRequest(completed)
+    const output = convertMpcSignRequestFrom(saved)
+    await this.writeAuditLog(request.walletId, request.sessionId, 'sign-request-completed', actor, 'sign request completed', {
+      requestId,
+      participantId,
+    })
+    this.emitEvent(request.sessionId, 'sign-request-completed', output)
+    return output
   }
 
   async fetchMessages(

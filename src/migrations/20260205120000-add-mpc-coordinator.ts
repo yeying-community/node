@@ -89,6 +89,9 @@ export class AddMpcCoordinator20260205120000 implements MigrationInterface {
         chain_id int NOT NULL DEFAULT 0,
         status varchar(32) NOT NULL DEFAULT '',
         approvals text NOT NULL DEFAULT '',
+        signature text NOT NULL DEFAULT '',
+        result_json text NOT NULL DEFAULT '{}',
+        completed_at varchar(64) NOT NULL DEFAULT '',
         created_at varchar(64) NOT NULL DEFAULT ''
       )
     `)
