@@ -15,6 +15,12 @@ export type MpcMessageQuery = {
   limit: number
 }
 
+export type MpcSignRequestQuery = {
+  sessionId?: string
+  walletId?: string
+  status?: string
+}
+
 export class MpcManager {
   private sessionRepository: Repository<MpcSessionDO>
   private participantRepository: Repository<MpcSessionParticipantDO>
@@ -107,6 +113,23 @@ export class MpcManager {
 
   async getSignRequest(id: string) {
     return await this.signRequestRepository.findOneBy({ id })
+  }
+
+  async querySignRequests(query: MpcSignRequestQuery = {}) {
+    const qb = this.signRequestRepository.createQueryBuilder('request')
+    qb.where('1 = 1')
+    if (query.sessionId) {
+      qb.andWhere('request.session_id = :sessionId', { sessionId: query.sessionId })
+    }
+    if (query.walletId) {
+      qb.andWhere('request.wallet_id = :walletId', { walletId: query.walletId })
+    }
+    if (query.status) {
+      qb.andWhere('request.status = :status', { status: query.status })
+    }
+    qb.orderBy('request.created_at', 'DESC')
+    qb.addOrderBy('request.id', 'ASC')
+    return await qb.getMany()
   }
 
   async saveAuditLog(log: MpcAuditLogDO) {

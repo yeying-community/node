@@ -8,6 +8,7 @@ const managerMocks = {
   getParticipant: vi.fn(),
   listParticipants: vi.fn(),
   getSignRequest: vi.fn(),
+  querySignRequests: vi.fn(),
   saveSignRequest: vi.fn(),
   saveAuditLog: vi.fn(),
 }
@@ -69,6 +70,7 @@ describe('MpcService notifications', () => {
     managerMocks.getParticipant.mockResolvedValue(null)
     managerMocks.listParticipants.mockResolvedValue([])
     managerMocks.getSignRequest.mockResolvedValue(null)
+    managerMocks.querySignRequests.mockResolvedValue([])
     managerMocks.saveSignRequest.mockImplementation(async (request) => request)
     managerMocks.saveAuditLog.mockResolvedValue(undefined)
     notificationCreateMock.mockResolvedValue({ uid: 'notification-1' })
@@ -508,5 +510,71 @@ describe('MpcService notifications', () => {
       result: { signature: '0xmpcsig', recoveryId: 1 },
     }))
     expect(request.completedAt).toBeTruthy()
+  })
+
+  it('lists MPC sign requests visible to a participant', async () => {
+    const actor = '0x1111111111111111111111111111111111111111'
+    managerMocks.getSession.mockResolvedValue({
+      id: 'session-1',
+      name: '团队金库',
+      type: 'keygen',
+      walletId: 'mpc-wallet-1',
+      threshold: 1,
+      participants: JSON.stringify([actor]),
+      status: 'completed',
+      round: 1,
+      curve: 'secp256k1',
+      keyVersion: 2,
+      shareVersion: 2,
+      resultJson: '{}',
+      createdAt: '1',
+      expiresAt: '',
+    })
+    managerMocks.listParticipants.mockResolvedValue([
+      {
+        sessionId: 'session-1',
+        participantId: actor,
+        deviceId: 'device-1',
+        identity: `did:pkh:eth:${actor}`,
+        e2ePublicKey: 'x25519:key',
+        signingPublicKey: 'ed25519:key',
+        status: 'active',
+        joinedAt: '1',
+      },
+    ])
+    managerMocks.querySignRequests.mockResolvedValue([
+      {
+        id: 'sign-request-1',
+        walletId: 'mpc-wallet-1',
+        sessionId: 'session-1',
+        initiator: actor,
+        payloadType: 'message',
+        payloadHash: 'hash-1',
+        chainId: 0,
+        status: 'pending',
+        approvals: '[]',
+        signature: '',
+        resultJson: '{}',
+        completedAt: '',
+        createdAt: '1',
+      },
+    ])
+    const service = new MpcService()
+
+    const result = await service.listSignRequests(actor, {
+      sessionId: 'session-1',
+      status: 'pending',
+    })
+
+    expect(managerMocks.querySignRequests).toHaveBeenCalledWith(expect.objectContaining({
+      sessionId: 'session-1',
+      status: 'pending',
+    }))
+    expect(result.items).toHaveLength(1)
+    expect(result.items[0]).toEqual(expect.objectContaining({
+      id: 'sign-request-1',
+      status: 'pending',
+    }))
+    expect(result.page.total).toBe(1)
   })
 })

@@ -108,6 +108,14 @@ export type MpcInviteListItem = {
   session: MpcSession
 }
 
+export type MpcSignRequestListQuery = {
+  sessionId?: string
+  walletId?: string
+  status?: string
+  page?: number
+  pageSize?: number
+}
+
 export type MpcSessionDetail = MpcSession & {
   joinedParticipants: MpcSessionParticipant[]
   joinedCount: number
@@ -771,6 +779,54 @@ export class MpcService {
     })
     this.emitEvent(input.sessionId, 'sign-request', convertMpcSignRequestFrom(saved))
     return convertMpcSignRequestFrom(saved)
+  }
+
+  async listSignRequests(actor: string, query: MpcSignRequestListQuery = {}) {
+    const page = Math.max(Number.isFinite(query.page) ? Math.floor(query.page!) : 1, 1)
+    const pageSize = Math.min(Math.max(Number.isFinite(query.pageSize) ? Math.floor(query.pageSize!) : 20, 1), 100)
+    const sessionId = String(query.sessionId || '').trim()
+    const walletId = String(query.walletId || '').trim()
+    const status = String(query.status || '').trim()
+
+    if (sessionId) {
+      const sessionDO = await this.manager.getSession(sessionId)
+      if (!sessionDO) {
+        throw new Error('SESSION_NOT_FOUND')
+      }
+      const participants = (await this.manager.listParticipants(sessionId)).map(convertMpcParticipantFrom)
+      if (!this.ensureActorAccess(participants, actor)) {
+        throw new Error('FORBIDDEN')
+      }
+    }
+
+    const allowedSessionIds = new Set<string>()
+    if (!sessionId) {
+      const sessions = (await this.manager.listSessions()).map(convertMpcSessionFrom)
+      for (const session of sessions) {
+        const participants = (await this.manager.listParticipants(session.id)).map(convertMpcParticipantFrom)
+        if (this.ensureActorAccess(participants, actor)) {
+          allowedSessionIds.add(session.id)
+        }
+      }
+    }
+
+    const requests = (await this.manager.querySignRequests({
+      sessionId: sessionId || undefined,
+      walletId: walletId || undefined,
+      status: status || undefined,
+    }))
+      .map(convertMpcSignRequestFrom)
+      .filter((request) => sessionId || allowedSessionIds.has(request.sessionId))
+
+    const total = requests.length
+    return {
+      items: requests.slice((page - 1) * pageSize, page * pageSize),
+      page: {
+        total,
+        page,
+        pageSize,
+      },
+    }
   }
 
   async completeSignRequest(input: CompleteMpcSignRequestInput, actor: string) {

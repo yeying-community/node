@@ -449,6 +449,29 @@ export function registerPublicMpcRoutes(app: Express) {
     }
   })
 
+  app.get('/api/v1/public/mpc/sign-requests', async (req: Request, res: Response) => {
+    try {
+      const user = getRequestUser()
+      if (!user?.address) {
+        res.status(401).json(fail(401, 'Missing access token'))
+        return
+      }
+      requireMpcUcan(req)
+      await ensureUserActive(user.address)
+      const response = await service.listSignRequests(user.address, {
+        sessionId: String(req.query.sessionId || '').trim() || undefined,
+        walletId: String(req.query.walletId || '').trim() || undefined,
+        status: String(req.query.status || '').trim() || undefined,
+        page: parseNumber(req.query.page),
+        pageSize: parseNumber(req.query.pageSize),
+      })
+      res.json(ok(response))
+    } catch (error) {
+      const mapped = mapMpcError(error)
+      res.status(mapped.status).json(fail(mapped.status, mapped.message))
+    }
+  })
+
   app.post('/api/v1/public/mpc/sign-requests/:requestId/complete', async (req: Request, res: Response) => {
     try {
       const user = getRequestUser()
