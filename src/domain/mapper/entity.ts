@@ -1195,6 +1195,9 @@ export class MpcSessionDO {
     @PrimaryColumn({ length: 64, nullable: false, unique: true })
     id!: string
 
+    @Column({ length: 128, default: '' })
+    name!: string
+
     @Column({ length: 16 })
     type!: string
 

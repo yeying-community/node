@@ -99,6 +99,8 @@ function mapMpcError(error: unknown): { status: number; message: string } {
       return { status: 400, message: 'Invalid threshold' }
     case 'MISSING_WALLET_ID':
       return { status: 400, message: 'Missing walletId' }
+    case 'MISSING_WALLET_NAME':
+      return { status: 400, message: 'Missing wallet name' }
     case 'MISSING_PARTICIPANTS':
       return { status: 400, message: 'Missing participants' }
     case 'THRESHOLD_EXCEEDS_PARTICIPANTS':
@@ -142,6 +144,7 @@ export function registerPublicMpcRoutes(app: Express) {
       await ensureUserActive(user.address)
       await ensureUserCanWriteBusinessData(user.address)
       const body = req.body || {}
+      const name = String(body.name || '').trim()
       const type = String(body.type || '').trim()
       const walletId = String(body.walletId || '').trim()
       const threshold = Number(body.threshold)
@@ -168,6 +171,7 @@ export function registerPublicMpcRoutes(app: Express) {
           const session = await service.createSession(
             {
               id: sessionId ? String(sessionId) : undefined,
+              name,
               type,
               walletId,
               threshold,

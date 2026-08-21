@@ -43,6 +43,7 @@ describe('MpcService notifications', () => {
     managerMocks.saveSession.mockImplementation(async (session) => session)
     managerMocks.updateSession.mockImplementation(async (sessionId, patch) => ({
       id: sessionId,
+      name: '团队金库',
       type: 'keygen',
       walletId: 'mpc-wallet-1',
       threshold: 2,
@@ -70,6 +71,7 @@ describe('MpcService notifications', () => {
     const session = await service.createSession(
       {
         id: 'session-1',
+        name: '团队金库',
         type: 'keygen',
         walletId: 'mpc-wallet-1',
         threshold: 2,
@@ -81,6 +83,7 @@ describe('MpcService notifications', () => {
     )
 
     expect(session.id).toBe('session-1')
+    expect(session.name).toBe('团队金库')
     expect(notificationCreateMock).toHaveBeenCalledTimes(1)
     expect(notificationCreateMock).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -98,6 +101,7 @@ describe('MpcService notifications', () => {
     expect(notificationCreateMock.mock.calls[0][0].payload).toEqual(
       expect.objectContaining({
         sessionId: 'session-1',
+        name: '团队金库',
         walletId: 'mpc-wallet-1',
         sessionType: 'keygen',
         threshold: 2,
@@ -116,6 +120,7 @@ describe('MpcService notifications', () => {
     await service.createSession(
       {
         id: 'session-sign-1',
+        name: '签名会话',
         type: 'sign',
         walletId: 'mpc-wallet-1',
         threshold: 1,
@@ -136,6 +141,7 @@ describe('MpcService notifications', () => {
     const session = await service.createSession(
       {
         id: 'session-2',
+        name: '项目金库',
         type: 'keygen',
         walletId: 'mpc-wallet-2',
         threshold: 2,
@@ -153,6 +159,7 @@ describe('MpcService notifications', () => {
     const invited = '0x2222222222222222222222222222222222222222'
     managerMocks.getSession.mockResolvedValue({
       id: 'session-1',
+      name: '团队金库',
       type: 'keygen',
       walletId: 'mpc-wallet-1',
       threshold: 2,
@@ -187,6 +194,7 @@ describe('MpcService notifications', () => {
     const invited = '0x2222222222222222222222222222222222222222'
     managerMocks.getSession.mockResolvedValue({
       id: 'session-1',
+      name: '团队金库',
       type: 'keygen',
       walletId: 'mpc-wallet-1',
       threshold: 2,

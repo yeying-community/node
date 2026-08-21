@@ -19,6 +19,7 @@ import { NotificationService, safelyRunNotificationTask } from './notification'
 
 export type CreateMpcSessionInput = {
   id?: string
+  name: string
   type: string
   walletId: string
   threshold: number
@@ -165,6 +166,7 @@ export class MpcService {
         body: '你被邀请参与 MPC 钱包密钥生成。',
         payload: {
           sessionId: session.id,
+          name: session.name,
           walletId: session.walletId,
           sessionType: session.type,
           threshold: session.threshold,
@@ -210,6 +212,7 @@ export class MpcService {
         body: '发起人已取消 MPC 钱包密钥生成。',
         payload: {
           sessionId: session.id,
+          name: session.name,
           walletId: session.walletId,
           sessionType: session.type,
           threshold: session.threshold,
@@ -248,6 +251,10 @@ export class MpcService {
     if (!SESSION_TYPES.has(input.type)) {
       throw new Error('INVALID_SESSION_TYPE')
     }
+    const name = String(input.name || '').trim()
+    if (!name) {
+      throw new Error('MISSING_WALLET_NAME')
+    }
     if (!input.walletId) {
       throw new Error('MISSING_WALLET_ID')
     }
@@ -270,6 +277,7 @@ export class MpcService {
     const now = this.nowEpoch()
     const session: MpcSession = {
       id: sessionId,
+      name,
       type: input.type,
       walletId: input.walletId,
       threshold: input.threshold,

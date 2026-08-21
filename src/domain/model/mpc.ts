@@ -10,6 +10,7 @@ export type MpcSessionType = 'keygen' | 'sign' | 'refresh'
 
 export interface MpcSession {
   id: string
+  name: string
   type: string
   walletId: string
   threshold: number
@@ -103,6 +104,7 @@ export function convertMpcSessionTo(session: Partial<MpcSession>): MpcSessionDO 
     return sessionDO
   }
   sessionDO.id = session.id!
+  sessionDO.name = session.name || ''
   sessionDO.type = session.type || ''
   sessionDO.walletId = session.walletId || ''
   sessionDO.threshold = session.threshold ?? 0
@@ -120,6 +122,7 @@ export function convertMpcSessionTo(session: Partial<MpcSession>): MpcSessionDO 
 export function convertMpcSessionFrom(sessionDO: MpcSessionDO): MpcSession {
   return {
     id: sessionDO.id,
+    name: sessionDO.name || '',
     type: sessionDO.type,
     walletId: sessionDO.walletId,
     threshold: sessionDO.threshold,

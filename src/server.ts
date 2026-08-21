@@ -99,6 +99,7 @@ import { AddIdentityAuthorization20260818120000 } from './migrations/20260818120
 import { EnforcePassportPasskeyIdentity20260803110000 } from './migrations/20260803110000-enforce-passport-passkey-identity';
 import { RepairPassportWebauthnChallenges20260803120000 } from './migrations/20260803120000-repair-passport-webauthn-challenges';
 import { AddScopedGrants20260808090000 } from './migrations/20260808090000-add-scoped-grants';
+import { AddMpcSessionName20260821120000 } from './migrations/20260821120000-add-mpc-session-name';
 import { getConfig } from './config/runtime';
 import { startActionRequestCleanupJobs } from './domain/service/actionRequestCleanup';
 import { startMpcCleanupJobs } from './domain/service/mpcCleanup';
@@ -350,7 +351,8 @@ builder.migrations([
     AddPassportUsername20260812230000,
     AddWalletIdentityState20260813090000,
     AddWalletIdentityLinkChallenges20260813100000,
-    AddIdentityAuthorization20260818120000
+    AddIdentityAuthorization20260818120000,
+    AddMpcSessionName20260821120000
 ])
 
 builder.build().initialize().then(async (conn) => {
