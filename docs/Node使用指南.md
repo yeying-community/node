@@ -110,13 +110,19 @@ identityAuth: {
     rpId: 'node.example.com',
     rpName: 'YeYing Node',
     origin: 'https://node.example.com',
+    origins: [
+      'https://node.example.com',
+      'chrome-extension://<wallet-extension-id>'
+    ],
     timeoutMs: 60 * 1000,
     challengeTtlMs: 2 * 60 * 1000
   }
 }
 ```
 
-`rpId` 只能是当前域名或其可注册父域，`origin` 必须包含协议且与浏览器实际来源完全一致。
+`rpId` 只能是当前域名或其可注册父域。`origin` / `origins` 必须包含协议且与浏览器实际来源完全一致：Node 授权页使用 `https://node.example.com` 或本地 `http://localhost:8100`，Wallet 插件设置页注册 Passkey 时使用 `chrome-extension://<wallet-extension-id>`。如果确认注册时报 `Unexpected registration response origin "chrome-extension://..."`，把该插件 origin 加入 `identityAuth.passkey.origins` 后重启 Node。
+
+Node 自身的应用中心登录是钱包签名 / UCAN 自举登录，不依赖在应用中心先发布一个 Node 应用；`identityAuth.passkey` 只负责钱包身份 Passkey 注册和无插件授权页。Router 等外部 Web3 应用才需要在 Node 应用中心发布应用并配置 `redirectUris`。
 
 钱包身份相关公共接口：
 
