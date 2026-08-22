@@ -14,8 +14,8 @@ tags:
     description: 服务可用性检查。
   - name: Auth
     description: SIWE、JWT 和中心化 UCAN。
-  - name: Passkey
-    description: WebAuthn 通行证注册和授权。
+  - name: Identity
+    description: 钱包身份 DID、账户关联、邮箱/用户名凭证、身份级 Passkey 和授权码登录。
   - name: TOTP
     description: TOTP 绑定和无钱包授权。
   - name: Profile
@@ -291,6 +291,412 @@ paths:
           application/json:
             schema:
               $ref: "#/components/schemas/JsonObject"
+  /.well-known/jwks.json:
+    get:
+      tags:
+        - Identity
+      summary: 查询钱包身份 issuer JWKS
+      operationId: get_well_known_jwks_json
+      security: []
+      parameters: []
+      responses:
+        "200":
+          $ref: "#/components/responses/Success"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+  /.well-known/openid-credential-issuer:
+    get:
+      tags:
+        - Identity
+      summary: 查询钱包身份 issuer 元数据
+      operationId: get_well_known_openid_credential_issuer
+      security: []
+      parameters: []
+      responses:
+        "200":
+          $ref: "#/components/responses/Success"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+  /api/v1/public/identity/status:
+    get:
+      tags:
+        - Identity
+      summary: 查询钱包身份 Passkey 运行状态
+      operationId: get_api_v1_public_identity_status
+      security: []
+      parameters: []
+      responses:
+        "200":
+          $ref: "#/components/responses/Success"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+  /api/v1/public/identity/credentials/status:
+    post:
+      tags:
+        - Identity
+      summary: 查询钱包身份凭证状态
+      operationId: post_api_v1_public_identity_credentials_status
+      security: []
+      parameters: []
+      responses:
+        "200":
+          $ref: "#/components/responses/Success"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/IdentityCredentialsStatusRequest"
+  /api/v1/public/identity/account-links/challenge:
+    post:
+      tags:
+        - Identity
+      summary: 创建钱包身份账户关联 challenge
+      operationId: post_api_v1_public_identity_account_links_challenge
+      security: []
+      parameters: []
+      responses:
+        "200":
+          $ref: "#/components/responses/Success"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/IdentityAccountLinkChallengeRequest"
+  /api/v1/public/identity/account-links/verify:
+    post:
+      tags:
+        - Identity
+      summary: 校验钱包身份账户关联证明
+      operationId: post_api_v1_public_identity_account_links_verify
+      security: []
+      parameters: []
+      responses:
+        "200":
+          $ref: "#/components/responses/Success"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/IdentityAccountLinkVerifyRequest"
+  /api/v1/public/identity/verifications/request:
+    post:
+      tags:
+        - Identity
+      summary: 请求用户名和邮箱验证
+      operationId: post_api_v1_public_identity_verifications_request
+      security: []
+      parameters: []
+      responses:
+        "200":
+          $ref: "#/components/responses/Success"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/IdentityVerificationRequest"
+  /api/v1/public/identity/verifications/confirm:
+    post:
+      tags:
+        - Identity
+      summary: 确认验证码并签发钱包身份凭证
+      operationId: post_api_v1_public_identity_verifications_confirm
+      security: []
+      parameters: []
+      responses:
+        "200":
+          $ref: "#/components/responses/Success"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/IdentityVerificationConfirmRequest"
+  /api/v1/public/identity/passkeys/register/request:
+    post:
+      tags:
+        - Identity
+      summary: 创建身份级 Passkey 注册请求
+      operationId: post_api_v1_public_identity_passkeys_register_request
+      security: []
+      parameters: []
+      responses:
+        "200":
+          $ref: "#/components/responses/Success"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/IdentityPasskeyRegisterRequest"
+  /api/v1/public/identity/passkeys/register/confirm:
+    post:
+      tags:
+        - Identity
+      summary: 保存身份级 Passkey credential
+      operationId: post_api_v1_public_identity_passkeys_register_confirm
+      security: []
+      parameters: []
+      responses:
+        "200":
+          $ref: "#/components/responses/Success"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/IdentityPasskeyRegisterConfirmRequest"
+  /api/v1/public/identity/passkeys/list:
+    post:
+      tags:
+        - Identity
+      summary: 查询钱包身份 Passkey credential 列表
+      operationId: post_api_v1_public_identity_passkeys_list
+      security: []
+      parameters: []
+      responses:
+        "200":
+          $ref: "#/components/responses/Success"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/IdentityPasskeyListRequest"
+  /api/v1/public/identity/passkeys/revoke:
+    post:
+      tags:
+        - Identity
+      summary: 撤销钱包身份 Passkey credential
+      operationId: post_api_v1_public_identity_passkeys_revoke
+      security: []
+      parameters: []
+      responses:
+        "200":
+          $ref: "#/components/responses/Success"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/IdentityPasskeyRevokeRequest"
+  /api/v1/public/identity/authorize/request:
+    post:
+      tags:
+        - Identity
+      summary: 创建钱包身份授权码请求
+      operationId: post_api_v1_public_identity_authorize_request
+      security: []
+      parameters: []
+      responses:
+        "200":
+          $ref: "#/components/responses/Success"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/IdentityAuthorizeRequest"
+  /api/v1/public/identity/authorize/request/{requestId}:
+    get:
+      tags:
+        - Identity
+      summary: 查询钱包身份授权请求
+      operationId: get_api_v1_public_identity_authorize_request_requestId
+      security: []
+      parameters:
+        - name: requestId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          $ref: "#/components/responses/Success"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+  /api/v1/public/identity/authorize/challenge:
+    post:
+      tags:
+        - Identity
+      summary: 创建无钱包登录 Passkey challenge
+      operationId: post_api_v1_public_identity_authorize_challenge
+      security: []
+      parameters: []
+      responses:
+        "200":
+          $ref: "#/components/responses/Success"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/IdentityAuthorizeChallengeRequest"
+  /api/v1/public/identity/authorize/approve:
+    post:
+      tags:
+        - Identity
+      summary: 批准钱包身份授权请求
+      operationId: post_api_v1_public_identity_authorize_approve
+      security: []
+      parameters: []
+      responses:
+        "200":
+          $ref: "#/components/responses/Success"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/IdentityAuthorizeApproveRequest"
+  /api/v1/public/identity/authorize/exchange:
+    post:
+      tags:
+        - Identity
+      summary: 兑换钱包身份授权码
+      operationId: post_api_v1_public_identity_authorize_exchange
+      security: []
+      parameters: []
+      responses:
+        "200":
+          $ref: "#/components/responses/Success"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/IdentityAuthorizeExchangeRequest"
   /api/v1/public/auth/totp/status:
     get:
       tags:
@@ -1145,14 +1551,14 @@ paths:
     get:
       tags:
         - Custody
-      summary: 查询通行证和托管状态
+      summary: 查询身份 Passkey 和托管状态
       operationId: get_api_v1_public_custody_status
       security:
         - bearerAuth: []
       parameters: []
       responses:
         "200":
-          description: Passkey 绑定和托管记录状态
+          description: 身份 Passkey 和托管记录状态
           content:
             application/json:
               schema:
@@ -1937,7 +2343,7 @@ components:
           type: array
           items:
             type: string
-          description: 可选 identity scope。
+          description: 可选钱包身份 scope。
     AuthVerifyRequest:
       type: object
       required:
@@ -1949,6 +2355,280 @@ components:
           pattern: ^0x[0-9a-fA-F]{40}$
         signature:
           type: string
+    IdentityDid:
+      type: string
+      pattern: ^did:yeying:wid_[A-Za-z0-9_-]{22,}$
+    IdentityAccount:
+      type: object
+      required:
+        - chainKey
+        - address
+      properties:
+        chainKey:
+          type: string
+          examples:
+            - eip155:1
+        address:
+          type: string
+          pattern: ^0x[0-9a-fA-F]{40}$
+    IdentityAccountLinkChallengeRequest:
+      type: object
+      required:
+        - identity
+        - account
+      properties:
+        identity:
+          $ref: "#/components/schemas/IdentityDid"
+        account:
+          $ref: "#/components/schemas/IdentityAccount"
+    IdentityAccountLinkVerifyRequest:
+      type: object
+      required:
+        - identity
+        - identityDocument
+        - account
+        - nonce
+        - issuedAt
+        - expiresAt
+        - accountSignature
+      properties:
+        identity:
+          $ref: "#/components/schemas/IdentityDid"
+        identityDocument:
+          type: object
+          additionalProperties: true
+        account:
+          $ref: "#/components/schemas/IdentityAccount"
+        nonce:
+          type: string
+        issuedAt:
+          type: string
+          format: date-time
+        expiresAt:
+          type: string
+          format: date-time
+        accountSignature:
+          type: string
+          description: 账户钱包对账户关联 message 的签名。
+    IdentityVerificationRequest:
+      type: object
+      required:
+        - identity
+        - account
+        - email
+        - types
+      properties:
+        identity:
+          $ref: "#/components/schemas/IdentityDid"
+        account:
+          $ref: "#/components/schemas/IdentityAccount"
+        email:
+          type: string
+          format: email
+        username:
+          type: string
+          minLength: 3
+          maxLength: 32
+        type:
+          type: string
+          enum:
+            - email
+            - username
+        types:
+          type: array
+          items:
+            type: string
+            enum:
+              - email
+              - username
+    IdentityVerificationConfirmRequest:
+      type: object
+      required:
+        - verificationId
+        - code
+        - types
+      properties:
+        verificationId:
+          type: string
+        code:
+          type: string
+        codes:
+          type: object
+          additionalProperties:
+            type: string
+        type:
+          type: string
+          enum:
+            - email
+            - username
+        types:
+          type: array
+          items:
+            type: string
+            enum:
+              - email
+              - username
+    IdentityCredentialsStatusRequest:
+      type: object
+      required:
+        - credentials
+      properties:
+        issuer:
+          type: string
+        credentials:
+          type: array
+          minItems: 1
+          items:
+            type: string
+    IdentityPasskeyRegisterRequest:
+      type: object
+      required:
+        - identity
+        - identityDocument
+      properties:
+        identity:
+          $ref: "#/components/schemas/IdentityDid"
+        identityDocument:
+          type: object
+          additionalProperties: true
+        deviceName:
+          type: string
+    IdentityPasskeyRegisterConfirmRequest:
+      type: object
+      required:
+        - identity
+        - requestId
+        - credential
+      properties:
+        identity:
+          $ref: "#/components/schemas/IdentityDid"
+        requestId:
+          type: string
+          description: 注册挑战 requestId。
+        deviceName:
+          type: string
+        credential:
+          type: object
+          additionalProperties: true
+    IdentityPasskeyListRequest:
+      type: object
+      required:
+        - identity
+      properties:
+        identity:
+          $ref: "#/components/schemas/IdentityDid"
+    IdentityPasskeyRevokeRequest:
+      type: object
+      required:
+        - identity
+        - identityDocument
+        - credentialId
+      properties:
+        identity:
+          $ref: "#/components/schemas/IdentityDid"
+        identityDocument:
+          type: object
+          additionalProperties: true
+        credentialId:
+          type: string
+    IdentityAuthorizeRequest:
+      type: object
+      required:
+        - appId
+        - redirectUri
+        - codeChallenge
+      properties:
+        appId:
+          type: string
+        redirectUri:
+          type: string
+          format: uri
+        state:
+          type: string
+        scopes:
+          type: array
+          items:
+            type: string
+            enum:
+              - identity.basic
+              - identity.wallet
+              - identity.username
+              - identity.email
+        scope:
+          type: array
+          items:
+            type: string
+            enum:
+              - identity.basic
+              - identity.wallet
+              - identity.username
+              - identity.email
+        codeChallenge:
+          type: string
+          minLength: 43
+          maxLength: 128
+        code_challenge:
+          type: string
+          minLength: 43
+          maxLength: 128
+        codeChallengeMethod:
+          type: string
+          enum:
+            - S256
+        code_challenge_method:
+          type: string
+          enum:
+            - S256
+    IdentityAuthorizeChallengeRequest:
+      type: object
+      required:
+        - requestId
+      properties:
+        requestId:
+          type: string
+    IdentityAuthorizeApproveRequest:
+      type: object
+      required:
+        - requestId
+      properties:
+        requestId:
+          type: string
+        presentation:
+          type: object
+          additionalProperties: true
+          description: Wallet 插件签发的钱包身份 presentation。
+        passkeyRequestId:
+          type: string
+          description: 无 Bearer Passkey approve 时必填。
+        challengeId:
+          type: string
+          description: passkeyRequestId 的兼容别名。
+        credential:
+          type: object
+          additionalProperties: true
+    IdentityAuthorizeExchangeRequest:
+      type: object
+      required:
+        - code
+        - appId
+        - redirectUri
+        - codeVerifier
+      properties:
+        code:
+          type: string
+        appId:
+          type: string
+        redirectUri:
+          type: string
+          format: uri
+        codeVerifier:
+          type: string
+          minLength: 43
+          maxLength: 128
+        code_verifier:
+          type: string
+          minLength: 43
+          maxLength: 128
     CustodyStatus:
       type: object
       properties:
