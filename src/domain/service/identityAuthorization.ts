@@ -184,6 +184,40 @@ export class IdentityAuthorizationService {
     return { identity: identityDid, credentialId, deviceName: row.deviceName, createdAt: row.createdAt }
   }
 
+  async listPasskeyCredentials(input: { identity: unknown }) {
+    const identityDid = assertIdentityDid(input.identity)
+    const credentials = await dataSource().getRepository(IdentityPasskeyCredentialDO).findBy({ identityDid })
+    return {
+      identity: identityDid,
+      credentials: credentials
+        .sort((a, b) => string(b.createdAt).localeCompare(string(a.createdAt)))
+        .map(item => ({
+          credentialId: item.credentialId,
+          deviceName: item.deviceName || 'Passkey',
+          rpId: item.rpId,
+          transports: parseTransports(item.transports),
+          createdAt: item.createdAt,
+          lastUsedAt: item.lastUsedAt,
+          revokedAt: item.revokedAt
+        }))
+    }
+  }
+
+  async revokePasskeyCredential(input: { identity: unknown; identityDocument: unknown; credentialId: unknown }) {
+    const identityDid = assertIdentityDid(input.identity)
+    verifyIdentityController(input.identityDocument, identityDid)
+    const credentialId = credentialIdValue(input.credentialId)
+    if (!credentialId) throw new Error('IDENTITY_PASSKEY_CREDENTIAL_ID_REQUIRED')
+    const repo = dataSource().getRepository(IdentityPasskeyCredentialDO)
+    const credential = await repo.findOneBy({ identityDid, credentialId })
+    if (!credential) throw new Error('IDENTITY_PASSKEY_CREDENTIAL_NOT_FOUND')
+    if (!string(credential.revokedAt)) {
+      credential.revokedAt = now()
+      await repo.save(credential)
+    }
+    return { identity: identityDid, credentialId: credential.credentialId, revokedAt: credential.revokedAt }
+  }
+
   async createPasskeyAuthorizationChallenge(input: { requestId: unknown }) {
     const status = assertPasskeyAuthReady()
     const row = await this.requirePendingRequest(input.requestId)
