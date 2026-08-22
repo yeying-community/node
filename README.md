@@ -4,7 +4,7 @@ YeYing Node 是社区控制面，面向社区应用、钱包与 Agent Runtime �
 
 ## 提供什么
 
-- Passport：SIWE、JWT、UCAN、Passkey、TOTP、应用授权码和 PKCE 登录交换。
+- 身份与登录：SIWE、JWT、钱包身份 DID、身份 Passkey、TOTP、应用授权码和 PKCE 登录交换。
 - 授权控制：应用授权策略、中心化 UCAN 签发、Scoped Grant、撤销与审计。
 - 应用中心：应用登记、发布审核、release artifact 与开发者目录。
 - 社区能力：通知、Webhook 投递、MPC 协调、钱包加密快照控制面。
@@ -110,7 +110,7 @@ npm run secrets:migrate-config
 npm run secrets:migrate
 ```
 
-该命令会先创建带时间戳的 vault 备份；JWT 和短期 Passport assertion 会失效，用户需要重新登录。生产执行前仍应完成数据库备份并停止服务。
+该命令会先创建带时间戳的 vault 备份；JWT、TOTP 密文和 Webhook 密文会按新派生根重新处理，用户可能需要重新登录。生产执行前仍应完成数据库备份并停止服务。
 
 启动前执行安全检查。该命令只显示密钥名和校验结果，绝不显示密钥值：
 
@@ -123,7 +123,7 @@ npm run secrets:unlock
 
 清理旧密钥前先备份 `secrets.enc.json`，确认新版本已使用 `ISSUER_PRIVATE_KEY` 和 `NODE_KEY_DERIVATION_SECRET` 正常运行，再逐项执行 `npm run secrets:remove KEY`。命令会要求再次输入键名确认，并且不会显示密钥值。不要删除仍用于历史数据解密或历史凭证验证的密钥，除非已经完成数据迁移或确认全部过期。
 
-新配置下，JWT、TOTP、Passport assertion 和 Webhook 加密密钥都从 `NODE_KEY_DERIVATION_SECRET` 按用途派生。`ISSUER_PRIVATE_KEY` 的公钥自动生成 Issuer `kid`，Issuer DID 从 `issuer.baseUrl` 派生。
+新配置下，JWT、TOTP 存储和 Webhook 加密密钥都从 `NODE_KEY_DERIVATION_SECRET` 按用途派生。`ISSUER_PRIVATE_KEY` 的公钥自动生成 Issuer `kid`，Issuer DID 从 `issuer.baseUrl` 派生。
 
 生产更新顺序：备份现有 `secrets.enc.json` 到受保护的主机级备份系统，停止服务或在维护窗口中执行 `secrets:set` / `secrets:remove`，执行 `secrets:verify`，然后通过 `bash scripts/starter.sh restart` 重启。不得重新执行 `secrets:init --force` 覆盖生产 vault。
 

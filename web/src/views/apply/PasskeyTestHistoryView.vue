@@ -53,8 +53,9 @@
           <div class="detail-grid">
             <div><span>{{ label('应用', 'App') }}</span><strong>{{ selectedRecord.appId || '-' }}</strong></div>
             <div><span>{{ label('请求', 'Request') }}</span><strong>{{ selectedRecord.requestId || '-' }}</strong></div>
-            <div><span>{{ label('主体', 'Subject') }}</span><strong>{{ selectedRecord.subjectId || '-' }}</strong></div>
-            <div><span>{{ label('钱包', 'Wallet') }}</span><strong>{{ selectedRecord.walletAddress || '-' }}</strong></div>
+            <div><span>{{ label('钱包身份 DID', 'Wallet Identity DID') }}</span><strong>{{ selectedRecord.did || '-' }}</strong></div>
+            <div><span>{{ label('钱包身份 ID', 'Wallet Identity ID') }}</span><strong>{{ selectedRecord.walletIdentityId || '-' }}</strong></div>
+            <div><span>{{ label('已验证钱包', 'Verified Wallet') }}</span><strong>{{ selectedRecord.walletAddress || '-' }}</strong></div>
           </div>
           <pre class="detail-json">{{ JSON.stringify(selectedRecord.detail, null, 2) }}</pre>
         </template>
@@ -68,7 +69,7 @@ import { computed, onMounted, ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { getLocaleRef } from '@/lang/locale';
 
-const HISTORY_KEY = 'passport:passkey:test-history';
+const HISTORY_KEY = 'identity:passkey:test-history';
 
 type PasskeyTestHistoryRecord = {
   id: string;
@@ -77,7 +78,8 @@ type PasskeyTestHistoryRecord = {
   createdAt: string;
   appId?: string;
   requestId?: string;
-  subjectId?: string;
+  did?: string;
+  walletIdentityId?: string;
   walletAddress?: string;
   detail: Record<string, unknown>;
 };
@@ -93,7 +95,8 @@ function label(zh: string, en: string) {
 
 function loadHistory() {
   try {
-    const parsed = JSON.parse(localStorage.getItem(HISTORY_KEY) || '[]');
+    const raw = localStorage.getItem(HISTORY_KEY) || '[]';
+    const parsed = JSON.parse(raw);
     records.value = Array.isArray(parsed) ? parsed : [];
     selectedId.value = records.value[0]?.id || '';
   } catch {

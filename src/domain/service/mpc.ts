@@ -11,6 +11,8 @@ import {
   convertMpcMessageTo,
   convertMpcParticipantFrom,
   convertMpcParticipantTo,
+  convertMpcSignRequestFrom,
+  convertMpcSignRequestTo,
   convertMpcSessionFrom,
   convertMpcSessionTo
 } from '../model/mpc'
@@ -19,6 +21,7 @@ import { NotificationService, safelyRunNotificationTask } from './notification'
 
 export type CreateMpcSessionInput = {
   id?: string
+  name: string
   type: string
   walletId: string
   threshold: number
@@ -47,9 +50,91 @@ export type SendMpcMessageInput = {
   envelope: unknown
 }
 
+export type MpcWireAudience =
+  | 'all-parties'
+  | { 'one-party': { recipient_index?: number; recipientIndex?: number } }
+  | { oneParty: { recipient_index?: number; recipientIndex?: number } }
+
+export type SendMpcWireMessageInput = {
+  protocol_version?: number
+  protocolVersion?: number
+  engine: string
+  session_id?: string
+  sessionId?: string
+  protocol: string
+  sequence?: number
+  sender_index?: number
+  senderIndex?: number
+  audience: MpcWireAudience
+  payload: unknown
+}
+
+export type CompleteMpcKeygenInput = {
+  participantId: string
+  result: {
+    address: string
+    publicKey: string
+    groupPublicKey?: string
+    chainCode?: string
+    curve?: string
+    keyVersion?: number
+    shareVersion?: number
+  }
+}
+
+export type CreateMpcSignRequestInput = {
+  id?: string
+  walletId: string
+  sessionId: string
+  payloadType: string
+  payloadHash: string
+  payload?: unknown
+  chainId?: number
+}
+
+export type CompleteMpcSignRequestInput = {
+  requestId: string
+  participantId: string
+  signature: string
+  result?: unknown
+}
+
 export type MpcMessagePage = {
   messages: MpcMessage[]
   nextCursor?: string
+  nextSequence?: number
+}
+
+export type MpcInviteListItem = {
+  uid: string
+  type: 'mpc.keygen.invited'
+  source: 'mpc'
+  subjectType: 'mpc.session'
+  subjectId: string
+  actor: string
+  title: string
+  payload: {
+    sessionId: string
+    name: string
+    walletId: string
+    sessionType: string
+    threshold: number
+    participants: string[]
+    curve: string
+    keyVersion: number
+    shareVersion: number
+    inviter: string
+    expiresAt: string
+  }
+  session: MpcSession
+}
+
+export type MpcSignRequestListQuery = {
+  sessionId?: string
+  walletId?: string
+  status?: string
+  page?: number
+  pageSize?: number
 }
 
 export type MpcSessionDetail = MpcSession & {
@@ -59,6 +144,10 @@ export type MpcSessionDetail = MpcSession & {
 
 const SESSION_TYPES = new Set(['keygen', 'sign', 'refresh'])
 const CANCELLABLE_SESSION_STATUSES = new Set(['created', 'invited'])
+const SIGN_PAYLOAD_TYPES = new Set(['message', 'transaction', 'typed_data'])
+const MPC_WIRE_ENGINE = 'cggmp24'
+const MPC_WIRE_PROTOCOL_VERSION = 1
+const MPC_WIRE_PROTOCOLS = new Set(['keygen', 'aux-info', 'sign'])
 
 function normalizeAddress(value: string) {
   return value.trim().toLowerCase()
@@ -78,6 +167,46 @@ function extractEthAddress(identity: string): string | null {
     return address || null
   }
   return null
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === 'object' && !Array.isArray(value)
+}
+
+function parseWireAudience(audience: MpcWireAudience): { receiver: string; recipientIndex?: number } {
+  if (audience === 'all-parties') {
+    return { receiver: '' }
+  }
+  if (!isRecord(audience)) {
+    throw new Error('INVALID_MPC_MESSAGE_AUDIENCE')
+  }
+  const audienceRecord = audience as Record<string, unknown>
+  const oneParty = audienceRecord['one-party'] || audienceRecord.oneParty
+  if (!isRecord(oneParty)) {
+    throw new Error('INVALID_MPC_MESSAGE_AUDIENCE')
+  }
+  const recipientIndex = Number(oneParty.recipient_index ?? oneParty.recipientIndex)
+  if (!Number.isInteger(recipientIndex) || recipientIndex < 0) {
+    throw new Error('INVALID_MPC_MESSAGE_AUDIENCE')
+  }
+  return { receiver: String(recipientIndex), recipientIndex }
+}
+
+function inferWireRound(payload: unknown): number {
+  if (!isRecord(payload)) {
+    return 0
+  }
+  const explicitRound = Number(payload.round)
+  if (Number.isFinite(explicitRound)) {
+    return explicitRound
+  }
+  const key = Object.keys(payload)[0] || ''
+  const normalized = key.toLowerCase()
+  if (normalized.includes('round1')) return 1
+  if (normalized.includes('round2')) return 2
+  if (normalized.includes('round3')) return 3
+  if (normalized.includes('round4')) return 4
+  return 0
 }
 
 export class MpcService {
@@ -165,6 +294,7 @@ export class MpcService {
         body: '你被邀请参与 MPC 钱包密钥生成。',
         payload: {
           sessionId: session.id,
+          name: session.name,
           walletId: session.walletId,
           sessionType: session.type,
           threshold: session.threshold,
@@ -210,6 +340,7 @@ export class MpcService {
         body: '发起人已取消 MPC 钱包密钥生成。',
         payload: {
           sessionId: session.id,
+          name: session.name,
           walletId: session.walletId,
           sessionType: session.type,
           threshold: session.threshold,
@@ -244,9 +375,66 @@ export class MpcService {
     return addresses.some((address) => normalizeAddress(address) === normalized)
   }
 
+  async listInvites(actor: string, pageInput = 1, pageSizeInput = 20) {
+    const actorAddress = normalizeAddress(actor || '')
+    const page = Math.max(Number.isFinite(pageInput) ? Math.floor(pageInput) : 1, 1)
+    const pageSize = Math.min(Math.max(Number.isFinite(pageSizeInput) ? Math.floor(pageSizeInput) : 20, 1), 100)
+    const sessions = (await this.manager.listSessions())
+      .map(convertMpcSessionFrom)
+      .filter((session) => {
+        if (session.type !== 'keygen') return false
+        if (session.status === 'cancelled' || session.status === 'expired') return false
+        const participants = session.participants.map((participant) => normalizeAddress(participant || ''))
+        if (!participants.includes(actorAddress)) return false
+        return participants[0] !== actorAddress
+      })
+
+    const total = sessions.length
+    const items = sessions.slice((page - 1) * pageSize, page * pageSize).map((session): MpcInviteListItem => {
+      const participants = session.participants.map((participant) => normalizeAddress(participant || '')).filter(Boolean)
+      const inviter = participants[0] || ''
+      return {
+        uid: session.id,
+        type: 'mpc.keygen.invited',
+        source: 'mpc',
+        subjectType: 'mpc.session',
+        subjectId: session.id,
+        actor: inviter,
+        title: session.name,
+        payload: {
+          sessionId: session.id,
+          name: session.name,
+          walletId: session.walletId,
+          sessionType: session.type,
+          threshold: session.threshold,
+          participants: session.participants,
+          curve: session.curve,
+          keyVersion: session.keyVersion,
+          shareVersion: session.shareVersion,
+          inviter,
+          expiresAt: session.expiresAt || '',
+        },
+        session,
+      }
+    })
+
+    return {
+      items,
+      page: {
+        total,
+        page,
+        pageSize,
+      },
+    }
+  }
+
   async createSession(input: CreateMpcSessionInput, actor: string): Promise<MpcSession> {
     if (!SESSION_TYPES.has(input.type)) {
       throw new Error('INVALID_SESSION_TYPE')
+    }
+    const name = String(input.name || '').trim()
+    if (!name) {
+      throw new Error('MISSING_WALLET_NAME')
     }
     if (!input.walletId) {
       throw new Error('MISSING_WALLET_ID')
@@ -270,6 +458,7 @@ export class MpcService {
     const now = this.nowEpoch()
     const session: MpcSession = {
       id: sessionId,
+      name,
       type: input.type,
       walletId: input.walletId,
       threshold: input.threshold,
@@ -521,21 +710,381 @@ export class MpcService {
     return convertMpcMessageFrom(saved)
   }
 
+  async sendWireMessage(sessionId: string, input: SendMpcWireMessageInput, actor: string): Promise<MpcMessage> {
+    const sessionDO = await this.manager.getSession(sessionId)
+    if (!sessionDO) {
+      throw new Error('SESSION_NOT_FOUND')
+    }
+    if (this.isExpired(sessionDO.expiresAt)) {
+      if (sessionDO.status !== 'expired') {
+        await this.manager.updateSession(sessionId, { status: 'expired' })
+      }
+      throw new Error('SESSION_EXPIRED')
+    }
+
+    const session = convertMpcSessionFrom(sessionDO)
+    const protocolVersion = Number(input.protocol_version ?? input.protocolVersion)
+    if (protocolVersion !== MPC_WIRE_PROTOCOL_VERSION) {
+      throw new Error('INVALID_MPC_MESSAGE')
+    }
+    const engine = String(input.engine || '').trim()
+    if (engine !== MPC_WIRE_ENGINE) {
+      throw new Error('INVALID_MPC_MESSAGE')
+    }
+    const envelopeSessionId = String(input.session_id ?? input.sessionId ?? '').trim()
+    if (envelopeSessionId && envelopeSessionId !== sessionId) {
+      throw new Error('INVALID_MPC_MESSAGE')
+    }
+    const protocol = String(input.protocol || '').trim()
+    if (!MPC_WIRE_PROTOCOLS.has(protocol)) {
+      throw new Error('INVALID_MPC_MESSAGE')
+    }
+    const senderIndex = Number(input.sender_index ?? input.senderIndex)
+    if (!Number.isInteger(senderIndex) || senderIndex < 0 || senderIndex >= session.participants.length) {
+      throw new Error('INVALID_MPC_PARTICIPANT_INDEX')
+    }
+    if (input.payload === undefined || input.payload === null) {
+      throw new Error('INVALID_MPC_MESSAGE')
+    }
+
+    const senderParticipantId = String(session.participants[senderIndex] || '').trim()
+    if (!senderParticipantId) {
+      throw new Error('INVALID_MPC_PARTICIPANT_INDEX')
+    }
+    const participantDO = await this.manager.getParticipant(sessionId, senderParticipantId)
+    if (!participantDO) {
+      throw new Error('PARTICIPANT_NOT_JOINED')
+    }
+    const identityAddress = extractEthAddress(participantDO.identity)
+    if (identityAddress && normalizeAddress(identityAddress) !== normalizeAddress(actor)) {
+      throw new Error('FORBIDDEN')
+    }
+
+    const audience = parseWireAudience(input.audience)
+    if (audience.recipientIndex !== undefined) {
+      if (audience.recipientIndex >= session.participants.length) {
+        throw new Error('INVALID_MPC_PARTICIPANT_INDEX')
+      }
+      if (audience.recipientIndex === senderIndex) {
+        throw new Error('INVALID_MPC_MESSAGE_AUDIENCE')
+      }
+    }
+
+    const seq = (await this.manager.getMaxMessageSeq(sessionId)) + 1
+    const now = this.nowEpoch()
+    const envelope = {
+      protocol_version: MPC_WIRE_PROTOCOL_VERSION,
+      engine: MPC_WIRE_ENGINE,
+      session_id: sessionId,
+      protocol,
+      sequence: seq,
+      sender_index: senderIndex,
+      audience: audience.recipientIndex === undefined
+        ? 'all-parties'
+        : { 'one-party': { recipient_index: audience.recipientIndex } },
+      payload: input.payload,
+    }
+    const message: MpcMessage = {
+      id: uuidv4(),
+      sessionId,
+      sender: String(senderIndex),
+      receiver: audience.receiver,
+      round: inferWireRound(input.payload),
+      type: protocol,
+      seq,
+      envelope,
+      createdAt: now,
+    }
+
+    const saved = await this.manager.saveMessage(convertMpcMessageTo(message))
+    let updated = false
+    const nextRound = Math.max(session.round || 0, message.round || 0)
+    let nextStatus = session.status
+    if (nextStatus === 'created' || nextStatus === 'invited' || nextStatus === 'ready') {
+      nextStatus = 'rounds'
+    }
+    if (nextStatus !== session.status || nextRound !== session.round) {
+      await this.manager.updateSession(sessionId, { status: nextStatus, round: nextRound })
+      updated = true
+    }
+
+    const output = convertMpcMessageFrom(saved)
+    await this.writeAuditLog(session.walletId, session.id, 'message-sent', actor, 'wire message delivered', {
+      messageId: output.id,
+      senderIndex,
+      receiver: audience.receiver,
+      protocol,
+      seq,
+    })
+    this.emitEvent(session.id, 'message', output)
+
+    if (updated) {
+      await this.writeAuditLog(session.walletId, session.id, 'session-updated', actor, 'session updated', {
+        status: nextStatus,
+        round: nextRound,
+      })
+      this.emitEvent(session.id, 'session-update', { status: nextStatus, round: nextRound })
+    }
+
+    return output
+  }
+
+  async completeKeygenSession(sessionId: string, input: CompleteMpcKeygenInput, actor: string): Promise<MpcSessionDetail> {
+    const sessionDO = await this.manager.getSession(sessionId)
+    if (!sessionDO) {
+      throw new Error('SESSION_NOT_FOUND')
+    }
+    if (this.isExpired(sessionDO.expiresAt)) {
+      if (sessionDO.status !== 'expired') {
+        await this.manager.updateSession(sessionId, { status: 'expired' })
+      }
+      throw new Error('SESSION_EXPIRED')
+    }
+
+    const session = convertMpcSessionFrom(sessionDO)
+    if (session.type !== 'keygen') {
+      throw new Error('INVALID_SESSION_TYPE')
+    }
+    const participantDO = await this.manager.getParticipant(sessionId, input.participantId)
+    if (!participantDO) {
+      throw new Error('PARTICIPANT_NOT_JOINED')
+    }
+    const identityAddress = extractEthAddress(participantDO.identity)
+    if (identityAddress && normalizeAddress(identityAddress) !== normalizeAddress(actor)) {
+      throw new Error('FORBIDDEN')
+    }
+
+    const address = String(input.result?.address || '').trim()
+    const publicKey = String(input.result?.publicKey || input.result?.groupPublicKey || '').trim()
+    if (!address || !publicKey) {
+      throw new Error('MISSING_KEYGEN_RESULT')
+    }
+
+    const result = {
+      address,
+      publicKey,
+      groupPublicKey: String(input.result.groupPublicKey || publicKey).trim(),
+      chainCode: String(input.result.chainCode || '').trim(),
+      curve: String(input.result.curve || session.curve || 'secp256k1').trim(),
+      keyVersion: input.result.keyVersion ?? session.keyVersion,
+      shareVersion: input.result.shareVersion ?? session.shareVersion,
+    }
+    const keyVersion = Number(result.keyVersion || session.keyVersion || 0)
+    const shareVersion = Number(result.shareVersion || session.shareVersion || 0)
+    const updatedDO = await this.manager.updateSession(sessionId, {
+      status: 'completed',
+      resultJson: JSON.stringify(result),
+      keyVersion,
+      shareVersion,
+    })
+    const updated = updatedDO ? convertMpcSessionFrom(updatedDO) : {
+      ...session,
+      status: 'completed',
+      result,
+      keyVersion,
+      shareVersion,
+    }
+
+    await this.writeAuditLog(updated.walletId, updated.id, 'keygen-completed', actor, 'keygen completed', {
+      participantId: input.participantId,
+      address,
+      publicKey,
+      keyVersion,
+      shareVersion,
+    })
+    this.emitEvent(updated.id, 'session-update', {
+      status: updated.status,
+      round: updated.round,
+      result,
+      keyVersion,
+      shareVersion,
+    })
+    const participants = (await this.manager.listParticipants(sessionId)).map(convertMpcParticipantFrom)
+    return {
+      ...updated,
+      joinedParticipants: participants,
+      joinedCount: participants.length,
+    }
+  }
+
+  async createSignRequest(input: CreateMpcSignRequestInput, actor: string) {
+    if (!input.walletId) {
+      throw new Error('MISSING_WALLET_ID')
+    }
+    if (!input.sessionId) {
+      throw new Error('SESSION_NOT_FOUND')
+    }
+    const payloadType = String(input.payloadType || '').trim()
+    if (!SIGN_PAYLOAD_TYPES.has(payloadType)) {
+      throw new Error('INVALID_SIGN_PAYLOAD_TYPE')
+    }
+    const payloadHash = String(input.payloadHash || '').trim()
+    if (!payloadHash) {
+      throw new Error('MISSING_SIGN_PAYLOAD_HASH')
+    }
+    const sessionDO = await this.manager.getSession(input.sessionId)
+    if (!sessionDO) {
+      throw new Error('SESSION_NOT_FOUND')
+    }
+    const session = convertMpcSessionFrom(sessionDO)
+    if (session.walletId !== input.walletId) {
+      throw new Error('FORBIDDEN')
+    }
+    const participants = (await this.manager.listParticipants(input.sessionId)).map(convertMpcParticipantFrom)
+    if (!this.ensureActorAccess(participants, actor)) {
+      throw new Error('FORBIDDEN')
+    }
+
+    const requestId = input.id || uuidv4()
+    const existing = await this.manager.getSignRequest(requestId)
+    if (existing) {
+      return convertMpcSignRequestFrom(existing)
+    }
+    const now = this.nowEpoch()
+    const request = convertMpcSignRequestTo({
+      id: requestId,
+      walletId: input.walletId,
+      sessionId: input.sessionId,
+      initiator: normalizeAddress(actor),
+      payloadType,
+      payloadHash,
+      payload: input.payload ?? {},
+      chainId: Number(input.chainId || 0),
+      status: 'pending',
+      approvals: [],
+      createdAt: now,
+    })
+    const saved = await this.manager.saveSignRequest(request)
+    await this.writeAuditLog(input.walletId, input.sessionId, 'sign-request-created', actor, 'sign request created', {
+      requestId,
+      payloadType,
+      payloadHash,
+      chainId: Number(input.chainId || 0),
+    })
+    this.emitEvent(input.sessionId, 'sign-request', convertMpcSignRequestFrom(saved))
+    return convertMpcSignRequestFrom(saved)
+  }
+
+  async listSignRequests(actor: string, query: MpcSignRequestListQuery = {}) {
+    const page = Math.max(Number.isFinite(query.page) ? Math.floor(query.page!) : 1, 1)
+    const pageSize = Math.min(Math.max(Number.isFinite(query.pageSize) ? Math.floor(query.pageSize!) : 20, 1), 100)
+    const sessionId = String(query.sessionId || '').trim()
+    const walletId = String(query.walletId || '').trim()
+    const status = String(query.status || '').trim()
+
+    if (sessionId) {
+      const sessionDO = await this.manager.getSession(sessionId)
+      if (!sessionDO) {
+        throw new Error('SESSION_NOT_FOUND')
+      }
+      const participants = (await this.manager.listParticipants(sessionId)).map(convertMpcParticipantFrom)
+      if (!this.ensureActorAccess(participants, actor)) {
+        throw new Error('FORBIDDEN')
+      }
+    }
+
+    const allowedSessionIds = new Set<string>()
+    if (!sessionId) {
+      const sessions = (await this.manager.listSessions()).map(convertMpcSessionFrom)
+      for (const session of sessions) {
+        const participants = (await this.manager.listParticipants(session.id)).map(convertMpcParticipantFrom)
+        if (this.ensureActorAccess(participants, actor)) {
+          allowedSessionIds.add(session.id)
+        }
+      }
+    }
+
+    const requests = (await this.manager.querySignRequests({
+      sessionId: sessionId || undefined,
+      walletId: walletId || undefined,
+      status: status || undefined,
+    }))
+      .map(convertMpcSignRequestFrom)
+      .filter((request) => sessionId || allowedSessionIds.has(request.sessionId))
+
+    const total = requests.length
+    return {
+      items: requests.slice((page - 1) * pageSize, page * pageSize),
+      page: {
+        total,
+        page,
+        pageSize,
+      },
+    }
+  }
+
+  async completeSignRequest(input: CompleteMpcSignRequestInput, actor: string) {
+    const requestId = String(input.requestId || '').trim()
+    if (!requestId) {
+      throw new Error('SIGN_REQUEST_NOT_FOUND')
+    }
+    const participantId = normalizeAddress(input.participantId || actor || '')
+    const signature = String(input.signature || '').trim()
+    if (!signature) {
+      throw new Error('MISSING_SIGN_RESULT')
+    }
+    const requestDO = await this.manager.getSignRequest(requestId)
+    if (!requestDO) {
+      throw new Error('SIGN_REQUEST_NOT_FOUND')
+    }
+    const request = convertMpcSignRequestFrom(requestDO)
+    const sessionDO = await this.manager.getSession(request.sessionId)
+    if (!sessionDO) {
+      throw new Error('SESSION_NOT_FOUND')
+    }
+    const participants = (await this.manager.listParticipants(request.sessionId)).map(convertMpcParticipantFrom)
+    if (!this.ensureActorAccess(participants, actor)) {
+      throw new Error('FORBIDDEN')
+    }
+    if (participantId && !participants.some((participant) => normalizeAddress(participant.participantId) === participantId)) {
+      throw new Error('PARTICIPANT_NOT_JOINED')
+    }
+    const now = this.nowEpoch()
+    const completed = convertMpcSignRequestTo({
+      ...request,
+      status: 'completed',
+      signature,
+      result: input.result ?? { signature },
+      completedAt: now,
+    })
+    const saved = await this.manager.saveSignRequest(completed)
+    const output = convertMpcSignRequestFrom(saved)
+    await this.writeAuditLog(request.walletId, request.sessionId, 'sign-request-completed', actor, 'sign request completed', {
+      requestId,
+      participantId,
+    })
+    this.emitEvent(request.sessionId, 'sign-request-completed', output)
+    return output
+  }
+
   async fetchMessages(
     sessionId: string,
     actor: string,
     since?: number,
     cursor?: string,
-    limit?: number
+    limit?: number,
+    afterSeq?: number,
+    recipientIndex?: number
   ): Promise<MpcMessagePage> {
     const sessionDO = await this.manager.getSession(sessionId)
     if (!sessionDO) {
       throw new Error('SESSION_NOT_FOUND')
     }
+    const session = convertMpcSessionFrom(sessionDO)
 
     const participants = (await this.manager.listParticipants(sessionId)).map(convertMpcParticipantFrom)
     if (!this.ensureActorAccess(participants, actor)) {
       throw new Error('FORBIDDEN')
+    }
+    if (typeof recipientIndex === 'number') {
+      if (!Number.isInteger(recipientIndex) || recipientIndex < 0 || recipientIndex >= session.participants.length) {
+        throw new Error('INVALID_MPC_PARTICIPANT_INDEX')
+      }
+      const expectedParticipantId = normalizeAddress(String(session.participants[recipientIndex] || ''))
+      const actorAddress = normalizeAddress(actor || '')
+      if (expectedParticipantId && expectedParticipantId !== actorAddress) {
+        throw new Error('FORBIDDEN')
+      }
     }
 
     let cursorTime: number | undefined
@@ -559,12 +1108,14 @@ export class MpcService {
       sessionId,
       since,
       cursorTime,
+      afterSeq,
+      recipientIndex,
       limit: cappedLimit
     })
 
     const mapped = messages.map(convertMpcMessageFrom)
     const last = mapped[mapped.length - 1]
     const nextCursor = last ? last.createdAt : undefined
-    return { messages: mapped, nextCursor }
+    return { messages: mapped, nextCursor, nextSequence: last?.seq }
   }
 }

@@ -107,42 +107,6 @@ export class CustodyKeyRecordDO {
     lastVerifiedAt!: string
 }
 
-@Entity('passport_subjects')
-export class PassportSubjectDO {
-    @PrimaryColumn({ length: 128, name: 'subject_id' })
-    subjectId!: string
-
-    @Column({ length: 64, default: 'active' })
-    status!: string
-
-    @Column({ length: 64, name: 'created_from', default: 'wallet' })
-    createdFrom!: string
-
-    @Column({ length: 128, name: 'primary_wallet_address', default: '' })
-    primaryWalletAddress!: string
-
-    @Column({ length: 32, default: '' })
-    username!: string
-
-    @Column({ length: 64, name: 'username_verified_at', default: '' })
-    usernameVerifiedAt!: string
-
-    @Column({ length: 320, default: '' })
-    email!: string
-
-    @Column({ length: 32, name: 'email_status', default: 'unverified' })
-    emailStatus!: string
-
-    @Column({ length: 64, name: 'email_verified_at', default: '' })
-    emailVerifiedAt!: string
-
-    @Column({ length: 64, name: 'created_at', default: '' })
-    createdAt!: string
-
-    @Column({ length: 64, name: 'updated_at', default: '' })
-    updatedAt!: string
-}
-
 @Entity('identity_account_links')
 @Index('uidx_identity_account_link', ['identityDid', 'chainKey', 'accountId'], { unique: true })
 export class IdentityAccountLinkDO {
@@ -221,78 +185,14 @@ export class IdentityAuditLogDO {
     @Column({ length: 64, name: 'created_at' }) createdAt!: string
 }
 
-@Entity('passport_email_verification_challenges')
-@Index('idx_passport_email_verification_subject_created', ['subjectId', 'createdAt'])
-@Index('idx_passport_email_verification_expires', ['status', 'expiresAt'])
-export class PassportEmailVerificationChallengeDO {
-    @PrimaryColumn({ length: 128, name: 'verification_id' })
-    verificationId!: string
-
-    @Column({ length: 128, name: 'subject_id' })
-    subjectId!: string
-
-    @Column({ length: 320 })
-    email!: string
-
-    @Column({ length: 128, name: 'code_hash' })
-    codeHash!: string
-
-    @Column({ type: 'int', default: 0 })
-    attempts!: number
-
-    @Column({ length: 32, default: 'pending' })
-    status!: string
-
-    @Column({ length: 64, name: 'created_at', default: '' })
-    createdAt!: string
-
-    @Column({ length: 64, name: 'expires_at', default: '' })
-    expiresAt!: string
-
-    @Column({ length: 64, name: 'verified_at', default: '' })
-    verifiedAt!: string
-}
-
-@Entity('passport_wallet_bindings')
-@Index('uidx_passport_wallet_binding_address', ['chain', 'address'], { unique: true })
-@Index('idx_passport_wallet_binding_subject', ['subjectId'])
-export class PassportWalletBindingDO {
+@Entity('identity_passkey_credentials')
+@Index('idx_identity_passkey_credentials_identity', ['identityDid'])
+export class IdentityPasskeyCredentialDO {
     @PrimaryGeneratedColumn('uuid')
     uid!: string
 
-    @Column({ length: 128, name: 'subject_id' })
-    subjectId!: string
-
-    @Column({ length: 64, default: 'eip155:1' })
-    chain!: string
-
-    @Column({ length: 128 })
-    address!: string
-
-    @Column({ type: 'text', name: 'proof_json', default: '{}' })
-    proofJson!: string
-
-    @Column({ length: 64, default: 'active' })
-    status!: string
-
-    @Column({ length: 64, name: 'created_at', default: '' })
-    createdAt!: string
-
-    @Column({ length: 64, name: 'updated_at', default: '' })
-    updatedAt!: string
-
-    @Column({ length: 64, name: 'revoked_at', default: '' })
-    revokedAt!: string
-}
-
-@Entity('passport_passkey_credentials')
-@Index('idx_passport_passkey_credentials_subject', ['subjectId'])
-export class PassportPasskeyCredentialDO {
-    @PrimaryGeneratedColumn('uuid')
-    uid!: string
-
-    @Column({ length: 128, name: 'subject_id' })
-    subjectId!: string
+    @Column({ length: 128, name: 'identity_did' })
+    identityDid!: string
 
     @Column({ type: 'text', name: 'credential_id', unique: true })
     credentialId!: string
@@ -328,17 +228,17 @@ export class PassportPasskeyCredentialDO {
     revokedAt!: string
 }
 
-@Entity('passport_webauthn_challenges')
-@Index('idx_passport_webauthn_challenge_expires_at', ['expiresAt'])
-export class PassportWebauthnChallengeDO {
+@Entity('identity_webauthn_challenges')
+@Index('idx_identity_webauthn_challenge_expires_at', ['expiresAt'])
+export class IdentityWebauthnChallengeDO {
     @PrimaryColumn({ length: 128, name: 'challenge_id' })
     challengeId!: string
 
     @Column({ length: 32, name: 'challenge_type' })
     challengeType!: string
 
-    @Column({ length: 128, name: 'subject_id', default: '' })
-    subjectId!: string
+    @Column({ length: 128, name: 'identity_did', default: '' })
+    identityDid!: string
 
     @Column({ length: 128, name: 'request_id', default: '' })
     requestId!: string
@@ -357,130 +257,6 @@ export class PassportWebauthnChallengeDO {
 
     @Column({ type: 'boolean', default: false })
     used!: boolean
-}
-
-@Entity('passport_authorization_requests')
-@Index('idx_passport_authorization_request_status', ['status', 'expiresAt'])
-export class PassportAuthorizationRequestDO {
-    @PrimaryColumn({ length: 128, name: 'request_id' })
-    requestId!: string
-
-    @Column({ length: 128, name: 'app_id' })
-    appId!: string
-
-    @Column({ type: 'text', name: 'redirect_uri' })
-    redirectUri!: string
-
-    @Column({ type: 'text', default: '' })
-    state!: string
-
-    @Column({ length: 128, name: 'code_challenge' })
-    codeChallenge!: string
-
-    @Column({ length: 16, name: 'code_challenge_method', default: 'S256' })
-    codeChallengeMethod!: string
-
-    @Column({ type: 'text', name: 'scopes_json', default: '["identity.basic","identity.wallet"]' })
-    scopesJson!: string
-
-    @Column({ length: 128, name: 'subject_id', default: '' })
-    subjectId!: string
-
-    @Column({ length: 128, name: 'wallet_address', default: '' })
-    walletAddress!: string
-
-    @Column({ length: 64, default: 'pending' })
-    status!: string
-
-    @Column({ length: 64, name: 'created_at', default: '' })
-    createdAt!: string
-
-    @Column({ length: 64, name: 'updated_at', default: '' })
-    updatedAt!: string
-
-    @Column({ length: 64, name: 'expires_at', default: '' })
-    expiresAt!: string
-
-    @Column({ length: 64, name: 'approved_at', default: '' })
-    approvedAt!: string
-}
-
-@Entity('passport_authorization_codes')
-@Index('idx_passport_authorization_code_request', ['requestId'])
-export class PassportAuthorizationCodeDO {
-    @PrimaryColumn({ length: 128 })
-    code!: string
-
-    @Column({ length: 128, name: 'request_id' })
-    requestId!: string
-
-    @Column({ length: 128, name: 'subject_id' })
-    subjectId!: string
-
-    @Column({ length: 128, name: 'wallet_address', default: '' })
-    walletAddress!: string
-
-    @Column({ length: 128, name: 'app_id' })
-    appId!: string
-
-    @Column({ type: 'text', name: 'redirect_uri' })
-    redirectUri!: string
-
-    @Column({ type: 'text', default: '' })
-    state!: string
-
-    @Column({ length: 128, name: 'code_challenge' })
-    codeChallenge!: string
-
-    @Column({ length: 16, name: 'code_challenge_method', default: 'S256' })
-    codeChallengeMethod!: string
-
-    @Column({ type: 'text', name: 'scopes_json', default: '["identity.basic","identity.wallet"]' })
-    scopesJson!: string
-
-    @Column({ length: 64, name: 'created_at', default: '' })
-    createdAt!: string
-
-    @Column({ length: 64, name: 'expires_at', default: '' })
-    expiresAt!: string
-
-    @Column({ type: 'boolean', default: false })
-    used!: boolean
-
-    @Column({ length: 64, name: 'used_at', default: '' })
-    usedAt!: string
-}
-
-@Entity('passport_audit_logs')
-@Index('idx_passport_audit_subject_created_at', ['subjectId', 'createdAt'])
-@Index('idx_passport_audit_request_created_at', ['requestId', 'createdAt'])
-export class PassportAuditLogDO {
-    @PrimaryGeneratedColumn('uuid')
-    uid!: string
-
-    @Column({ length: 128, name: 'subject_id', default: '' })
-    subjectId!: string
-
-    @Column({ length: 128, name: 'wallet_address', default: '' })
-    walletAddress!: string
-
-    @Column({ length: 128, name: 'request_id', default: '' })
-    requestId!: string
-
-    @Column({ length: 128, name: 'app_id', default: '' })
-    appId!: string
-
-    @Column({ length: 64 })
-    action!: string
-
-    @Column({ length: 32, default: 'info' })
-    level!: string
-
-    @Column({ type: 'text', name: 'metadata_json', default: '{}' })
-    metadataJson!: string
-
-    @Column({ length: 64, name: 'created_at', default: '' })
-    createdAt!: string
 }
 
 @Entity('identity_authorization_requests')
@@ -1195,6 +971,9 @@ export class MpcSessionDO {
     @PrimaryColumn({ length: 64, nullable: false, unique: true })
     id!: string
 
+    @Column({ length: 128, default: '' })
+    name!: string
+
     @Column({ length: 16 })
     type!: string
 
@@ -1221,6 +1000,9 @@ export class MpcSessionDO {
 
     @Column({ type: 'int', name: 'share_version' })
     shareVersion!: number
+
+    @Column({ type: 'text', name: 'result_json', default: '{}' })
+    resultJson!: string
 
     @Column({ length: 64, name: 'created_at' })
     createdAt!: string
@@ -1309,6 +1091,9 @@ export class MpcSignRequestDO {
     @Column({ length: 256, name: 'payload_hash' })
     payloadHash!: string
 
+    @Column('text', { name: 'payload_json', default: '{}' })
+    payloadJson!: string
+
     @Column({ type: 'int', name: 'chain_id', default: 0 })
     chainId!: number
 
@@ -1317,6 +1102,15 @@ export class MpcSignRequestDO {
 
     @Column('text')
     approvals!: string
+
+    @Column('text', { default: '' })
+    signature!: string
+
+    @Column('text', { name: 'result_json', default: '{}' })
+    resultJson!: string
+
+    @Column({ length: 64, name: 'completed_at', default: '' })
+    completedAt!: string
 
     @Column({ length: 64, name: 'created_at' })
     createdAt!: string

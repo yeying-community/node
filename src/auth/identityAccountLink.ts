@@ -98,9 +98,18 @@ export async function verifyAccountLink(input: { identityDocument: any; identity
   if (recovered !== account.address) throw new Error('IDENTITY_ACCOUNT_PROOF_INVALID')
   const result = { identity, account, verifiedAt: new Date().toISOString(), purpose: 'identity-account-link' }
   await ds.getRepository(IdentityAccountLinkChallengeDO).update({ nonce: input.nonce, status: 'pending' }, { status: 'consumed', consumedAt: result.verifiedAt })
+  const linkRepository = ds.getRepository(IdentityAccountLinkDO)
+  const existing = await linkRepository.findOneBy({ identityDid: identity, chainKey: account.chainKey, accountId: account.address, status: 'active' })
+  if (existing) return { ...result, verifiedAt: existing.verifiedAt, duplicate: true }
   const link = new IdentityAccountLinkDO()
   Object.assign(link, { identityDid: identity, chainKey: account.chainKey, accountId: account.address, status: 'active', verifiedAt: result.verifiedAt, revokedAt: '' })
-  await ds.getRepository(IdentityAccountLinkDO).save(link)
+  try {
+    await linkRepository.save(link)
+  } catch (error) {
+    const race = await linkRepository.findOneBy({ identityDid: identity, chainKey: account.chainKey, accountId: account.address, status: 'active' })
+    if (race) return { ...result, verifiedAt: race.verifiedAt, duplicate: true }
+    throw error
+  }
   return result
 }
 

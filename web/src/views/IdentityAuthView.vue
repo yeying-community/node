@@ -1,40 +1,38 @@
 <template>
-  <div class="passport-auth-page">
-    <div class="passport-auth-card">
-      <h1>{{ t('passport_auth_title') }}</h1>
-      <p class="subtitle">{{ t('passport_auth_subtitle') }}</p>
+  <div class="identity-auth-page">
+    <div class="identity-auth-card">
+      <h1>{{ t('identity_auth_title') }}</h1>
+      <p class="subtitle">{{ t('identity_auth_subtitle') }}</p>
 
       <div class="meta-row">
         <span class="app-name">{{ requestAppName }}</span>
         <span class="status-chip" :class="requestStatusClass">{{ requestStatusText }}</span>
       </div>
 
-      <p v-if="requestSubjectHint" class="subject-hint">{{ t('passport_auth_subject') }}{{ requestSubjectHint }}</p>
-
       <div v-if="requestExpired" class="expired-panel">
-        <p class="expired-title">{{ t('passport_auth_expired_title') }}</p>
-        <p class="expired-desc">{{ t('passport_auth_expired_desc') }}</p>
+        <p class="expired-title">{{ t('identity_auth_expired_title') }}</p>
+        <p class="expired-desc">{{ t('identity_auth_expired_desc') }}</p>
         <div class="expired-actions">
           <el-button type="primary" :disabled="!hasReturnTarget" @click="goBackToApp(false)">
-            {{ t('passport_auth_back_app') }}
+            {{ t('identity_auth_back_app') }}
           </el-button>
           <el-button :disabled="!hasReturnTarget" @click="goBackToApp(true)">
-            {{ t('passport_auth_retry') }}
+            {{ t('identity_auth_retry') }}
           </el-button>
         </div>
       </div>
 
       <template v-else>
-        <div class="auth-timer passport-timer">
-          {{ t('passport_auth_remaining') }}
+        <div class="auth-timer identity-timer">
+          {{ t('identity_auth_remaining') }}
           <strong>{{ requestCountdownText }}</strong>
         </div>
 
         <div class="auth-method-panel passkey-panel">
           <div class="passkey-icon">P</div>
           <div>
-            <p class="passkey-title">{{ t('passport_auth_passkey_title') }}</p>
-            <p class="passkey-desc">{{ t('passport_auth_passkey_desc') }}</p>
+            <p class="passkey-title">{{ t('identity_auth_passkey_title') }}</p>
+            <p class="passkey-desc">{{ t('identity_auth_passkey_desc') }}</p>
           </div>
         </div>
 
@@ -47,15 +45,15 @@
           :disabled="!canApprove"
           @click="approveWithPasskey"
         >
-          {{ t('passport_auth_confirm') }}
+          {{ t('identity_auth_confirm') }}
         </el-button>
 
         <p v-if="redirecting" class="redirect-tip">
-          {{ t('passport_auth_redirecting', { count: redirectCountdown }) }}
+          {{ t('identity_auth_redirecting', { count: redirectCountdown }) }}
         </p>
       </template>
 
-      <p v-if="loadingRequest" class="loading-tip">{{ t('passport_auth_loading') }}</p>
+      <p v-if="loadingRequest" class="loading-tip">{{ t('identity_auth_loading') }}</p>
     </div>
   </div>
 </template>
@@ -75,7 +73,7 @@ type Envelope<T> = {
   timestamp: number
 }
 
-type PassportAuthorizeRequestInfo = {
+type IdentityAuthorizeRequestInfo = {
   requestId: string
   status: string
   appId: string
@@ -86,21 +84,19 @@ type PassportAuthorizeRequestInfo = {
   createdAt: string
   expiresAt: string
   verifyUrl: string
-  subjectId?: string
-  subjectHint?: string
 }
 
-type PassportChallengeResult = {
-  authorizeRequest: PassportAuthorizeRequestInfo
+type IdentityChallengeResult = {
+  authorizeRequest: IdentityAuthorizeRequestInfo
   passkeyRequest: Record<string, any> & {
     requestId: string
   }
 }
 
-type PassportApproveResult = {
+type IdentityApproveResult = {
   requestId: string
-  subjectId: string
-  walletAddress: string
+  did: string
+  walletIdentityId: string
   authorizationCode: string
   authorizationCodeExpiresAt: string
   redirectTo: string
@@ -108,11 +104,11 @@ type PassportApproveResult = {
 
 const route = useRoute()
 const requestId = ref('')
-const requestInfo = ref<PassportAuthorizeRequestInfo | null>(null)
+const requestInfo = ref<IdentityAuthorizeRequestInfo | null>(null)
 const loadingRequest = ref(false)
 const approving = ref(false)
 const hintType = ref<'info' | 'error' | 'success'>('info')
-const hintMessage = ref(translate('passport_auth_ready'))
+const hintMessage = ref(translate('identity_auth_ready'))
 const nowMs = ref(Date.now())
 const redirectCountdown = ref(0)
 
@@ -157,25 +153,25 @@ async function parseEnvelope<T>(response: Response, fallbackMessage: string): Pr
 
 async function loadRequestInfo() {
   if (!requestId.value) {
-    setHint('error', t('passport_auth_invalid'))
+    setHint('error', t('identity_auth_invalid'))
     return
   }
   loadingRequest.value = true
   try {
     const response = await fetch(
-      apiUrl(`/api/v1/public/auth/passport/authorize/request/${encodeURIComponent(requestId.value)}`),
+      apiUrl(`/api/v1/public/identity/authorize/request/${encodeURIComponent(requestId.value)}`),
       {
         method: 'GET',
         credentials: 'include',
       }
     )
-    requestInfo.value = await parseEnvelope<PassportAuthorizeRequestInfo>(
+    requestInfo.value = await parseEnvelope<IdentityAuthorizeRequestInfo>(
       response,
-      t('passport_auth_query_failed')
+      t('identity_auth_query_failed')
     )
-    setHint(requestInfo.value.status === 'pending' ? 'info' : 'error', requestInfo.value.status === 'pending' ? t('passport_auth_ready') : t('passport_auth_expired_hint'))
+    setHint(requestInfo.value.status === 'pending' ? 'info' : 'error', requestInfo.value.status === 'pending' ? t('identity_auth_ready') : t('identity_auth_expired_hint'))
   } catch (error) {
-    const hint = normalizeErrorMessage(error, t('passport_auth_read_failed'))
+    const hint = normalizeErrorMessage(error, t('identity_auth_read_failed'))
     setHint('error', hint)
     notifyInfo(hint)
   } finally {
@@ -248,7 +244,7 @@ function resolveExpiredRedirectTarget(retry: boolean) {
 function goBackToApp(retry: boolean) {
   const target = resolveExpiredRedirectTarget(retry)
   if (!target) {
-    notifyInfo(t('passport_auth_missing_return'))
+    notifyInfo(t('identity_auth_missing_return'))
     return
   }
   window.location.href = target
@@ -261,39 +257,39 @@ function normalizeErrorMessage(error: unknown, fallback: string) {
 }
 
 function resolveApproveHint(error: unknown): string {
-  const message = normalizeErrorMessage(error, t('passport_auth_failed'))
+  const message = normalizeErrorMessage(error, t('identity_auth_failed'))
   const normalized = message.toLowerCase()
-  if (message === 'WEBAUTHN_UNAVAILABLE') return t('passport_auth_webauthn_unavailable')
+  if (message === 'WEBAUTHN_UNAVAILABLE') return t('identity_auth_webauthn_unavailable')
   if (normalized.includes('notallowed') || normalized.includes('user') || normalized.includes('cancel')) {
-    return t('passport_auth_user_cancelled')
+    return t('identity_auth_user_cancelled')
   }
-  if (normalized.includes('expired')) return t('passport_auth_request_expired')
-  if (normalized.includes('used') || normalized.includes('not pending')) return t('passport_auth_request_used')
-  if (normalized.includes('not found')) return t('passport_auth_request_not_found')
+  if (normalized.includes('expired')) return t('identity_auth_request_expired')
+  if (normalized.includes('used') || normalized.includes('not pending')) return t('identity_auth_request_used')
+  if (normalized.includes('not found')) return t('identity_auth_request_not_found')
   return message
 }
 
 async function approveWithPasskey() {
   if (!canApprove.value || !requestInfo.value) return
   if (!isWebAuthnAvailable()) {
-    setHint('error', t('passport_auth_webauthn_unavailable'))
+    setHint('error', t('identity_auth_webauthn_unavailable'))
     return
   }
 
   approving.value = true
   try {
-    const challengeResponse = await fetch(apiUrl('/api/v1/public/auth/passport/authorize/challenge'), {
+    const challengeResponse = await fetch(apiUrl('/api/v1/public/identity/authorize/challenge'), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       credentials: 'include',
       body: JSON.stringify({ requestId: requestId.value }),
     })
-    const challenge = await parseEnvelope<PassportChallengeResult>(
+    const challenge = await parseEnvelope<IdentityChallengeResult>(
       challengeResponse,
-      t('passport_auth_challenge_failed')
+      t('identity_auth_challenge_failed')
     )
     const credential = await startAuthentication(challenge.passkeyRequest)
-    const approveResponse = await fetch(apiUrl('/api/v1/public/auth/passport/authorize/approve'), {
+    const approveResponse = await fetch(apiUrl('/api/v1/public/identity/authorize/approve'), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       credentials: 'include',
@@ -303,8 +299,8 @@ async function approveWithPasskey() {
         credential,
       }),
     })
-    const approved = await parseEnvelope<PassportApproveResult>(approveResponse, t('passport_auth_failed'))
-    setHint('success', t('passport_auth_success_redirect'))
+    const approved = await parseEnvelope<IdentityApproveResult>(approveResponse, t('identity_auth_failed'))
+    setHint('success', t('identity_auth_success_redirect'))
     startRedirect(approved.redirectTo)
   } catch (error) {
     const hint = resolveApproveHint(error)
@@ -361,25 +357,23 @@ const requestCountdownText = computed(() => {
   const minute = Math.floor(remain / 60)
   const second = remain % 60
   if (minute > 0) {
-    return t('passport_auth_minute_second', { minute, second: String(second).padStart(2, '0') })
+    return t('identity_auth_minute_second', { minute, second: String(second).padStart(2, '0') })
   }
-  return t('passport_auth_second', { second })
+  return t('identity_auth_second', { second })
 })
 
 const requestAppName = computed(() => {
   const name = String(requestInfo.value?.appName || '').trim()
-  return name || t('passport_auth_app_fallback')
+  return name || t('identity_auth_app_fallback')
 })
 
-const requestSubjectHint = computed(() => String(requestInfo.value?.subjectHint || '').trim())
-
 const requestStatusText = computed(() => {
-  if (requestExpired.value) return t('passport_auth_status_expired')
+  if (requestExpired.value) return t('identity_auth_status_expired')
   const status = requestInfo.value?.status || ''
-  if (status === 'pending') return t('passport_auth_status_pending')
-  if (status === 'approved') return t('passport_auth_status_used')
-  if (status === 'expired') return t('passport_auth_status_expired')
-  if (!status) return loadingRequest.value ? t('passport_auth_status_loading') : t('passport_auth_status_invalid')
+  if (status === 'pending') return t('identity_auth_status_pending')
+  if (status === 'approved') return t('identity_auth_status_used')
+  if (status === 'expired') return t('identity_auth_status_expired')
+  if (!status) return loadingRequest.value ? t('identity_auth_status_loading') : t('identity_auth_status_invalid')
   return status
 })
 
@@ -395,7 +389,7 @@ watch(
     requestId.value = resolveRequestId(value)
     requestInfo.value = null
     clearRedirectTimers()
-    setHint('info', t('passport_auth_ready'))
+    setHint('info', t('identity_auth_ready'))
     await loadRequestInfo()
   }
 )
@@ -415,7 +409,7 @@ onBeforeUnmount(() => {
 </script>
 
 <style scoped lang="less">
-.passport-auth-page {
+.identity-auth-page {
   min-height: 100dvh;
   display: flex;
   align-items: center;
@@ -427,7 +421,7 @@ onBeforeUnmount(() => {
   padding: 24px;
 }
 
-.passport-auth-card {
+.identity-auth-card {
   width: 100%;
   max-width: 460px;
   background: #fff;
@@ -500,13 +494,6 @@ h1 {
   color: #5b6475;
   background: #f2f4f8;
   border-color: #d8dce6;
-}
-
-.subject-hint {
-  margin: 0;
-  font-size: 13px;
-  color: #6b7280;
-  line-height: 1.4;
 }
 
 .auth-timer {
@@ -627,11 +614,11 @@ h1 {
 }
 
 @media (max-width: 768px) {
-  .passport-auth-page {
+  .identity-auth-page {
     padding: 12px 10px;
   }
 
-  .passport-auth-card {
+  .identity-auth-card {
     padding: 20px 16px;
     border-radius: 14px;
   }

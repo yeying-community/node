@@ -52,11 +52,34 @@ export class IdentityEmailService {
       Object.assign(transaction, { verificationId: id, identityDid: input.identity, typesJson: JSON.stringify(types), email, username: username || '', emailCodeHash: hashCode(id, code), attempts: 0, status: 'pending', expiresAt, createdAt: new Date().toISOString(), completedAt: '' })
       try {
         if (username) {
-          const usernameRow = new IdentityUsernameDO()
-          Object.assign(usernameRow, { namespace: NAMESPACE, normalizedUsername: username, identityDid: input.identity, status: 'reserved', reservedUntil: expiresAt, createdAt: transaction.createdAt, updatedAt: transaction.createdAt })
-          await ds.transaction(async manager => { await manager.getRepository(IdentityUsernameDO).save(usernameRow); await manager.getRepository(IdentityVerificationTransactionDO).save(transaction) })
+          await ds.transaction(async manager => {
+            const usernameRepository = manager.getRepository(IdentityUsernameDO)
+            const existing = await usernameRepository.findOneBy({ namespace: NAMESPACE, normalizedUsername: username })
+            const reservationExpired = existing?.status === 'expired'
+              || (existing?.status === 'reserved' && Date.parse(existing.reservedUntil) <= Date.now())
+            if (existing && existing.identityDid !== input.identity && !reservationExpired) throw new Error('IDENTITY_USERNAME_TAKEN')
+            if (existing) {
+              await usernameRepository.update(
+                { uid: existing.uid },
+                {
+                  identityDid: input.identity,
+                  status: existing.status === 'active' && existing.identityDid === input.identity ? 'active' : 'reserved',
+                  reservedUntil: existing.status === 'active' && existing.identityDid === input.identity ? '' : expiresAt,
+                  updatedAt: transaction.createdAt
+                }
+              )
+            } else {
+              const usernameRow = new IdentityUsernameDO()
+              Object.assign(usernameRow, { namespace: NAMESPACE, normalizedUsername: username, identityDid: input.identity, status: 'reserved', reservedUntil: expiresAt, createdAt: transaction.createdAt, updatedAt: transaction.createdAt })
+              await usernameRepository.save(usernameRow)
+            }
+            await manager.getRepository(IdentityVerificationTransactionDO).save(transaction)
+          })
         } else await ds.getRepository(IdentityVerificationTransactionDO).save(transaction)
-      } catch { throw new Error(username ? 'IDENTITY_USERNAME_TAKEN' : 'IDENTITY_VERIFICATION_STORE_FAILED') }
+      } catch (error) {
+        if (String((error as Error)?.message || error) === 'IDENTITY_USERNAME_TAKEN') throw error
+        throw new Error(username ? 'IDENTITY_USERNAME_TAKEN' : 'IDENTITY_VERIFICATION_STORE_FAILED')
+      }
     }
     try {
       await this.delivery({ email, code, expiresAt })
@@ -106,7 +129,7 @@ export class IdentityEmailService {
           credentialStatus: { id: credentialId, type: 'YeyingCredentialStatusV1' }
         }
       })
-      credentials.push({ type: 'username', credentialId, credential })
+      credentials.push({ type: 'UsernameCredential', credentialId, credential })
     }
     if (challenge.types.includes('email')) {
       const credentialId = `urn:yeying:credential:email:${challenge.id}`
@@ -121,7 +144,7 @@ export class IdentityEmailService {
           credentialStatus: { id: credentialId, type: 'YeyingCredentialStatusV1' }
         }
       })
-      credentials.push({ type: 'email', credentialId, credential })
+      credentials.push({ type: 'EmailCredential', credentialId, credential })
     }
     {
       await ds.getRepository(IdentityVerificationTransactionDO).update({ verificationId: challenge.id }, { status: 'completed', completedAt: verifiedAt })

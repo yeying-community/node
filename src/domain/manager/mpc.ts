@@ -12,7 +12,15 @@ export type MpcMessageQuery = {
   sessionId: string
   since?: number
   cursorTime?: number
+  afterSeq?: number
+  recipientIndex?: number
   limit: number
+}
+
+export type MpcSignRequestQuery = {
+  sessionId?: string
+  walletId?: string
+  status?: string
 }
 
 export class MpcManager {
@@ -37,6 +45,12 @@ export class MpcManager {
 
   async getSession(id: string) {
     return await this.sessionRepository.findOneBy({ id })
+  }
+
+  async listSessions() {
+    return await this.sessionRepository.find({
+      order: { createdAt: 'DESC' }
+    })
   }
 
   async updateSession(id: string, patch: Partial<MpcSessionDO>) {
@@ -75,6 +89,16 @@ export class MpcManager {
     })
   }
 
+  async getMaxMessageSeq(sessionId: string) {
+    const row = await this.messageRepository
+      .createQueryBuilder('message')
+      .select('MAX(message.seq)', 'maxSeq')
+      .where('message.session_id = :sessionId', { sessionId })
+      .getRawOne<{ maxSeq?: string | number | null }>()
+    const maxSeq = Number(row?.maxSeq ?? 0)
+    return Number.isFinite(maxSeq) ? maxSeq : 0
+  }
+
   async queryMessages(query: MpcMessageQuery) {
     const ds = SingletonDataSource.get()
     const createdAtEpochExpr =
@@ -89,7 +113,18 @@ export class MpcManager {
     if (typeof query.cursorTime === 'number' && Number.isFinite(query.cursorTime)) {
       qb.andWhere(`${createdAtEpochExpr} > :cursorTime`, { cursorTime: query.cursorTime })
     }
-    qb.orderBy('message.created_at', 'ASC')
+    if (typeof query.afterSeq === 'number' && Number.isFinite(query.afterSeq)) {
+      qb.andWhere('message.seq > :afterSeq', { afterSeq: query.afterSeq })
+    }
+    if (typeof query.recipientIndex === 'number' && Number.isInteger(query.recipientIndex)) {
+      const recipient = String(query.recipientIndex)
+      qb.andWhere(
+        "((message.receiver = '' AND message.sender <> :recipient) OR message.receiver = :recipient)",
+        { recipient }
+      )
+    }
+    qb.orderBy('message.seq', 'ASC')
+    qb.addOrderBy('message.created_at', 'ASC')
     qb.addOrderBy('message.id', 'ASC')
     qb.take(query.limit)
     return await qb.getMany()
@@ -97,6 +132,27 @@ export class MpcManager {
 
   async saveSignRequest(request: MpcSignRequestDO) {
     return await this.signRequestRepository.save(request)
+  }
+
+  async getSignRequest(id: string) {
+    return await this.signRequestRepository.findOneBy({ id })
+  }
+
+  async querySignRequests(query: MpcSignRequestQuery = {}) {
+    const qb = this.signRequestRepository.createQueryBuilder('request')
+    qb.where('1 = 1')
+    if (query.sessionId) {
+      qb.andWhere('request.session_id = :sessionId', { sessionId: query.sessionId })
+    }
+    if (query.walletId) {
+      qb.andWhere('request.wallet_id = :walletId', { walletId: query.walletId })
+    }
+    if (query.status) {
+      qb.andWhere('request.status = :status', { status: query.status })
+    }
+    qb.orderBy('request.created_at', 'DESC')
+    qb.addOrderBy('request.id', 'ASC')
+    return await qb.getMany()
   }
 
   async saveAuditLog(log: MpcAuditLogDO) {

@@ -39,10 +39,10 @@ module.exports = {
     // 加密密钥文件路径。支持相对路径（相对当前项目目录）。
     // 所有业务密钥均从此加密文件解密，不能写入本配置。
     // 核心密钥：
-    // - ISSUER_PRIVATE_KEY：Node 对外统一 Issuer 的 Ed25519 私钥，用于签发 UCAN、Passport
+    // - ISSUER_PRIVATE_KEY：Node 对外统一 Issuer 的 Ed25519 私钥，用于签发 UCAN
     //   和身份凭证；其公钥、kid 和 DID 是对外身份的一部分。
     // - NODE_KEY_DERIVATION_SECRET：Node 内部用途的密钥派生根，不是 Issuer 私钥，也不是
-    //   某个业务模块的最终密钥。JWT、TOTP 存储、Passport assertion 和 Webhook 分别使用
+    //   某个业务模块的最终密钥。JWT、TOTP 存储和 Webhook 分别使用
     //   固定用途上下文从它派生，避免在配置中维护多份内部密钥。不能从 config.js 读取或填写。
     file: 'run/secrets.enc.json',
     // 密码文件路径。开发/测试环境会保留并复用；生产环境由 starter.sh 交互输入，
@@ -143,27 +143,27 @@ module.exports = {
     //   node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
     // Required when enabled. Supports plain text / base64 / hex.
   },
-  passportAuth: {
-    // New Passport assertions use ISSUER_PRIVATE_KEY; old symmetric assertions are migration-only.
-    // Node-hosted Passport authorization page path. Example: /passport/authorize
-    verifyPath: '/passport/authorize',
-    // Base URL used to build Passport verifyUrl in authorize request response.
+  identityAuth: {
+    // Base URL used to build wallet identity verifyUrl in authorize request response.
     portalBaseUrl: 'http://127.0.0.1:8100',
-    // Short-lived Passport assertion secret for Wallet-backed DApp login.
-    // Short-lived Passport assertion TTL for Wallet-backed DApp login.
-    assertionTtlMs: 5 * 60 * 1000,
     passkey: {
-      // Enable Passport Passkey registration and authorization confirmation. rpId must be the current
+      // Enable wallet identity Passkey registration and authorization confirmation. rpId must be the current
       // domain or its registrable parent; origin must exactly match the browser page origin.
       enabled: false,
       // Relying Party ID. Prefer a dedicated local hostname such as
-      // 'passport.localhost' so Passport credentials are not mixed with
+      // 'identity.localhost' so identity credentials are not mixed with
       // unrelated credentials registered for the shared 'localhost' RP.
       rpId: 'localhost',
       // Relying Party display name.
       rpName: 'YeYing Node',
-      // Browser origin that serves the Passport page.
+      // Browser origin that serves the identity authorization page.
       origin: 'http://localhost:8100',
+      // All browser origins allowed to complete WebAuthn registration/authentication.
+      // Include `origin` plus the Wallet extension origin when registering Passkey
+      // from the extension settings page.
+      // Local example:
+      // origins: ['http://localhost:8100', 'chrome-extension://<wallet-extension-id>']
+      origins: [],
       // WebAuthn operation timeout.
       timeoutMs: 60 * 1000,
       // Registration challenge TTL.
@@ -243,7 +243,7 @@ module.exports = {
       zippedArchive: true
     }
   },
-  // Required before enabling Passport email verification delivery.
+  // Required before enabling identity email verification delivery.
   // SMTP credentials are MAIL_SMTP_USER/MAIL_SMTP_PASSWORD in secrets.enc.json. host, port and from
   // are non-sensitive delivery parameters. Leave host as smtp.example.com to disable real delivery.
   mail: {
@@ -251,6 +251,6 @@ module.exports = {
     host: 'smtp.example.com',
     port: 465,
     secure: true,
-    from: 'YeYing Passport <no-reply@example.com>',
+    from: 'YeYing Identity <no-reply@example.com>',
   }
 }

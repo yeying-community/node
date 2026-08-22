@@ -31,7 +31,11 @@ describe('identity account link', () => {
     const accountSignature = await wallet.signMessage(challenge.message)
     const result = await verifyAccountLink({ identityDocument: document, identity, account: challenge.account, nonce: challenge.nonce, issuedAt: challenge.issuedAt, expiresAt: challenge.expiresAt, accountSignature })
     expect(result.account.address).toBe(wallet.address)
-    await expect(verifyAccountLink({ identityDocument: document, identity, account: challenge.account, nonce: challenge.nonce, issuedAt: challenge.issuedAt, expiresAt: challenge.expiresAt, accountSignature })).rejects.toThrow('IDENTITY_ACCOUNT_PROOF_INVALID')
+    const retryChallenge = await issueAccountLinkChallenge({ identity, account: challenge.account })
+    const retrySignature = await wallet.signMessage(retryChallenge.message)
+    const duplicate = await verifyAccountLink({ identityDocument: document, identity, account: retryChallenge.account, nonce: retryChallenge.nonce, issuedAt: retryChallenge.issuedAt, expiresAt: retryChallenge.expiresAt, accountSignature: retrySignature })
+    expect(duplicate.account.address).toBe(wallet.address)
+    expect(duplicate.duplicate).toBe(true)
   })
 
   it('rejects a signature from another address', async () => {

@@ -2,7 +2,7 @@ import { generateKeyPairSync, sign } from 'node:crypto'
 import { vi } from 'vitest'
 import { SingletonDataSource } from '../src/domain/facade/datasource'
 import { createInMemoryDataSource } from './helpers/inMemoryDataSource'
-import { IdentityCredentialDO } from '../src/domain/mapper/entity'
+import { IdentityCredentialDO, IdentityPasskeyCredentialDO } from '../src/domain/mapper/entity'
 
 vi.mock('../src/domain/service/application', () => ({
   ApplicationService: class {
@@ -24,6 +24,9 @@ function presentation(request: any, overrides: Record<string, unknown> = {}) {
   Object.assign(unsigned, overrides)
   return { ...unsigned, proof: { type: 'YeyingIdentityPresentationProofV1', verificationMethod: `${identity}#controller-1`, purpose: 'authentication', proofValue: sign(null, Buffer.from(canonicalize(unsigned)), privateKey).toString('base64url') } }
 }
+function signedIdentityDocument() {
+  return { ...document, proof: { type: 'YeyingIdentityDocumentProofV1', verificationMethod: `${identity}#controller-1`, purpose: 'manage', proofValue: sign(null, Buffer.from(canonicalize(document)), privateKey).toString('base64url') } }
+}
 
 const { IdentityAuthorizationService } = await import('../src/domain/service/identityAuthorization')
 
@@ -33,11 +36,11 @@ describe('identity authorization', () => {
     const verifier = 'a'.repeat(43)
     const challenge = Buffer.from(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(verifier))).toString('base64url')
     const request = await service.create({ appId: 'project', redirectUri: 'https://project.example/auth/callback', codeChallenge: challenge, codeChallengeMethod: 'S256', scopes: ['identity.email'] })
-    await SingletonDataSource.get()!.getRepository(IdentityCredentialDO).save(Object.assign(new IdentityCredentialDO(), { credentialId: 'email-1', identityDid: identity, credentialType: 'email', token: 'credential', status: 'active', issuedAt: new Date().toISOString(), expiresAt: new Date(Date.now() + 60_000).toISOString(), revokedAt: '' }))
+    await SingletonDataSource.get()!.getRepository(IdentityCredentialDO).save(Object.assign(new IdentityCredentialDO(), { credentialId: 'email-1', identityDid: identity, credentialType: 'EmailCredential', token: 'credential', status: 'active', issuedAt: new Date().toISOString(), expiresAt: new Date(Date.now() + 60_000).toISOString(), revokedAt: '' }))
     const approved = await service.approve({ requestId: request.requestId, presentation: presentation(request) })
     const exchanged = await service.exchange({ code: approved.authorizationCode, appId: 'project', redirectUri: 'https://project.example/auth/callback', codeVerifier: verifier })
     expect(exchanged.did).toBe(identity)
-    expect(exchanged.credentials).toEqual([{ type: 'email', credentialId: 'email-1', credential: 'credential' }])
+    expect(exchanged.credentials).toEqual([{ type: 'EmailCredential', credentialId: 'email-1', credential: 'credential' }])
     await expect(service.exchange({ code: approved.authorizationCode, appId: 'project', redirectUri: 'https://project.example/auth/callback', codeVerifier: verifier })).rejects.toThrow('IDENTITY_AUTHORIZATION_CODE_INVALID')
   })
 
@@ -45,5 +48,30 @@ describe('identity authorization', () => {
     const service = new IdentityAuthorizationService()
     const request = await service.create({ appId: 'project', redirectUri: 'https://project.example/auth/callback', codeChallenge: 'b'.repeat(43), codeChallengeMethod: 'S256', scopes: ['identity.basic'] })
     await expect(service.approve({ requestId: request.requestId, presentation: presentation(request, { audience: 'https://other.example' }) })).rejects.toThrow('IDENTITY_PRESENTATION_CONTEXT_INVALID')
+  })
+
+  it('lists and revokes wallet identity passkey credentials', async () => {
+    const service = new IdentityAuthorizationService()
+    await SingletonDataSource.get()!.getRepository(IdentityPasskeyCredentialDO).save(Object.assign(new IdentityPasskeyCredentialDO(), {
+      identityDid: identity,
+      credentialId: 'credential-1',
+      publicKey: 'public-key',
+      signCount: '0',
+      aaguid: '',
+      transports: JSON.stringify(['internal']),
+      deviceName: 'Mac Touch ID',
+      rpId: 'localhost',
+      userHandle: identity,
+      createdAt: '2026-08-22T00:00:00.000Z',
+      lastUsedAt: '',
+      revokedAt: ''
+    }))
+    const listed = await service.listPasskeyCredentials({ identity })
+    expect(listed.credentials).toMatchObject([{ credentialId: 'credential-1', deviceName: 'Mac Touch ID', transports: ['internal'], revokedAt: '' }])
+    const revoked = await service.revokePasskeyCredential({ identity, identityDocument: signedIdentityDocument(), credentialId: 'credential-1' })
+    expect(revoked.credentialId).toBe('credential-1')
+    expect(revoked.revokedAt).toBeTruthy()
+    const after = await service.listPasskeyCredentials({ identity })
+    expect(after.credentials[0].revokedAt).toBeTruthy()
   })
 })

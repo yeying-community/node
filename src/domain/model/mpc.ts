@@ -10,6 +10,7 @@ export type MpcSessionType = 'keygen' | 'sign' | 'refresh'
 
 export interface MpcSession {
   id: string
+  name: string
   type: string
   walletId: string
   threshold: number
@@ -19,6 +20,7 @@ export interface MpcSession {
   curve: string
   keyVersion: number
   shareVersion: number
+  result?: unknown
   createdAt: string
   expiresAt: string
 }
@@ -54,9 +56,13 @@ export interface MpcSignRequest {
   initiator: string
   payloadType: string
   payloadHash: string
+  payload: unknown
   chainId: number
   status: string
   approvals: unknown
+  signature: string
+  result: unknown
+  completedAt: string
   createdAt: string
 }
 
@@ -103,6 +109,7 @@ export function convertMpcSessionTo(session: Partial<MpcSession>): MpcSessionDO 
     return sessionDO
   }
   sessionDO.id = session.id!
+  sessionDO.name = session.name || ''
   sessionDO.type = session.type || ''
   sessionDO.walletId = session.walletId || ''
   sessionDO.threshold = session.threshold ?? 0
@@ -112,6 +119,11 @@ export function convertMpcSessionTo(session: Partial<MpcSession>): MpcSessionDO 
   sessionDO.curve = session.curve || ''
   sessionDO.keyVersion = session.keyVersion ?? 0
   sessionDO.shareVersion = session.shareVersion ?? 0
+  if (typeof session.result === 'string') {
+    sessionDO.resultJson = session.result
+  } else {
+    sessionDO.resultJson = JSON.stringify(session.result ?? {})
+  }
   sessionDO.createdAt = session.createdAt || ''
   sessionDO.expiresAt = session.expiresAt || ''
   return sessionDO
@@ -120,6 +132,7 @@ export function convertMpcSessionTo(session: Partial<MpcSession>): MpcSessionDO 
 export function convertMpcSessionFrom(sessionDO: MpcSessionDO): MpcSession {
   return {
     id: sessionDO.id,
+    name: sessionDO.name || '',
     type: sessionDO.type,
     walletId: sessionDO.walletId,
     threshold: sessionDO.threshold,
@@ -129,6 +142,7 @@ export function convertMpcSessionFrom(sessionDO: MpcSessionDO): MpcSession {
     curve: sessionDO.curve,
     keyVersion: sessionDO.keyVersion,
     shareVersion: sessionDO.shareVersion,
+    result: parseJsonValue(sessionDO.resultJson || '{}'),
     createdAt: sessionDO.createdAt,
     expiresAt: sessionDO.expiresAt
   }
@@ -213,6 +227,11 @@ export function convertMpcSignRequestTo(request: Partial<MpcSignRequest>): MpcSi
   requestDO.initiator = request.initiator!
   requestDO.payloadType = request.payloadType!
   requestDO.payloadHash = request.payloadHash!
+  if (typeof request.payload === 'string') {
+    requestDO.payloadJson = request.payload
+  } else {
+    requestDO.payloadJson = JSON.stringify(request.payload ?? {})
+  }
   requestDO.chainId = request.chainId ?? 0
   requestDO.status = request.status || ''
   if (typeof request.approvals === 'string') {
@@ -220,6 +239,13 @@ export function convertMpcSignRequestTo(request: Partial<MpcSignRequest>): MpcSi
   } else {
     requestDO.approvals = JSON.stringify(request.approvals ?? [])
   }
+  requestDO.signature = request.signature || ''
+  if (typeof request.result === 'string') {
+    requestDO.resultJson = request.result
+  } else {
+    requestDO.resultJson = JSON.stringify(request.result ?? {})
+  }
+  requestDO.completedAt = request.completedAt || ''
   requestDO.createdAt = request.createdAt || ''
   return requestDO
 }
@@ -232,9 +258,13 @@ export function convertMpcSignRequestFrom(requestDO: MpcSignRequestDO): MpcSignR
     initiator: requestDO.initiator,
     payloadType: requestDO.payloadType,
     payloadHash: requestDO.payloadHash,
+    payload: parseJsonValue(requestDO.payloadJson || '{}'),
     chainId: requestDO.chainId,
     status: requestDO.status,
     approvals: parseJsonValue(requestDO.approvals),
+    signature: requestDO.signature || '',
+    result: parseJsonValue(requestDO.resultJson || '{}'),
+    completedAt: requestDO.completedAt || '',
     createdAt: requestDO.createdAt
   }
 }

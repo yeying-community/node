@@ -6,7 +6,7 @@ YeYing Node 是社区产品体系中的协调枢纽。它不只是一个应用�
 
 | 能力 | 主要职责 | API 前缀 |
 | --- | --- | --- |
-| 身份与授权 | SIWE 登录、JWT 会话、钱包 UCAN、中心化 UCAN、TOTP、Passkey | `/api/v1/public/auth` |
+| 身份与授权 | SIWE 登录、JWT 会话、钱包身份凭证、钱包身份授权码、钱包 UCAN、中心化 UCAN、TOTP、Passkey | `/api/v1/public/auth`、`/api/v1/public/identity` |
 | 应用中心 | 应用元数据、用户配置、搜索、发布和下架 | `/api/v1/public/applications` |
 | 审核治理 | 申请、审批、驳回、撤销和管理员用户治理 | `/api/v1/public/audits`、`/api/v1/admin` |
 | MPC 协调 | 会话、参与者、消息中继、SSE 和 Redis Streams 续传 | `/api/v1/public/mpc` |
@@ -22,7 +22,7 @@ Node 不保存钱包明文密钥。托管接口只接受客户端加密后的 `c
 - Node.js 22 或更高版本；生产环境建议固定 LTS 版本。
 - PostgreSQL 作为推荐数据库。PostgreSQL 使用 migration；MySQL 依赖 TypeORM synchronize，功能覆盖需要自行验证。
 - Redis 为可选组件。多实例 MPC、SSE 续传和事件重放建议启用 Redis Streams。
-- Passkey 生产环境必须使用 HTTPS，并保证 `passportAuth.passkey.rpId` 与访问域名一致。
+- Passkey 生产环境必须使用 HTTPS，并保证 `identityAuth.passkey.rpId` 与访问域名一致。Passkey 在新钱包身份流程中只是认证器，不是外部身份主键。
 
 ## 3. 本地启动
 
@@ -96,32 +96,53 @@ mpc: { ucanWith: 'mpc', ucanCan: 'coordinate' },
 custody: { enabled: true, ucanWith: 'custody', ucanCan: 'write' }
 ```
 
-### Passport Passkey
+### 钱包身份与 Passkey
+
+Node 的新身份契约不再创建或返回 `subjectId`。正式外部主键是 `did:yeying:wid_*`；钱包地址是已验证账户关联，邮箱和用户名是 Node 签发的 JWT-VC。
+
+配置使用 `identityAuth.passkey` 的 RP 参数：
 
 ```js
-passportAuth: {
-  verifyPath: '/passport/authorize',
+identityAuth: {
   portalBaseUrl: 'https://node.example.com',
   passkey: {
     enabled: true,
     rpId: 'node.example.com',
     rpName: 'YeYing Node',
     origin: 'https://node.example.com',
+    origins: [
+      'https://node.example.com',
+      'chrome-extension://<wallet-extension-id>'
+    ],
     timeoutMs: 60 * 1000,
     challengeTtlMs: 2 * 60 * 1000
   }
 }
 ```
 
-`rpId` 只能是当前域名或其可注册父域，`origin` 必须包含协议且与浏览器实际来源完全一致。
+`rpId` 只能是当前域名或其可注册父域。`origin` / `origins` 必须包含协议且与浏览器实际来源完全一致：Node 授权页使用 `https://node.example.com` 或本地 `http://localhost:8100`，Wallet 插件设置页注册 Passkey 时使用 `chrome-extension://<wallet-extension-id>`。如果确认注册时报 `Unexpected registration response origin "chrome-extension://..."`，把该插件 origin 加入 `identityAuth.passkey.origins` 后重启 Node。
 
-社区身份解绑由 Node 执行，Wallet 不应只删除本地状态：
+Node 自身的应用中心登录是钱包签名 / UCAN 自举登录，不依赖在应用中心先发布一个 Node 应用；`identityAuth.passkey` 只负责钱包身份 Passkey 注册和无插件授权页。Router 等外部 Web3 应用才需要在 Node 应用中心发布应用并配置 `redirectUris`。
 
-1. Wallet 使用当前登录 Bearer 调用 `POST /api/v1/public/auth/passport/bind/unlink/request`。
-2. Wallet 对返回的 `message` 发起钱包签名。
-3. Wallet 将 `requestId`、`timestamp`、`signature` 提交到 `POST /api/v1/public/auth/passport/bind/unlink/confirm`。
-4. Node 校验签名后撤销钱包绑定、该 subject 下 Passkey credential、未完成授权请求和未使用授权码，并写入 Passport 审计。
-5. Wallet 重新查询 `/api/v1/public/auth/passport/bindings` 刷新身份状态。
+钱包身份相关公共接口：
+
+| 方法 | 路径 | 用途 |
+| --- | --- | --- |
+| POST | `/api/v1/public/identity/account-links/challenge` | 创建钱包身份与链账户关联 challenge |
+| POST | `/api/v1/public/identity/account-links/verify` | 校验身份控制器签名和账户签名，保存账户关联 |
+| POST | `/api/v1/public/identity/verifications/request` | 请求邮箱/用户名验证事务 |
+| POST | `/api/v1/public/identity/verifications/confirm` | 确认验证码并签发 `EmailCredential` / `UsernameCredential` |
+| POST | `/api/v1/public/identity/passkeys/register/request` | 使用签名身份文档创建身份级 Passkey 注册请求 |
+| POST | `/api/v1/public/identity/passkeys/register/confirm` | 确认 WebAuthn registration 并保存到该钱包身份 |
+| POST | `/api/v1/public/identity/authorize/request` | 为 Web3 应用创建授权码请求，返回 `verifyUrl` |
+| GET | `/api/v1/public/identity/authorize/request/:requestId` | 查询授权请求 |
+| POST | `/api/v1/public/identity/authorize/challenge` | 创建无钱包登录 Passkey challenge |
+| POST | `/api/v1/public/identity/authorize/approve` | 用 Passkey assertion 或 Wallet presentation 批准授权 |
+| POST | `/api/v1/public/identity/authorize/exchange` | 应用后端用 PKCE verifier 换取 DID、钱包地址和凭证 |
+
+`/identity/authorize?requestId=...` 是 Node 内置的轻量授权页，供 Router 等 Web3 应用展示二维码或跳转。授权页只使用 Passkey 证明钱包身份控制关系；exchange 结果不包含 Passport assertion 或 `subjectId`。
+
+旧 Passport subject 接口已移除。新 Router / web3-bs 集成只使用 `/api/v1/public/identity/*`。
 
 ### 生产密钥
 
