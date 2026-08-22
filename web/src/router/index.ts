@@ -25,7 +25,7 @@ export const routes = [
         path: '/identity/authorize',
         name: 'identityAuth',
         meta: { public: true },
-        component: () => import('../views/PassportAuthView.vue')
+        component: () => import('../views/IdentityAuthView.vue')
     },
     {
         path: '/market',
