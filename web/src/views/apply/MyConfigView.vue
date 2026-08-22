@@ -7,10 +7,10 @@
     <el-tabs v-model="authTab" class="page-tabs">
       <el-tab-pane :label="mt('passkeyTab')" name="passkey">
         <div class="method-section passkey-dashboard">
-          <div class="passport-main-card">
-            <div class="passport-card-head">
+          <div class="identity-main-card">
+            <div class="identity-card-head">
               <div>
-                <div class="passport-title-row">
+                <div class="identity-title-row">
                   <span>{{ mt('passkeyListTitle') }}</span>
                   <el-tag :type="passkeyStatus?.enabled ? 'success' : 'info'" effect="light">
                     {{ passkeyStatus ? (passkeyStatus.enabled ? mt('enabled') : mt('disabled')) : '-' }}
@@ -21,7 +21,7 @@
                 </div>
                 <div class="section-hint">{{ mt('passkeyManageHint') }}</div>
               </div>
-              <div class="passport-head-actions">
+              <div class="identity-head-actions">
                 <el-button @click="goPasskeyTestHistory">{{ mt('testHistory') }}</el-button>
                 <el-button :disabled="!passkeyStatus?.enabled || !passkeyStatus?.ready" type="success" plain @click="openPasskeyTestDialog">
                   {{ mt('testPasskey') }}
@@ -34,7 +34,7 @@
 
             <div v-if="passkeyStatus?.error" class="status-error compact-error">{{ mt('errorPrefix') }}{{ passkeyStatus.error }}</div>
 
-            <div class="passport-summary-grid">
+            <div class="identity-summary-grid">
               <div class="summary-metric">
                 <span class="summary-label">{{ mt('serviceSwitch') }}</span>
                 <strong>{{ passkeyStatus ? (passkeyStatus.enabled ? mt('enabled') : mt('disabled')) : '-' }}</strong>
@@ -267,12 +267,12 @@
             <div class="step-title"><span class="step-dot">4</span>{{ mt('testResultTitle') }}</div>
             <div class="result-summary-grid">
               <div>
-                <span>{{ mt('subjectId') }}</span>
-                <strong>{{ passkeyExchangeResult?.subjectId || '-' }}</strong>
+                <span>{{ mt('walletIdentityDid') }}</span>
+                <strong>{{ passkeyExchangeResult?.did || '-' }}</strong>
               </div>
               <div>
-                <span>{{ mt('walletAddress') }}</span>
-                <strong>{{ passkeyExchangeResult?.walletAddress || '-' }}</strong>
+                <span>{{ mt('walletIdentityId') }}</span>
+                <strong>{{ passkeyExchangeResult?.walletIdentityId || '-' }}</strong>
               </div>
               <div>
                 <span>{{ mt('appId') }}</span>
@@ -472,7 +472,8 @@ type PasskeyStatus = {
 
 type PasskeyCredentialRecord = {
   credentialId: string;
-  subjectId?: string;
+  identity?: string;
+  walletIdentityId?: string;
   walletAddress?: string;
   deviceName?: string;
   transports?: string[];
@@ -481,8 +482,9 @@ type PasskeyCredentialRecord = {
   revokedAt?: string;
 };
 
-type PassportPasskeyCredentialListResult = {
-  subjectId: string;
+type IdentityPasskeyCredentialListResult = {
+  identity: string;
+  walletIdentityId?: string;
   walletAddress: string;
   credentials: PasskeyCredentialRecord[];
 };
@@ -515,7 +517,8 @@ type PasskeyRegisterOptions = {
 };
 
 type PasskeyRegisterRequestResult = {
-  subjectId: string;
+  identity: string;
+  walletIdentityId?: string;
   walletAddress: string;
   passkeyRequest: PasskeyRegisterOptions;
 };
@@ -548,10 +551,10 @@ type UcanCapability = {
 type AuthorizeRequestResult = {
   requestId: string;
   status: string;
-  subject?: string;
-  subjectId?: string;
-  subjectHint?: string;
+  did?: string;
+  walletIdentityId?: string;
   walletAddress?: string;
+  scopes?: string[];
   appId: string;
   redirectUri: string;
   state?: string;
@@ -566,8 +569,8 @@ type AuthorizeRequestResult = {
 type AuthorizeApproveResult = {
   requestId: string;
   appName?: string;
-  subjectId?: string;
-  walletAddress?: string;
+  did?: string;
+  walletIdentityId?: string;
   approvedAt?: number | string;
   authorizationCode: string;
   authorizationCodeExpiresAt: number | string;
@@ -578,7 +581,11 @@ type AuthorizeExchangeResult = {
   requestId: string;
   subject?: string;
   subjectId?: string;
+  did?: string;
+  walletIdentityId?: string;
   walletAddress?: string;
+  scopes?: string[];
+  credentials?: Array<Record<string, unknown>>;
   appId: string;
   redirectUri: string;
   state?: string;
@@ -616,6 +623,8 @@ type PasskeyTestHistoryRecord = {
   appId?: string;
   requestId?: string;
   subjectId?: string;
+  did?: string;
+  walletIdentityId?: string;
   walletAddress?: string;
   detail: Record<string, unknown>;
 };
@@ -627,8 +636,10 @@ function mt(key: MyConfigMessageKey): string {
   return getMyConfigMessage(locale.value, key);
 }
 
-const PASSKEY_TEST_HISTORY_KEY = 'passport:passkey:test-history';
-const TOTP_TEST_HISTORY_KEY = 'passport:totp:test-history';
+const PASSKEY_TEST_HISTORY_KEY = 'identity:passkey:test-history';
+const TOTP_TEST_HISTORY_KEY = 'identity:totp:test-history';
+const LEGACY_PASSKEY_TEST_HISTORY_KEY = 'passport:passkey:test-history';
+const LEGACY_TOTP_TEST_HISTORY_KEY = 'passport:totp:test-history';
 const LEGACY_PASSKEY_DEVICE_NAMES = new Set(['passkey-device', 'Passkey Device']);
 
 const authTab = ref('passkey');
@@ -641,7 +652,7 @@ const totpStatus = ref<TotpStatus | null>(null);
 const totpProvision = ref<TotpProvision | null>(null);
 const totpQrDataUrl = ref('');
 const passkeyStatus = ref<PasskeyStatus | null>(null);
-const passportPasskeyBinding = ref<PassportPasskeyCredentialListResult | null>(null);
+const identityPasskeyBinding = ref<IdentityPasskeyCredentialListResult | null>(null);
 const passkeyCredentials = ref<PasskeyCredentialRecord[]>([]);
 const passkeyDeviceName = ref(createDefaultPasskeyDeviceName());
 const passkeyRequestResult = ref<AuthorizeRequestResult | null>(null);
@@ -688,9 +699,27 @@ const revokedPasskeyCount = computed(() =>
 );
 
 const walletAddressDisplay = computed(() => {
-  const address = String(passportPasskeyBinding.value?.walletAddress || currentAccount.value || '').trim();
+  const address = String(identityPasskeyBinding.value?.walletAddress || currentAccount.value || '').trim();
   return formatAddress(address);
 });
+
+function readHistoryList(storageKey: string, legacyStorageKey?: string) {
+  try {
+    const raw = localStorage.getItem(storageKey) || (legacyStorageKey ? localStorage.getItem(legacyStorageKey) : '') || '[]';
+    const parsed = JSON.parse(raw);
+    const list = Array.isArray(parsed) ? parsed : [];
+    if (legacyStorageKey && !localStorage.getItem(storageKey) && localStorage.getItem(legacyStorageKey)) {
+      localStorage.setItem(storageKey, JSON.stringify(list));
+    }
+    return list;
+  } catch {
+    return [];
+  }
+}
+
+function writeHistoryList(storageKey: string, list: unknown[]) {
+  localStorage.setItem(storageKey, JSON.stringify(list.slice(0, 50)));
+}
 
 function formatAddress(address: string): string {
   const value = String(address || '').trim();
@@ -992,7 +1021,7 @@ async function loadTotpProvision(options: { silent?: boolean; force?: boolean } 
 }
 
 async function loadPasskeyCredentials() {
-  passportPasskeyBinding.value = null;
+  identityPasskeyBinding.value = null;
   passkeyCredentials.value = [];
   notifyInfo(mt('passkeyManagedInWallet'));
 }
@@ -1011,7 +1040,7 @@ function buildPasskeyTestDetail(): Record<string, unknown> {
         }
       : null,
     passkeyStatus: passkeyStatus.value,
-    passportBinding: passportPasskeyBinding.value,
+    identityPasskey: identityPasskeyBinding.value,
     passkeyRequest: passkeyRequestResult.value,
     passkeyChallenge: passkeyAuthChallenge.value,
     passkeyApprove: passkeyApproveResult.value,
@@ -1051,14 +1080,13 @@ function savePasskeyTestHistory(action: string, status: 'success' | 'failed') {
     createdAt: new Date().toISOString(),
     appId: String(selectedApplication.value?.uid || ''),
     requestId: String(passkeyRequestIdInput.value || passkeyRequestResult.value?.requestId || ''),
-    subjectId: String(passkeyExchangeResult.value?.subjectId || passportPasskeyBinding.value?.subjectId || ''),
-    walletAddress: String(passkeyExchangeResult.value?.walletAddress || passportPasskeyBinding.value?.walletAddress || currentAccount.value || ''),
+    did: String(passkeyExchangeResult.value?.did || identityPasskeyBinding.value?.identity || ''),
+    walletIdentityId: String(passkeyExchangeResult.value?.walletIdentityId || identityPasskeyBinding.value?.walletIdentityId || ''),
+    walletAddress: String(passkeyExchangeResult.value?.walletAddress || identityPasskeyBinding.value?.walletAddress || currentAccount.value || ''),
     detail: buildPasskeyTestDetail(),
   };
   try {
-    const parsed = JSON.parse(localStorage.getItem(PASSKEY_TEST_HISTORY_KEY) || '[]');
-    const list = Array.isArray(parsed) ? parsed : [];
-    localStorage.setItem(PASSKEY_TEST_HISTORY_KEY, JSON.stringify([record, ...list].slice(0, 50)));
+    writeHistoryList(PASSKEY_TEST_HISTORY_KEY, [record, ...readHistoryList(PASSKEY_TEST_HISTORY_KEY, LEGACY_PASSKEY_TEST_HISTORY_KEY)]);
   } catch {
     // ignore local storage failure
   }
@@ -1077,9 +1105,7 @@ function saveTotpTestHistory(action: string, status: 'success' | 'failed') {
     detail: buildTotpTestDetail(),
   };
   try {
-    const parsed = JSON.parse(localStorage.getItem(TOTP_TEST_HISTORY_KEY) || '[]');
-    const list = Array.isArray(parsed) ? parsed : [];
-    localStorage.setItem(TOTP_TEST_HISTORY_KEY, JSON.stringify([record, ...list].slice(0, 50)));
+    writeHistoryList(TOTP_TEST_HISTORY_KEY, [record, ...readHistoryList(TOTP_TEST_HISTORY_KEY, LEGACY_TOTP_TEST_HISTORY_KEY)]);
   } catch {
     // ignore local storage failure
   }
@@ -1678,21 +1704,21 @@ watch(
     min-height: 100%;
   }
 
-  .passport-main-card {
+  .identity-main-card {
     padding: 18px;
     border: 1px solid #e8edf4;
     border-radius: 10px;
     background: #fff;
   }
 
-  .passport-card-head {
+  .identity-card-head {
     display: flex;
     align-items: flex-start;
     justify-content: space-between;
     gap: 16px;
   }
 
-  .passport-title-row {
+  .identity-title-row {
     display: flex;
     align-items: center;
     gap: 10px;
@@ -1703,14 +1729,14 @@ watch(
     color: rgba(0, 0, 0, 0.88);
   }
 
-  .passport-head-actions {
+  .identity-head-actions {
     display: flex;
     justify-content: flex-end;
     gap: 10px;
     flex-wrap: wrap;
   }
 
-  .passport-summary-grid {
+  .identity-summary-grid {
     margin-top: 16px;
     display: grid;
     grid-template-columns: 150px 150px minmax(0, 1fr) minmax(0, 1fr);
@@ -2322,7 +2348,7 @@ watch(
       justify-self: start;
     }
 
-    .passport-summary-grid {
+    .identity-summary-grid {
       grid-template-columns: repeat(2, minmax(0, 1fr));
     }
 
@@ -2360,7 +2386,7 @@ watch(
       grid-template-columns: 1fr;
     }
 
-    .passport-summary-grid {
+    .identity-summary-grid {
       grid-template-columns: 1fr;
     }
 
@@ -2397,7 +2423,7 @@ watch(
       display: block;
     }
 
-    .passport-card-head,
+    .identity-card-head,
     .totp-head,
     .status-actions,
     .status-badges {

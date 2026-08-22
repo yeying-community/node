@@ -68,7 +68,8 @@ import { computed, onMounted, ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { getLocaleRef } from '@/lang/locale';
 
-const HISTORY_KEY = 'passport:totp:test-history';
+const HISTORY_KEY = 'identity:totp:test-history';
+const LEGACY_HISTORY_KEY = 'passport:totp:test-history';
 
 type TotpTestHistoryRecord = {
   id: string;
@@ -93,8 +94,12 @@ function label(zh: string, en: string) {
 
 function loadHistory() {
   try {
-    const parsed = JSON.parse(localStorage.getItem(HISTORY_KEY) || '[]');
+    const raw = localStorage.getItem(HISTORY_KEY) || localStorage.getItem(LEGACY_HISTORY_KEY) || '[]';
+    const parsed = JSON.parse(raw);
     records.value = Array.isArray(parsed) ? parsed : [];
+    if (!localStorage.getItem(HISTORY_KEY) && localStorage.getItem(LEGACY_HISTORY_KEY)) {
+      localStorage.setItem(HISTORY_KEY, JSON.stringify(records.value));
+    }
     selectedId.value = records.value[0]?.id || '';
   } catch {
     records.value = [];
@@ -117,6 +122,7 @@ function actionLabel(action: string) {
 
 function clearHistory() {
   localStorage.removeItem(HISTORY_KEY);
+  localStorage.removeItem(LEGACY_HISTORY_KEY);
   loadHistory();
 }
 
