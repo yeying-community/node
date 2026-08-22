@@ -580,7 +580,6 @@ type AuthorizeApproveResult = {
 type AuthorizeExchangeResult = {
   requestId: string;
   subject?: string;
-  subjectId?: string;
   did?: string;
   walletIdentityId?: string;
   walletAddress?: string;
@@ -622,7 +621,6 @@ type PasskeyTestHistoryRecord = {
   createdAt: string;
   appId?: string;
   requestId?: string;
-  subjectId?: string;
   did?: string;
   walletIdentityId?: string;
   walletAddress?: string;
@@ -638,8 +636,6 @@ function mt(key: MyConfigMessageKey): string {
 
 const PASSKEY_TEST_HISTORY_KEY = 'identity:passkey:test-history';
 const TOTP_TEST_HISTORY_KEY = 'identity:totp:test-history';
-const LEGACY_PASSKEY_TEST_HISTORY_KEY = 'passport:passkey:test-history';
-const LEGACY_TOTP_TEST_HISTORY_KEY = 'passport:totp:test-history';
 const LEGACY_PASSKEY_DEVICE_NAMES = new Set(['passkey-device', 'Passkey Device']);
 
 const authTab = ref('passkey');
@@ -703,15 +699,11 @@ const walletAddressDisplay = computed(() => {
   return formatAddress(address);
 });
 
-function readHistoryList(storageKey: string, legacyStorageKey?: string) {
+function readHistoryList(storageKey: string) {
   try {
-    const raw = localStorage.getItem(storageKey) || (legacyStorageKey ? localStorage.getItem(legacyStorageKey) : '') || '[]';
+    const raw = localStorage.getItem(storageKey) || '[]';
     const parsed = JSON.parse(raw);
-    const list = Array.isArray(parsed) ? parsed : [];
-    if (legacyStorageKey && !localStorage.getItem(storageKey) && localStorage.getItem(legacyStorageKey)) {
-      localStorage.setItem(storageKey, JSON.stringify(list));
-    }
-    return list;
+    return Array.isArray(parsed) ? parsed : [];
   } catch {
     return [];
   }
@@ -1086,7 +1078,7 @@ function savePasskeyTestHistory(action: string, status: 'success' | 'failed') {
     detail: buildPasskeyTestDetail(),
   };
   try {
-    writeHistoryList(PASSKEY_TEST_HISTORY_KEY, [record, ...readHistoryList(PASSKEY_TEST_HISTORY_KEY, LEGACY_PASSKEY_TEST_HISTORY_KEY)]);
+    writeHistoryList(PASSKEY_TEST_HISTORY_KEY, [record, ...readHistoryList(PASSKEY_TEST_HISTORY_KEY)]);
   } catch {
     // ignore local storage failure
   }
@@ -1100,12 +1092,13 @@ function saveTotpTestHistory(action: string, status: 'success' | 'failed') {
     createdAt: new Date().toISOString(),
     appId: String(selectedApplication.value?.uid || ''),
     requestId: String(requestIdInput.value || requestResult.value?.requestId || ''),
-    subjectId: String(exchangeResult.value?.subjectId || ''),
+    did: String(exchangeResult.value?.did || ''),
+    walletIdentityId: String(exchangeResult.value?.walletIdentityId || ''),
     walletAddress: String(exchangeResult.value?.walletAddress || currentAccount.value || ''),
     detail: buildTotpTestDetail(),
   };
   try {
-    writeHistoryList(TOTP_TEST_HISTORY_KEY, [record, ...readHistoryList(TOTP_TEST_HISTORY_KEY, LEGACY_TOTP_TEST_HISTORY_KEY)]);
+    writeHistoryList(TOTP_TEST_HISTORY_KEY, [record, ...readHistoryList(TOTP_TEST_HISTORY_KEY)]);
   } catch {
     // ignore local storage failure
   }

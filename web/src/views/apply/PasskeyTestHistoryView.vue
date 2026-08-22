@@ -53,7 +53,7 @@
           <div class="detail-grid">
             <div><span>{{ label('应用', 'App') }}</span><strong>{{ selectedRecord.appId || '-' }}</strong></div>
             <div><span>{{ label('请求', 'Request') }}</span><strong>{{ selectedRecord.requestId || '-' }}</strong></div>
-            <div><span>{{ label('钱包身份 DID', 'Wallet Identity DID') }}</span><strong>{{ selectedRecord.did || selectedRecord.subjectId || '-' }}</strong></div>
+            <div><span>{{ label('钱包身份 DID', 'Wallet Identity DID') }}</span><strong>{{ selectedRecord.did || '-' }}</strong></div>
             <div><span>{{ label('钱包身份 ID', 'Wallet Identity ID') }}</span><strong>{{ selectedRecord.walletIdentityId || '-' }}</strong></div>
             <div><span>{{ label('已验证钱包', 'Verified Wallet') }}</span><strong>{{ selectedRecord.walletAddress || '-' }}</strong></div>
           </div>
@@ -70,7 +70,6 @@ import { useRouter } from 'vue-router';
 import { getLocaleRef } from '@/lang/locale';
 
 const HISTORY_KEY = 'identity:passkey:test-history';
-const LEGACY_HISTORY_KEY = 'passport:passkey:test-history';
 
 type PasskeyTestHistoryRecord = {
   id: string;
@@ -79,7 +78,6 @@ type PasskeyTestHistoryRecord = {
   createdAt: string;
   appId?: string;
   requestId?: string;
-  subjectId?: string;
   did?: string;
   walletIdentityId?: string;
   walletAddress?: string;
@@ -97,12 +95,9 @@ function label(zh: string, en: string) {
 
 function loadHistory() {
   try {
-    const raw = localStorage.getItem(HISTORY_KEY) || localStorage.getItem(LEGACY_HISTORY_KEY) || '[]';
+    const raw = localStorage.getItem(HISTORY_KEY) || '[]';
     const parsed = JSON.parse(raw);
     records.value = Array.isArray(parsed) ? parsed : [];
-    if (!localStorage.getItem(HISTORY_KEY) && localStorage.getItem(LEGACY_HISTORY_KEY)) {
-      localStorage.setItem(HISTORY_KEY, JSON.stringify(records.value));
-    }
     selectedId.value = records.value[0]?.id || '';
   } catch {
     records.value = [];
@@ -125,7 +120,6 @@ function actionLabel(action: string) {
 
 function clearHistory() {
   localStorage.removeItem(HISTORY_KEY);
-  localStorage.removeItem(LEGACY_HISTORY_KEY);
   loadHistory();
 }
 
