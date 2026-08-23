@@ -4,25 +4,6 @@
       <el-breadcrumb-item>{{ $t('notification_page_breadcrumb') }}</el-breadcrumb-item>
     </el-breadcrumb>
 
-    <div class="page-head">
-      <div>
-        <h1>{{ $t('notification_page_title') }}</h1>
-        <p>{{ $t('notification_page_subtitle') }}</p>
-      </div>
-      <div class="page-head-actions">
-        <span class="summary">
-          {{
-            unreadCount > 0
-              ? `${unreadCount}${$t('header_notification_unread_suffix')}`
-              : $t('header_notification_summary_done')
-          }}
-        </span>
-        <el-button :disabled="unreadCount <= 0" @click="handleMarkAllRead">
-          {{ $t('header_notification_all_read') }}
-        </el-button>
-      </div>
-    </div>
-
     <el-tabs v-model="activeView" class="page-view-tabs">
       <el-tab-pane :label="$t('notification_tab_inbox')" name="inbox" />
       <el-tab-pane :label="$t('notification_tab_webhook')" name="webhook" />
@@ -913,39 +894,6 @@ onBeforeUnmount(() => {
   overflow: hidden;
 }
 
-.page-head {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  gap: 16px;
-  margin: 18px 0 16px;
-
-  h1 {
-    margin: 0;
-    font-size: 24px;
-    font-weight: 600;
-    color: #111827;
-  }
-
-  p {
-    margin: 8px 0 0;
-    color: #6b7280;
-    font-size: 14px;
-  }
-}
-
-.page-head-actions {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
-.summary {
-  color: #4b5563;
-  font-size: 14px;
-  white-space: nowrap;
-}
-
 .filter-bar {
   display: flex;
   flex-wrap: wrap;
@@ -983,7 +931,7 @@ onBeforeUnmount(() => {
 }
 
 .page-view-tabs {
-  margin-bottom: 12px;
+  margin: 16px 0 12px;
 }
 
 .list-panel,
@@ -1364,15 +1312,6 @@ onBeforeUnmount(() => {
 }
 
 @media (max-width: 768px) {
-  .page-head {
-    flex-direction: column;
-  }
-
-  .page-head-actions {
-    width: 100%;
-    justify-content: space-between;
-  }
-
   .filter-bar.compact {
     flex-wrap: wrap;
   }

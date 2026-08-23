@@ -70,14 +70,6 @@
                             >
                                 {{ $t('header_notification_view_all') }}
                             </button>
-                            <button
-                                v-if="unreadCount > 0"
-                                type="button"
-                                class="notification-read-all-btn"
-                                @click.stop="handleMarkAllRead"
-                            >
-                                {{ $t('header_notification_all_read') }}
-                            </button>
                         </div>
                     </div>
                     <div class="notification-list">
@@ -673,8 +665,7 @@ onBeforeUnmount(() => {
     color: rgba(15, 23, 42, 0.45);
 }
 
-.notification-view-all-btn,
-.notification-read-all-btn{
+.notification-view-all-btn{
     border: none;
     background: transparent;
     padding: 0;
