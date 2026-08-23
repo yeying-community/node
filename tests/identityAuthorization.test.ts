@@ -11,7 +11,6 @@ vi.mock('../src/config/runtime', () => ({
     'identityAuth.passkey.rpId': 'localhost',
     'identityAuth.passkey.rpName': 'YeYing Node',
     'identityAuth.passkey.origin': 'http://localhost:8100',
-    'identityAuth.passkey.origins': ['http://localhost:8100'],
     'identityAuth.passkey.timeoutMs': 60_000,
     'identityAuth.passkey.challengeTtlMs': 120_000
   } as Record<string, unknown>)[key]
@@ -139,8 +138,7 @@ describe('identity authorization', () => {
         rawId: 'credential-extension-1',
         type: 'public-key',
         response: { clientDataJSON, transports: ['internal'] }
-      },
-      requestOrigin: 'chrome-extension://lklhmjkaigpbnfchejbkmkfpkibmnjgf'
+      }
     })
 
     expect(result.credentialId).toBe('credential-extension-1')

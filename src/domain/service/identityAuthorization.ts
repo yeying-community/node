@@ -55,9 +55,6 @@ function credentialClientDataOrigin(credential: any): string {
     throw new Error('IDENTITY_PASSKEY_CLIENT_DATA_INVALID')
   }
 }
-function configuredPasskeyOrigins(status: { origin: string; origins: string[] }) {
-  return [...new Set([status.origin, ...(status.origins || [])].map(normalizedOrigin).filter(Boolean))]
-}
 function portalBaseUrl() {
   const raw = String(process.env.IDENTITY_AUTH_PORTAL_BASE_URL || getConfig<string>('identityAuth.portalBaseUrl') || '').trim()
   if (raw) return raw.replace(/\/+$/, '')
@@ -131,13 +128,11 @@ export class IdentityAuthorizationService {
     return [...new Set(origins.filter(Boolean))]
   }
 
-  private async expectedPasskeyOrigin(status: { origin: string; origins: string[] }, credential: any, requestOrigin?: unknown) {
+  private async expectedPasskeyOrigin(status: { origin: string }, credential: any) {
     const credentialOrigin = credentialClientDataOrigin(credential)
-    const allowed = [...new Set([...configuredPasskeyOrigins(status), ...(await this.publishedApplicationOrigins())])]
+    const allowed = [...new Set([normalizedOrigin(status.origin), ...(await this.publishedApplicationOrigins())].filter(Boolean))]
     if (!allowed.includes(credentialOrigin)) {
-      const hint = normalizedOrigin(requestOrigin)
-      const detail = hint && hint !== credentialOrigin ? `${credentialOrigin} from ${hint}` : credentialOrigin
-      throw new Error(`IDENTITY_PASSKEY_ORIGIN_UNAUTHORIZED:${detail}`)
+      throw new Error(`IDENTITY_PASSKEY_ORIGIN_UNAUTHORIZED:${credentialOrigin}`)
     }
     return credentialOrigin
   }
@@ -190,7 +185,7 @@ export class IdentityAuthorizationService {
     return { identity: identityDid, passkeyRequest: { ...(generated as any), requestId: challenge.challengeId }, deviceName: string(input.deviceName) }
   }
 
-  async confirmPasskeyRegistration(input: { identity: unknown; requestId: unknown; credential: any; deviceName?: unknown; requestOrigin?: unknown }) {
+  async confirmPasskeyRegistration(input: { identity: unknown; requestId: unknown; credential: any; deviceName?: unknown }) {
     const status = assertPasskeyAuthReady()
     const identityDid = assertIdentityDid(input.identity)
     const challengeRepo = dataSource().getRepository(IdentityWebauthnChallengeDO)
@@ -198,7 +193,7 @@ export class IdentityAuthorizationService {
     if (!challenge || challenge.challengeType !== 'identity-register' || challenge.identityDid !== identityDid) throw new Error('IDENTITY_PASSKEY_CHALLENGE_NOT_FOUND')
     if (challenge.used) throw new Error('IDENTITY_PASSKEY_CHALLENGE_USED')
     if (Date.parse(challenge.expiresAt) <= Date.now()) throw new Error('IDENTITY_PASSKEY_CHALLENGE_EXPIRED')
-    const expectedOrigin = await this.expectedPasskeyOrigin(status, input.credential, input.requestOrigin)
+    const expectedOrigin = await this.expectedPasskeyOrigin(status, input.credential)
     const verification = await verifyRegistrationResponse({ response: input.credential, expectedChallenge: challenge.challenge, expectedOrigin, expectedRPID: status.rpId, requireUserVerification: true } as any)
     const info = (verification as any).registrationInfo
     if (!(verification as any).verified || !info) throw new Error('IDENTITY_PASSKEY_REGISTER_VERIFY_FAILED')
@@ -288,7 +283,7 @@ export class IdentityAuthorizationService {
     const verification = await verifyAuthenticationResponse({
       response: input.credential,
       expectedChallenge: challenge.challenge,
-      expectedOrigin: status.origins.length > 1 ? status.origins : status.origin,
+      expectedOrigin: status.origin,
       expectedRPID: status.rpId,
       credential: { id: credentialId, publicKey: Buffer.from(credential.publicKey, 'base64url'), counter: Number(credential.signCount || 0), transports: parseTransports(credential.transports) }
     } as any)

@@ -158,12 +158,6 @@ module.exports = {
       rpName: 'YeYing Node',
       // Browser origin that serves the identity authorization page.
       origin: 'http://localhost:8100',
-      // All browser origins allowed to complete WebAuthn registration/authentication.
-      // Include `origin` plus the Wallet extension origin when registering Passkey
-      // from the extension settings page.
-      // Local example:
-      // origins: ['http://localhost:8100', 'chrome-extension://<wallet-extension-id>']
-      origins: [],
       // WebAuthn operation timeout.
       timeoutMs: 60 * 1000,
       // Registration challenge TTL.

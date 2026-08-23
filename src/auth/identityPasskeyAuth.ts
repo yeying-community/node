@@ -6,7 +6,6 @@ export type PasskeyAuthStatus = {
   rpId: string
   rpName: string
   origin: string
-  origins: string[]
   timeoutMs: number
   challengeTtlMs: number
   error?: string
@@ -42,17 +41,11 @@ function parsePositiveNumber(value: unknown, fallback: number): number {
   return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback
 }
 
-function parseOrigins(value: unknown, fallback: string): string[] {
-  const input = Array.isArray(value) ? value : String(value || fallback || '').split(/[,\n]/)
-  return [...new Set(input.map(item => String(item || '').trim()).filter(Boolean))]
-}
-
 export function getPasskeyAuthStatus(): PasskeyAuthStatus {
   const enabled = parseBoolean(getConfig<boolean>('identityAuth.passkey.enabled'), false)
   const rpId = String(getConfig<string>('identityAuth.passkey.rpId') || '').trim()
   const rpName = String(getConfig<string>('identityAuth.passkey.rpName') || 'YeYing Node').trim()
   const origin = String(getConfig<string>('identityAuth.passkey.origin') || '').trim()
-  const origins = parseOrigins(getConfig<string[] | string>('identityAuth.passkey.origins'), origin)
   const timeoutMs = parsePositiveNumber(
     getConfig<number>('identityAuth.passkey.timeoutMs'),
     DEFAULT_TIMEOUT_MS
@@ -61,14 +54,13 @@ export function getPasskeyAuthStatus(): PasskeyAuthStatus {
     getConfig<number>('identityAuth.passkey.challengeTtlMs'),
     DEFAULT_CHALLENGE_TTL_MS
   )
-  const ready = !enabled || Boolean(rpId && rpName && origins.length > 0)
+  const ready = !enabled || Boolean(rpId && rpName && origin)
   return {
     enabled,
     ready,
     rpId,
     rpName,
-    origin: origins[0] || origin,
-    origins,
+    origin,
     timeoutMs,
     challengeTtlMs,
     error: ready ? '' : 'PASSKEY_AUTH_RUNTIME_NOT_READY',
