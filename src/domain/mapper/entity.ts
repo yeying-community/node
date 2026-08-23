@@ -228,6 +228,36 @@ export class IdentityPasskeyCredentialDO {
     revokedAt!: string
 }
 
+@Entity('identity_totp_authenticators')
+export class IdentityTotpAuthenticatorDO {
+    @PrimaryColumn({ length: 128, name: 'identity_did' })
+    identityDid!: string
+
+    @Column({ type: 'text', name: 'secret_ciphertext' })
+    secretCiphertext!: string
+
+    @Column({ length: 32, default: 'pending' })
+    status!: string
+
+    @Column({ length: 255, name: 'device_name', default: '' })
+    deviceName!: string
+
+    @Column({ length: 64, name: 'created_at', default: '' })
+    createdAt!: string
+
+    @Column({ length: 64, name: 'updated_at', default: '' })
+    updatedAt!: string
+
+    @Column({ length: 64, name: 'confirmed_at', default: '' })
+    confirmedAt!: string
+
+    @Column({ length: 64, name: 'last_used_at', default: '' })
+    lastUsedAt!: string
+
+    @Column({ length: 64, name: 'revoked_at', default: '' })
+    revokedAt!: string
+}
+
 @Entity('identity_webauthn_challenges')
 @Index('idx_identity_webauthn_challenge_expires_at', ['expiresAt'])
 export class IdentityWebauthnChallengeDO {

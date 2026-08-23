@@ -32,7 +32,7 @@ import {
     ProjectAppInstallationDO,
     AppReleaseDO,
     AppRuntimeTaskDO,
-    IdentityAccountLinkDO, IdentityAccountLinkChallengeDO, IdentityVerificationTransactionDO, IdentityUsernameDO, IdentityCredentialDO, IdentityAuditLogDO, IdentityPasskeyCredentialDO, IdentityWebauthnChallengeDO, IdentityAuthorizationRequestDO, IdentityAuthorizationCodeDO
+    IdentityAccountLinkDO, IdentityAccountLinkChallengeDO, IdentityVerificationTransactionDO, IdentityUsernameDO, IdentityCredentialDO, IdentityAuditLogDO, IdentityPasskeyCredentialDO, IdentityTotpAuthenticatorDO, IdentityWebauthnChallengeDO, IdentityAuthorizationRequestDO, IdentityAuthorizationCodeDO
 } from './domain/mapper/entity'
 import { SingletonDataSource } from './domain/facade/datasource';
 import { LoggerConfig, LoggerService } from './infrastructure/logger';
@@ -56,6 +56,7 @@ import { registerPublicIdentityAccountLinkRoutes } from './routes/publicIdentity
 import { IdentityEmailService } from './domain/service/identityEmail';
 import { registerPublicIdentityEmailRoutes } from './routes/publicIdentityEmail';
 import { registerPublicIdentityAuthorizationRoutes } from './routes/publicIdentityAuthorization';
+import { registerPublicIdentityTotpRoutes } from './routes/publicIdentityTotp';
 import { deliverIdentityEmailVerification } from './domain/service/identityEmailDelivery';
 import { registerAdminAuditRoutes } from './routes/admin/audits';
 import { registerAdminUserRoutes } from './routes/admin/users';
@@ -89,6 +90,7 @@ import { AddMpcSessionName20260821120000 } from './migrations/20260821120000-add
 import { AddMpcSessionResult20260821133000 } from './migrations/20260821133000-add-mpc-session-result';
 import { AddMpcSignRequestResult20260821152000 } from './migrations/20260821152000-add-mpc-sign-request-result';
 import { AddMpcSignRequestPayload20260821162000 } from './migrations/20260821162000-add-mpc-sign-request-payload';
+import { AddIdentityTotpAuthenticators20260823110000 } from './migrations/20260823110000-add-identity-totp-authenticators';
 import { AddScopedGrants20260808090000 } from './migrations/20260808090000-add-scoped-grants';
 import { getConfig } from './config/runtime';
 import { startActionRequestCleanupJobs } from './domain/service/actionRequestCleanup';
@@ -302,6 +304,7 @@ builder.entities([
     IdentityCredentialDO,
     IdentityAuditLogDO,
     IdentityPasskeyCredentialDO,
+    IdentityTotpAuthenticatorDO,
     IdentityWebauthnChallengeDO,
     IdentityAuthorizationRequestDO,
     IdentityAuthorizationCodeDO
@@ -335,7 +338,8 @@ builder.migrations([
     AddMpcSessionName20260821120000,
     AddMpcSessionResult20260821133000,
     AddMpcSignRequestResult20260821152000,
-    AddMpcSignRequestPayload20260821162000
+    AddMpcSignRequestPayload20260821162000,
+    AddIdentityTotpAuthenticators20260823110000
 ])
 
 builder.build().initialize().then(async (conn) => {
@@ -380,6 +384,7 @@ builder.build().initialize().then(async (conn) => {
         await deliverIdentityEmailVerification({ email, code, verificationId: `identity-${Date.now()}`, expiresAt });
     }));
     registerPublicIdentityAuthorizationRoutes(app);
+    registerPublicIdentityTotpRoutes(app);
     registerPublicAuthCentralRoutes(app);
     registerPublicAuthTotpRoutes(app);
     registerPublicAuthGrantRoutes(app);

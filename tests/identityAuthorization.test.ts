@@ -1,8 +1,8 @@
-import { generateKeyPairSync, sign } from 'node:crypto'
+import { createHmac, generateKeyPairSync, sign } from 'node:crypto'
 import { vi } from 'vitest'
 import { SingletonDataSource } from '../src/domain/facade/datasource'
 import { createInMemoryDataSource } from './helpers/inMemoryDataSource'
-import { IdentityCredentialDO, IdentityPasskeyCredentialDO, IdentityWebauthnChallengeDO } from '../src/domain/mapper/entity'
+import { IdentityCredentialDO, IdentityPasskeyCredentialDO, IdentityTotpAuthenticatorDO, IdentityWebauthnChallengeDO } from '../src/domain/mapper/entity'
 
 vi.mock('../src/config/runtime', () => ({
   getConfig: (key: string) => ({
@@ -14,6 +14,10 @@ vi.mock('../src/config/runtime', () => ({
     'identity.webauthn.timeoutMs': 60_000,
     'identity.webauthn.challengeTtlMs': 120_000
   } as Record<string, unknown>)[key]
+}))
+
+vi.mock('../src/security/secretVault', () => ({
+  getDerivedRuntimeSecret: () => '11'.repeat(32)
 }))
 
 vi.mock('@simplewebauthn/server', () => ({
@@ -63,7 +67,38 @@ function signedIdentityDocument() {
 }
 
 const { IdentityAuthorizationService } = await import('../src/domain/service/identityAuthorization')
+const { IdentityTotpService } = await import('../src/auth/identityTotpAuth')
 const { verifyRegistrationResponse } = await import('@simplewebauthn/server')
+
+function base32Decode(value: string): Buffer {
+  const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567'
+  let bits = 0
+  let current = 0
+  const output: number[] = []
+  for (const char of value.replace(/=+$/g, '').toUpperCase()) {
+    const index = alphabet.indexOf(char)
+    if (index < 0) continue
+    current = (current << 5) | index
+    bits += 5
+    if (bits >= 8) {
+      output.push((current >>> (bits - 8)) & 0xff)
+      bits -= 8
+    }
+  }
+  return Buffer.from(output)
+}
+
+function totpCode(secretBase32: string, nowMs = Date.now()) {
+  const secret = base32Decode(secretBase32)
+  const counter = Math.floor(nowMs / 30_000)
+  const counterBuffer = Buffer.alloc(8)
+  counterBuffer.writeUInt32BE(Math.floor(counter / 0x100000000) >>> 0, 0)
+  counterBuffer.writeUInt32BE((counter % 0x100000000) >>> 0, 4)
+  const hmac = createHmac('sha1', secret).update(counterBuffer).digest()
+  const offset = hmac[hmac.length - 1] & 0x0f
+  const binary = ((hmac[offset] & 0x7f) << 24) | ((hmac[offset + 1] & 0xff) << 16) | ((hmac[offset + 2] & 0xff) << 8) | (hmac[offset + 3] & 0xff)
+  return String(binary % 1_000_000).padStart(6, '0')
+}
 
 describe('identity authorization', () => {
   it('exchanges a DID presentation once and returns only requested credentials', async () => {
@@ -108,6 +143,28 @@ describe('identity authorization', () => {
     expect(revoked.revokedAt).toBeTruthy()
     const after = await service.listPasskeyCredentials({ identity })
     expect(after.credentials[0].revokedAt).toBeTruthy()
+  })
+
+  it('sets up, confirms, verifies, and revokes wallet identity TOTP', async () => {
+    const service = new IdentityTotpService()
+    const setup = await service.setup({ identity, identityDocument: signedIdentityDocument(), deviceName: '1Password' })
+    expect(setup.totp.secret).toBeTruthy()
+    expect(setup.totp.otpauthUri).toContain('otpauth://totp/')
+
+    const code = totpCode(setup.totp.secret)
+    const confirmed = await service.confirm({ identity, code })
+    expect(confirmed.totp.enabled).toBe(true)
+    expect(confirmed.totp.deviceName).toBe('1Password')
+
+    const verified = await service.verify({ identity, code })
+    expect(verified.verified).toBe(true)
+
+    const row = await SingletonDataSource.get()!.getRepository(IdentityTotpAuthenticatorDO).findOneBy({ identityDid: identity })
+    expect(row?.secretCiphertext).not.toContain(setup.totp.secret)
+
+    const revoked = await service.revoke({ identity, identityDocument: signedIdentityDocument() })
+    expect(revoked.totp.status).toBe('revoked')
+    await expect(service.verify({ identity, code })).rejects.toMatchObject({ code: 'IDENTITY_TOTP_NOT_ENABLED' })
   })
 
   it('accepts a published wallet extension origin for passkey registration', async () => {

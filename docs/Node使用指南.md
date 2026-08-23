@@ -132,6 +132,12 @@ Node 自身的应用中心登录是钱包签名 / UCAN 自举登录，不依赖�
 | POST | `/api/v1/public/identity/verifications/confirm` | 确认验证码并签发 `EmailCredential` / `UsernameCredential` |
 | POST | `/api/v1/public/identity/passkeys/register/request` | 使用签名身份文档创建身份级 Passkey 注册请求 |
 | POST | `/api/v1/public/identity/passkeys/register/confirm` | 确认 WebAuthn registration 并保存到该钱包身份 |
+| GET | `/api/v1/public/identity/totp/status` | 查询钱包身份 TOTP 服务状态 |
+| POST | `/api/v1/public/identity/totp/get` | 查询钱包身份 TOTP 认证器状态 |
+| POST | `/api/v1/public/identity/totp/setup` | 使用签名身份文档创建 TOTP secret |
+| POST | `/api/v1/public/identity/totp/confirm` | 使用验证码确认并启用 TOTP |
+| POST | `/api/v1/public/identity/totp/verify` | 校验已启用 TOTP 验证码 |
+| POST | `/api/v1/public/identity/totp/revoke` | 使用签名身份文档撤销 TOTP |
 | POST | `/api/v1/public/identity/authorize/request` | 为 Web3 应用创建授权码请求，返回 `verifyUrl` |
 | GET | `/api/v1/public/identity/authorize/request/:requestId` | 查询授权请求 |
 | POST | `/api/v1/public/identity/authorize/challenge` | 创建无钱包登录 Passkey challenge |
@@ -139,6 +145,8 @@ Node 自身的应用中心登录是钱包签名 / UCAN 自举登录，不依赖�
 | POST | `/api/v1/public/identity/authorize/exchange` | 应用后端用 PKCE verifier 换取 DID、钱包地址和凭证 |
 
 `/identity/authorize?requestId=...` 是 Node 内置的轻量授权页，供 Router 等 Web3 应用展示二维码或跳转。授权页只使用 Passkey 证明钱包身份控制关系；exchange 结果不包含 Passport assertion 或 `subjectId`。
+
+钱包身份 TOTP 是可选认证器，入口在 Wallet 钱包身份详情页。Node 只按 DID 保存加密 secret、校验验证码和返回状态；旧 `/api/v1/public/auth/totp/*` 仍是历史地址主体 UCAN 授权能力，不作为钱包身份 TOTP 使用。
 
 旧 Passport subject 接口已移除。新 Router / web3-bs 集成只使用 `/api/v1/public/identity/*`。
 

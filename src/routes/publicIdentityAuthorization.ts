@@ -2,6 +2,7 @@ import { Express, Request, Response } from 'express'
 import { fail, ok } from '../auth/envelope'
 import { IdentityAuthorizationService } from '../domain/service/identityAuthorization'
 import { getPasskeyAuthStatus } from '../auth/identityPasskeyAuth'
+import { getIdentityTotpStatus } from '../auth/identityTotpAuth'
 
 function handle(error: unknown, res: Response) {
   const message = error instanceof Error ? error.message : 'Identity authorization failed'
@@ -16,7 +17,7 @@ export function registerPublicIdentityAuthorizationRoutes(app: Express) {
     res.type('html').send(identityAuthorizePage())
   })
   app.get('/api/v1/public/identity/status', (_req: Request, res: Response) => {
-    res.json(ok({ passkey: getPasskeyAuthStatus() }))
+    res.json(ok({ passkey: getPasskeyAuthStatus(), totp: getIdentityTotpStatus() }))
   })
   app.post('/api/v1/public/identity/authorize/request', async (req: Request, res: Response) => {
     try { res.json(ok(await service.create({ appId: req.body?.appId, redirectUri: req.body?.redirectUri, state: req.body?.state, codeChallenge: req.body?.codeChallenge ?? req.body?.code_challenge, codeChallengeMethod: req.body?.codeChallengeMethod ?? req.body?.code_challenge_method, scopes: req.body?.scopes ?? req.body?.scope }))) } catch (error) { handle(error, res) }
