@@ -43,7 +43,7 @@ export function registerPublicIdentityAuthorizationRoutes(app: Express) {
     try { res.json(ok(await service.createPasskeyRegisterRequest({ identity: req.body?.identity, identityDocument: req.body?.identityDocument, deviceName: req.body?.deviceName }))) } catch (error) { handle(error, res) }
   })
   app.post('/api/v1/public/identity/passkeys/register/confirm', async (req: Request, res: Response) => {
-    try { res.json(ok(await service.confirmPasskeyRegistration({ identity: req.body?.identity, requestId: req.body?.requestId, credential: req.body?.credential, deviceName: req.body?.deviceName }))) } catch (error) { handle(error, res) }
+    try { res.json(ok(await service.confirmPasskeyRegistration({ identity: req.body?.identity, requestId: req.body?.requestId, credential: req.body?.credential, deviceName: req.body?.deviceName, requestOrigin: req.headers.origin }))) } catch (error) { handle(error, res) }
   })
   app.post('/api/v1/public/identity/passkeys/list', async (req: Request, res: Response) => {
     try { res.json(ok(await service.listPasskeyCredentials({ identity: req.body?.identity }))) } catch (error) { handle(error, res) }

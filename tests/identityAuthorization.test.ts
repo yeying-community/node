@@ -2,11 +2,46 @@ import { generateKeyPairSync, sign } from 'node:crypto'
 import { vi } from 'vitest'
 import { SingletonDataSource } from '../src/domain/facade/datasource'
 import { createInMemoryDataSource } from './helpers/inMemoryDataSource'
-import { IdentityCredentialDO, IdentityPasskeyCredentialDO } from '../src/domain/mapper/entity'
+import { IdentityCredentialDO, IdentityPasskeyCredentialDO, IdentityWebauthnChallengeDO } from '../src/domain/mapper/entity'
+
+vi.mock('../src/config/runtime', () => ({
+  getConfig: (key: string) => ({
+    'identityAuth.portalBaseUrl': 'http://localhost:8100',
+    'identityAuth.passkey.enabled': true,
+    'identityAuth.passkey.rpId': 'localhost',
+    'identityAuth.passkey.rpName': 'YeYing Node',
+    'identityAuth.passkey.origin': 'http://localhost:8100',
+    'identityAuth.passkey.origins': ['http://localhost:8100'],
+    'identityAuth.passkey.timeoutMs': 60_000,
+    'identityAuth.passkey.challengeTtlMs': 120_000
+  } as Record<string, unknown>)[key]
+}))
+
+vi.mock('@simplewebauthn/server', () => ({
+  generateAuthenticationOptions: vi.fn(),
+  generateRegistrationOptions: vi.fn(),
+  verifyAuthenticationResponse: vi.fn(),
+  verifyRegistrationResponse: vi.fn(async () => ({
+    verified: true,
+    registrationInfo: {
+      credential: { id: 'credential-extension-1', publicKey: Buffer.from('public-key'), counter: 0 },
+      aaguid: ''
+    }
+  }))
+}))
 
 vi.mock('../src/domain/service/application', () => ({
   ApplicationService: class {
     async queryByUid(uid: string) { return uid === 'project' ? { uid, name: 'Project', redirectUris: 'https://project.example/auth/callback' } : null }
+    async search() {
+      return {
+        data: [
+          { uid: 'wallet', name: 'Wallet', redirectUris: 'chrome-extension://lklhmjkaigpbnfchejbkmkfpkibmnjgf' },
+          { uid: 'project', name: 'Project', redirectUris: 'https://project.example/auth/callback' }
+        ],
+        page: { page: 1, pageSize: 1000, total: 2 }
+      }
+    }
   }
 }))
 
@@ -29,6 +64,7 @@ function signedIdentityDocument() {
 }
 
 const { IdentityAuthorizationService } = await import('../src/domain/service/identityAuthorization')
+const { verifyRegistrationResponse } = await import('@simplewebauthn/server')
 
 describe('identity authorization', () => {
   it('exchanges a DID presentation once and returns only requested credentials', async () => {
@@ -73,5 +109,44 @@ describe('identity authorization', () => {
     expect(revoked.revokedAt).toBeTruthy()
     const after = await service.listPasskeyCredentials({ identity })
     expect(after.credentials[0].revokedAt).toBeTruthy()
+  })
+
+  it('accepts a published wallet extension origin for passkey registration', async () => {
+    const service = new IdentityAuthorizationService()
+    await SingletonDataSource.get()!.getRepository(IdentityWebauthnChallengeDO).save(Object.assign(new IdentityWebauthnChallengeDO(), {
+      challengeId: 'iwc-extension',
+      challengeType: 'identity-register',
+      identityDid: identity,
+      requestId: '',
+      challenge: 'challenge-extension',
+      allowedCredentialIds: '[]',
+      createdAt: new Date().toISOString(),
+      expiresAt: new Date(Date.now() + 60_000).toISOString(),
+      used: false
+    }))
+    const clientDataJSON = Buffer.from(JSON.stringify({
+      type: 'webauthn.create',
+      challenge: 'challenge-extension',
+      origin: 'chrome-extension://lklhmjkaigpbnfchejbkmkfpkibmnjgf'
+    })).toString('base64url')
+
+    const result = await service.confirmPasskeyRegistration({
+      identity,
+      requestId: 'iwc-extension',
+      deviceName: 'Wallet extension',
+      credential: {
+        id: 'credential-extension-1',
+        rawId: 'credential-extension-1',
+        type: 'public-key',
+        response: { clientDataJSON, transports: ['internal'] }
+      },
+      requestOrigin: 'chrome-extension://lklhmjkaigpbnfchejbkmkfpkibmnjgf'
+    })
+
+    expect(result.credentialId).toBe('credential-extension-1')
+    expect(verifyRegistrationResponse).toHaveBeenCalledWith(expect.objectContaining({
+      expectedOrigin: 'chrome-extension://lklhmjkaigpbnfchejbkmkfpkibmnjgf',
+      expectedRPID: 'localhost'
+    }))
   })
 })
