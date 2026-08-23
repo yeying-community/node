@@ -121,7 +121,7 @@
             </el-row>
         </div>
 
-        <AuditSummaryPanel v-if="pageFrom === 'myApply' && auditDetail" :audit="auditDetail" />
+        <AuditSummaryPanel v-if="isApplicationRequestDetail && auditDetail" :audit="auditDetail" />
     </div>
 
     <ResultChooseModal
@@ -195,6 +195,7 @@ const detailInfo = ref<ApplicationMetadata>({
     codePackagePath: ''
 })
 const pageFrom = String(route.query.pageFrom || '')
+const isApplicationRequestDetail = computed(() => pageFrom === 'myApply' || pageFrom === 'approval')
 const fromNotification = computed(() => String(route.query.fromNotification || '').trim() === '1')
 const innerVisible = ref(false)
 const modalVisible = ref(false)
@@ -429,7 +430,7 @@ const detail = async () => {
         updateOnlineState()
         return
     }
-    if (pageFrom === 'myApply') {
+    if (isApplicationRequestDetail.value) {
         const auditId = await resolveCurrentAuditId()
         if (!auditId) {
             throw new Error(String($t('app_detail_apply_record_missing')))
@@ -499,6 +500,12 @@ const toList = () => {
             query: {
                 tab: pageFrom
             }
+        })
+        return
+    }
+    if (pageFrom === 'approval') {
+        router.push({
+            path: '/market/dev/approval'
         })
         return
     }

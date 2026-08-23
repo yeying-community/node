@@ -131,7 +131,7 @@ const handleDetail = (row: AuditDetailBox) => {
         return
     }
     const query: Record<string, string> = {
-        pageFrom: 'myApply',
+        pageFrom: 'approval',
         auditId
     }
     if (row.targetUid) {
