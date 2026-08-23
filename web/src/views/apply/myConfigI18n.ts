@@ -57,7 +57,7 @@ const messages = {
     confirm: '确定',
     cancel: '取消',
     passkeyManageHint: '通行证已收口到钱包身份，注册、查看和撤销请在夜莺钱包插件中完成。',
-    passkeyManagedInWallet: '通行证已收口到钱包身份，请在夜莺钱包插件中完成 Passkey 注册、查看和撤销。',
+    passkeyManagedInWallet: '通行证已收口到钱包身份，请在夜莺钱包插件中完成通行证注册、查看和撤销。',
     authenticatorManageHint: '认证器是钱包身份的二次确认能力，密钥由 Node 加密保存，添加和撤销请在夜莺钱包插件中完成。',
     authenticatorManagedInWallet: '认证器已收口到钱包身份，请在夜莺钱包插件中完成添加、查看和撤销。',
     passkeyTestHint: '用于验证通行证登录流程是否正常。',
