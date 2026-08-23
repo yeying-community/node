@@ -15,7 +15,7 @@ tags:
   - name: Auth
     description: SIWE、JWT 和中心化 UCAN。
   - name: Identity
-    description: 钱包身份 DID、账户关联、邮箱/用户名凭证、身份级 Passkey 和授权码登录。
+    description: 钱包身份 DID、账户关联、邮箱/用户名凭证、身份级 Passkey/TOTP 认证器和授权码登录。
   - name: TOTP
     description: TOTP 绑定和无钱包授权。
   - name: Profile
@@ -333,7 +333,7 @@ paths:
     get:
       tags:
         - Identity
-      summary: 查询钱包身份 Passkey 运行状态
+      summary: 查询钱包身份 Passkey/TOTP 运行状态
       operationId: get_api_v1_public_identity_status
       security: []
       parameters: []
@@ -573,6 +573,154 @@ paths:
           application/json:
             schema:
               $ref: "#/components/schemas/IdentityPasskeyRevokeRequest"
+  /api/v1/public/identity/totp/status:
+    get:
+      tags:
+        - Identity
+      summary: 查询钱包身份 TOTP 服务状态
+      operationId: get_api_v1_public_identity_totp_status
+      security: []
+      parameters: []
+      responses:
+        "200":
+          $ref: "#/components/responses/Success"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+  /api/v1/public/identity/totp/get:
+    post:
+      tags:
+        - Identity
+      summary: 查询钱包身份 TOTP 认证器状态
+      operationId: post_api_v1_public_identity_totp_get
+      security: []
+      parameters: []
+      responses:
+        "200":
+          $ref: "#/components/responses/Success"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/IdentityTotpGetRequest"
+  /api/v1/public/identity/totp/setup:
+    post:
+      tags:
+        - Identity
+      summary: 创建钱包身份 TOTP secret
+      operationId: post_api_v1_public_identity_totp_setup
+      security: []
+      parameters: []
+      responses:
+        "200":
+          $ref: "#/components/responses/Success"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/IdentityTotpSetupRequest"
+  /api/v1/public/identity/totp/confirm:
+    post:
+      tags:
+        - Identity
+      summary: 使用验证码确认并启用钱包身份 TOTP
+      operationId: post_api_v1_public_identity_totp_confirm
+      security: []
+      parameters: []
+      responses:
+        "200":
+          $ref: "#/components/responses/Success"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "429":
+          description: Too many attempts
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/IdentityTotpConfirmRequest"
+  /api/v1/public/identity/totp/verify:
+    post:
+      tags:
+        - Identity
+      summary: 校验已启用的钱包身份 TOTP 验证码
+      operationId: post_api_v1_public_identity_totp_verify
+      security: []
+      parameters: []
+      responses:
+        "200":
+          $ref: "#/components/responses/Success"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "429":
+          description: Too many attempts
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/IdentityTotpConfirmRequest"
+  /api/v1/public/identity/totp/revoke:
+    post:
+      tags:
+        - Identity
+      summary: 撤销钱包身份 TOTP 认证器
+      operationId: post_api_v1_public_identity_totp_revoke
+      security: []
+      parameters: []
+      responses:
+        "200":
+          $ref: "#/components/responses/Success"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/IdentityTotpRevokeRequest"
   /api/v1/public/identity/authorize/request:
     post:
       tags:
@@ -2531,6 +2679,51 @@ components:
           additionalProperties: true
         credentialId:
           type: string
+    IdentityTotpGetRequest:
+      type: object
+      required:
+        - identity
+      properties:
+        identity:
+          $ref: "#/components/schemas/IdentityDid"
+    IdentityTotpSetupRequest:
+      type: object
+      required:
+        - identity
+        - identityDocument
+      properties:
+        identity:
+          $ref: "#/components/schemas/IdentityDid"
+        identityDocument:
+          type: object
+          additionalProperties: true
+          description: 带 manage proof 的钱包身份文档。
+        deviceName:
+          type: string
+          description: 用户可识别的 TOTP 认证器名称。
+    IdentityTotpConfirmRequest:
+      type: object
+      required:
+        - identity
+        - code
+      properties:
+        identity:
+          $ref: "#/components/schemas/IdentityDid"
+        code:
+          type: string
+          pattern: ^[0-9]{6,10}$
+    IdentityTotpRevokeRequest:
+      type: object
+      required:
+        - identity
+        - identityDocument
+      properties:
+        identity:
+          $ref: "#/components/schemas/IdentityDid"
+        identityDocument:
+          type: object
+          additionalProperties: true
+          description: 带 manage proof 的钱包身份文档。
     IdentityAuthorizeRequest:
       type: object
       required:
