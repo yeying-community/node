@@ -80,25 +80,27 @@
                             </button>
                         </div>
                     </div>
-                    <div v-if="notificationLoading" class="notification-empty">{{ $t('header_notification_loading') }}</div>
-                    <div v-else-if="notifications.length === 0" class="notification-empty">{{ $t('header_notification_empty') }}</div>
-                    <button
-                        v-for="item in notifications"
-                        :key="item.notificationUid"
-                        type="button"
-                        class="notification-item"
-                        :class="{ unread: !item.isRead }"
-                        @click="handleNotificationItemClick(item)"
-                    >
-                        <span class="notification-marker" :class="{ unread: !item.isRead }"></span>
-                        <div class="notification-body">
-                            <div class="notification-item-head">
-                                <span class="notification-item-title">{{ item.title || '-' }}</span>
-                                <span class="notification-item-time">{{ formatNotificationTime(item.createdAt) }}</span>
+                    <div class="notification-list">
+                        <div v-if="notificationLoading" class="notification-empty">{{ $t('header_notification_loading') }}</div>
+                        <div v-else-if="notifications.length === 0" class="notification-empty">{{ $t('header_notification_empty') }}</div>
+                        <button
+                            v-for="item in notifications"
+                            :key="item.notificationUid"
+                            type="button"
+                            class="notification-item"
+                            :class="{ unread: !item.isRead }"
+                            @click="handleNotificationItemClick(item)"
+                        >
+                            <span class="notification-marker" :class="{ unread: !item.isRead }"></span>
+                            <div class="notification-body">
+                                <div class="notification-item-head">
+                                    <span class="notification-item-title">{{ item.title || '-' }}</span>
+                                    <span class="notification-item-time">{{ formatNotificationTime(item.createdAt) }}</span>
+                                </div>
+                                <div class="notification-item-text">{{ item.body || notificationTypeLabel(item.type) }}</div>
                             </div>
-                            <div class="notification-item-text">{{ item.body || notificationTypeLabel(item.type) }}</div>
-                        </div>
-                    </button>
+                        </button>
+                    </div>
                 </div>
             </el-popover>
             <el-dropdown
@@ -261,7 +263,7 @@ async function loadNotifications() {
     }
     notificationLoading.value = true
     try {
-        const result = await $notification.list({ page: 1, pageSize: 8 })
+        const result = await $notification.list({ page: 1, pageSize: 20 })
         notifications.value = Array.isArray(result.items) ? result.items : []
         notificationListDirty.value = false
     } finally {
@@ -637,6 +639,12 @@ onBeforeUnmount(() => {
 
 .notification-panel{
     background: #fff;
+}
+
+.notification-list{
+    max-height: min(520px, calc(100dvh - 180px));
+    overflow-y: auto;
+    overscroll-behavior: contain;
 }
 
 .notification-panel-head{

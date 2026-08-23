@@ -77,29 +77,31 @@
 
     <div class="content-grid">
       <section class="list-panel">
-        <div v-if="loading" class="panel-empty">{{ $t('header_notification_loading') }}</div>
-        <div v-else-if="items.length === 0" class="panel-empty">{{ $t('header_notification_empty') }}</div>
-        <button
-          v-for="item in items"
-          :key="item.notificationUid"
-          type="button"
-          class="notification-row"
-          :class="{ active: selectedUid === item.notificationUid, unread: !item.isRead }"
-          @click="selectNotification(item)"
-        >
-          <span class="row-marker" :class="{ unread: !item.isRead }"></span>
-          <div class="row-main">
-            <div class="row-head">
-              <span class="row-title">{{ item.title || notificationTypeLabel(item.type) }}</span>
-              <span class="row-time">{{ formatTime(item.createdAt) }}</span>
+        <div class="notification-list-scroll">
+          <div v-if="loading" class="panel-empty">{{ $t('header_notification_loading') }}</div>
+          <div v-else-if="items.length === 0" class="panel-empty">{{ $t('header_notification_empty') }}</div>
+          <button
+            v-for="item in items"
+            :key="item.notificationUid"
+            type="button"
+            class="notification-row"
+            :class="{ active: selectedUid === item.notificationUid, unread: !item.isRead }"
+            @click="selectNotification(item)"
+          >
+            <span class="row-marker" :class="{ unread: !item.isRead }"></span>
+            <div class="row-main">
+              <div class="row-head">
+                <span class="row-title">{{ item.title || notificationTypeLabel(item.type) }}</span>
+                <span class="row-time">{{ formatTime(item.createdAt) }}</span>
+              </div>
+              <div class="row-meta">
+                <el-tag size="small" effect="plain">{{ notificationSourceLabel(item.source) }}</el-tag>
+                <el-tag size="small" effect="plain">{{ notificationLevelLabel(item.level) }}</el-tag>
+              </div>
+              <p class="row-body">{{ item.body || notificationTypeLabel(item.type) }}</p>
             </div>
-            <div class="row-meta">
-              <el-tag size="small" effect="plain">{{ notificationSourceLabel(item.source) }}</el-tag>
-              <el-tag size="small" effect="plain">{{ notificationLevelLabel(item.level) }}</el-tag>
-            </div>
-            <p class="row-body">{{ item.body || notificationTypeLabel(item.type) }}</p>
-          </div>
-        </button>
+          </button>
+        </div>
 
         <div class="pagination-wrap">
           <el-pagination
@@ -902,9 +904,13 @@ onBeforeUnmount(() => {
 
 <style scoped lang="less">
 .notification-center {
-  min-height: calc(100dvh - 72px);
+  height: calc(100dvh - 72px);
+  min-height: 0;
   padding: 20px;
   background: #f5f7fb;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
 }
 
 .page-head {
@@ -972,6 +978,8 @@ onBeforeUnmount(() => {
   display: grid;
   grid-template-columns: minmax(340px, 420px) minmax(0, 1fr);
   gap: 16px;
+  min-height: 0;
+  flex: 1;
 }
 
 .page-view-tabs {
@@ -983,15 +991,26 @@ onBeforeUnmount(() => {
   background: #fff;
   border: 1px solid #e5e7eb;
   border-radius: 8px;
-  min-height: 640px;
+  min-height: 0;
+  overflow: hidden;
 }
 
 .list-panel {
   padding: 12px;
+  display: flex;
+  flex-direction: column;
 }
 
 .detail-panel {
   padding: 18px;
+  overflow-y: auto;
+}
+
+.notification-list-scroll {
+  min-height: 0;
+  flex: 1;
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
 
 .panel-empty {
@@ -1080,6 +1099,7 @@ onBeforeUnmount(() => {
   padding-top: 12px;
   display: flex;
   justify-content: center;
+  flex: 0 0 auto;
 }
 
 .detail-head {
@@ -1328,6 +1348,18 @@ onBeforeUnmount(() => {
   .list-panel,
   .detail-panel {
     min-height: auto;
+    overflow: visible;
+  }
+
+  .notification-center {
+    height: auto;
+    min-height: calc(100dvh - 72px);
+    overflow: visible;
+  }
+
+  .notification-list-scroll {
+    max-height: none;
+    overflow: visible;
   }
 }
 

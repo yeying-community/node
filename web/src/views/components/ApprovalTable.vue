@@ -2,13 +2,15 @@
     <el-table :data="items" style="width: 100%" :row-class-name="resolveRowClassName">
         <el-table-column prop="name" :label="$t('approval_table_name')" min-width="300">
             <template #default="scope">
-                <div class="name-row">
-                    <div class="name">{{ scope.row.name }}</div>
-                    <span v-if="isJustHandled(scope.row)" class="handled-tag">{{ $t('approval_table_just_handled') }}</span>
+                <div class="name-cell">
+                    <div class="name-row">
+                        <div class="name">{{ scope.row.name }}</div>
+                        <span v-if="isJustHandled(scope.row)" class="handled-tag">{{ $t('approval_table_just_handled') }}</span>
+                    </div>
+                    <el-tooltip class="box-item" effect="dark" :content="scope.row.desc" placement="top-start">
+                        <el-text class="desc-text" truncated>{{ scope.row.desc }}</el-text>
+                    </el-tooltip>
                 </div>
-                <el-tooltip class="box-item" effect="dark" :content="scope.row.desc" placement="top-start">
-                    <el-text class="w-400px mb-2" truncated>{{ scope.row.desc }}</el-text>
-                </el-tooltip>
             </template>
         </el-table-column>
         <el-table-column prop="typeLabel" :label="$t('approval_table_type')" width="90" />
@@ -178,15 +180,35 @@ const props = defineProps({
     font-weight: 400;
 }
 
+.name-cell {
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
 .name {
     color: rgba(22, 119, 255, 1);
     font-weight: 500;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 .name-row {
-    display: inline-flex;
+    min-width: 0;
+    display: flex;
     align-items: center;
     gap: 8px;
+}
+
+.desc-text {
+    display: block;
+    width: 100%;
+    color: rgba(0, 0, 0, 0.45);
+    font-size: 13px;
+    line-height: 1.45;
 }
 
 .handled-tag {
