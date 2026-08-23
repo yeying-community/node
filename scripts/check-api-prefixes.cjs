@@ -9,6 +9,7 @@ const EXPECTED_PREFIX = '/api/v1/';
 const ROOT_PROTOCOL_ROUTES = new Set([
   '/.well-known/jwks.json',
   '/.well-known/openid-credential-issuer',
+  '/identity/authorize',
 ]);
 const HTTP_METHOD_PATTERN = /(?:^|\s)app\.(get|post|put|patch|delete|all)\s*\(\s*([^,\n]+)/g;
 const CONST_STRING_PATTERN = /const\s+([A-Za-z0-9_]+)\s*=\s*['"]([^'"]+)['"]/g;
