@@ -2,7 +2,7 @@ import { createHmac, generateKeyPairSync, sign } from 'node:crypto'
 import { vi } from 'vitest'
 import { SingletonDataSource } from '../src/domain/facade/datasource'
 import { createInMemoryDataSource } from './helpers/inMemoryDataSource'
-import { IdentityCredentialDO, IdentityPasskeyCredentialDO, IdentityTotpAuthenticatorDO, IdentityWebauthnChallengeDO } from '../src/domain/mapper/entity'
+import { IdentityAuditLogDO, IdentityCredentialDO, IdentityPasskeyCredentialDO, IdentityTotpAuthenticatorDO, IdentityWebauthnChallengeDO } from '../src/domain/mapper/entity'
 
 vi.mock('../src/config/runtime', () => ({
   getConfig: (key: string) => ({
@@ -165,6 +165,15 @@ describe('identity authorization', () => {
     const revoked = await service.revoke({ identity, identityDocument: signedIdentityDocument() })
     expect(revoked.totp.status).toBe('revoked')
     await expect(service.verify({ identity, code })).rejects.toMatchObject({ code: 'IDENTITY_TOTP_NOT_ENABLED' })
+
+    const auditLogs = await SingletonDataSource.get()!.getRepository(IdentityAuditLogDO).findBy({ identityDid: identity })
+    expect(auditLogs.map(item => item.action)).toEqual(expect.arrayContaining([
+      'identity_totp_setup_created',
+      'identity_totp_confirmed',
+      'identity_totp_verified',
+      'identity_totp_revoked'
+    ]))
+    expect(auditLogs.map(item => item.metadataJson).join('\n')).not.toContain(setup.totp.secret)
   })
 
   it('accepts a published wallet extension origin for passkey registration', async () => {

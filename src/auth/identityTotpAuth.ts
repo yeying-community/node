@@ -2,7 +2,7 @@ import * as crypto from 'node:crypto'
 import { Repository } from 'typeorm'
 import { getConfig } from '../config/runtime'
 import { SingletonDataSource } from '../domain/facade/datasource'
-import { IdentityTotpAuthenticatorDO } from '../domain/mapper/entity'
+import { IdentityAuditLogDO, IdentityTotpAuthenticatorDO } from '../domain/mapper/entity'
 import { verifyIdentityController } from './identityAccountLink'
 import { getDerivedRuntimeSecret } from '../security/secretVault'
 
@@ -44,6 +44,12 @@ function repository(): Repository<IdentityTotpAuthenticatorDO> {
   const ds = SingletonDataSource.get()
   if (!ds?.isInitialized) throw new IdentityTotpError(503, 'IDENTITY_TOTP_STORAGE_NOT_READY', 'Identity TOTP storage is not ready')
   return ds.getRepository(IdentityTotpAuthenticatorDO)
+}
+
+function dataSource() {
+  const ds = SingletonDataSource.get()
+  if (!ds?.isInitialized) throw new IdentityTotpError(503, 'IDENTITY_TOTP_STORAGE_NOT_READY', 'Identity TOTP storage is not ready')
+  return ds
 }
 
 function masterKey(): Buffer {
@@ -173,6 +179,24 @@ function publicRecord(row: IdentityTotpAuthenticatorDO | null) {
   }
 }
 
+async function auditIdentityTotp(input: {
+  identityDid: string
+  action: string
+  outcome?: 'success' | 'failure'
+  metadata?: Record<string, unknown>
+  createdAt?: string
+}) {
+  const log = new IdentityAuditLogDO()
+  Object.assign(log, {
+    identityDid: input.identityDid,
+    action: input.action,
+    outcome: input.outcome || 'success',
+    metadataJson: JSON.stringify(input.metadata || {}),
+    createdAt: input.createdAt || now()
+  })
+  await dataSource().getRepository(IdentityAuditLogDO).save(log)
+}
+
 export function getIdentityTotpStatus() {
   try {
     masterKey()
@@ -209,6 +233,12 @@ export class IdentityTotpService {
       revokedAt: ''
     })
     await repo.save(row)
+    await auditIdentityTotp({
+      identityDid,
+      action: 'identity_totp_setup_created',
+      metadata: { deviceName: row.deviceName, replaced: Boolean(existing) },
+      createdAt
+    })
     const secret = base32Encode(decryptSecret(row.secretCiphertext))
     return {
       identity: identityDid,
@@ -230,13 +260,27 @@ export class IdentityTotpService {
     const row = await repo.findOneBy({ identityDid })
     if (!row || row.status !== 'pending' || string(row.revokedAt)) throw new IdentityTotpError(404, 'IDENTITY_TOTP_SETUP_NOT_FOUND', 'Identity TOTP setup is not pending')
     consumeAttempt(`confirm:${identityDid}`)
-    if (!verifyCode(decryptSecret(row.secretCiphertext), input.code)) throw new IdentityTotpError(401, 'IDENTITY_TOTP_CODE_INVALID', 'Invalid identity TOTP code')
+    if (!verifyCode(decryptSecret(row.secretCiphertext), input.code)) {
+      await auditIdentityTotp({
+        identityDid,
+        action: 'identity_totp_confirm_failed',
+        outcome: 'failure',
+        metadata: { reason: 'code_invalid' }
+      })
+      throw new IdentityTotpError(401, 'IDENTITY_TOTP_CODE_INVALID', 'Invalid identity TOTP code')
+    }
     clearAttempts(`confirm:${identityDid}`)
     const confirmedAt = now()
     row.status = 'active'
     row.updatedAt = confirmedAt
     row.confirmedAt = confirmedAt
     await repo.save(row)
+    await auditIdentityTotp({
+      identityDid,
+      action: 'identity_totp_confirmed',
+      metadata: { deviceName: row.deviceName },
+      createdAt: confirmedAt
+    })
     return { identity: identityDid, totp: publicRecord(row) }
   }
 
@@ -246,11 +290,25 @@ export class IdentityTotpService {
     const row = await repo.findOneBy({ identityDid })
     if (!row || row.status !== 'active' || string(row.revokedAt)) throw new IdentityTotpError(404, 'IDENTITY_TOTP_NOT_ENABLED', 'Identity TOTP authenticator is not enabled')
     consumeAttempt(`verify:${identityDid}`)
-    if (!verifyCode(decryptSecret(row.secretCiphertext), input.code)) throw new IdentityTotpError(401, 'IDENTITY_TOTP_CODE_INVALID', 'Invalid identity TOTP code')
+    if (!verifyCode(decryptSecret(row.secretCiphertext), input.code)) {
+      await auditIdentityTotp({
+        identityDid,
+        action: 'identity_totp_verify_failed',
+        outcome: 'failure',
+        metadata: { reason: 'code_invalid' }
+      })
+      throw new IdentityTotpError(401, 'IDENTITY_TOTP_CODE_INVALID', 'Invalid identity TOTP code')
+    }
     clearAttempts(`verify:${identityDid}`)
     row.lastUsedAt = now()
     row.updatedAt = row.lastUsedAt
     await repo.save(row)
+    await auditIdentityTotp({
+      identityDid,
+      action: 'identity_totp_verified',
+      metadata: { deviceName: row.deviceName },
+      createdAt: row.lastUsedAt
+    })
     return { identity: identityDid, verified: true, verifiedAt: row.lastUsedAt }
   }
 
@@ -259,12 +317,26 @@ export class IdentityTotpService {
     verifyIdentityController(input.identityDocument, identityDid)
     const repo = repository()
     const row = await repo.findOneBy({ identityDid })
-    if (!row) return { identity: identityDid, totp: publicRecord(null) }
+    if (!row) {
+      await auditIdentityTotp({
+        identityDid,
+        action: 'identity_totp_revoked',
+        metadata: { existed: false }
+      })
+      return { identity: identityDid, totp: publicRecord(null) }
+    }
     const revokedAt = now()
+    const previousStatus = row.status
     row.status = 'revoked'
     row.updatedAt = revokedAt
     row.revokedAt = revokedAt
     await repo.save(row)
+    await auditIdentityTotp({
+      identityDid,
+      action: 'identity_totp_revoked',
+      metadata: { existed: true, previousStatus, deviceName: row.deviceName },
+      createdAt: revokedAt
+    })
     return { identity: identityDid, totp: publicRecord(row) }
   }
 }
