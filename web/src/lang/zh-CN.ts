@@ -29,6 +29,7 @@ export default {
     market_my_applied: '我申请的',
     market_missing_account: '未查询到当前账户，请先登录',
     market_load_apps_failed: '获取应用列表失败',
+    apply_breadcrumb: '我的应用',
     approval_breadcrumb: '我的审批',
     approval_pending: '待我审批',
     approval_finished: '审批完成',

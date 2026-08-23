@@ -29,6 +29,7 @@ export default {
     market_my_applied: 'Applied by Me',
     market_missing_account: 'Current account not found. Please log in first.',
     market_load_apps_failed: 'Failed to load applications',
+    apply_breadcrumb: 'My Apps',
     approval_breadcrumb: 'My Approvals',
     approval_pending: 'Pending My Approval',
     approval_finished: 'Completed',

@@ -31,7 +31,7 @@
                             style="margin-top: 10px; margin-right: 8px"
                         />{{ formatStatus(scope.row.state) }}
                         <el-tooltip class="box-item" effect="dark" :content="scope.row.msg || '-'" placement="top-start">
-                            <el-icon v-if="pageTabFrom === 'finishApproval'" style="margin-top: 15px"><Warning /></el-icon>
+                            <el-icon v-if="!isPending(scope.row)" style="margin-top: 15px"><Warning /></el-icon>
                         </el-tooltip>
                     </div>
                 </div>
@@ -51,7 +51,7 @@
         <el-table-column fixed="right" :label="$t('approval_table_actions')" width="110">
             <template #default="scope">
                 <el-button
-                    v-if="pageTabFrom === 'waitApproval'"
+                    v-if="isPending(scope.row)"
                     link
                     type="primary"
                     size="small"
@@ -74,7 +74,7 @@
 <script lang="ts" setup>
 import dayjs from 'dayjs'
 import { Warning } from '@element-plus/icons-vue'
-import { getCurrentInstance, ref } from 'vue'
+import { getCurrentInstance } from 'vue'
 import { useRouter } from 'vue-router'
 import type { AuditDetailBox } from '@/plugins/audit'
 
@@ -115,6 +115,10 @@ const shortAddress = (value?: string) => {
 const formatStatus = (value?: string) => {
     const status = String(value || '').trim()
     return statusLabelMap[status] || status || '-'
+}
+
+const isPending = (row: AuditDetailBox) => {
+    return String(row.state || '').trim() === '待审批'
 }
 
 const handleClick = (row: any) => {
@@ -158,7 +162,6 @@ const isJustHandled = (row: AuditDetailBox) => {
 }
 
 const props = defineProps({
-    pageTabFrom: String,
     highlightAuditId: String,
     items: {
         type: Array as () => AuditDetailBox[],

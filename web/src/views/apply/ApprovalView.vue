@@ -4,44 +4,9 @@
             <el-breadcrumb-item>{{ $t('approval_breadcrumb') }}</el-breadcrumb-item>
         </el-breadcrumb>
         <div class="content">
-            <div class="header">
-                <div :class="{ active: tabIndex == 0 }" @click="changeTab(0)" style="cursor: pointer">{{ $t('approval_pending') }}</div>
-                <div :class="{ active: tabIndex == 1 }" @click="changeTab(1)" style="cursor: pointer">{{ $t('approval_finished') }}</div>
-            </div>
-            <el-divider />
-
             <div class="filter">
                 <el-form :inline="true" :model="formInline" ref="formRef" class="demo-form-inline">
-                    <div v-if="tabIndex === 0">
-                        <el-form-item :label="$t('approval_name')" prop="appName">
-                            <el-input v-model="formInline.appName" :placeholder="$t('approval_name_placeholder')" clearable />
-                        </el-form-item>
-                        <el-form-item :label="$t('approval_type')" prop="auditType">
-                            <el-select v-model="formInline.auditType" :placeholder="$t('ph_select')" class="input-style" clearable>
-                                <el-option
-                                    v-for="item in auditTypeOptions"
-                                    :key="item.value"
-                                    :label="item.label"
-                                    :value="item.value"
-                                />
-                            </el-select>
-                        </el-form-item>
-                        <el-form-item :label="$t('approval_applicant')" prop="people">
-                            <el-input v-model="formInline.people" :placeholder="$t('approval_applicant_placeholder')" clearable />
-                        </el-form-item>
-                        <el-form-item :label="$t('approval_time')" prop="time">
-                            <el-date-picker
-                                v-model="formInline.time"
-                                type="daterange"
-                                value-format="YYYY-MM-DD"
-                                range-separator=" "
-                                :start-placeholder="$t('approval_start_time')"
-                                :end-placeholder="$t('approval_end_time')"
-                                size="default"
-                            />
-                        </el-form-item>
-                    </div>
-                    <div v-else>
+                    <div>
                         <el-form-item :label="$t('approval_name')" prop="appName">
                             <el-input v-model="formInline.appName" :placeholder="$t('approval_name_placeholder')" clearable />
                         </el-form-item>
@@ -90,7 +55,6 @@
 
             <div style="width: 100%">
                 <ApprovalTable
-                    :pageTabFrom="tabIndex ? 'finishApproval' : 'waitApproval'"
                     :highlightAuditId="highlightAuditId"
                     :items="tableData"
                     @refresh="search"
@@ -134,7 +98,6 @@ const router = useRouter()
 const { proxy } = getCurrentInstance()!
 const { $t } = proxy
 const formRef = ref(null)
-const tabIndex = ref(0)
 const approveDialogVisible = ref(false)
 const currentApproveAuditId = ref('')
 const autoOpenedAuditId = ref('')
@@ -152,6 +115,7 @@ const auditTypeOptions = [
     { label: $t('approval_type_contract_reserved'), value: 'contract' }
 ]
 const approvalStatusOptions = [
+    { label: $t('approval_status_pending'), value: '待审批' },
     { label: $t('approval_status_passed'), value: '审批通过' },
     { label: $t('approval_status_rejected'), value: '审批驳回' }
 ]
@@ -173,11 +137,6 @@ const handleSizeChange = (pageSize: number) => {
         pageSize,
         page: 1 // 切换每页数量时重置页码
     }
-    void search()
-}
-const changeTab = (index: number) => {
-    tabIndex.value = index
-    pagination.value.page = 1
     void search()
 }
 const onReset = (formEl: any) => {
@@ -211,8 +170,7 @@ const handleApproveSubmitted = async (input?: { decision?: string }) => {
     const handledAuditId = currentApproveAuditId.value
     approveDialogVisible.value = false
     currentApproveAuditId.value = ''
-    if (tabIndex.value === 0 && (input?.decision === 'passed' || input?.decision === 'reject')) {
-        tabIndex.value = 1
+    if (input?.decision === 'passed' || input?.decision === 'reject') {
         formInline.status = input.decision === 'passed' ? '审批通过' : '审批驳回'
         pagination.value.page = 1
     }
@@ -235,15 +193,15 @@ const handleApproveSubmitted = async (input?: { decision?: string }) => {
 }
 
 const tryAutoOpenApproveModal = () => {
-    if (tabIndex.value !== 0) {
-        return
-    }
     const targetAuditId = String(route.query.auditId || '').trim()
     if (!targetAuditId || autoOpenedAuditId.value === targetAuditId) {
         return
     }
     const targetRow = tableData.value.find((item) => String(item.uid || '').trim() === targetAuditId)
     if (!targetRow) {
+        return
+    }
+    if (String(targetRow.state || '').trim() !== '待审批') {
         return
     }
     autoOpenedAuditId.value = targetAuditId
@@ -259,12 +217,7 @@ const search = async () => {
         }
         const approver = `${account}::${account}`
         const [startTime, endTime] = Array.isArray(formInline.time) ? formInline.time : []
-        const states =
-            tabIndex.value === 0
-                ? ['待审批']
-                : formInline.status
-                ? [formInline.status]
-                : ['审批通过', '审批驳回']
+        const states = formInline.status ? [formInline.status] : ['待审批', '审批通过', '审批驳回']
         const result = await $audit.searchPage({
             condition: {
                 approver,
@@ -313,17 +266,15 @@ onBeforeUnmount(() => {
 })
 
 watch(
-    () => [route.query.auditId, tabIndex.value] as const,
-    ([nextAuditId]) => {
+    () => route.query.auditId,
+    (nextAuditId) => {
         if (!String(nextAuditId || '').trim()) {
             autoOpenedAuditId.value = ''
             return
         }
-        if (tabIndex.value !== 0) {
-            tabIndex.value = 0
-            return
-        }
-        tryAutoOpenApproveModal()
+        formInline.status = ''
+        pagination.value.page = 1
+        void search()
     },
     { immediate: true }
 )
@@ -336,17 +287,6 @@ watch(
         padding: 24px;
         background: #fff;
         border-radius: 6px;
-        .header {
-            font-size: 15px;
-            font-weight: 400;
-            color: rgba(0, 0, 0, 0.45);
-            display: flex;
-            gap: 30px;
-        }
-        .active {
-            color: rgba(0, 0, 0, 0.85);
-            font-weight: 500;
-        }
     }
     .demo-form-inline .el-input {
         --el-input-width: 220px;
