@@ -4,36 +4,16 @@
       <el-breadcrumb-item>{{ mt('breadcrumb') }}</el-breadcrumb-item>
     </el-breadcrumb>
 
-    <div class="page-head">
-      <div>
-        <div class="page-title">{{ mt('pageTitle') }}</div>
-        <div class="page-subtitle">{{ mt('pageSubtitle') }}</div>
-      </div>
-      <div class="head-actions">
-        <el-button @click="refreshStatuses">{{ mt('refreshStatus') }}</el-button>
-      </div>
-    </div>
-
     <div class="security-card-grid">
       <div class="identity-main-card security-card">
         <div class="identity-card-head">
           <div>
             <div class="identity-title-row">
               <span>{{ mt('passkeyCardTitle') }}</span>
-              <el-tag :type="passkeyStatus?.enabled ? 'success' : 'info'" effect="light">
-                {{ passkeyStatus ? (passkeyStatus.enabled ? mt('enabled') : mt('disabled')) : '-' }}
-              </el-tag>
-              <el-tag :type="passkeyStatus?.ready ? 'success' : 'warning'" effect="light">
-                {{ passkeyStatus ? (passkeyStatus.ready ? mt('ready') : mt('notReady')) : '-' }}
-              </el-tag>
             </div>
             <div class="section-hint">{{ mt('passkeyManageHint') }}</div>
           </div>
           <div class="identity-head-actions">
-            <el-button @click="goPasskeyTestHistory">{{ mt('testHistory') }}</el-button>
-            <el-button :disabled="!passkeyStatus?.enabled || !passkeyStatus?.ready" type="success" plain @click="openPasskeyTestDialog">
-              {{ mt('testPasskey') }}
-            </el-button>
             <el-button type="primary" @click="registerPasskey">{{ mt('manageInWallet') }}</el-button>
           </div>
         </div>
@@ -42,12 +22,12 @@
 
         <div class="security-summary-grid">
           <div class="summary-metric">
-            <span class="summary-label">{{ mt('serviceSwitch') }}</span>
-            <strong>{{ passkeyStatus ? (passkeyStatus.enabled ? mt('enabled') : mt('disabled')) : '-' }}</strong>
+            <span class="summary-label">{{ mt('serviceStatus') }}</span>
+            <strong :class="passkeyServiceStatus.className">{{ passkeyServiceStatus.label }}</strong>
           </div>
           <div class="summary-metric">
-            <span class="summary-label">{{ mt('serviceReady') }}</span>
-            <strong>{{ passkeyStatus ? (passkeyStatus.ready ? mt('ready') : mt('notReady')) : '-' }}</strong>
+            <span class="summary-label">{{ mt('serviceConfig') }}</span>
+            <strong>{{ passkeyConfigSummary }}</strong>
           </div>
           <div class="summary-identity">
             <span class="summary-label">{{ mt('rpId') }}</span>
@@ -65,12 +45,6 @@
           <div>
             <div class="identity-title-row">
               <span>{{ mt('authenticatorCardTitle') }}</span>
-              <el-tag :type="totpStatus?.enabled ? 'success' : 'info'" effect="light">
-                {{ totpStatus ? (totpStatus.enabled ? mt('enabled') : mt('disabled')) : '-' }}
-              </el-tag>
-              <el-tag :type="totpStatus?.ready ? 'success' : 'warning'" effect="light">
-                {{ totpStatus ? (totpStatus.ready ? mt('ready') : mt('notReady')) : '-' }}
-              </el-tag>
             </div>
             <div class="section-hint">{{ mt('authenticatorManageHint') }}</div>
           </div>
@@ -83,12 +57,12 @@
 
         <div class="security-summary-grid">
           <div class="summary-metric">
-            <span class="summary-label">{{ mt('serviceSwitch') }}</span>
-            <strong>{{ totpStatus ? (totpStatus.enabled ? mt('enabled') : mt('disabled')) : '-' }}</strong>
+            <span class="summary-label">{{ mt('serviceStatus') }}</span>
+            <strong :class="totpServiceStatus.className">{{ totpServiceStatus.label }}</strong>
           </div>
           <div class="summary-metric">
-            <span class="summary-label">{{ mt('serviceReady') }}</span>
-            <strong>{{ totpStatus ? (totpStatus.ready ? mt('ready') : mt('notReady')) : '-' }}</strong>
+            <span class="summary-label">{{ mt('serviceConfig') }}</span>
+            <strong>{{ totpConfigSummary }}</strong>
           </div>
           <div class="summary-identity">
             <span class="summary-label">{{ mt('issuer') }}</span>
@@ -101,127 +75,14 @@
         </div>
       </div>
     </div>
-
-	  <el-dialog v-model="passkeyTestDialogVisible" :title="mt('testPasskeyDialogTitle')" width="760px" class="passkey-test-dialog">
-      <div class="dialog-test-layout">
-        <div class="panel-card compact-test-card">
-          <div class="test-panel-head">
-            <div>
-              <div class="panel-title">{{ mt('testAppTitle') }}</div>
-              <div class="section-hint">{{ mt('testAppHint') }}</div>
-            </div>
-            <div class="status-actions">
-              <el-button @click="loadOwnedApplications">{{ mt('refreshApps') }}</el-button>
-              <el-button v-if="!ownedApplications.length" type="primary" plain @click="goPublishApp">
-                {{ mt('goPublishApp') }}
-              </el-button>
-            </div>
-          </div>
-          <el-form label-position="top" class="config-form compact-config-form">
-            <div class="grid-two">
-              <el-form-item class="full" :label="mt('selectApp')">
-                <el-select v-model="form.selectedAppUid" class="full-select" :placeholder="mt('selectAppPlaceholder')">
-                  <el-option
-                    v-for="app in ownedApplications"
-                    :key="app.uid"
-                    :label="`${app.name || app.uid} (${app.uid})`"
-                    :value="String(app.uid || '')"
-                  />
-                </el-select>
-                <div v-if="selectedApplication" class="selected-app-meta">
-                  <div class="meta-chip">{{ selectedApplication.name || selectedApplication.uid }}</div>
-                  <div class="meta-chip mono-chip">{{ selectedRedirectUri }}</div>
-                </div>
-                <div v-if="!ownedApplications.length" class="empty-text inline-empty">{{ mt('noPublishedApps') }}</div>
-              </el-form-item>
-              <el-form-item :label="mt('state')">
-                <el-input v-model="form.state" :placeholder="mt('optional')" />
-              </el-form-item>
-              <el-form-item :label="mt('requestTtlMs')">
-                <el-input-number v-model="form.requestTtlMs" :min="60000" :step="30000" />
-              </el-form-item>
-            </div>
-          </el-form>
-        </div>
-
-        <div class="test-step-list">
-          <div class="flow-step compact-flow-step" :class="{ current: passkeyTestStep === 0 }">
-            <div class="step-title"><span class="step-dot">1</span>{{ mt('stepPasskeyCreateRequest') }}</div>
-            <div class="line">
-              <span class="label">{{ mt('requestId') }}</span>
-              <el-input v-model="passkeyRequestIdInput" :placeholder="mt('requestIdPlaceholder')" />
-              <el-button :disabled="!passkeyStatus?.enabled || !passkeyStatus?.ready || !selectedApplication" type="primary" @click="runPasskeyTestCreateRequest">{{ mt('create') }}</el-button>
-              <el-button :disabled="!passkeyStatus?.enabled || !passkeyStatus?.ready" @click="queryPasskeyAuthorizeRequest">{{ mt('query') }}</el-button>
-            </div>
-          </div>
-
-          <div class="flow-step compact-flow-step" :class="{ current: passkeyTestStep === 1 }">
-            <div class="step-title"><span class="step-dot">2</span>{{ mt('stepPasskeyApprove') }}</div>
-            <div class="line">
-              <span class="label">{{ mt('passkeyChallenge') }}</span>
-              <el-input :model-value="passkeyAuthChallenge?.passkeyRequest?.requestId || ''" readonly :placeholder="mt('passkeyChallengePlaceholder')" />
-              <el-button :disabled="!passkeyStatus?.enabled || !passkeyStatus?.ready" type="success" @click="runPasskeyTestApprove">
-                {{ mt('triggerSignature') }}
-              </el-button>
-            </div>
-          </div>
-
-          <div class="flow-step compact-flow-step" :class="{ current: passkeyTestStep === 2 }">
-            <div class="step-title"><span class="step-dot">3</span>{{ mt('stepPasskeyExchange') }}</div>
-            <div class="line">
-              <span class="label">{{ mt('authCode') }}</span>
-              <el-input v-model="passkeyAuthCodeInput" :placeholder="mt('authCodePlaceholder')" />
-              <el-button :disabled="!passkeyStatus?.enabled || !passkeyStatus?.ready" type="warning" @click="runPasskeyTestExchange">
-                {{ mt('exchangeToken') }}
-              </el-button>
-            </div>
-          </div>
-
-          <div class="flow-step compact-flow-step" :class="{ current: passkeyTestStep === 3 }">
-            <div class="step-title"><span class="step-dot">4</span>{{ mt('testResultTitle') }}</div>
-            <div class="result-summary-grid">
-              <div>
-                <span>{{ mt('walletIdentityDid') }}</span>
-                <strong>{{ passkeyExchangeResult?.did || '-' }}</strong>
-              </div>
-              <div>
-                <span>{{ mt('walletAddress') }}</span>
-                <strong>{{ passkeyExchangeResult?.walletAddress || '-' }}</strong>
-              </div>
-              <div>
-                <span>{{ mt('appId') }}</span>
-                <strong>{{ passkeyExchangeResult?.appId || '-' }}</strong>
-              </div>
-              <div>
-                <span>{{ mt('redirectUri') }}</span>
-                <strong>{{ passkeyExchangeResult?.redirectUri || '-' }}</strong>
-              </div>
-            </div>
-            <div class="result-json compact-result-json">
-              <pre>{{ prettyPasskeyResult }}</pre>
-            </div>
-          </div>
-        </div>
-      </div>
-      <template #footer>
-        <el-button @click="goPasskeyTestHistory">{{ mt('testHistory') }}</el-button>
-        <el-button type="primary" @click="passkeyTestDialogVisible = false">{{ mt('close') }}</el-button>
-      </template>
-	    </el-dialog>
-	
-	  </div>
+  </div>
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref, watch } from 'vue';
-import { ElMessageBox } from 'element-plus';
-import { CopyDocument, Delete, EditPen } from '@element-plus/icons-vue';
-import { useRoute, useRouter } from 'vue-router';
+import { computed, onMounted, ref } from 'vue';
 import { apiUrl } from '@/plugins/api';
-import { getAuthToken, getCurrentAccount, getStoredAuthToken } from '@/plugins/auth';
-import $application, { type ApplicationMetadata } from '@/plugins/application';
 import { getLocaleRef } from '@/lang/locale';
-import { notifyError, notifyInfo, notifySuccess } from '@/utils/message';
+import { notifyError, notifyInfo } from '@/utils/message';
 import { getMyConfigMessage, type MyConfigMessageKey } from './myConfigI18n';
 
 type Envelope<T> = {
@@ -252,228 +113,53 @@ type TotpStatus = {
   error?: string;
 };
 
-type PasskeyCredentialRecord = {
-  credentialId: string;
-  identity?: string;
-  walletAddress?: string;
-  deviceName?: string;
-  transports?: string[];
-  createdAt: string;
-  lastUsedAt?: string;
-  revokedAt?: string;
-};
-
-type IdentityPasskeyCredentialListResult = {
-  identity: string;
-  walletAddress: string;
-  credentials: PasskeyCredentialRecord[];
-};
-
-type PasskeyRegisterOptions = {
-  requestId: string;
-  challenge: string;
-  rp: {
-    id: string;
-    name: string;
-  };
-  user: {
-    id: string;
-    name: string;
-    displayName: string;
-  };
-  pubKeyCredParams: Array<{ type: 'public-key'; alg: number }>;
-  timeout: number;
-  attestation: 'none';
-  excludeCredentials: Array<{
-    id: string;
-    type: 'public-key';
-    transports?: string[];
-  }>;
-  authenticatorSelection?: {
-    residentKey?: 'discouraged' | 'preferred' | 'required';
-    userVerification?: 'discouraged' | 'preferred' | 'required';
-    authenticatorAttachment?: 'platform' | 'cross-platform';
-  };
-};
-
-type PasskeyRegisterRequestResult = {
-  identity: string;
-  walletAddress: string;
-  passkeyRequest: PasskeyRegisterOptions;
-};
-
-type PasskeyAuthorizeChallengeRequest = {
-  requestId: string;
-  challenge: string;
-  timeout: number;
-  rpId: string;
-  allowCredentials?: Array<{
-    id: string;
-    type: 'public-key';
-    transports?: string[];
-  }>;
-  userVerification?: 'discouraged' | 'preferred' | 'required';
-};
-
-type PasskeyAuthorizeChallengeResponse = {
-  authorizeRequest: AuthorizeRequestResult;
-  passkeyRequest: PasskeyAuthorizeChallengeRequest;
-};
-
-type UcanCapability = {
-  with?: string;
-  can?: string;
-  resource?: string;
-  action?: string;
-};
-
-type AuthorizeRequestResult = {
-  requestId: string;
-  status: string;
-  did?: string;
-  walletAddress?: string;
-  scopes?: string[];
-  appId: string;
-  redirectUri: string;
-  state?: string;
-  audience?: string;
-  capabilities?: UcanCapability[];
-  appName: string;
-  createdAt: number | string;
-  expiresAt: number | string;
-  verifyUrl?: string;
-};
-
-type AuthorizeApproveResult = {
-  requestId: string;
-  appName?: string;
-  did?: string;
-  approvedAt?: number | string;
-  authorizationCode: string;
-  authorizationCodeExpiresAt: number | string;
-  redirectTo: string;
-};
-
-type AuthorizeExchangeResult = {
-  requestId: string;
-  subject?: string;
-  did?: string;
-  walletAddress?: string;
-  scopes?: string[];
-  credentials?: Array<Record<string, unknown>>;
-  appId: string;
-  redirectUri: string;
-  state?: string;
-  token?: string;
-  expiresAt?: number;
-  refreshExpiresAt?: number;
-  ucan?: string;
-  issuer?: string;
-  audience?: string;
-  capabilities?: UcanCapability[];
-  notBefore?: number;
-  ucanExpiresAt?: number;
-  issuedAt: number | string;
-};
-
-type ProfileResult = {
-  address: string;
-  issuer?: string;
-  ucanSource?: string;
-  authType?: string;
-  issuedAt: number;
-};
-
-type ConfigForm = {
-  selectedAppUid: string;
-  state: string;
-  requestTtlMs: number;
-};
-
-type PasskeyTestHistoryRecord = {
-  id: string;
-  action: string;
-  status: 'success' | 'failed';
-  createdAt: string;
-  appId?: string;
-  requestId?: string;
-  did?: string;
-  walletAddress?: string;
-  detail: Record<string, unknown>;
-};
 const locale = getLocaleRef();
-const router = useRouter();
-const route = useRoute();
 
 function mt(key: MyConfigMessageKey): string {
   return getMyConfigMessage(locale.value, key);
 }
 
-const PASSKEY_TEST_HISTORY_KEY = 'identity:passkey:test-history';
-const LEGACY_PASSKEY_DEVICE_NAMES = new Set(['passkey-device', 'Passkey Device']);
-
-const authTab = ref('passkey');
-const passkeyTestDialogVisible = ref(false);
-const passkeyTestStep = ref(0);
-const currentAccount = ref('');
-const ownedApplications = ref<ApplicationMetadata[]>([]);
 const passkeyStatus = ref<PasskeyStatus | null>(null);
 const totpStatus = ref<TotpStatus | null>(null);
-const identityPasskeyBinding = ref<IdentityPasskeyCredentialListResult | null>(null);
-const passkeyCredentials = ref<PasskeyCredentialRecord[]>([]);
-const passkeyDeviceName = ref(createDefaultPasskeyDeviceName());
-const passkeyRequestResult = ref<AuthorizeRequestResult | null>(null);
-const passkeyApproveResult = ref<AuthorizeApproveResult | null>(null);
-const passkeyExchangeResult = ref<AuthorizeExchangeResult | null>(null);
-const passkeyProfileResult = ref<ProfileResult | null>(null);
-const passkeyAuthChallenge = ref<PasskeyAuthorizeChallengeResponse | null>(null);
-const passkeyRequestIdInput = ref('');
-const passkeyAuthCodeInput = ref('');
-const passkeyCodeVerifier = ref('');
-const form = reactive<ConfigForm>({
-  selectedAppUid: '',
-  state: '',
-  requestTtlMs: 120000,
-});
-
-const selectedApplication = computed(() => {
-  const uid = String(form.selectedAppUid || '').trim();
-  if (!uid) {
-    return null;
-  }
-  return ownedApplications.value.find((item) => String(item.uid || '').trim() === uid) || null;
-});
-
-const selectedRedirectUri = computed(() => {
-  const redirectUris = selectedApplication.value?.redirectUris || [];
-  return String(redirectUris[0] || '').trim();
-});
 
 const totpPeriodDigits = computed(() => {
   if (!totpStatus.value) return '-';
   return `${totpStatus.value.period || '-'}s / ${totpStatus.value.digits || '-'}`;
 });
 
-function readHistoryList(storageKey: string) {
-  try {
-    const raw = localStorage.getItem(storageKey) || '[]';
-    const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? parsed : [];
-  } catch {
-    return [];
+const passkeyServiceStatus = computed(() => {
+  if (!passkeyStatus.value) {
+    return { label: '-', className: 'status-muted' };
   }
-}
+  if (!passkeyStatus.value.enabled) {
+    return { label: mt('statusDisabled'), className: 'status-muted' };
+  }
+  if (!passkeyStatus.value.ready) {
+    return { label: mt('statusConfigError'), className: 'status-warning' };
+  }
+  return { label: mt('statusAvailable'), className: 'status-success' };
+});
 
-function writeHistoryList(storageKey: string, list: unknown[]) {
-  localStorage.setItem(storageKey, JSON.stringify(list.slice(0, 50)));
-}
+const totpServiceStatus = computed(() => {
+  if (!totpStatus.value) {
+    return { label: '-', className: 'status-muted' };
+  }
+  if (!totpStatus.value.ready) {
+    return { label: mt('statusConfigError'), className: 'status-warning' };
+  }
+  return { label: mt('statusAvailable'), className: 'status-success' };
+});
 
-function formatAddress(address: string): string {
-  const value = String(address || '').trim();
-  if (!value) return '-';
-  if (value.length <= 12) return value;
-  return `${value.slice(0, 6)}...${value.slice(-4)}`;
-}
+const passkeyConfigSummary = computed(() => {
+  if (!passkeyStatus.value) return '-';
+  if (!passkeyStatus.value.enabled) return mt('configNotEnabled');
+  return passkeyStatus.value.ready ? mt('configComplete') : mt('configIncomplete');
+});
+
+const totpConfigSummary = computed(() => {
+  if (!totpStatus.value) return '-';
+  return totpStatus.value.ready ? mt('configComplete') : mt('configIncomplete');
+});
 
 async function parseEnvelope<T>(response: Response, fallbackMessage: string): Promise<T> {
   const text = await response.text();
@@ -502,154 +188,6 @@ async function getJson<T>(path: string, fallbackMessage: string): Promise<T> {
   return await parseEnvelope<T>(response, fallbackMessage);
 }
 
-async function postJson<T>(path: string, body: unknown, fallbackMessage: string): Promise<T> {
-  const response = await fetch(apiUrl(path), {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    credentials: 'include',
-    body: JSON.stringify(body),
-  });
-  return await parseEnvelope<T>(response, fallbackMessage);
-}
-
-async function getBearerToken(options: { interactive?: boolean } = {}): Promise<string> {
-  const token = options.interactive ? await getAuthToken() : getStoredAuthToken();
-  if (!token) {
-    throw new Error(mt('missingLogin'));
-  }
-  return token;
-}
-
-function base64UrlToUint8Array(value: string): Uint8Array {
-  const normalized = String(value || '').trim();
-  if (!normalized) {
-    return new Uint8Array();
-  }
-  const base64 = normalized.replace(/-/g, '+').replace(/_/g, '/');
-  const padding = '='.repeat((4 - (base64.length % 4 || 4)) % 4);
-  const raw = window.atob(base64 + padding);
-  const bytes = new Uint8Array(raw.length);
-  for (let index = 0; index < raw.length; index += 1) {
-    bytes[index] = raw.charCodeAt(index);
-  }
-  return bytes;
-}
-
-function arrayBufferToBase64Url(input: ArrayBufferLike): string {
-  const bytes = new Uint8Array(input);
-  let binary = '';
-  for (let index = 0; index < bytes.length; index += 1) {
-    binary += String.fromCharCode(bytes[index]);
-  }
-  return window.btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '');
-}
-
-function randomBase64Url(byteLength: number): string {
-  const bytes = new Uint8Array(byteLength);
-  window.crypto.getRandomValues(bytes);
-  return arrayBufferToBase64Url(bytes.buffer);
-}
-
-async function createPkcePair() {
-  const verifier = randomBase64Url(32);
-  const data = new TextEncoder().encode(verifier);
-  const digest = await window.crypto.subtle.digest('SHA-256', data);
-  return {
-    verifier,
-    challenge: arrayBufferToBase64Url(digest),
-  };
-}
-
-function ensurePasskeySupported() {
-  if (
-    typeof window === 'undefined' ||
-    typeof window.PublicKeyCredential === 'undefined' ||
-    !navigator.credentials
-  ) {
-    throw new Error(mt('passkeyUnsupported'));
-  }
-}
-
-function ensurePasskeyReady() {
-  if (!passkeyStatus.value?.enabled) {
-    throw new Error(mt('passkeyDisabled'));
-  }
-  if (!passkeyStatus.value?.ready) {
-    throw new Error(mt('passkeyNotReady'));
-  }
-}
-
-function detectBrowserName(userAgent: string): string {
-  if (/Edg\//.test(userAgent)) return 'Edge';
-  if (/OPR\//.test(userAgent)) return 'Opera';
-  if (/Firefox\//.test(userAgent)) return 'Firefox';
-  if (/CriOS\//.test(userAgent)) return 'Chrome';
-  if (/Chrome\//.test(userAgent) && !/Chromium\//.test(userAgent)) return 'Chrome';
-  if (/Safari\//.test(userAgent)) return 'Safari';
-  return 'Browser';
-}
-
-function detectOsName(userAgent: string): string {
-  if (/iPhone|iPad|iPod/.test(userAgent)) return 'iOS';
-  if (/Android/.test(userAgent)) return 'Android';
-  if (/Mac OS X|Macintosh/.test(userAgent)) return 'macOS';
-  if (/Windows NT/.test(userAgent)) return 'Windows';
-  if (/Linux/.test(userAgent)) return 'Linux';
-  return 'Device';
-}
-
-function createDefaultPasskeyDeviceName(): string {
-  if (typeof navigator === 'undefined') {
-    return 'Passkey Device';
-  }
-  const userAgent = navigator.userAgent || '';
-  return `${detectBrowserName(userAgent)} / ${detectOsName(userAgent)}`;
-}
-
-function getCredentialDeviceName(credential: PasskeyCredentialRecord): string {
-  const deviceName = String(credential.deviceName || '').trim();
-  if (!deviceName || LEGACY_PASSKEY_DEVICE_NAMES.has(deviceName)) {
-    return mt('defaultPasskeyDeviceName');
-  }
-  return deviceName;
-}
-
-function ensureAppConfig() {
-  const appId = String(selectedApplication.value?.uid || '').trim();
-  const redirectUri = String(selectedRedirectUri.value || '').trim();
-  if (!appId || !redirectUri) {
-    throw new Error(mt('missingAppConfig'));
-  }
-  return { appId, redirectUri };
-}
-
-async function loadOwnedApplications() {
-  try {
-    const account = String(getCurrentAccount() || '').trim();
-    currentAccount.value = account;
-    if (!account) {
-      ownedApplications.value = [];
-      return;
-    }
-    const result = await $application.myCreateList(account);
-    const list = Array.isArray(result) ? result : [];
-    ownedApplications.value = list.filter((item) => {
-      const uid = String(item.uid || '').trim();
-      const redirectUri = String(item.redirectUris?.[0] || '').trim();
-      return Boolean(uid && redirectUri && item.isOnline !== false);
-    });
-    if (
-      !form.selectedAppUid ||
-      !ownedApplications.value.some((item) => String(item.uid || '').trim() === form.selectedAppUid)
-    ) {
-      form.selectedAppUid = String(ownedApplications.value[0]?.uid || '');
-    }
-  } catch (error) {
-    ownedApplications.value = [];
-    notifyError(`${mt('loadAppsFailed')}：${error}`);
-  }
-}
-
 async function loadPasskeyStatus() {
   try {
     const status = await getJson<{ passkey: PasskeyStatus; totp: TotpStatus }>(
@@ -663,16 +201,6 @@ async function loadPasskeyStatus() {
   }
 }
 
-async function refreshStatuses() {
-  await loadPasskeyStatus();
-}
-
-async function loadPasskeyCredentials() {
-  identityPasskeyBinding.value = null;
-  passkeyCredentials.value = [];
-  notifyInfo(mt('passkeyManagedInWallet'));
-}
-
 async function registerPasskey() {
   notifyInfo(mt('passkeyManagedInWallet'));
 }
@@ -681,450 +209,14 @@ async function manageAuthenticatorInWallet() {
   notifyInfo(mt('authenticatorManagedInWallet'));
 }
 
-function buildPasskeyTestDetail(): Record<string, unknown> {
-  return {
-    selectedApp: selectedApplication.value
-      ? {
-          uid: selectedApplication.value.uid,
-          name: selectedApplication.value.name,
-          redirectUri: selectedRedirectUri.value,
-        }
-      : null,
-    passkeyStatus: passkeyStatus.value,
-    identityPasskey: identityPasskeyBinding.value,
-    passkeyRequest: passkeyRequestResult.value,
-    passkeyChallenge: passkeyAuthChallenge.value,
-    passkeyApprove: passkeyApproveResult.value,
-    passkeyExchange: passkeyExchangeResult.value,
-    passkeyProfile: passkeyProfileResult.value,
-  };
-}
-
-function savePasskeyTestHistory(action: string, status: 'success' | 'failed') {
-  const record: PasskeyTestHistoryRecord = {
-    id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
-    action,
-    status,
-    createdAt: new Date().toISOString(),
-    appId: String(selectedApplication.value?.uid || ''),
-    requestId: String(passkeyRequestIdInput.value || passkeyRequestResult.value?.requestId || ''),
-    did: String(passkeyExchangeResult.value?.did || identityPasskeyBinding.value?.identity || ''),
-    walletAddress: String(passkeyExchangeResult.value?.walletAddress || identityPasskeyBinding.value?.walletAddress || currentAccount.value || ''),
-    detail: buildPasskeyTestDetail(),
-  };
-  try {
-    writeHistoryList(PASSKEY_TEST_HISTORY_KEY, [record, ...readHistoryList(PASSKEY_TEST_HISTORY_KEY)]);
-  } catch {
-    // ignore local storage failure
-  }
-}
-
-function openPasskeyTestDialog() {
-  passkeyTestDialogVisible.value = true;
-  passkeyTestStep.value = passkeyExchangeResult.value ? 3 : passkeyApproveResult.value ? 2 : passkeyRequestResult.value ? 1 : 0;
-}
-
-function goPasskeyTestHistory() {
-  router.push('/market/dev/my-config/passkey-history').catch(() => undefined);
-}
-
-async function runPasskeyTestCreateRequest() {
-  const ok = await createPasskeyAuthorizeRequestAction();
-  savePasskeyTestHistory('create_request', ok ? 'success' : 'failed');
-  if (ok) passkeyTestStep.value = 1;
-}
-
-async function runPasskeyTestApprove() {
-  const ok = await approveAuthorizeRequestWithPasskey();
-  savePasskeyTestHistory('approve_passkey', ok ? 'success' : 'failed');
-  if (ok) passkeyTestStep.value = 2;
-}
-
-async function runPasskeyTestExchange() {
-  const ok = await exchangePasskeyAuthorizeCode();
-  savePasskeyTestHistory('exchange_code', ok ? 'success' : 'failed');
-  if (ok) passkeyTestStep.value = 3;
-}
-
-async function createPasskeyAuthorizeRequestAction(): Promise<boolean> {
-  try {
-    ensurePasskeyReady();
-    ensurePasskeySupported();
-    const { appId, redirectUri } = ensureAppConfig();
-    const pkce = await createPkcePair();
-    passkeyCodeVerifier.value = pkce.verifier;
-    const result = await postJson<AuthorizeRequestResult>(
-      '/api/v1/public/identity/authorize/request',
-      {
-        appId,
-        redirectUri,
-        state: form.state || undefined,
-        codeChallenge: pkce.challenge,
-        codeChallengeMethod: 'S256',
-        scopes: ['identity.basic', 'identity.wallet', 'identity.username', 'identity.email'],
-        requestTtlMs: form.requestTtlMs,
-      },
-      mt('createPasskeyAuthorizeRequestFailed')
-    );
-    passkeyRequestResult.value = result;
-    passkeyRequestIdInput.value = result.requestId;
-    passkeyApproveResult.value = null;
-    passkeyExchangeResult.value = null;
-    passkeyProfileResult.value = null;
-    passkeyAuthChallenge.value = null;
-    notifySuccess(mt('passkeyAuthorizeRequestCreated'));
-    return true;
-  } catch (error) {
-    notifyError(String(error));
-    return false;
-  }
-}
-
-async function queryPasskeyAuthorizeRequest() {
-  try {
-    ensurePasskeyReady();
-    const requestId = String(passkeyRequestIdInput.value || '').trim();
-    if (!requestId) {
-      notifyError(mt('enterPasskeyRequestIdFirst'));
-      return;
-    }
-    const result = await getJson<AuthorizeRequestResult>(
-      `/api/v1/public/identity/authorize/request/${encodeURIComponent(requestId)}`,
-      mt('queryPasskeyAuthorizeRequestFailed')
-    );
-    passkeyRequestResult.value = result;
-    notifySuccess(mt('passkeyAuthorizeRequestRefreshed'));
-  } catch (error) {
-    notifyError(String(error));
-  }
-}
-
-async function approveAuthorizeRequestWithPasskey(): Promise<boolean> {
-  try {
-    ensurePasskeyReady();
-    ensurePasskeySupported();
-    const requestId = String(passkeyRequestIdInput.value || '').trim();
-    if (!requestId) {
-      notifyError(mt('createOrEnterPasskeyRequestFirst'));
-      return false;
-    }
-
-    const challenge = await postJson<PasskeyAuthorizeChallengeResponse>(
-      '/api/v1/public/identity/authorize/challenge',
-      { requestId },
-      mt('createPasskeyChallengeFailed')
-    );
-    passkeyAuthChallenge.value = challenge;
-
-    const publicKey: PublicKeyCredentialRequestOptions = {
-      challenge: base64UrlToUint8Array(challenge.passkeyRequest.challenge),
-      rpId: challenge.passkeyRequest.rpId,
-      timeout: challenge.passkeyRequest.timeout,
-      allowCredentials: (challenge.passkeyRequest.allowCredentials || []).map((item) => ({
-        id: base64UrlToUint8Array(item.id),
-        type: item.type,
-        transports: item.transports as AuthenticatorTransport[] | undefined,
-      })),
-      userVerification: challenge.passkeyRequest.userVerification,
-    };
-
-    const credential = (await navigator.credentials.get({
-      publicKey,
-    })) as PublicKeyCredential | null;
-    if (!credential) {
-      throw new Error(mt('passkeyAuthorizeCancelled'));
-    }
-
-    const response = credential.response;
-    if (!(response instanceof AuthenticatorAssertionResponse)) {
-      throw new Error(mt('passkeyAuthorizeResponseInvalid'));
-    }
-
-    const result = await postJson<AuthorizeApproveResult>(
-      '/api/v1/public/identity/authorize/approve',
-      {
-        requestId,
-        passkeyRequestId: challenge.passkeyRequest.requestId,
-        credential: {
-          id: credential.id,
-          rawId: arrayBufferToBase64Url(credential.rawId),
-          type: credential.type,
-          response: {
-            authenticatorData: arrayBufferToBase64Url(response.authenticatorData),
-            clientDataJSON: arrayBufferToBase64Url(response.clientDataJSON),
-            signature: arrayBufferToBase64Url(response.signature),
-            userHandle: response.userHandle
-              ? arrayBufferToBase64Url(response.userHandle)
-              : undefined,
-          },
-          clientExtensionResults: credential.getClientExtensionResults(),
-        },
-      },
-      mt('passkeyAuthorizeFailed')
-    );
-
-    passkeyApproveResult.value = result;
-    passkeyAuthCodeInput.value = result.authorizationCode;
-    passkeyExchangeResult.value = null;
-    passkeyProfileResult.value = null;
-    notifySuccess(mt('passkeyAuthorizeApproved'));
-    return true;
-  } catch (error) {
-    notifyError(String(error));
-    return false;
-  }
-}
-
-async function exchangePasskeyAuthorizeCode(): Promise<boolean> {
-  try {
-    ensurePasskeyReady();
-    const code = String(passkeyAuthCodeInput.value || '').trim();
-    const { appId, redirectUri } = ensureAppConfig();
-    if (!code) {
-      notifyError(mt('enterPasskeyAuthCode'));
-      return false;
-    }
-    const codeVerifier = String(passkeyCodeVerifier.value || '').trim();
-    if (!codeVerifier) {
-      notifyError(mt('createOrEnterPasskeyRequestFirst'));
-      return false;
-    }
-    const result = await postJson<AuthorizeExchangeResult>(
-      '/api/v1/public/identity/authorize/exchange',
-      { code, appId, redirectUri, codeVerifier },
-      mt('exchangePasskeyCodeFailed')
-    );
-    passkeyExchangeResult.value = result;
-    passkeyProfileResult.value = null;
-    notifySuccess(mt('passkeyCodeExchanged'));
-    return true;
-  } catch (error) {
-    notifyError(String(error));
-    return false;
-  }
-}
-
-async function revokePasskeyCredentialAction(credentialId: string) {
-  void credentialId;
-  notifyInfo(mt('passkeyManagedInWallet'));
-}
-
-async function renamePasskeyCredentialAction(credential: PasskeyCredentialRecord) {
-  void credential;
-  notifyInfo(mt('passkeyManagedInWallet'));
-}
-
-function openLink(url: string) {
-  if (!url) {
-    notifyInfo(mt('nothingToOpen'));
-    return;
-  }
-  window.open(url, '_blank');
-}
-
-async function writeClipboardText(value: string) {
-  const normalized = String(value || '').trim();
-  if (!normalized) {
-    return false;
-  }
-  if (navigator?.clipboard?.writeText) {
-    await navigator.clipboard.writeText(normalized);
-    return true;
-  }
-  const textarea = document.createElement('textarea');
-  textarea.value = normalized;
-  textarea.setAttribute('readonly', 'readonly');
-  textarea.style.position = 'fixed';
-  textarea.style.left = '-9999px';
-  document.body.appendChild(textarea);
-  textarea.select();
-  const copied = document.execCommand('copy');
-  document.body.removeChild(textarea);
-  return copied;
-}
-
-async function copyText(value: string, label: string) {
-  if (!value) {
-    notifyInfo(`${mt('nothingToCopy')} ${label}`);
-    return;
-  }
-  try {
-    const copied = await writeClipboardText(value);
-    if (!copied) {
-      const suffix = mt('copyFailedSuffix');
-      notifyError(`${mt('copyFailedPrefix')} ${label}${suffix ? ` ${suffix}` : ''}`);
-      return;
-    }
-    notifySuccess(`${label} ${mt('copiedSuffix')}`);
-  } catch {
-    const suffix = mt('copyFailedSuffix');
-    notifyError(`${mt('copyFailedPrefix')} ${label}${suffix ? ` ${suffix}` : ''}`);
-  }
-}
-
-function goPublishApp() {
-  router.push('/market/dev/apply-edit').catch(() => undefined);
-}
-
-const prettyPasskeyResult = computed(() => {
-  const payload = {
-    passkeyStatus: passkeyStatus.value,
-    passkeyCredentials: passkeyCredentials.value,
-    passkeyRequest: passkeyRequestResult.value,
-    passkeyChallenge: passkeyAuthChallenge.value,
-    passkeyApprove: passkeyApproveResult.value,
-    passkeyExchange: passkeyExchangeResult.value,
-    passkeyProfile: passkeyProfileResult.value,
-  };
-  return JSON.stringify(payload, null, 2);
-});
-
 onMounted(async () => {
-  currentAccount.value = String(getCurrentAccount() || '').trim();
-  if (!String(passkeyDeviceName.value || '').trim()) {
-    passkeyDeviceName.value = createDefaultPasskeyDeviceName();
-  }
-  const routeAuthTab = String(route.query.authTab || '').trim();
-  if (routeAuthTab === 'passkey') {
-    authTab.value = routeAuthTab;
-  }
-  const routeSelectedAppUid = String(route.query.selectedAppUid || '').trim();
-  if (routeSelectedAppUid) {
-    form.selectedAppUid = routeSelectedAppUid;
-  }
-  await loadOwnedApplications();
-  await refreshStatuses();
+  await loadPasskeyStatus();
 });
-
-watch(
-  () => authTab.value,
-  async (value) => {
-    if (value === 'passkey' && route.query.authTab !== value) {
-      await router
-        .replace({
-          query: {
-            ...route.query,
-            authTab: value
-          }
-        })
-        .catch(() => undefined);
-    }
-  }
-);
-
-watch(
-  () => route.query.authTab,
-  (value) => {
-    const normalized = String(value || '').trim();
-    if (normalized === 'passkey') {
-      authTab.value = normalized;
-    }
-  }
-);
-
-watch(
-  () => route.query.selectedAppUid,
-  (value) => {
-    const normalized = String(value || '').trim();
-    if (normalized) {
-      form.selectedAppUid = normalized;
-    }
-  }
-);
 </script>
 
 <style scoped lang="less">
 .my-config {
   margin: 20px;
-
-  .page-head {
-    margin-top: 16px;
-    padding: 16px 18px;
-    border-radius: 10px;
-    background: #fff;
-    border: 1px solid #e8edf4;
-    display: flex;
-    justify-content: space-between;
-    align-items: flex-start;
-    gap: 14px;
-  }
-
-  .page-title {
-    font-size: 18px;
-    line-height: 1.3;
-    font-weight: 500;
-    color: rgba(0, 0, 0, 0.88);
-  }
-
-  .page-subtitle {
-    margin-top: 6px;
-    font-size: 13px;
-    line-height: 1.5;
-    color: rgba(0, 0, 0, 0.5);
-  }
-
-  .head-actions {
-    display: flex;
-    gap: 10px;
-    flex-wrap: wrap;
-  }
-
-  .shared-test-panel {
-    margin-top: 14px;
-  }
-
-  .status-list {
-    display: grid;
-    gap: 10px;
-  }
-
-  .status-item {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 12px;
-    font-size: 14px;
-    line-height: 1.5;
-    color: rgba(0, 0, 0, 0.75);
-  }
-
-  .status-label {
-    color: rgba(0, 0, 0, 0.58);
-    white-space: nowrap;
-  }
-
-  .status-value {
-    color: rgba(0, 0, 0, 0.82);
-    word-break: break-all;
-  }
-
-  .path-text {
-    font-family: var(--app-font-mono);
-    font-size: 13px;
-  }
-
-  .status-row {
-    display: flex;
-    gap: 8px;
-    line-height: 24px;
-    font-size: 14px;
-    color: rgba(0, 0, 0, 0.75);
-  }
-
-  .status-error {
-    margin-top: 8px;
-    color: #d93026;
-    font-size: 14px;
-    line-height: 1.5;
-  }
-
-  .primary-grid {
-    margin-top: 14px;
-    display: grid;
-    grid-template-columns: minmax(0, 1.05fr) minmax(0, 1.25fr);
-    gap: 14px;
-    align-items: start;
-  }
 
   .security-card-grid {
     margin-top: 14px;
@@ -1135,10 +227,6 @@ watch(
   }
 
   .security-card {
-    min-height: 100%;
-  }
-
-  .passkey-card {
     min-height: 100%;
   }
 
@@ -1174,11 +262,23 @@ watch(
     flex-wrap: wrap;
   }
 
-  .identity-summary-grid {
-    margin-top: 16px;
-    display: grid;
-    grid-template-columns: 150px 150px minmax(0, 1fr) minmax(0, 1fr);
-    gap: 10px;
+  .section-hint {
+    margin-top: 6px;
+    font-size: 13px;
+    line-height: 1.5;
+    color: rgba(0, 0, 0, 0.5);
+  }
+
+  .status-error {
+    margin-top: 8px;
+    color: #d93026;
+    font-size: 14px;
+    line-height: 1.5;
+  }
+
+  .compact-error {
+    margin-top: -2px;
+    margin-bottom: 12px;
   }
 
   .security-summary-grid {
@@ -1208,601 +308,48 @@ watch(
     color: #111827;
   }
 
+  .summary-metric strong.status-success {
+    color: #15803d;
+  }
+
+  .summary-metric strong.status-warning {
+    color: #b45309;
+  }
+
+  .summary-metric strong.status-muted {
+    color: rgba(0, 0, 0, 0.48);
+  }
+
   .summary-label {
     font-size: 12px;
     line-height: 1.4;
     color: rgba(0, 0, 0, 0.52);
   }
 
-  .register-inline {
-    margin-top: 14px;
-    display: grid;
-    grid-template-columns: 110px minmax(240px, 420px);
-    gap: 8px;
-    align-items: center;
-  }
-
-  .credential-list {
-    margin-top: 16px;
-    overflow: hidden;
-    border: 1px solid #e8edf4;
-    border-radius: 8px;
-    background: #fff;
-  }
-
-  .credential-list-head,
-  .credential-row {
-    display: grid;
-    grid-template-columns: minmax(160px, 1.3fr) minmax(110px, 0.8fr) minmax(150px, 1fr) 86px 128px;
-    gap: 12px;
-    align-items: center;
-  }
-
-  .credential-list-head {
-    min-height: 42px;
-    padding: 0 14px;
-    background: #f8fafc;
-    border-bottom: 1px solid #e8edf4;
-    color: rgba(0, 0, 0, 0.52);
-    font-size: 12px;
-    line-height: 1.4;
-    font-weight: 500;
-  }
-
-  .credential-row {
-    min-height: 64px;
-    padding: 12px 14px;
-    border-bottom: 1px solid #edf1f7;
-  }
-
-  .credential-row:last-child {
-    border-bottom: 0;
-  }
-
-  .credential-empty {
-    min-height: 120px;
-    padding: 14px;
-    display: flex;
-    flex-direction: column;
-    align-items: flex-start;
-    justify-content: center;
-    gap: 10px;
-    background: #fafcff;
-  }
-
-  .empty-title {
-    font-size: 15px;
-    line-height: 1.4;
-    font-weight: 500;
-    color: rgba(0, 0, 0, 0.82);
-  }
-
-  .credential-cell {
-    min-width: 0;
-    font-size: 13px;
-    line-height: 1.5;
-    color: rgba(0, 0, 0, 0.72);
-  }
-
-  .credential-created {
-    font-size: 12px;
-    color: rgba(0, 0, 0, 0.45);
-  }
-
-  .credential-detail {
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
-  .credential-transports {
-    color: rgba(0, 0, 0, 0.62);
-  }
-
-  .credential-revoked-mobile {
-    display: none;
-    margin-top: 4px;
-    font-size: 12px;
-    color: #b45309;
-  }
-
-  .credential-actions {
-    display: flex;
-    justify-content: flex-end;
-    gap: 8px;
-    flex-wrap: nowrap;
-    white-space: nowrap;
-  }
-
-  .credential-icon-button {
-    flex: 0 0 auto;
-  }
-
-  .passkey-collapse {
-    border: 1px solid #e8edf4;
-    border-radius: 10px;
-    background: #fff;
-    padding: 0 14px;
-  }
-
-  .passkey-collapse :deep(.el-collapse) {
-    border: 0;
-  }
-
-  .passkey-collapse :deep(.el-collapse-item__header) {
-    height: 50px;
-    border-bottom-color: #edf1f7;
-    font-size: 15px;
-    font-weight: 500;
-    color: rgba(0, 0, 0, 0.84);
-  }
-
-  .passkey-collapse :deep(.el-collapse-item__wrap) {
-    border-bottom: 0;
-  }
-
-  .compact-test-card {
-    margin-top: 14px;
-  }
-
-  .compact-test-card:first-child {
-    margin-top: 0;
-  }
-
-  .compact-config-form :deep(.el-form-item) {
-    margin-bottom: 10px;
-  }
-
-  .quick-test-actions {
-    display: flex;
-    gap: 10px;
-    flex-wrap: wrap;
-  }
-
-  .compact-flow-step:last-child {
-    margin-bottom: 0;
-  }
-
-  .result-token-line + .result-token-line {
-    margin-top: 10px;
-  }
-
-  .compact-result-json {
-    max-height: 260px;
-  }
-
-  .result-summary-grid {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 10px;
-  }
-
-  .result-summary-grid div {
-    padding: 10px;
-    border: 1px solid #edf1f7;
-    border-radius: 8px;
-    background: #fff;
-    display: grid;
-    gap: 6px;
-  }
-
-  .result-summary-grid span {
-    font-size: 12px;
-    color: rgba(0, 0, 0, 0.5);
-  }
-
-  .result-summary-grid strong {
-    font-size: 13px;
-    color: rgba(0, 0, 0, 0.82);
-    word-break: break-all;
-  }
-
-  .dialog-test-layout {
-    display: grid;
-    gap: 14px;
-  }
-
-  .test-step-list {
-    display: grid;
-    gap: 12px;
-  }
-
-  .compact-flow-step.current {
-    border-color: #1677ff;
-    background: #f5faff;
-  }
-
-  .passkey-test-dialog :deep(.el-dialog__body) {
-    padding-top: 8px;
-  }
-
-  .single-column-grid {
-    grid-template-columns: minmax(0, 1fr);
-  }
-
-  .test-panel-head {
-    margin-bottom: 12px;
-    display: flex;
-    justify-content: space-between;
-    align-items: flex-start;
-    gap: 16px;
-  }
-
-  .panel-title {
-    font-size: 15px;
-    font-weight: 500;
-    color: rgba(0, 0, 0, 0.86);
-  }
-
-  .qr-panel img {
-    width: 232px;
-    height: 232px;
-    display: block;
-  }
-
-  .qr-placeholder {
-    font-size: 13px;
-    color: rgba(0, 0, 0, 0.45);
-    text-align: center;
-    padding: 0 12px;
-  }
-
-  .page-tabs {
-    margin-top: 14px;
-    border: 1px solid #e8edf4;
-    border-radius: 10px;
-    background: #fff;
-    padding: 0 16px 16px;
-  }
-
-  .page-tabs :deep(.el-tabs__header) {
-    margin-bottom: 0;
-  }
-
-  .page-tabs :deep(.el-tabs__nav-wrap::after) {
-    background-color: #eef2f7;
-  }
-
-  .page-tabs :deep(.el-tabs__item) {
-    height: 48px;
-    line-height: 48px;
-  }
-
-  .status-actions {
-    display: flex;
-    align-items: flex-start;
-    gap: 12px;
-    flex-wrap: wrap;
-    justify-content: flex-end;
-  }
-
-  .status-badges {
-    display: flex;
-    flex-wrap: wrap;
-    justify-content: flex-end;
-    gap: 8px 12px;
-  }
-
-  .status-badge {
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
-  }
-
-  .method-section {
-    padding-top: 14px;
-  }
-
-  .method-section + .method-section {
-    margin-top: 10px;
-  }
-
-  .section-heading {
-    margin-bottom: 12px;
-    font-size: 15px;
-    line-height: 1.4;
-    font-weight: 500;
-    color: rgba(0, 0, 0, 0.84);
-  }
-
-  .section-hint {
-    margin-top: 6px;
-    font-size: 13px;
-    line-height: 1.5;
-    color: rgba(0, 0, 0, 0.5);
-  }
-
-  .config-tabs {
-    background: #fff;
-    padding: 4px 2px 0;
-  }
-
-  .debug-panel {
-    padding-top: 12px;
-  }
-
-  .debug-hint {
-    margin-top: 12px;
-    margin-bottom: 6px;
-    font-size: 13px;
-    line-height: 1.5;
-    color: rgba(0, 0, 0, 0.5);
-  }
-
-  .passkey-actions {
-    display: grid;
-    gap: 12px;
-  }
-
-  .passkey-list {
-    margin-top: 14px;
-    display: grid;
-    gap: 12px;
-  }
-
-  .credential-head {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    gap: 12px;
-    margin-bottom: 10px;
-  }
-
-  .credential-name {
-    font-size: 14px;
-    line-height: 1.45;
-    font-weight: 500;
-    color: rgba(0, 0, 0, 0.82);
-  }
-
-  .compact-list {
-    gap: 8px;
-  }
-
-  .empty-text {
-    font-size: 14px;
-    line-height: 1.5;
-    color: rgba(0, 0, 0, 0.45);
-  }
-
-  .panel {
-    padding: 8px 2px 12px;
-  }
-
-  .panel-card {
-    padding: 16px;
-    border: 1px solid #e8edf4;
-    border-radius: 10px;
-    background: #fff;
-  }
-
-  .panel-card + .panel-card {
-    margin-top: 14px;
-  }
-
-  .full-select {
-    width: 100%;
-  }
-
-  .inline-empty {
-    margin-top: 8px;
-  }
-
-  .selected-app-meta {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 8px;
-    margin-top: 10px;
-  }
-
-  .meta-chip {
-    display: inline-flex;
-    align-items: center;
-    min-height: 28px;
-    padding: 0 10px;
-    border-radius: 6px;
-    background: #f5f7fb;
-    border: 1px solid #e5eaf3;
-    font-size: 13px;
-    line-height: 1.4;
-    color: rgba(0, 0, 0, 0.72);
-  }
-
-  .mono-chip {
+  .path-text {
     font-family: var(--app-font-mono);
-    word-break: break-all;
-  }
-
-  .compact-error {
-    margin-top: -2px;
-    margin-bottom: 12px;
-  }
-
-  .config-form .grid-two {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 0 12px;
-  }
-
-  .config-form .full {
-    grid-column: 1 / -1;
-  }
-
-  .config-form :deep(.el-form-item) {
-    margin-bottom: 14px;
-  }
-
-  .flow-step {
-    padding: 12px;
-    border: 1px solid #edf1f7;
-    border-radius: 8px;
-    background: #fafcff;
-    margin-bottom: 12px;
-  }
-
-  .step-title {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    margin-bottom: 10px;
-    font-size: 14px;
-    line-height: 1.45;
-    font-weight: 500;
-    color: rgba(0, 0, 0, 0.82);
-  }
-
-  .step-dot {
-    width: 20px;
-    height: 20px;
-    border-radius: 999px;
-    background: #1677ff;
-    color: #fff;
-    font-size: 12px;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-  }
-
-  .actions {
-    margin-top: 8px;
-    display: flex;
-    gap: 10px;
-    flex-wrap: wrap;
-  }
-
-  .line {
-    display: grid;
-    grid-template-columns: 110px minmax(0, 1fr) auto auto;
-    gap: 8px;
-    align-items: center;
-  }
-
-  .field-line {
-    display: grid;
-    grid-template-columns: 110px minmax(0, 1fr) auto auto;
-    gap: 8px;
-    align-items: center;
-  }
-
-  .label {
-    font-size: 14px;
-    line-height: 1.45;
-    color: rgba(0, 0, 0, 0.75);
-  }
-
-  .result-json {
-    margin-top: 12px;
-    border: 1px solid #e5e7eb;
-    border-radius: 6px;
-    background: #fafafa;
-    max-height: 360px;
-    overflow: auto;
-    padding: 10px;
-  }
-
-  pre {
-    margin: 0;
     font-size: 13px;
-    line-height: 1.6;
-    white-space: pre-wrap;
     word-break: break-all;
   }
 }
 
 @media (max-width: 1200px) {
   .my-config {
-    .primary-grid {
-      grid-template-columns: 1fr;
-    }
-
     .security-card-grid {
       grid-template-columns: 1fr;
     }
-
-    .identity-summary-grid {
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-    }
-
-    .credential-list-head,
-    .credential-row {
-      grid-template-columns: minmax(130px, 1.2fr) 96px minmax(120px, 1fr) 74px 128px;
-      gap: 10px;
-    }
-
   }
 }
 
 @media (max-width: 980px) {
   .my-config {
-    .page-head {
-      flex-direction: column;
-      align-items: stretch;
-    }
-
-    .head-actions {
-      margin-top: 2px;
-    }
-
-    .config-form .grid-two {
-      grid-template-columns: 1fr;
-    }
-
-    .line,
-    .field-line,
-    .register-inline {
-      grid-template-columns: 1fr;
-    }
-
-    .identity-summary-grid {
-      grid-template-columns: 1fr;
-    }
-
-    .credential-list {
-      border-radius: 8px;
-    }
-
-    .credential-list-head {
-      display: none;
-    }
-
-    .credential-row {
-      grid-template-columns: 1fr;
-      gap: 8px;
-      align-items: flex-start;
-      padding: 14px;
-    }
-
-    .credential-cell {
-      width: 100%;
-    }
-
-    .credential-detail {
-      white-space: normal;
-      word-break: break-all;
-    }
-
-    .credential-status,
-    .credential-actions {
-      justify-content: flex-start;
-    }
-
-    .credential-revoked-mobile {
-      display: block;
-    }
-
-    .identity-card-head,
-    .test-panel-head,
-    .status-actions,
-    .status-badges {
+    .identity-card-head {
       flex-direction: column;
       align-items: flex-start;
     }
 
-    .status-item,
-    .meta-item {
-      flex-direction: column;
-      align-items: flex-start;
-      gap: 4px;
+    .security-summary-grid {
+      grid-template-columns: 1fr;
     }
   }
 }
