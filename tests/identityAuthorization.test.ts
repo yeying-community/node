@@ -7,6 +7,7 @@ import { IdentityAuditLogDO, IdentityCredentialDO, IdentityPasskeyCredentialDO, 
 vi.mock('../src/config/runtime', () => ({
   getConfig: (key: string) => ({
     'identity.publicBaseUrl': 'http://localhost:8100',
+    'identity.totp.issuerName': 'YeYing Node',
     'identity.webauthn.enabled': true,
     'identity.webauthn.rpId': 'localhost',
     'identity.webauthn.rpName': 'YeYing Node',
@@ -67,7 +68,7 @@ function signedIdentityDocument() {
 }
 
 const { IdentityAuthorizationService } = await import('../src/domain/service/identityAuthorization')
-const { IdentityTotpService } = await import('../src/auth/identityTotpAuth')
+const { IdentityTotpService, getIdentityTotpStatus } = await import('../src/auth/identityTotpAuth')
 const { verifyRegistrationResponse } = await import('@simplewebauthn/server')
 
 function base32Decode(value: string): Buffer {
@@ -174,6 +175,17 @@ describe('identity authorization', () => {
       'identity_totp_revoked'
     ]))
     expect(auditLogs.map(item => item.metadataJson).join('\n')).not.toContain(setup.totp.secret)
+  })
+
+  it('keeps wallet identity TOTP enabled by default when the derived secret is ready', () => {
+    expect(getIdentityTotpStatus()).toMatchObject({
+      enabled: true,
+      ready: true,
+      issuerName: 'YeYing Node',
+      digits: 6,
+      period: 30,
+      algorithm: 'SHA1'
+    })
   })
 
   it('accepts a published wallet extension origin for passkey registration', async () => {

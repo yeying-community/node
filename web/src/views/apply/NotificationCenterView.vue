@@ -34,7 +34,6 @@
         <el-option :label="$t('notification_filter_all_sources')" value="" />
         <el-option :label="$t('notification_source_application')" value="application" />
         <el-option :label="$t('notification_source_audit')" value="audit" />
-        <el-option :label="$t('notification_source_totp')" value="totp" />
       </el-select>
       <el-select
         v-model="filters.level"
@@ -372,8 +371,6 @@ const webhookEventOptions = computed(() => [
   { label: 'audit.created', value: 'audit.created' },
   { label: 'audit.approved', value: 'audit.approved' },
   { label: 'audit.rejected', value: 'audit.rejected' },
-  { label: 'totp.request_approved', value: 'totp.request_approved' },
-  { label: 'totp.request_expired', value: 'totp.request_expired' },
 ])
 
 let notificationStream: { close: () => Promise<void> } | null = null

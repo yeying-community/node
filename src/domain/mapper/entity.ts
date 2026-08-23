@@ -48,27 +48,6 @@ export class UserStateDO {
     signature!: string
 }
 
-@Entity('totp_subject_secrets')
-export class TotpSubjectSecretDO {
-    @PrimaryColumn({ length: 128, nullable: false, unique: true })
-    subject!: string
-
-    @Column({ type: 'text', name: 'secret_ciphertext' })
-    secretCiphertext!: string
-
-    @Column({ type: 'boolean', name: 'is_bound', default: false })
-    isBound!: boolean
-
-    @Column({ length: 64, name: 'created_at' })
-    createdAt!: string
-
-    @Column({ length: 64, name: 'updated_at' })
-    updatedAt!: string
-
-    @Column({ length: 64, name: 'bound_at', default: '' })
-    boundAt!: string
-}
-
 @Entity('custody_key_records')
 @Index('idx_custody_key_records_subject', ['subjectType', 'subjectId'])
 @Index('uidx_custody_key_records_subject_wallet', ['subjectType', 'subjectId', 'walletId'], { unique: true })

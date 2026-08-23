@@ -3,7 +3,6 @@
 本文档用于沉淀 Node 服务的 **UCAN 签发模式**（服务端 Issuer 模式）设计、实现进度与运维规范。  
 目标是让 Node 在保留“UCAN 校验模式”的同时，提供“中心化签发 UCAN”能力，用于移动端无钱包插件场景。
 
-> TOTP 边界：本文中的 `totpAuth` 是 Node 早期地址主体 UCAN 授权能力，不是钱包身份 DID 的认证器配置。后续若保留 TOTP 作为钱包身份认证器，用户入口应迁移到 Wallet 插件，Node 只保留服务端密钥保存、验证码校验和审计能力，并使用独立的钱包身份 TOTP 接口设计。
 
 ## 1. 文档目标
 - 明确 UCAN 双模式边界：校验模式 vs 签发模式。
@@ -15,8 +14,6 @@
   - SIWE/JWT 登录接口：`/api/v1/public/auth/challenge|verify|refresh|logout`
   - UCAN 校验模式：`Authorization: Bearer <UCAN>`，服务端验证 `aud/cap/proof`
   - 中心化签发接口：`/api/v1/public/auth/central/issuer|session|issue|revoke`
-  - 手机桥接签发接口：`/api/v1/public/auth/totp/status|totp/provision|bind/request|bind/approve`
-  - 手机地址授权接口：`/api/v1/public/auth/totp/authorize/request|approve|exchange`
   - 中心化 UCAN 校验分支：支持 Node 统一 Issuer 信任 + `mode` 分支（`verify|issue|hybrid`）
   - 第三方应用多后端签发：`authorize/exchange` 后可通过 `central/session|issue` 按后端动态签发 UCAN
 - 未实现（后续阶段）：
@@ -56,14 +53,12 @@
 
 ### 4.0.1 多后端签发推荐顺序
 用于需要访问多个后端（不同 `audience`）的第三方应用：
-1. `POST /api/v1/public/auth/totp/authorize/exchange` 获取 `JWT + 初始 UCAN`。
 2. `POST /api/v1/public/auth/central/session`（Bearer JWT）获取 `sessionToken`。
 3. 按目标后端循环调用 `POST /api/v1/public/auth/central/issue`，分别签发 UCAN。
 4. 客户端按 `audience + capabilities` 缓存 UCAN，过期后重新签发。
 
 ## 4.1 接口定义（手机桥接签发）
 
-接口前缀：`/api/v1/public/auth/totp`
 
 - `GET /status`
   - 返回 totp auth 是否启用、是否就绪、TOTP 参数与错误状态
@@ -80,9 +75,7 @@
   - 输入：`requestId`、`code`（认证器验证码）
   - 输出：`JWT access token` + `sessionToken` + `UCAN`
 
-### 4.2 接口定义（手机地址授权 + code 兑换）
 
-接口前缀：`/api/v1/public/auth/totp/authorize`
 
 - `POST /request`
   - 输入：`address`、`appId`、`redirectUri`、`state`（可选）
@@ -99,7 +92,6 @@
 
 前端承载页（Node Web）：
 - `GET /market/my-config`（钱包登录后管理页，支持加载 TOTP 配置与二维码、配置/调试 totp authorize）
-- `GET /totp-auth?requestId=...`
 - 页面行为：查询请求、输入 TOTP、调用 `authorize/approve` 后自动按 `redirectTo` 回跳。
 
 ## 5. 配置项
@@ -118,16 +110,6 @@
 - `issuer.ucan.tokenTtlMs` / `UCAN_ISSUER_TOKEN_TTL_MS`
 - `issuer.ucan.defaultAudience` / `UCAN_ISSUER_DEFAULT_AUDIENCE`
 - `issuer.ucan.defaultCapabilities` / `UCAN_ISSUER_DEFAULT_CAPABILITIES`
-- `totpAuth.enabled` / `TOTP_AUTH_ENABLED`
-- `totpAuth.issuerName` / `TOTP_AUTH_ISSUER_NAME`
-- `totpAuth.verifyPath` / `TOTP_AUTH_VERIFY_PATH`
-- `totpAuth.portalBaseUrl` / `TOTP_AUTH_PORTAL_BASE_URL`
-- `totpAuth.requestTtlMs` / `TOTP_AUTH_REQUEST_TTL_MS`
-- `totpAuth.exchangeCodeTtlMs` / `TOTP_AUTH_EXCHANGE_CODE_TTL_MS`
-- `totpAuth.codeDigits` / `TOTP_AUTH_CODE_DIGITS`
-- `totpAuth.codePeriodSec` / `TOTP_AUTH_CODE_PERIOD_SEC`
-- `totpAuth.codeWindow` / `TOTP_AUTH_CODE_WINDOW`
-- `totpAuth.maxAttempts` / `TOTP_AUTH_MAX_ATTEMPTS`
 - 应用发布字段：`redirectUris`
   - `appId` 必须为应用市场 `AppId`（`applications.uid`），`redirectUri` 必须命中该字段
 
@@ -215,6 +197,5 @@
 | --- | --- | --- |
 | 2026-04-17 | 首版创建 | 建立 Node UCAN 签发模式长期维护文档 |
 | 2026-04-17 | 明确中心化接口 | 采用 `/api/v1/public/auth/central/*` 路由并保持业务验 token 无感 |
-| 2026-04-21 | 增加 `/totp-auth` 承载页约定 | 明确手机地址授权流程中的 Node 公共审批页职责（查询/授权/回跳） |
 | 2026-04-21 | 引入 `AppId` 客户端识别 | 支持 `appId=applications.uid` 动态解析回跳白名单，降低 Chat 集成配置复杂度 |
 | 2026-04-24 | 补充多后端签发实践 | 明确 `authorize/exchange` 后通过 `central/session|issue` 按后端动态签发 UCAN，并强调服务端验证无感 |

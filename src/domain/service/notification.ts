@@ -347,21 +347,17 @@ export class NotificationService {
     if (applicationUid) {
       const applicationUidLike = `%\"applicationUid\":\"${escapeSqlLikeValue(applicationUid)}\"%`
       const targetUidLike = `%\"targetUid\":\"${escapeSqlLikeValue(applicationUid)}\"%`
-      const appIdLike = `%\"appId\":\"${escapeSqlLikeValue(applicationUid)}\"%`
       qb.andWhere(
         `(
           (notification.source = :applicationSource AND notification.subject_id = :applicationUid)
           OR (notification.source = :auditSource AND (notification.payload LIKE :applicationUidLike ESCAPE '\\' OR notification.payload LIKE :targetUidLike ESCAPE '\\'))
-          OR (notification.source = :totpSource AND (notification.payload LIKE :applicationUidLike ESCAPE '\\' OR notification.payload LIKE :appIdLike ESCAPE '\\'))
         )`,
         {
           applicationSource: 'application',
           auditSource: 'audit',
-          totpSource: 'totp',
           applicationUid,
           applicationUidLike,
           targetUidLike,
-          appIdLike,
         }
       )
     }
@@ -1030,64 +1026,6 @@ export class NotificationService {
     })
   }
 
-  async notifyTotpAuthorizeApproved(input: {
-    requestId: string
-    subject: string
-    appId: string
-    appName?: string
-  }): Promise<void> {
-    const recipient = normalizeRecipient(input.subject)
-    if (!recipient) {
-      return
-    }
-    const appName = String(input.appName || input.appId || '').trim() || '应用'
-    await this.create({
-      type: 'totp.request_approved',
-      source: 'totp',
-      subjectType: 'authorize_request',
-      subjectId: input.requestId,
-      actor: recipient,
-      recipients: [recipient],
-      level: 'success',
-      title: '授权已确认',
-      body: `${appName} 的授权已确认。`,
-      payload: {
-        requestId: input.requestId,
-        appId: input.appId,
-        appName,
-      },
-    })
-  }
-
-  async notifyTotpAuthorizeExpired(input: {
-    requestId: string
-    subject: string
-    appId: string
-    appName?: string
-  }): Promise<void> {
-    const recipient = normalizeRecipient(input.subject)
-    if (!recipient) {
-      return
-    }
-    const appName = String(input.appName || input.appId || '').trim() || '应用'
-    await this.create({
-      type: 'totp.request_expired',
-      source: 'totp',
-      subjectType: 'authorize_request',
-      subjectId: input.requestId,
-      actor: 'system',
-      recipients: [recipient],
-      level: 'warning',
-      title: '授权已过期',
-      body: `${appName} 的授权请求已过期，请重新发起授权。`,
-      payload: {
-        requestId: input.requestId,
-        appId: input.appId,
-        appName,
-      },
-    })
-  }
-
   async notifyApplicationCreated(input: {
     applicationUid: string
     owner: string
@@ -1295,9 +1233,6 @@ export class NotificationService {
     }
     if (source === 'audit') {
       return String(payload.applicationUid || payload.targetUid || notification.subjectId || '').trim()
-    }
-    if (source === 'totp') {
-      return String(payload.applicationUid || payload.appId || notification.subjectId || '').trim()
     }
     return String(payload.applicationUid || payload.targetUid || payload.appId || notification.subjectId || '').trim()
   }

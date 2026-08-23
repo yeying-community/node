@@ -9,10 +9,6 @@ export function getNotificationTypeLabel(t: (key: string) => string, type: strin
       return t('header_notification_audit_created')
     case 'audit.rejected':
       return t('header_notification_audit_rejected')
-    case 'totp.request_approved':
-      return t('header_notification_totp_approved')
-    case 'totp.request_expired':
-      return t('header_notification_totp_expired')
     case 'application.created':
       return t('notification_type_application_created')
     case 'application.updated':
@@ -91,18 +87,6 @@ export function resolveNotificationRoute(item: NotificationListItem) {
             },
     }
   }
-  if (type.startsWith('totp.')) {
-    const payload = item.payload || {}
-    return {
-      path: '/market/dev/my-config',
-      query: {
-        authTab: 'totp',
-        fromNotification: '1',
-        notificationUid: item.notificationUid,
-        selectedAppUid: String(payload.appId || '').trim() || undefined,
-      },
-    }
-  }
   return {
     path: '/market/',
     query: {
@@ -119,8 +103,6 @@ export function getNotificationSourceLabel(t: (key: string) => string, source: s
       return t('notification_source_application')
     case 'audit':
       return t('notification_source_audit')
-    case 'totp':
-      return t('notification_source_totp')
     default:
       return t('notification_source_system')
   }

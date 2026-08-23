@@ -164,7 +164,7 @@ function clearAttempts(key: string) {
 }
 
 function issuerName() {
-  return string(getConfig<string>('identity.webauthn.rpName')) || DEFAULT_ISSUER
+  return string(getConfig<string>('identity.totp.issuerName')) || string(getConfig<string>('identity.webauthn.rpName')) || DEFAULT_ISSUER
 }
 
 function publicRecord(row: IdentityTotpAuthenticatorDO | null) {
@@ -206,15 +206,22 @@ export function getIdentityTotpStatus() {
   }
 }
 
+function assertIdentityTotpReady() {
+  const status = getIdentityTotpStatus()
+  if (!status.ready) throw new IdentityTotpError(503, 'IDENTITY_TOTP_NOT_READY', status.error || 'Identity TOTP is not ready')
+  return status
+}
+
 export class IdentityTotpService {
   async get(input: { identity: unknown }) {
+    assertIdentityTotpReady()
     const identityDid = assertIdentityDid(input.identity)
     const row = await repository().findOneBy({ identityDid })
     return { identity: identityDid, totp: publicRecord(row) }
   }
 
   async setup(input: { identity: unknown; identityDocument: unknown; deviceName?: unknown }) {
-    masterKey()
+    assertIdentityTotpReady()
     const identityDid = assertIdentityDid(input.identity)
     verifyIdentityController(input.identityDocument, identityDid)
     const repo = repository()
@@ -255,6 +262,7 @@ export class IdentityTotpService {
   }
 
   async confirm(input: { identity: unknown; code: unknown }) {
+    assertIdentityTotpReady()
     const identityDid = assertIdentityDid(input.identity)
     const repo = repository()
     const row = await repo.findOneBy({ identityDid })
@@ -285,6 +293,7 @@ export class IdentityTotpService {
   }
 
   async verify(input: { identity: unknown; code: unknown }) {
+    assertIdentityTotpReady()
     const identityDid = assertIdentityDid(input.identity)
     const repo = repository()
     const row = await repo.findOneBy({ identityDid })
@@ -313,6 +322,7 @@ export class IdentityTotpService {
   }
 
   async revoke(input: { identity: unknown; identityDocument: unknown }) {
+    assertIdentityTotpReady()
     const identityDid = assertIdentityDid(input.identity)
     verifyIdentityController(input.identityDocument, identityDid)
     const repo = repository()

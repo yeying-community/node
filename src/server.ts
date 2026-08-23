@@ -13,7 +13,6 @@ import {
     AuditDO,
     CommentDO,
     ApplicationConfigDO,
-    TotpSubjectSecretDO,
     CustodyKeyRecordDO,
     ScopedGrantDO,
     ScopedGrantTokenDO,
@@ -42,7 +41,6 @@ import authenticateToken from './middleware/authMiddleware';
 import { requireAdmin } from './middleware/accessControl';
 import { registerPublicAuthRoutes } from './routes/publicAuth';
 import { registerPublicAuthCentralRoutes } from './routes/publicAuthCentral';
-import { registerPublicAuthTotpRoutes } from './routes/publicAuthTotp';
 import { registerPublicAuthGrantRoutes } from './routes/publicAuthGrants';
 import { registerPublicProfileRoute } from './routes/privateProfile';
 import { registerPublicApplicationRoutes } from './routes/public/applications';
@@ -67,7 +65,6 @@ import { AddAuditPreviousStateColumns20260402110000 } from './migrations/2026040
 import { AddActionRequestDedup20260402170000 } from './migrations/20260402170000-add-action-request-dedup';
 import { DropServiceTables20260423103000 } from './migrations/20260423103000-drop-service-tables';
 import { AddApplicationRedirectUris20260423121000 } from './migrations/20260423121000-add-application-redirect-uris';
-import { AddTotpSubjectSecrets20260423182000 } from './migrations/20260423182000-add-totp-subject-secrets';
 import { AddApplicationUcanPolicy20260423193000 } from './migrations/20260423193000-add-application-ucan-policy';
 import { BackfillApplicationUcanPolicy20260424110000 } from './migrations/20260424110000-backfill-application-ucan-policy';
 import { FixApplicationUcanPolicyRouterPriority20260424123000 } from './migrations/20260424123000-fix-application-ucan-policy-router-priority';
@@ -99,8 +96,8 @@ import { initMpcEventBus } from './domain/service/mpcEvents';
 import { startNotificationDeliveryJobs } from './domain/service/notificationDelivery';
 import { SingletonLogger } from './domain/facade/logger';
 import { getCentralIssuerStatus } from './auth/ucanIssuer';
-import { getTotpAuthStatus } from './auth/totpAuth';
 import { getPasskeyAuthStatus } from './auth/identityPasskeyAuth';
+import { getIdentityTotpStatus } from './auth/identityTotpAuth';
 import { getRequiredRuntimeSecret, initializeRuntimeSecrets } from './security/secretVault';
 import { assertJwtSecretReady } from './auth/siwe';
 
@@ -232,16 +229,16 @@ function assertSecurityPreflight(): void {
         )
     }
 
-    const totpStatus = getTotpAuthStatus()
-    if (totpStatus.enabled && !totpStatus.ready) {
-        errors.push(
-            `TOTP 授权未就绪: ${totpStatus.error || '缺少有效 NODE_KEY_DERIVATION_SECRET'}`
-        )
-    }
     const passkeyStatus = getPasskeyAuthStatus()
     if (passkeyStatus.enabled && !passkeyStatus.ready) {
         errors.push(
             `钱包身份 Passkey 授权未就绪: ${passkeyStatus.error || '缺少有效 identity.webauthn.rpId/origin 配置'}`
+        )
+    }
+    const identityTotpStatus = getIdentityTotpStatus()
+    if (!identityTotpStatus.ready) {
+        errors.push(
+            `钱包身份 TOTP 未就绪: ${identityTotpStatus.error || '缺少有效 NODE_KEY_DERIVATION_SECRET'}`
         )
     }
 
@@ -278,7 +275,6 @@ builder.entities([
     AuditDO,
     CommentDO,
     ApplicationConfigDO,
-    TotpSubjectSecretDO,
     CustodyKeyRecordDO,
     ScopedGrantDO,
     ScopedGrantTokenDO,
@@ -317,7 +313,6 @@ builder.migrations([
     AddActionRequestDedup20260402170000,
     DropServiceTables20260423103000,
     AddApplicationRedirectUris20260423121000,
-    AddTotpSubjectSecrets20260423182000,
     AddApplicationUcanPolicy20260423193000,
     BackfillApplicationUcanPolicy20260424110000,
     FixApplicationUcanPolicyRouterPriority20260424123000,
@@ -386,7 +381,6 @@ builder.build().initialize().then(async (conn) => {
     registerPublicIdentityAuthorizationRoutes(app);
     registerPublicIdentityTotpRoutes(app);
     registerPublicAuthCentralRoutes(app);
-    registerPublicAuthTotpRoutes(app);
     registerPublicAuthGrantRoutes(app);
     registerPublicHealthRoute(app);
     registerPublicProfileRoute(app);

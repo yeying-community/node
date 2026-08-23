@@ -146,7 +146,6 @@ Node 自身的应用中心登录是钱包签名 / UCAN 自举登录，不依赖�
 
 `/identity/authorize?requestId=...` 是 Node 内置的轻量授权页，供 Router 等 Web3 应用展示二维码或跳转。授权页只使用 Passkey 证明钱包身份控制关系；exchange 结果不包含 Passport assertion 或 `subjectId`。
 
-钱包身份 TOTP 是可选认证器，入口在 Wallet 钱包身份详情页。Node 只按 DID 保存加密 secret、校验验证码和返回状态；旧 `/api/v1/public/auth/totp/*` 仍是历史地址主体 UCAN 授权能力，不作为钱包身份 TOTP 使用。
 
 旧 Passport subject 接口已移除。新 Router / web3-bs 集成只使用 `/api/v1/public/identity/*`。
 
@@ -281,7 +280,7 @@ npm run package:release -- v1.0.0
 
 - `/api/v1/public/health` 是否返回成功；
 - 数据库 migration 是否完成；
-- Passkey/TOTP/UCAN issuer 状态接口是否 `enabled` 且 `ready`；
+- Passkey、钱包身份 TOTP、UCAN issuer 状态接口是否符合预期；钱包身份 TOTP 随身份服务启用，必须 `ready=true`；
 - Node 日志是否出现 `audience mismatch`、`capability denied` 或数据库连接错误；
 - Redis Streams 长度、消费者延迟和 SSE 重连率；
 - Webhook 失败数、重试数和最终失败数；
