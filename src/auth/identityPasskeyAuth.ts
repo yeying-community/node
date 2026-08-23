@@ -42,16 +42,16 @@ function parsePositiveNumber(value: unknown, fallback: number): number {
 }
 
 export function getPasskeyAuthStatus(): PasskeyAuthStatus {
-  const enabled = parseBoolean(getConfig<boolean>('identityAuth.passkey.enabled'), false)
-  const rpId = String(getConfig<string>('identityAuth.passkey.rpId') || '').trim()
-  const rpName = String(getConfig<string>('identityAuth.passkey.rpName') || 'YeYing Node').trim()
-  const origin = String(getConfig<string>('identityAuth.passkey.origin') || '').trim()
+  const enabled = parseBoolean(getConfig<boolean>('identity.webauthn.enabled'), false)
+  const rpId = String(getConfig<string>('identity.webauthn.rpId') || '').trim()
+  const rpName = String(getConfig<string>('identity.webauthn.rpName') || 'YeYing Node').trim()
+  const origin = String(getConfig<string>('identity.webauthn.origin') || '').trim()
   const timeoutMs = parsePositiveNumber(
-    getConfig<number>('identityAuth.passkey.timeoutMs'),
+    getConfig<number>('identity.webauthn.timeoutMs'),
     DEFAULT_TIMEOUT_MS
   )
   const challengeTtlMs = parsePositiveNumber(
-    getConfig<number>('identityAuth.passkey.challengeTtlMs'),
+    getConfig<number>('identity.webauthn.challengeTtlMs'),
     DEFAULT_CHALLENGE_TTL_MS
   )
   const ready = !enabled || Boolean(rpId && rpName && origin)

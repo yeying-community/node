@@ -239,7 +239,7 @@ function assertSecurityPreflight(): void {
     const passkeyStatus = getPasskeyAuthStatus()
     if (passkeyStatus.enabled && !passkeyStatus.ready) {
         errors.push(
-            `钱包身份 Passkey 授权未就绪: ${passkeyStatus.error || '缺少有效 identityAuth.passkey.rpId/origin 配置'}`
+            `钱包身份 Passkey 授权未就绪: ${passkeyStatus.error || '缺少有效 identity.webauthn.rpId/origin 配置'}`
         )
     }
 

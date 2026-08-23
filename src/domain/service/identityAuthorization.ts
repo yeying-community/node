@@ -56,7 +56,7 @@ function credentialClientDataOrigin(credential: any): string {
   }
 }
 function portalBaseUrl() {
-  const raw = String(process.env.IDENTITY_AUTH_PORTAL_BASE_URL || getConfig<string>('identityAuth.portalBaseUrl') || '').trim()
+  const raw = String(process.env.IDENTITY_PUBLIC_BASE_URL || getConfig<string>('identity.publicBaseUrl') || '').trim()
   if (raw) return raw.replace(/\/+$/, '')
   const passkey = getPasskeyAuthStatus()
   return passkey.origin ? passkey.origin.replace(/\/+$/, '') : ''

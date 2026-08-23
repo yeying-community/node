@@ -22,7 +22,7 @@ Node 不保存钱包明文密钥。托管接口只接受客户端加密后的 `c
 - Node.js 22 或更高版本；生产环境建议固定 LTS 版本。
 - PostgreSQL 作为推荐数据库。PostgreSQL 使用 migration；MySQL 依赖 TypeORM synchronize，功能覆盖需要自行验证。
 - Redis 为可选组件。多实例 MPC、SSE 续传和事件重放建议启用 Redis Streams。
-- Passkey 生产环境必须使用 HTTPS，并保证 `identityAuth.passkey.rpId` 与访问域名一致。Passkey 在新钱包身份流程中只是认证器，不是外部身份主键。
+- Passkey 生产环境必须使用 HTTPS，并保证 `identity.webauthn.rpId` 与访问域名一致。Passkey 在新钱包身份流程中只是认证器，不是外部身份主键。
 
 ## 3. 本地启动
 
@@ -100,12 +100,12 @@ custody: { enabled: true, ucanWith: 'custody', ucanCan: 'write' }
 
 Node 的新身份契约不再创建或返回 `subjectId`。正式外部主键是 `did:yeying:wid_*`；钱包地址是已验证账户关联，邮箱和用户名是 Node 签发的 JWT-VC。
 
-配置使用 `identityAuth.passkey` 的 RP 参数：
+配置使用 `identity.webauthn` 的 RP 参数：
 
 ```js
-identityAuth: {
-  portalBaseUrl: 'https://node.example.com',
-  passkey: {
+identity: {
+  publicBaseUrl: 'https://node.example.com',
+  webauthn: {
     enabled: true,
     rpId: 'node.example.com',
     rpName: 'YeYing Node',
@@ -118,9 +118,9 @@ identityAuth: {
 
 `rpId` 只能是当前域名或其可注册父域。`origin` 是 Node 自己承载钱包身份授权页的浏览器来源，必须包含协议且与实际来源完全一致，例如生产环境 `https://node.example.com` 或本地 `http://localhost:8100`。
 
-Wallet 插件设置页注册身份 Passkey 时，WebAuthn 响应 origin 是 `chrome-extension://<wallet-extension-id>`。这个 origin 不写入 Node 运行时配置；应把钱包插件作为应用发布到 Node 应用中心，并把插件 origin 加入该应用的 `redirectUris`。Node 在确认 Passkey 注册时只接受两类来源：`identityAuth.passkey.origin` 表示的 Node 授权页，以及已发布应用 `redirectUris` 解析出的来源。
+Wallet 插件设置页注册身份 Passkey 时，WebAuthn 响应 origin 是 `chrome-extension://<wallet-extension-id>`。这个 origin 不写入 Node 运行时配置；应把钱包插件作为应用发布到 Node 应用中心，并把插件 origin 加入该应用的 `redirectUris`。Node 在确认 Passkey 注册时只接受两类来源：`identity.webauthn.origin` 表示的 Node 授权页，以及已发布应用 `redirectUris` 解析出的来源。
 
-Node 自身的应用中心登录是钱包签名 / UCAN 自举登录，不依赖在应用中心先发布一个 Node 应用；`identityAuth.passkey` 只负责钱包身份 Passkey 注册和无插件授权页。Router 等外部 Web3 应用才需要在 Node 应用中心发布应用并配置 `redirectUris`。
+Node 自身的应用中心登录是钱包签名 / UCAN 自举登录，不依赖在应用中心先发布一个 Node 应用；`identity.webauthn` 只负责钱包身份 WebAuthn 认证器注册和无插件授权页。Router 等外部 Web3 应用才需要在 Node 应用中心发布应用并配置 `redirectUris`。
 
 钱包身份相关公共接口：
 

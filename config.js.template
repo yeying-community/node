@@ -143,11 +143,11 @@ module.exports = {
     //   node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
     // Required when enabled. Supports plain text / base64 / hex.
   },
-  identityAuth: {
-    // Base URL used to build wallet identity verifyUrl in authorize request response.
-    portalBaseUrl: 'http://127.0.0.1:8100',
-    passkey: {
-      // Enable wallet identity Passkey registration and authorization confirmation. rpId must be the current
+  identity: {
+    // Public base URL used to build wallet identity verifyUrl in authorize request response.
+    publicBaseUrl: 'http://127.0.0.1:8100',
+    webauthn: {
+      // Enable wallet identity WebAuthn authenticator registration and authorization confirmation. rpId must be the current
       // domain or its registrable parent; origin must exactly match the browser page origin.
       enabled: false,
       // Relying Party ID. Prefer a dedicated local hostname such as

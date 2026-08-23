@@ -6,13 +6,13 @@ import { IdentityCredentialDO, IdentityPasskeyCredentialDO, IdentityWebauthnChal
 
 vi.mock('../src/config/runtime', () => ({
   getConfig: (key: string) => ({
-    'identityAuth.portalBaseUrl': 'http://localhost:8100',
-    'identityAuth.passkey.enabled': true,
-    'identityAuth.passkey.rpId': 'localhost',
-    'identityAuth.passkey.rpName': 'YeYing Node',
-    'identityAuth.passkey.origin': 'http://localhost:8100',
-    'identityAuth.passkey.timeoutMs': 60_000,
-    'identityAuth.passkey.challengeTtlMs': 120_000
+    'identity.publicBaseUrl': 'http://localhost:8100',
+    'identity.webauthn.enabled': true,
+    'identity.webauthn.rpId': 'localhost',
+    'identity.webauthn.rpName': 'YeYing Node',
+    'identity.webauthn.origin': 'http://localhost:8100',
+    'identity.webauthn.timeoutMs': 60_000,
+    'identity.webauthn.challengeTtlMs': 120_000
   } as Record<string, unknown>)[key]
 }))
 

@@ -85,14 +85,13 @@ export interface IdentityPasskeyRuntimeConfig {
     rpId?: string
     rpName?: string
     origin?: string
-    origins?: string[]
     timeoutMs?: number
     challengeTtlMs?: number
 }
 
-export interface IdentityAuthRuntimeConfig {
-    portalBaseUrl?: string
-    passkey?: IdentityPasskeyRuntimeConfig
+export interface IdentityRuntimeConfig {
+    publicBaseUrl?: string
+    webauthn?: IdentityPasskeyRuntimeConfig
 }
 
 export interface IdentityIssuerRuntimeConfig {
