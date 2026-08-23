@@ -167,6 +167,7 @@ vi.doMock('../src/domain/service/mpc', () => ({
       createMpcSessionMock(input, actor)
       const session = {
         id: input.id || `session-${mpcSessionStore.size + 1}`,
+        name: input.name,
         type: input.type,
         walletId: input.walletId,
         threshold: input.threshold,
@@ -706,6 +707,7 @@ describe('signed action routes', () => {
     const actor = wallet.address.toLowerCase()
     const app = createTestApp(actor)
     const rawBody = {
+      name: '团队金库',
       type: 'keygen',
       walletId: 'wallet-1',
       threshold: 2,
@@ -748,7 +750,9 @@ describe('signed action routes', () => {
       expect(second.status).toBe(200)
       expect(firstJson).toEqual(secondJson)
       expect(createMpcSessionMock).toHaveBeenCalledTimes(1)
+      expect(createMpcSessionMock.mock.calls[0][0]).toEqual(expect.objectContaining({ name: '团队金库' }))
       expect(firstJson.data.walletId).toBe('wallet-1')
+      expect(firstJson.data.name).toBe('团队金库')
       expect(firstJson.data.status).toBe('created')
     })
   })
@@ -759,6 +763,7 @@ describe('signed action routes', () => {
     const app = createTestApp(actor)
     mpcSessionStore.set('session-join-1', {
       id: 'session-join-1',
+      name: '团队金库',
       type: 'keygen',
       walletId: 'wallet-join-1',
       threshold: 2,
@@ -823,6 +828,7 @@ describe('signed action routes', () => {
     const app = createTestApp(actor)
     mpcSessionStore.set('session-message-1', {
       id: 'session-message-1',
+      name: '团队金库',
       type: 'keygen',
       walletId: 'wallet-message-1',
       threshold: 2,
@@ -889,6 +895,7 @@ describe('signed action routes', () => {
     const app = createTestApp(actor)
     mpcSessionStore.set('session-message-2', {
       id: 'session-message-2',
+      name: '团队金库',
       type: 'keygen',
       walletId: 'wallet-message-2',
       threshold: 2,

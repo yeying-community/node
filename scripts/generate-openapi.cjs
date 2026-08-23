@@ -25,9 +25,7 @@ const document = {
   tags: Object.entries({
     Health: '服务可用性检查。',
     Auth: 'SIWE、JWT 和中心化 UCAN。',
-    Passkey: 'WebAuthn 通行证注册和授权。',
-    Passport: 'Passport subject、code + PKCE 和跨应用登录。',
-    TOTP: 'TOTP 绑定和无钱包授权。',
+    Identity: '钱包身份 DID、账户关联、邮箱/用户名凭证、身份级 Passkey/TOTP 认证器和授权码登录。',
     Profile: '当前认证身份信息。',
     Applications: '应用元数据、配置、搜索和发布状态。',
     Audits: '应用审核申请和审批。',
@@ -89,7 +87,7 @@ const document = {
         type: 'object', required: ['address'],
         properties: {
           address: { type: 'string', pattern: '^0x[0-9a-fA-F]{40}$' },
-          scope: { type: 'array', items: { type: 'string' }, description: '可选 Passport identity scope。' },
+          scope: { type: 'array', items: { type: 'string' }, description: '可选钱包身份 scope。' },
         },
       },
       AuthVerifyRequest: {
@@ -99,77 +97,171 @@ const document = {
           signature: { type: 'string' },
         },
       },
-      PassportWalletUnbindConfirmRequest: {
-        allOf: [
-          ref('SignedActionFields'),
-          {
-            type: 'object',
-            description: '签名 message 由 /auth/passport/bind/unlink/request 返回，action 固定为 passport_wallet_unbind。',
-          },
-        ],
+      IdentityDid: {
+        type: 'string',
+        pattern: '^did:yeying:wid_[A-Za-z0-9_-]{22,}$',
       },
-      PassportPasskeyRegisterRequest: {
+      IdentityAccount: {
         type: 'object',
+        required: ['chainKey', 'address'],
         properties: {
+          chainKey: { type: 'string', examples: ['eip155:1'] },
+          address: { type: 'string', pattern: '^0x[0-9a-fA-F]{40}$' },
+        },
+      },
+      IdentityAccountLinkChallengeRequest: {
+        type: 'object',
+        required: ['identity', 'account'],
+        properties: {
+          identity: ref('IdentityDid'),
+          account: ref('IdentityAccount'),
+        },
+      },
+      IdentityAccountLinkVerifyRequest: {
+        type: 'object',
+        required: ['identity', 'identityDocument', 'account', 'nonce', 'issuedAt', 'expiresAt', 'accountSignature'],
+        properties: {
+          identity: ref('IdentityDid'),
+          identityDocument: { type: 'object', additionalProperties: true },
+          account: ref('IdentityAccount'),
+          nonce: { type: 'string' },
+          issuedAt: { type: 'string', format: 'date-time' },
+          expiresAt: { type: 'string', format: 'date-time' },
+          accountSignature: { type: 'string', description: '账户钱包对账户关联 message 的签名。' },
+        },
+      },
+      IdentityVerificationRequest: {
+        type: 'object',
+        required: ['identity', 'account', 'email', 'types'],
+        properties: {
+          identity: ref('IdentityDid'),
+          account: ref('IdentityAccount'),
+          email: { type: 'string', format: 'email' },
+          username: { type: 'string', minLength: 3, maxLength: 32 },
+          type: { type: 'string', enum: ['email', 'username'] },
+          types: { type: 'array', items: { type: 'string', enum: ['email', 'username'] } },
+        },
+      },
+      IdentityVerificationConfirmRequest: {
+        type: 'object',
+        required: ['verificationId', 'code', 'types'],
+        properties: {
+          verificationId: { type: 'string' },
+          code: { type: 'string' },
+          codes: { type: 'object', additionalProperties: { type: 'string' } },
+          type: { type: 'string', enum: ['email', 'username'] },
+          types: { type: 'array', items: { type: 'string', enum: ['email', 'username'] } },
+        },
+      },
+      IdentityCredentialsStatusRequest: {
+        type: 'object',
+        required: ['credentials'],
+        properties: {
+          issuer: { type: 'string' },
+          credentials: { type: 'array', minItems: 1, items: { type: 'string' } },
+        },
+      },
+      IdentityPasskeyRegisterRequest: {
+        type: 'object',
+        required: ['identity', 'identityDocument'],
+        properties: {
+          identity: ref('IdentityDid'),
+          identityDocument: { type: 'object', additionalProperties: true },
           deviceName: { type: 'string' },
         },
       },
-      PassportPasskeyRegisterConfirmRequest: {
-        type: 'object', required: ['requestId', 'credential'],
+      IdentityPasskeyRegisterConfirmRequest: {
+        type: 'object',
+        required: ['identity', 'requestId', 'credential'],
         properties: {
+          identity: ref('IdentityDid'),
           requestId: { type: 'string', description: '注册挑战 requestId。' },
           deviceName: { type: 'string' },
           credential: { type: 'object', additionalProperties: true },
         },
       },
-      PassportPasskeyCredentialRevokeRequest: {
+      IdentityPasskeyListRequest: {
         type: 'object',
-        required: ['credentialId'],
+        required: ['identity'],
         properties: {
+          identity: ref('IdentityDid'),
+        },
+      },
+      IdentityPasskeyRevokeRequest: {
+        type: 'object',
+        required: ['identity', 'identityDocument', 'credentialId'],
+        properties: {
+          identity: ref('IdentityDid'),
+          identityDocument: { type: 'object', additionalProperties: true },
           credentialId: { type: 'string' },
         },
       },
-      PassportPasskeyCredentialRenameRequest: {
+      IdentityTotpGetRequest: {
         type: 'object',
-        required: ['credentialId', 'deviceName'],
+        required: ['identity'],
         properties: {
-          credentialId: { type: 'string' },
-          deviceName: { type: 'string' },
+          identity: ref('IdentityDid'),
         },
       },
-      PassportAuthorizeRequest: {
+      IdentityTotpSetupRequest: {
+        type: 'object',
+        required: ['identity', 'identityDocument'],
+        properties: {
+          identity: ref('IdentityDid'),
+          identityDocument: { type: 'object', additionalProperties: true },
+          deviceName: { type: 'string', description: '用户可识别的 TOTP 认证器名称。' },
+        },
+      },
+      IdentityTotpConfirmRequest: {
+        type: 'object',
+        required: ['identity', 'code'],
+        properties: {
+          identity: ref('IdentityDid'),
+          code: { type: 'string', minLength: 6, maxLength: 16 },
+        },
+      },
+      IdentityTotpRevokeRequest: {
+        type: 'object',
+        required: ['identity', 'identityDocument'],
+        properties: {
+          identity: ref('IdentityDid'),
+          identityDocument: { type: 'object', additionalProperties: true },
+        },
+      },
+      IdentityAuthorizeRequest: {
         type: 'object',
         required: ['appId', 'redirectUri', 'codeChallenge'],
         properties: {
           appId: { type: 'string' },
           redirectUri: { type: 'string', format: 'uri' },
           state: { type: 'string' },
+          scopes: { type: 'array', items: { type: 'string', enum: ['identity.basic', 'identity.wallet', 'identity.username', 'identity.email'] } },
+          scope: { type: 'array', items: { type: 'string', enum: ['identity.basic', 'identity.wallet', 'identity.username', 'identity.email'] } },
           codeChallenge: { type: 'string', minLength: 43, maxLength: 128 },
           code_challenge: { type: 'string', minLength: 43, maxLength: 128 },
           codeChallengeMethod: { type: 'string', enum: ['S256'] },
           code_challenge_method: { type: 'string', enum: ['S256'] },
-          requestTtlMs: { type: 'integer' },
         },
       },
-      PassportAuthorizeChallengeRequest: {
+      IdentityAuthorizeChallengeRequest: {
         type: 'object',
         required: ['requestId'],
         properties: {
           requestId: { type: 'string' },
         },
       },
-      PassportAuthorizeApproveRequest: {
+      IdentityAuthorizeApproveRequest: {
         type: 'object',
         required: ['requestId'],
         properties: {
           requestId: { type: 'string' },
+          presentation: { type: 'object', additionalProperties: true, description: 'Wallet 插件签发的钱包身份 presentation。' },
           passkeyRequestId: { type: 'string', description: '无 Bearer Passkey approve 时必填。' },
           challengeId: { type: 'string', description: 'passkeyRequestId 的兼容别名。' },
           credential: { type: 'object', additionalProperties: true },
-          codeTtlMs: { type: 'integer' },
         },
       },
-      PassportAuthorizeExchangeRequest: {
+      IdentityAuthorizeExchangeRequest: {
         type: 'object',
         required: ['code', 'appId', 'redirectUri', 'codeVerifier'],
         properties: {
@@ -178,31 +270,6 @@ const document = {
           redirectUri: { type: 'string', format: 'uri' },
           codeVerifier: { type: 'string', minLength: 43, maxLength: 128 },
           code_verifier: { type: 'string', minLength: 43, maxLength: 128 },
-        },
-      },
-      PassportWalletAssertionRequest: {
-        type: 'object',
-        required: ['address', 'message', 'signature', 'appId', 'audience', 'nonce'],
-        properties: {
-          address: { type: 'string', pattern: '^0x[0-9a-fA-F]{40}$' },
-          message: { type: 'string', description: 'Wallet 对本次登录意图签名的原文。' },
-          signature: { type: 'string', description: '钱包 personal_sign 签名。' },
-          appId: { type: 'string', description: 'Node 应用中心登记的应用 UID。' },
-          audience: { type: 'string', format: 'uri', description: 'DApp 后端或站点 audience，必须匹配应用 redirectUris 策略。' },
-          nonce: { type: 'string', description: 'DApp 后端生成并保存的一次性登录 nonce。' },
-          scope: { type: 'array', items: { type: 'string' } },
-          scopes: { type: 'array', items: { type: 'string' } },
-          origin: { type: 'string' },
-          requestId: { type: 'string' },
-          ttlMs: { type: 'integer' },
-        },
-      },
-      PassportAssertionIntrospectRequest: {
-        type: 'object',
-        properties: {
-          assertion: { type: 'string' },
-          passportAssertion: { type: 'string' },
-          token: { type: 'string' },
         },
       },
       CustodyStatus: {
@@ -312,33 +379,29 @@ const operations = [
   ['post', '/api/v1/public/auth/central/session', 'Auth', '创建中心化签发会话', 'bearer'],
   ['post', '/api/v1/public/auth/central/issue', 'Auth', '签发中心化 UCAN', 'bearer'],
   ['post', '/api/v1/public/auth/central/revoke', 'Auth', '撤销中心化签发会话', 'bearer'],
-  ['get', '/api/v1/public/auth/passport/status', 'Passport', '查询 Passport 服务状态', 'none'],
-  ['post', '/api/v1/public/auth/passport/bind/request', 'Passport', '创建 Passport 钱包绑定准备状态', 'bearer'],
-  ['post', '/api/v1/public/auth/passport/bind/confirm', 'Passport', '确认 Passport 钱包绑定', 'bearer'],
-  ['get', '/api/v1/public/auth/passport/bindings', 'Passport', '查询 Passport 绑定', 'bearer'],
-  ['post', '/api/v1/public/auth/passport/bind/unlink/request', 'Passport', '创建 Passport 钱包解绑签名请求', 'bearer'],
-  ['post', '/api/v1/public/auth/passport/bind/unlink/confirm', 'Passport', '确认 Passport 钱包解绑并撤销主体授权', 'bearer', 'PassportWalletUnbindConfirmRequest'],
-  ['post', '/api/v1/public/auth/passport/passkey/register/request', 'Passport', '创建 Passport subject Passkey 注册挑战', 'bearer', 'PassportPasskeyRegisterRequest'],
-  ['post', '/api/v1/public/auth/passport/passkey/register/confirm', 'Passport', '确认 Passport subject Passkey 注册', 'bearer', 'PassportPasskeyRegisterConfirmRequest'],
-  ['get', '/api/v1/public/auth/passport/passkey/credentials', 'Passport', '列出 Passport subject Passkey', 'bearer'],
-  ['post', '/api/v1/public/auth/passport/passkey/credentials/revoke', 'Passport', '撤销 Passport subject Passkey', 'bearer', 'PassportPasskeyCredentialRevokeRequest'],
-  ['post', '/api/v1/public/auth/passport/passkey/credentials/rename', 'Passport', '重命名 Passport subject Passkey', 'bearer', 'PassportPasskeyCredentialRenameRequest'],
-  ['post', '/api/v1/public/auth/passport/authorize/request', 'Passport', '创建 Passport code + PKCE 授权请求', 'none', 'PassportAuthorizeRequest'],
-  ['get', '/api/v1/public/auth/passport/authorize/request/{requestId}', 'Passport', '查询 Passport 授权请求', 'none'],
-  ['post', '/api/v1/public/auth/passport/authorize/challenge', 'Passport', '创建 Passport Passkey assertion challenge', 'none', 'PassportAuthorizeChallengeRequest'],
-  ['post', '/api/v1/public/auth/passport/authorize/approve', 'Passport', '确认 Passport 授权请求', 'none', 'PassportAuthorizeApproveRequest'],
-  ['post', '/api/v1/public/auth/passport/authorize/exchange', 'Passport', '兑换 Passport 授权码', 'none', 'PassportAuthorizeExchangeRequest'],
-  ['post', '/api/v1/public/auth/passport/assertions/wallet', 'Passport', '签发 Wallet-backed Passport assertion', 'none', 'PassportWalletAssertionRequest'],
-  ['post', '/api/v1/public/auth/passport/assertions/introspect', 'Passport', '在线校验 Passport assertion', 'none', 'PassportAssertionIntrospectRequest'],
-  ['get', '/api/v1/public/auth/totp/status', 'TOTP', '查询 TOTP 服务状态', 'none'],
-  ['get', '/api/v1/public/auth/totp/totp/provision', 'TOTP', '获取当前身份 TOTP 配置', 'bearer'],
-  ['post', '/api/v1/public/auth/totp/bind/request', 'TOTP', '创建 TOTP 绑定请求', 'bearer'],
-  ['get', '/api/v1/public/auth/totp/bind/request/{requestId}', 'TOTP', '查询 TOTP 绑定请求', 'none'],
-  ['post', '/api/v1/public/auth/totp/bind/approve', 'TOTP', '确认 TOTP 绑定', 'none'],
-  ['post', '/api/v1/public/auth/totp/authorize/request', 'TOTP', '创建 TOTP 授权请求', 'none'],
-  ['get', '/api/v1/public/auth/totp/authorize/request/{requestId}', 'TOTP', '查询 TOTP 授权请求', 'none'],
-  ['post', '/api/v1/public/auth/totp/authorize/approve', 'TOTP', '使用 TOTP 确认授权', 'none'],
-  ['post', '/api/v1/public/auth/totp/authorize/exchange', 'TOTP', '兑换 TOTP 授权码', 'none'],
+  ['get', '/.well-known/jwks.json', 'Identity', '查询钱包身份 issuer JWKS', 'none'],
+  ['get', '/.well-known/openid-credential-issuer', 'Identity', '查询钱包身份 issuer 元数据', 'none'],
+  ['get', '/api/v1/public/identity/status', 'Identity', '查询钱包身份 Passkey 运行状态', 'none'],
+  ['post', '/api/v1/public/identity/credentials/status', 'Identity', '查询钱包身份凭证状态', 'none', 'IdentityCredentialsStatusRequest'],
+  ['post', '/api/v1/public/identity/account-links/challenge', 'Identity', '创建钱包身份账户关联 challenge', 'none', 'IdentityAccountLinkChallengeRequest'],
+  ['post', '/api/v1/public/identity/account-links/verify', 'Identity', '校验钱包身份账户关联证明', 'none', 'IdentityAccountLinkVerifyRequest'],
+  ['post', '/api/v1/public/identity/verifications/request', 'Identity', '请求用户名和邮箱验证', 'none', 'IdentityVerificationRequest'],
+  ['post', '/api/v1/public/identity/verifications/confirm', 'Identity', '确认验证码并签发钱包身份凭证', 'none', 'IdentityVerificationConfirmRequest'],
+  ['post', '/api/v1/public/identity/passkeys/register/request', 'Identity', '创建身份级 Passkey 注册请求', 'none', 'IdentityPasskeyRegisterRequest'],
+  ['post', '/api/v1/public/identity/passkeys/register/confirm', 'Identity', '保存身份级 Passkey credential', 'none', 'IdentityPasskeyRegisterConfirmRequest'],
+  ['post', '/api/v1/public/identity/passkeys/list', 'Identity', '查询钱包身份 Passkey credential 列表', 'none', 'IdentityPasskeyListRequest'],
+  ['post', '/api/v1/public/identity/passkeys/revoke', 'Identity', '撤销钱包身份 Passkey credential', 'none', 'IdentityPasskeyRevokeRequest'],
+  ['get', '/api/v1/public/identity/totp/status', 'Identity', '查询钱包身份 TOTP 服务状态', 'none'],
+  ['post', '/api/v1/public/identity/totp/get', 'Identity', '查询钱包身份 TOTP 认证器状态', 'none', 'IdentityTotpGetRequest'],
+  ['post', '/api/v1/public/identity/totp/setup', 'Identity', '创建钱包身份 TOTP secret', 'none', 'IdentityTotpSetupRequest'],
+  ['post', '/api/v1/public/identity/totp/confirm', 'Identity', '使用验证码确认并启用钱包身份 TOTP', 'none', 'IdentityTotpConfirmRequest'],
+  ['post', '/api/v1/public/identity/totp/verify', 'Identity', '校验已启用的钱包身份 TOTP 验证码', 'none', 'IdentityTotpConfirmRequest'],
+  ['post', '/api/v1/public/identity/totp/revoke', 'Identity', '撤销钱包身份 TOTP 认证器', 'none', 'IdentityTotpRevokeRequest'],
+  ['post', '/api/v1/public/identity/authorize/request', 'Identity', '创建钱包身份授权码请求', 'none', 'IdentityAuthorizeRequest'],
+  ['get', '/api/v1/public/identity/authorize/request/{requestId}', 'Identity', '查询钱包身份授权请求', 'none'],
+  ['post', '/api/v1/public/identity/authorize/challenge', 'Identity', '创建无钱包登录 Passkey challenge', 'none', 'IdentityAuthorizeChallengeRequest'],
+  ['post', '/api/v1/public/identity/authorize/approve', 'Identity', '批准钱包身份授权请求', 'none', 'IdentityAuthorizeApproveRequest'],
+  ['post', '/api/v1/public/identity/authorize/exchange', 'Identity', '兑换钱包身份授权码', 'none', 'IdentityAuthorizeExchangeRequest'],
   ['get', '/api/v1/public/profile/me', 'Profile', '查询当前认证身份', 'bearer'],
   ['post', '/api/v1/public/applications', 'Applications', '创建应用', 'bearer'],
   ['patch', '/api/v1/public/applications/{uid}', 'Applications', '更新应用', 'bearer'],
@@ -363,7 +426,7 @@ const operations = [
   ['get', '/api/v1/public/mpc/sessions/{sessionId}/messages', 'MPC', '拉取 MPC 消息', 'bearer'],
   ['get', '/api/v1/public/mpc/sessions/{sessionId}', 'MPC', '查询 MPC 会话', 'bearer'],
   ['get', '/api/v1/public/mpc/ws', 'MPC', '订阅 MPC SSE 事件流', 'bearer', null, true],
-  ['get', '/api/v1/public/custody/status', 'Custody', '查询通行证和托管状态', 'bearer'],
+  ['get', '/api/v1/public/custody/status', 'Custody', '查询身份 Passkey 和托管状态', 'bearer'],
   ['get', '/api/v1/public/custody/secrets', 'Custody', '列出托管记录', 'bearer'],
   ['get', '/api/v1/public/custody/secrets/{walletId}', 'Custody', '获取托管密文', 'bearer'],
   ['get', '/api/v1/public/custody/recovery/secrets', 'Custody Recovery', '使用一次性恢复令牌列出托管记录', 'bearer'],
@@ -444,7 +507,7 @@ for (const [method, route, tag, summary, auth, bodySchema, sse] of operations) {
 }
 
 document.paths['/api/v1/public/custody/status'].get.responses[200] = {
-  description: 'Passkey 绑定和托管记录状态',
+  description: '身份 Passkey 和托管记录状态',
   content: jsonContent(ref('CustodyStatusEnvelope')),
 }
 

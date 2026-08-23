@@ -13,16 +13,7 @@ import {
     AuditDO,
     CommentDO,
     ApplicationConfigDO,
-    TotpSubjectSecretDO,
     CustodyKeyRecordDO,
-    PassportSubjectDO,
-    PassportEmailVerificationChallengeDO,
-    PassportWalletBindingDO,
-    PassportPasskeyCredentialDO,
-    PassportWebauthnChallengeDO,
-    PassportAuthorizationRequestDO,
-    PassportAuthorizationCodeDO,
-    PassportAuditLogDO,
     ScopedGrantDO,
     ScopedGrantTokenDO,
     ScopedGrantRevocationDO,
@@ -40,7 +31,7 @@ import {
     ProjectAppInstallationDO,
     AppReleaseDO,
     AppRuntimeTaskDO,
-    IdentityAccountLinkDO, IdentityAccountLinkChallengeDO, IdentityVerificationTransactionDO, IdentityUsernameDO, IdentityCredentialDO, IdentityAuditLogDO, IdentityAuthorizationRequestDO, IdentityAuthorizationCodeDO
+    IdentityAccountLinkDO, IdentityAccountLinkChallengeDO, IdentityVerificationTransactionDO, IdentityUsernameDO, IdentityCredentialDO, IdentityAuditLogDO, IdentityPasskeyCredentialDO, IdentityTotpAuthenticatorDO, IdentityWebauthnChallengeDO, IdentityAuthorizationRequestDO, IdentityAuthorizationCodeDO
 } from './domain/mapper/entity'
 import { SingletonDataSource } from './domain/facade/datasource';
 import { LoggerConfig, LoggerService } from './infrastructure/logger';
@@ -50,8 +41,6 @@ import authenticateToken from './middleware/authMiddleware';
 import { requireAdmin } from './middleware/accessControl';
 import { registerPublicAuthRoutes } from './routes/publicAuth';
 import { registerPublicAuthCentralRoutes } from './routes/publicAuthCentral';
-import { registerPublicAuthTotpRoutes } from './routes/publicAuthTotp';
-import { registerPublicAuthPassportRoutes } from './routes/publicAuthPassport';
 import { registerPublicAuthGrantRoutes } from './routes/publicAuthGrants';
 import { registerPublicProfileRoute } from './routes/privateProfile';
 import { registerPublicApplicationRoutes } from './routes/public/applications';
@@ -65,7 +54,8 @@ import { registerPublicIdentityAccountLinkRoutes } from './routes/publicIdentity
 import { IdentityEmailService } from './domain/service/identityEmail';
 import { registerPublicIdentityEmailRoutes } from './routes/publicIdentityEmail';
 import { registerPublicIdentityAuthorizationRoutes } from './routes/publicIdentityAuthorization';
-import { deliverPassportEmailVerification } from './domain/service/passportEmailDelivery';
+import { registerPublicIdentityTotpRoutes } from './routes/publicIdentityTotp';
+import { deliverIdentityEmailVerification } from './domain/service/identityEmailDelivery';
 import { registerAdminAuditRoutes } from './routes/admin/audits';
 import { registerAdminUserRoutes } from './routes/admin/users';
 import { InitSchema20260126120000 } from './migrations/20260126120000-init-schema';
@@ -75,7 +65,6 @@ import { AddAuditPreviousStateColumns20260402110000 } from './migrations/2026040
 import { AddActionRequestDedup20260402170000 } from './migrations/20260402170000-add-action-request-dedup';
 import { DropServiceTables20260423103000 } from './migrations/20260423103000-drop-service-tables';
 import { AddApplicationRedirectUris20260423121000 } from './migrations/20260423121000-add-application-redirect-uris';
-import { AddTotpSubjectSecrets20260423182000 } from './migrations/20260423182000-add-totp-subject-secrets';
 import { AddApplicationUcanPolicy20260423193000 } from './migrations/20260423193000-add-application-ucan-policy';
 import { BackfillApplicationUcanPolicy20260424110000 } from './migrations/20260424110000-backfill-application-ucan-policy';
 import { FixApplicationUcanPolicyRouterPriority20260424123000 } from './migrations/20260424123000-fix-application-ucan-policy-router-priority';
@@ -89,15 +78,16 @@ import { registerAdminReleaseRoutes } from './routes/admin/releases';
 import { AddAppReleases20260723110000 } from './migrations/20260723110000-add-app-releases';
 import { AddAppRuntimeTasks20260724100000 } from './migrations/20260724100000-add-app-runtime-tasks';
 import { AddRuntimeTaskPayload20260726100000 } from './migrations/20260726100000-add-runtime-task-payload';
-import { AddPassportIdentity20260803100000 } from './migrations/20260803100000-add-passport-identity';
-import { AddPassportSubjectEmailAndScopes20260809090000 } from './migrations/20260809090000-add-passport-subject-email-and-scopes';
-import { AddPassportEmailVerificationChallenges20260809093000 } from './migrations/20260809093000-add-passport-email-verification-challenges';
-import { AddPassportUsername20260812230000 } from './migrations/20260812230000-add-passport-username';
 import { AddWalletIdentityState20260813090000 } from './migrations/20260813090000-add-wallet-identity-state';
 import { AddWalletIdentityLinkChallenges20260813100000 } from './migrations/20260813100000-add-wallet-identity-link-challenges';
 import { AddIdentityAuthorization20260818120000 } from './migrations/20260818120000-add-identity-authorization';
-import { EnforcePassportPasskeyIdentity20260803110000 } from './migrations/20260803110000-enforce-passport-passkey-identity';
-import { RepairPassportWebauthnChallenges20260803120000 } from './migrations/20260803120000-repair-passport-webauthn-challenges';
+import { AddIdentityPasskeyColumns20260820133000 } from './migrations/20260820133000-add-identity-passkey-columns';
+import { RepairIdentityPasskeyTables20260820143000 } from './migrations/20260820143000-repair-identity-passkey-tables';
+import { AddMpcSessionName20260821120000 } from './migrations/20260821120000-add-mpc-session-name';
+import { AddMpcSessionResult20260821133000 } from './migrations/20260821133000-add-mpc-session-result';
+import { AddMpcSignRequestResult20260821152000 } from './migrations/20260821152000-add-mpc-sign-request-result';
+import { AddMpcSignRequestPayload20260821162000 } from './migrations/20260821162000-add-mpc-sign-request-payload';
+import { AddIdentityTotpAuthenticators20260823110000 } from './migrations/20260823110000-add-identity-totp-authenticators';
 import { AddScopedGrants20260808090000 } from './migrations/20260808090000-add-scoped-grants';
 import { getConfig } from './config/runtime';
 import { startActionRequestCleanupJobs } from './domain/service/actionRequestCleanup';
@@ -106,8 +96,8 @@ import { initMpcEventBus } from './domain/service/mpcEvents';
 import { startNotificationDeliveryJobs } from './domain/service/notificationDelivery';
 import { SingletonLogger } from './domain/facade/logger';
 import { getCentralIssuerStatus } from './auth/ucanIssuer';
-import { getTotpAuthStatus } from './auth/totpAuth';
-import { getPasskeyAuthStatus } from './auth/passportPasskeyAuth';
+import { getPasskeyAuthStatus } from './auth/identityPasskeyAuth';
+import { getIdentityTotpStatus } from './auth/identityTotpAuth';
 import { getRequiredRuntimeSecret, initializeRuntimeSecrets } from './security/secretVault';
 import { assertJwtSecretReady } from './auth/siwe';
 
@@ -239,16 +229,16 @@ function assertSecurityPreflight(): void {
         )
     }
 
-    const totpStatus = getTotpAuthStatus()
-    if (totpStatus.enabled && !totpStatus.ready) {
-        errors.push(
-            `TOTP 授权未就绪: ${totpStatus.error || '缺少有效 NODE_KEY_DERIVATION_SECRET'}`
-        )
-    }
     const passkeyStatus = getPasskeyAuthStatus()
     if (passkeyStatus.enabled && !passkeyStatus.ready) {
         errors.push(
-            `Passport Passkey 授权未就绪: ${passkeyStatus.error || '缺少有效 passportAuth.passkey.rpId/origin 配置'}`
+            `钱包身份 Passkey 授权未就绪: ${passkeyStatus.error || '缺少有效 identity.webauthn.rpId/origin 配置'}`
+        )
+    }
+    const identityTotpStatus = getIdentityTotpStatus()
+    if (!identityTotpStatus.ready) {
+        errors.push(
+            `钱包身份 TOTP 未就绪: ${identityTotpStatus.error || '缺少有效 NODE_KEY_DERIVATION_SECRET'}`
         )
     }
 
@@ -285,16 +275,7 @@ builder.entities([
     AuditDO,
     CommentDO,
     ApplicationConfigDO,
-    TotpSubjectSecretDO,
     CustodyKeyRecordDO,
-    PassportSubjectDO,
-    PassportEmailVerificationChallengeDO,
-    PassportWalletBindingDO,
-    PassportPasskeyCredentialDO,
-    PassportWebauthnChallengeDO,
-    PassportAuthorizationRequestDO,
-    PassportAuthorizationCodeDO,
-    PassportAuditLogDO,
     ScopedGrantDO,
     ScopedGrantTokenDO,
     ScopedGrantRevocationDO,
@@ -318,6 +299,9 @@ builder.entities([
     IdentityUsernameDO,
     IdentityCredentialDO,
     IdentityAuditLogDO,
+    IdentityPasskeyCredentialDO,
+    IdentityTotpAuthenticatorDO,
+    IdentityWebauthnChallengeDO,
     IdentityAuthorizationRequestDO,
     IdentityAuthorizationCodeDO
 ])
@@ -329,7 +313,6 @@ builder.migrations([
     AddActionRequestDedup20260402170000,
     DropServiceTables20260423103000,
     AddApplicationRedirectUris20260423121000,
-    AddTotpSubjectSecrets20260423182000,
     AddApplicationUcanPolicy20260423193000,
     BackfillApplicationUcanPolicy20260424110000,
     FixApplicationUcanPolicyRouterPriority20260424123000,
@@ -341,16 +324,17 @@ builder.migrations([
     AddAppReleases20260723110000,
     AddAppRuntimeTasks20260724100000,
     AddRuntimeTaskPayload20260726100000,
-    AddPassportIdentity20260803100000,
-    EnforcePassportPasskeyIdentity20260803110000,
-    RepairPassportWebauthnChallenges20260803120000,
     AddScopedGrants20260808090000,
-    AddPassportSubjectEmailAndScopes20260809090000,
-    AddPassportEmailVerificationChallenges20260809093000,
-    AddPassportUsername20260812230000,
     AddWalletIdentityState20260813090000,
     AddWalletIdentityLinkChallenges20260813100000,
-    AddIdentityAuthorization20260818120000
+    AddIdentityAuthorization20260818120000,
+    AddIdentityPasskeyColumns20260820133000,
+    RepairIdentityPasskeyTables20260820143000,
+    AddMpcSessionName20260821120000,
+    AddMpcSessionResult20260821133000,
+    AddMpcSignRequestResult20260821152000,
+    AddMpcSignRequestPayload20260821162000,
+    AddIdentityTotpAuthenticators20260823110000
 ])
 
 builder.build().initialize().then(async (conn) => {
@@ -392,12 +376,11 @@ builder.build().initialize().then(async (conn) => {
     registerPublicIdentityRoutes(app);
     registerPublicIdentityAccountLinkRoutes(app);
     registerPublicIdentityEmailRoutes(app, new IdentityEmailService(async ({ email, code, expiresAt }) => {
-        await deliverPassportEmailVerification({ email, code, verificationId: `identity-${Date.now()}`, expiresAt });
+        await deliverIdentityEmailVerification({ email, code, verificationId: `identity-${Date.now()}`, expiresAt });
     }));
     registerPublicIdentityAuthorizationRoutes(app);
+    registerPublicIdentityTotpRoutes(app);
     registerPublicAuthCentralRoutes(app);
-    registerPublicAuthTotpRoutes(app);
-    registerPublicAuthPassportRoutes(app);
     registerPublicAuthGrantRoutes(app);
     registerPublicHealthRoute(app);
     registerPublicProfileRoute(app);

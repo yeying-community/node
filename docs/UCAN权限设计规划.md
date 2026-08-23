@@ -366,7 +366,6 @@ Node 请求必须同时通过三层检查：
 | `POST /api/v1/public/auth/refresh` | 刷新 JWT |
 | `POST /api/v1/public/auth/logout` | 登出 |
 | `GET /api/v1/public/auth/central/issuer` | 查询中心化 issuer 状态 |
-| `GET /api/v1/public/auth/totp/status` | 查询 TOTP 能力状态 |
 | `GET /api/v1/public/health` | 健康检查 |
 
 ### 6.2 中心化 UCAN 签发接口
@@ -387,12 +386,6 @@ Node 请求必须同时通过三层检查：
 
 | 接口 | 规划能力 | 业务约束 |
 | --- | --- | --- |
-| `GET /api/v1/public/auth/totp/totp/provision` | `node:auth:totp` + `read` | 只能读取当前主体自己的 TOTP 绑定信息 |
-| `POST /api/v1/public/auth/totp/bind/request` | `node:auth:totp` + `write` | 只能为当前主体发起绑定 |
-| `POST /api/v1/public/auth/totp/bind/approve` | 无 UCAN，使用 TOTP code | 必须验证 requestId/code |
-| `POST /api/v1/public/auth/totp/authorize/request` | 由应用策略派生，不信任客户端能力 | appId 必须已发布，redirectUri 必须匹配应用 |
-| `POST /api/v1/public/auth/totp/authorize/approve` | 无 UCAN，使用 TOTP code | 必须验证 requestId/code |
-| `POST /api/v1/public/auth/totp/authorize/exchange` | authorization code | 只能换取服务端策略确定的 UCAN |
 
 ### 6.4 应用市场接口
 

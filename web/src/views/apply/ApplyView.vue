@@ -1,5 +1,8 @@
 <template>
     <div class="apply">
+        <el-breadcrumb separator="/">
+            <el-breadcrumb-item>{{ $t('apply_breadcrumb') }}</el-breadcrumb-item>
+        </el-breadcrumb>
         <div class="top-group">
             <div class="search">
                 <el-input
@@ -240,7 +243,7 @@ watch(
 
     .top-group {
         background: white;
-        margin-top: 0;
+        margin-top: 16px;
         padding: 12px;
         .search {
             width: 50%;

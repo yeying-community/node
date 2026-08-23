@@ -2,13 +2,15 @@
     <el-table :data="items" style="width: 100%" :row-class-name="resolveRowClassName">
         <el-table-column prop="name" :label="$t('approval_table_name')" min-width="300">
             <template #default="scope">
-                <div class="name-row">
-                    <div class="name">{{ scope.row.name }}</div>
-                    <span v-if="isJustHandled(scope.row)" class="handled-tag">{{ $t('approval_table_just_handled') }}</span>
+                <div class="name-cell">
+                    <div class="name-row">
+                        <div class="name">{{ scope.row.name }}</div>
+                        <span v-if="isJustHandled(scope.row)" class="handled-tag">{{ $t('approval_table_just_handled') }}</span>
+                    </div>
+                    <el-tooltip class="box-item" effect="dark" :content="scope.row.desc" placement="top-start">
+                        <el-text class="desc-text" truncated>{{ scope.row.desc }}</el-text>
+                    </el-tooltip>
                 </div>
-                <el-tooltip class="box-item" effect="dark" :content="scope.row.desc" placement="top-start">
-                    <el-text class="w-400px mb-2" truncated>{{ scope.row.desc }}</el-text>
-                </el-tooltip>
             </template>
         </el-table-column>
         <el-table-column prop="typeLabel" :label="$t('approval_table_type')" width="90" />
@@ -29,7 +31,7 @@
                             style="margin-top: 10px; margin-right: 8px"
                         />{{ formatStatus(scope.row.state) }}
                         <el-tooltip class="box-item" effect="dark" :content="scope.row.msg || '-'" placement="top-start">
-                            <el-icon v-if="pageTabFrom === 'finishApproval'" style="margin-top: 15px"><Warning /></el-icon>
+                            <el-icon v-if="!isPending(scope.row)" style="margin-top: 15px"><Warning /></el-icon>
                         </el-tooltip>
                     </div>
                 </div>
@@ -49,7 +51,7 @@
         <el-table-column fixed="right" :label="$t('approval_table_actions')" width="110">
             <template #default="scope">
                 <el-button
-                    v-if="pageTabFrom === 'waitApproval'"
+                    v-if="isPending(scope.row)"
                     link
                     type="primary"
                     size="small"
@@ -72,7 +74,7 @@
 <script lang="ts" setup>
 import dayjs from 'dayjs'
 import { Warning } from '@element-plus/icons-vue'
-import { getCurrentInstance, ref } from 'vue'
+import { getCurrentInstance } from 'vue'
 import { useRouter } from 'vue-router'
 import type { AuditDetailBox } from '@/plugins/audit'
 
@@ -115,6 +117,10 @@ const formatStatus = (value?: string) => {
     return statusLabelMap[status] || status || '-'
 }
 
+const isPending = (row: AuditDetailBox) => {
+    return String(row.state || '').trim() === '待审批'
+}
+
 const handleClick = (row: any) => {
     emit('open-approve', row)
 }
@@ -125,7 +131,7 @@ const handleDetail = (row: AuditDetailBox) => {
         return
     }
     const query: Record<string, string> = {
-        pageFrom: 'myApply',
+        pageFrom: 'approval',
         auditId
     }
     if (row.targetUid) {
@@ -156,7 +162,6 @@ const isJustHandled = (row: AuditDetailBox) => {
 }
 
 const props = defineProps({
-    pageTabFrom: String,
     highlightAuditId: String,
     items: {
         type: Array as () => AuditDetailBox[],
@@ -178,15 +183,35 @@ const props = defineProps({
     font-weight: 400;
 }
 
+.name-cell {
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
 .name {
     color: rgba(22, 119, 255, 1);
     font-weight: 500;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 .name-row {
-    display: inline-flex;
+    min-width: 0;
+    display: flex;
     align-items: center;
     gap: 8px;
+}
+
+.desc-text {
+    display: block;
+    width: 100%;
+    color: rgba(0, 0, 0, 0.45);
+    font-size: 13px;
+    line-height: 1.45;
 }
 
 .handled-tag {

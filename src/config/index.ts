@@ -67,20 +67,7 @@ export interface UcanIssuerRuntimeConfig {
     defaultCapabilities?: UcanIssuerCapabilityConfig[]
 }
 
-export interface TotpAuthRuntimeConfig {
-    enabled?: boolean
-    issuerName?: string
-    verifyPath?: string
-    portalBaseUrl?: string
-    requestTtlMs?: number
-    exchangeCodeTtlMs?: number
-    codeDigits?: number
-    codePeriodSec?: number
-    codeWindow?: number
-    maxAttempts?: number
-}
-
-export interface PassportPasskeyRuntimeConfig {
+export interface IdentityPasskeyRuntimeConfig {
     enabled?: boolean
     rpId?: string
     rpName?: string
@@ -89,11 +76,14 @@ export interface PassportPasskeyRuntimeConfig {
     challengeTtlMs?: number
 }
 
-export interface PassportAuthRuntimeConfig {
-    verifyPath?: string
-    portalBaseUrl?: string
-    assertionTtlMs?: number
-    passkey?: PassportPasskeyRuntimeConfig
+export interface IdentityTotpRuntimeConfig {
+    issuerName?: string
+}
+
+export interface IdentityRuntimeConfig {
+    publicBaseUrl?: string
+    webauthn?: IdentityPasskeyRuntimeConfig
+    totp?: IdentityTotpRuntimeConfig
 }
 
 export interface IdentityIssuerRuntimeConfig {

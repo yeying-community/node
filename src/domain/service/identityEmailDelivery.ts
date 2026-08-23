@@ -1,7 +1,13 @@
 import nodemailer from 'nodemailer'
 import { getConfig } from '../../config/runtime'
 import { getRuntimeSecret } from '../../security/secretVault'
-import type { PassportEmailVerificationDelivery } from './passport'
+
+export type IdentityEmailVerificationDelivery = (input: {
+  email: string
+  code: string
+  verificationId: string
+  expiresAt: string
+}) => Promise<void>
 
 type MailConfig = {
   host?: string
@@ -41,7 +47,7 @@ function buildVerificationEmail(input: { code: string; expiresAt: string }) {
         <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="max-width:560px;background:#ffffff;border:1px solid #dce3ed;border-radius:10px;overflow:hidden;">
           <tr><td style="padding:28px 32px 24px;background:#0f766e;color:#ffffff;">
             <div style="font-size:20px;font-weight:700;line-height:28px;letter-spacing:0;">夜莺社区</div>
-            <div style="margin-top:5px;font-size:13px;line-height:20px;color:#d8f3ee;">YeYing Community Passport</div>
+            <div style="margin-top:5px;font-size:13px;line-height:20px;color:#d8f3ee;">YeYing Wallet Identity</div>
           </td></tr>
           <tr><td style="padding:32px;">
             <div style="font-size:20px;font-weight:700;line-height:30px;">验证你的社区身份</div>
@@ -70,12 +76,12 @@ function getMailConfig(): Required<Pick<MailConfig, 'host' | 'port' | 'secure' |
   const pass = getRuntimeSecret('MAIL_SMTP_PASSWORD')
   const from = String(config.from || user).trim()
   if (!host || host === 'smtp.example.com' || !Number.isInteger(port) || port <= 0 || !from || (user && !pass) || (!user && pass)) {
-    throw new Error('Passport email delivery is not configured')
+    throw new Error('Identity email delivery is not configured')
   }
   return { host, port, secure: Boolean(config.secure), from, ...(user ? { auth: { user, pass } } : {}) }
 }
 
-export const deliverPassportEmailVerification: PassportEmailVerificationDelivery = async ({ email, code, expiresAt }) => {
+export const deliverIdentityEmailVerification: IdentityEmailVerificationDelivery = async ({ email, code, expiresAt }) => {
   const config = getMailConfig()
   const transporter = nodemailer.createTransport({
     host: config.host,

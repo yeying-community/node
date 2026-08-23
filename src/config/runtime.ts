@@ -1,6 +1,6 @@
 import fs from 'fs'
 import path from 'path'
-import { AppRuntimeConfig, AuthRuntimeConfig, AuditRuntimeConfig, DatabaseConfig, UcanRuntimeConfig, MpcRuntimeConfig, RedisRuntimeConfig, IdempotencyRuntimeConfig, UcanIssuerRuntimeConfig, TotpAuthRuntimeConfig, PassportAuthRuntimeConfig, IdentityIssuerRuntimeConfig, NotificationRuntimeConfig, ProjectAdapterRuntimeConfig, AppStoreReleaseRuntimeConfig, AppStoreAgentRuntimeConfig, MailRuntimeConfig } from './index'
+import { AppRuntimeConfig, AuthRuntimeConfig, AuditRuntimeConfig, DatabaseConfig, UcanRuntimeConfig, MpcRuntimeConfig, RedisRuntimeConfig, IdempotencyRuntimeConfig, UcanIssuerRuntimeConfig, IdentityRuntimeConfig, IdentityIssuerRuntimeConfig, NotificationRuntimeConfig, ProjectAdapterRuntimeConfig, AppStoreReleaseRuntimeConfig, AppStoreAgentRuntimeConfig, MailRuntimeConfig } from './index'
 import { LoggerConfig } from '../infrastructure/logger'
 
 export interface AppConfig {
@@ -17,8 +17,7 @@ export interface AppConfig {
     identity?: IdentityIssuerRuntimeConfig
     ucan?: UcanIssuerRuntimeConfig
   }
-  totpAuth?: TotpAuthRuntimeConfig
-  passportAuth?: PassportAuthRuntimeConfig
+  identity?: IdentityRuntimeConfig
   audit?: AuditRuntimeConfig
   mpc?: MpcRuntimeConfig
   notification?: NotificationRuntimeConfig

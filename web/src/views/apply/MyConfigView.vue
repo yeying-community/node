@@ -4,209 +4,110 @@
       <el-breadcrumb-item>{{ mt('breadcrumb') }}</el-breadcrumb-item>
     </el-breadcrumb>
 
-    <el-tabs v-model="authTab" class="page-tabs">
-      <el-tab-pane :label="mt('passkeyTab')" name="passkey">
-        <div class="method-section passkey-dashboard">
-          <div class="passport-main-card">
-            <div class="passport-card-head">
-              <div>
-                <div class="passport-title-row">
-                  <span>{{ mt('passkeyListTitle') }}</span>
-                  <el-tag :type="passkeyStatus?.enabled ? 'success' : 'info'" effect="light">
-                    {{ passkeyStatus ? (passkeyStatus.enabled ? mt('enabled') : mt('disabled')) : '-' }}
-                  </el-tag>
-                  <el-tag :type="passkeyStatus?.ready ? 'success' : 'warning'" effect="light">
-                    {{ passkeyStatus ? (passkeyStatus.ready ? mt('ready') : mt('notReady')) : '-' }}
-                  </el-tag>
-                </div>
-                <div class="section-hint">{{ mt('passkeyManageHint') }}</div>
-              </div>
-              <div class="passport-head-actions">
-                <el-button :disabled="!passkeyStatus?.enabled || !passkeyStatus?.ready" @click="loadPasskeyCredentials">{{ mt('refreshCredentials') }}</el-button>
-                <el-button @click="goPasskeyTestHistory">{{ mt('testHistory') }}</el-button>
-                <el-button :disabled="!passkeyStatus?.enabled || !passkeyStatus?.ready" type="success" plain @click="openPasskeyTestDialog">
-                  {{ mt('testPasskey') }}
-                </el-button>
-                <el-button :disabled="!passkeyStatus?.enabled || !passkeyStatus?.ready" type="primary" @click="registerPasskey">
-                  {{ mt('registerPasskey') }}
-                </el-button>
-              </div>
-            </div>
+    <div class="page-head">
+      <div>
+        <div class="page-title">{{ mt('pageTitle') }}</div>
+        <div class="page-subtitle">{{ mt('pageSubtitle') }}</div>
+      </div>
+      <div class="head-actions">
+        <el-button @click="refreshStatuses">{{ mt('refreshStatus') }}</el-button>
+      </div>
+    </div>
 
-            <div v-if="passkeyStatus?.error" class="status-error compact-error">{{ mt('errorPrefix') }}{{ passkeyStatus.error }}</div>
-
-            <div class="passport-summary-grid">
-              <div class="summary-metric">
-                <span class="summary-label">{{ mt('activeCredentials') }}</span>
-                <strong>{{ activePasskeyCount }}</strong>
-              </div>
-              <div class="summary-metric">
-                <span class="summary-label">{{ mt('revokedCredentials') }}</span>
-                <strong>{{ revokedPasskeyCount }}</strong>
-              </div>
-              <div class="summary-identity">
-                <span class="summary-label">{{ mt('subjectId') }}</span>
-                <span>{{ passportPasskeyBinding?.subjectId ? mt('passkeyListTitle') : '-' }}</span>
-              </div>
-              <div class="summary-identity">
-                <span class="summary-label">{{ mt('walletAddressShort') }}</span>
-                <span class="path-text">{{ walletAddressDisplay }}</span>
-              </div>
+    <div class="security-card-grid">
+      <div class="identity-main-card security-card">
+        <div class="identity-card-head">
+          <div>
+            <div class="identity-title-row">
+              <span>{{ mt('passkeyCardTitle') }}</span>
+              <el-tag :type="passkeyStatus?.enabled ? 'success' : 'info'" effect="light">
+                {{ passkeyStatus ? (passkeyStatus.enabled ? mt('enabled') : mt('disabled')) : '-' }}
+              </el-tag>
+              <el-tag :type="passkeyStatus?.ready ? 'success' : 'warning'" effect="light">
+                {{ passkeyStatus ? (passkeyStatus.ready ? mt('ready') : mt('notReady')) : '-' }}
+              </el-tag>
             </div>
-
-            <div class="register-inline">
-              <span class="label">{{ mt('deviceName') }}</span>
-              <el-input v-model="passkeyDeviceName" :placeholder="mt('devicePlaceholder')" />
-            </div>
-
-            <div class="credential-list">
-              <div class="credential-list-head">
-                <span>{{ mt('deviceName') }}</span>
-                <span>{{ mt('transports') }}</span>
-                <span>{{ mt('createdAt') }}</span>
-                <span>{{ mt('status') }}</span>
-                <span>{{ mt('actions') }}</span>
-              </div>
-              <div v-if="!passkeyCredentials.length" class="credential-empty compact-empty">
-                {{ mt('noPasskeyCredentials') }}
-              </div>
-              <div v-for="credential in passkeyCredentials" :key="credential.credentialId" class="credential-row">
-                <div class="credential-cell credential-device">
-                  <div class="credential-name">{{ getCredentialDeviceName(credential) }}</div>
-                  <div v-if="credential.revokedAt" class="credential-revoked-mobile">
-                    {{ mt('revokedAt') }}：{{ credential.revokedAt }}
-                  </div>
-                </div>
-                <div class="credential-cell credential-transports">{{ credential.transports?.join(', ') || '-' }}</div>
-                <div class="credential-cell credential-created">{{ credential.createdAt || '-' }}</div>
-                <div class="credential-cell credential-status">
-                  <el-tag :type="credential.revokedAt ? 'info' : 'success'" effect="light">
-                    {{ credential.revokedAt ? mt('revoked') : mt('valid') }}
-                  </el-tag>
-                </div>
-                <div class="credential-cell credential-actions">
-                  <el-tooltip :content="mt('copyId')" placement="top">
-                    <el-button
-                      circle
-                      size="small"
-                      class="credential-icon-button"
-                      @click="copyText(credential.credentialId, mt('credentialId'))"
-                    >
-                      <el-icon><CopyDocument /></el-icon>
-                    </el-button>
-                  </el-tooltip>
-                  <el-tooltip :content="mt('rename')" placement="top">
-                    <el-button
-                      :disabled="Boolean(credential.revokedAt)"
-                      circle
-                      size="small"
-                      class="credential-icon-button"
-                      @click="renamePasskeyCredentialAction(credential)"
-                    >
-                      <el-icon><EditPen /></el-icon>
-                    </el-button>
-                  </el-tooltip>
-                  <el-tooltip :content="mt('revoke')" placement="top">
-                    <el-button
-                      :disabled="Boolean(credential.revokedAt)"
-                      circle
-                      size="small"
-                      type="danger"
-                      plain
-                      class="credential-icon-button"
-                      @click="revokePasskeyCredentialAction(credential.credentialId)"
-                    >
-                      <el-icon><Delete /></el-icon>
-                    </el-button>
-                  </el-tooltip>
-                </div>
-              </div>
-            </div>
+            <div class="section-hint">{{ mt('passkeyManageHint') }}</div>
+          </div>
+          <div class="identity-head-actions">
+            <el-button @click="goPasskeyTestHistory">{{ mt('testHistory') }}</el-button>
+            <el-button :disabled="!passkeyStatus?.enabled || !passkeyStatus?.ready" type="success" plain @click="openPasskeyTestDialog">
+              {{ mt('testPasskey') }}
+            </el-button>
+            <el-button type="primary" @click="registerPasskey">{{ mt('manageInWallet') }}</el-button>
           </div>
         </div>
 
-      </el-tab-pane>
+        <div v-if="passkeyStatus?.error" class="status-error compact-error">{{ mt('errorPrefix') }}{{ passkeyStatus.error }}</div>
 
-      <el-tab-pane :label="mt('totpTab')" name="totp">
-        <div class="method-section">
-          <div class="primary-grid single-column-grid">
-	            <div class="totp-card">
-	              <div class="totp-head">
-	                <div>
-	                  <div class="totp-title-row">
-	                    <span class="totp-title">{{ mt('totpProvisionTitle') }}</span>
-	                    <el-tag :type="totpStatus?.enabled ? 'success' : 'info'" effect="light">
-	                      {{ totpStatus ? (totpStatus.enabled ? mt('enabled') : mt('disabled')) : '-' }}
-	                    </el-tag>
-	                    <el-tag :type="totpStatus?.ready ? 'success' : 'warning'" effect="light">
-	                      {{ totpStatus ? (totpStatus.ready ? mt('ready') : mt('notReady')) : '-' }}
-	                    </el-tag>
-	                  </div>
-	                  <div class="section-hint">{{ mt('totpManageHint') }}</div>
-	                </div>
-	                <div class="totp-head-actions">
-	                  <el-button @click="goTotpTestHistory">{{ mt('testHistory') }}</el-button>
-	                  <el-button
-	                    :disabled="!totpStatus?.enabled || !totpStatus?.ready"
-	                    type="success"
-	                    plain
-	                    @click="openTotpTestDialog"
-	                  >
-	                    {{ mt('testTotp') }}
-	                  </el-button>
-	                </div>
-	              </div>
-	              <div v-if="totpStatus?.error" class="status-error compact-error">{{ mt('errorPrefix') }}{{ totpStatus.error }}</div>
-	              <div v-if="totpProvision" class="totp-body">
-		                <div class="totp-meta">
-	                  <div class="totp-meta-item">
-	                    <span class="status-label">{{ mt('issuer') }}</span>
-	                    <span class="status-value">{{ totpProvision.issuer }}</span>
-	                  </div>
-	                  <div class="totp-meta-item">
-	                    <span class="status-label">{{ mt('accountName') }}</span>
-	                    <span class="status-value">{{ totpProvision.accountName }}</span>
-	                  </div>
-	                  <div class="totp-meta-item">
-	                    <span class="status-label">{{ mt('periodDigits') }}</span>
-	                    <span class="status-value">{{ totpProvision.period }}s / {{ totpProvision.digits }}</span>
-	                  </div>
-	                  <div class="totp-meta-item">
-	                    <span class="status-label">{{ mt('secret') }}</span>
-	                    <div class="totp-field-controls">
-	                      <el-input :model-value="maskedTotpSecret" readonly />
-	                      <el-button @click="copyText(totpProvision.secret, mt('totpSecretLabel'))">{{ mt('copy') }}</el-button>
-	                    </div>
-	                  </div>
-	                  <div class="totp-meta-item">
-	                    <span class="status-label">{{ mt('authenticatorLink') }}</span>
-	                    <div class="totp-field-controls">
-	                      <el-input :model-value="totpProvision.otpauthUri" readonly />
-	                      <el-button @click="copyText(totpProvision.otpauthUri, mt('authenticatorUriLabel'))">{{ mt('copy') }}</el-button>
-	                      <el-button @click="openLink(totpProvision.otpauthUri)">{{ mt('open') }}</el-button>
-	                    </div>
-	                  </div>
-	                </div>
-	                <div class="qr-box">
-	                  <div class="qr-panel">
-	                    <img v-if="totpQrDataUrl" :src="totpQrDataUrl" :alt="mt('qrAlt')" />
-	                    <div v-else class="qr-placeholder">{{ mt('qrPlaceholder') }}</div>
-	                  </div>
-	                </div>
-	              </div>
-	              <div v-else class="empty-text">{{ mt('totpEmptyHint') }}</div>
-	            </div>
-	          </div>
-	        </div>
-	      </el-tab-pane>
-	    </el-tabs>
+        <div class="security-summary-grid">
+          <div class="summary-metric">
+            <span class="summary-label">{{ mt('serviceSwitch') }}</span>
+            <strong>{{ passkeyStatus ? (passkeyStatus.enabled ? mt('enabled') : mt('disabled')) : '-' }}</strong>
+          </div>
+          <div class="summary-metric">
+            <span class="summary-label">{{ mt('serviceReady') }}</span>
+            <strong>{{ passkeyStatus ? (passkeyStatus.ready ? mt('ready') : mt('notReady')) : '-' }}</strong>
+          </div>
+          <div class="summary-identity">
+            <span class="summary-label">{{ mt('rpId') }}</span>
+            <span>{{ passkeyStatus?.rpId || '-' }}</span>
+          </div>
+          <div class="summary-identity">
+            <span class="summary-label">{{ mt('origin') }}</span>
+            <span class="path-text">{{ passkeyStatus?.origin || '-' }}</span>
+          </div>
+        </div>
+      </div>
 
-	    <el-dialog v-model="passkeyTestDialogVisible" :title="mt('testPasskeyDialogTitle')" width="760px" class="passkey-test-dialog">
+      <div class="identity-main-card security-card">
+        <div class="identity-card-head">
+          <div>
+            <div class="identity-title-row">
+              <span>{{ mt('authenticatorCardTitle') }}</span>
+              <el-tag :type="totpStatus?.enabled ? 'success' : 'info'" effect="light">
+                {{ totpStatus ? (totpStatus.enabled ? mt('enabled') : mt('disabled')) : '-' }}
+              </el-tag>
+              <el-tag :type="totpStatus?.ready ? 'success' : 'warning'" effect="light">
+                {{ totpStatus ? (totpStatus.ready ? mt('ready') : mt('notReady')) : '-' }}
+              </el-tag>
+            </div>
+            <div class="section-hint">{{ mt('authenticatorManageHint') }}</div>
+          </div>
+          <div class="identity-head-actions">
+            <el-button type="primary" @click="manageAuthenticatorInWallet">{{ mt('manageInWallet') }}</el-button>
+          </div>
+        </div>
+
+        <div v-if="totpStatus?.error" class="status-error compact-error">{{ mt('errorPrefix') }}{{ totpStatus.error }}</div>
+
+        <div class="security-summary-grid">
+          <div class="summary-metric">
+            <span class="summary-label">{{ mt('serviceSwitch') }}</span>
+            <strong>{{ totpStatus ? (totpStatus.enabled ? mt('enabled') : mt('disabled')) : '-' }}</strong>
+          </div>
+          <div class="summary-metric">
+            <span class="summary-label">{{ mt('serviceReady') }}</span>
+            <strong>{{ totpStatus ? (totpStatus.ready ? mt('ready') : mt('notReady')) : '-' }}</strong>
+          </div>
+          <div class="summary-identity">
+            <span class="summary-label">{{ mt('issuer') }}</span>
+            <span>{{ totpStatus?.issuerName || '-' }}</span>
+          </div>
+          <div class="summary-identity">
+            <span class="summary-label">{{ mt('periodDigits') }}</span>
+            <span>{{ totpPeriodDigits }}</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+	  <el-dialog v-model="passkeyTestDialogVisible" :title="mt('testPasskeyDialogTitle')" width="760px" class="passkey-test-dialog">
       <div class="dialog-test-layout">
         <div class="panel-card compact-test-card">
-          <div class="totp-head">
+          <div class="test-panel-head">
             <div>
-              <div class="totp-title">{{ mt('testAppTitle') }}</div>
+              <div class="panel-title">{{ mt('testAppTitle') }}</div>
               <div class="section-hint">{{ mt('testAppHint') }}</div>
             </div>
             <div class="status-actions">
@@ -280,8 +181,8 @@
             <div class="step-title"><span class="step-dot">4</span>{{ mt('testResultTitle') }}</div>
             <div class="result-summary-grid">
               <div>
-                <span>{{ mt('subjectId') }}</span>
-                <strong>{{ passkeyExchangeResult?.subjectId || '-' }}</strong>
+                <span>{{ mt('walletIdentityDid') }}</span>
+                <strong>{{ passkeyExchangeResult?.did || '-' }}</strong>
               </div>
               <div>
                 <span>{{ mt('walletAddress') }}</span>
@@ -308,122 +209,6 @@
       </template>
 	    </el-dialog>
 	
-	    <el-dialog v-model="totpTestDialogVisible" :title="mt('testTotpDialogTitle')" width="760px" class="passkey-test-dialog">
-	      <div class="dialog-test-layout">
-	        <div class="panel-card compact-test-card">
-	          <div class="totp-head">
-	            <div>
-	              <div class="totp-title">{{ mt('testAppTitle') }}</div>
-	              <div class="section-hint">{{ mt('testAppHint') }}</div>
-	            </div>
-	            <div class="status-actions">
-	              <el-button @click="loadOwnedApplications">{{ mt('refreshApps') }}</el-button>
-	              <el-button v-if="!ownedApplications.length" type="primary" plain @click="goPublishApp">
-	                {{ mt('goPublishApp') }}
-	              </el-button>
-	            </div>
-	          </div>
-	          <el-form label-position="top" class="config-form compact-config-form">
-	            <div class="grid-two">
-	              <el-form-item class="full" :label="mt('selectApp')">
-	                <el-select v-model="form.selectedAppUid" class="full-select" :placeholder="mt('selectAppPlaceholder')">
-	                  <el-option
-	                    v-for="app in ownedApplications"
-	                    :key="app.uid"
-	                    :label="`${app.name || app.uid} (${app.uid})`"
-	                    :value="String(app.uid || '')"
-	                  />
-	                </el-select>
-	                <div v-if="selectedApplication" class="selected-app-meta">
-	                  <div class="meta-chip">{{ selectedApplication.name || selectedApplication.uid }}</div>
-	                  <div class="meta-chip mono-chip">{{ selectedRedirectUri }}</div>
-	                </div>
-	                <div v-if="!ownedApplications.length" class="empty-text inline-empty">{{ mt('noPublishedApps') }}</div>
-	              </el-form-item>
-	              <el-form-item :label="mt('state')">
-	                <el-input v-model="form.state" :placeholder="mt('optional')" />
-	              </el-form-item>
-	              <el-form-item :label="mt('requestTtlMs')">
-	                <el-input-number v-model="form.requestTtlMs" :min="60000" :step="30000" />
-	              </el-form-item>
-	            </div>
-	          </el-form>
-	        </div>
-
-	        <div class="test-step-list">
-	          <div class="flow-step compact-flow-step">
-	            <div class="step-title"><span class="step-dot">1</span>{{ mt('stepQueryRequest') }}</div>
-	            <div class="line">
-	              <span class="label">{{ mt('requestId') }}</span>
-	              <el-input v-model="requestIdInput" :placeholder="mt('requestIdPlaceholder')" />
-	              <el-button :disabled="!selectedApplication" type="primary" @click="createAuthorizeRequest">{{ mt('create') }}</el-button>
-	              <el-button @click="queryAuthorizeRequest">{{ mt('query') }}</el-button>
-	            </div>
-	          </div>
-
-	          <div class="flow-step compact-flow-step">
-	            <div class="step-title"><span class="step-dot">2</span>{{ mt('stepApproveWithTotp') }}</div>
-	            <div class="line">
-	              <span class="label">{{ mt('totpCode') }}</span>
-	              <el-input v-model="totpCode" :placeholder="mt('totpCodePlaceholder')" />
-	              <el-button type="success" @click="approveAuthorizeRequest">{{ mt('approveAuthorize') }}</el-button>
-	            </div>
-	          </div>
-
-	          <div class="flow-step compact-flow-step">
-	            <div class="step-title"><span class="step-dot">3</span>{{ mt('stepExchangeCode') }}</div>
-	            <div class="line">
-	              <span class="label">{{ mt('authCode') }}</span>
-	              <el-input v-model="authCodeInput" :placeholder="mt('authCodePlaceholder')" />
-	              <el-button type="warning" @click="exchangeAuthorizeCode">{{ mt('exchangeToken') }}</el-button>
-	            </div>
-	          </div>
-
-	          <div class="flow-step compact-flow-step">
-	            <div class="step-title"><span class="step-dot">4</span>{{ mt('stepConfirmLinks') }}</div>
-	            <div class="line">
-	              <span class="label">{{ mt('verifyUrl') }}</span>
-	              <el-input :model-value="requestResult?.verifyUrl || ''" readonly />
-	              <el-button @click="openVerifyUrl">{{ mt('open') }}</el-button>
-	              <el-button @click="copyText(requestResult?.verifyUrl || '', mt('verifyUrl'))">{{ mt('copy') }}</el-button>
-	            </div>
-	            <div class="line">
-	              <span class="label">{{ mt('redirectTo') }}</span>
-	              <el-input :model-value="approveResult?.redirectTo || ''" readonly />
-	              <el-button @click="openRedirectTo">{{ mt('open') }}</el-button>
-	              <el-button @click="copyText(approveResult?.redirectTo || '', mt('redirectTo'))">{{ mt('copy') }}</el-button>
-	            </div>
-	          </div>
-
-	          <div class="flow-step compact-flow-step">
-	            <div class="step-title"><span class="step-dot">5</span>{{ mt('testResultTitle') }}</div>
-	            <div class="flow-step">
-	              <div class="line">
-	                <span class="label">{{ mt('jwtToken') }}</span>
-	                <el-input :model-value="exchangeResult?.token || ''" readonly />
-	                <el-button @click="copyText(exchangeResult?.token || '', mt('jwtToken'))">{{ mt('copy') }}</el-button>
-	                <el-button @click="verifyProfileWithJwt">{{ mt('verify') }}</el-button>
-	              </div>
-	            </div>
-	            <div class="flow-step">
-	              <div class="line">
-	                <span class="label">{{ mt('ucanToken') }}</span>
-	                <el-input :model-value="exchangeResult?.ucan || ''" readonly />
-	                <el-button @click="copyText(exchangeResult?.ucan || '', mt('ucanToken'))">{{ mt('copy') }}</el-button>
-	                <el-button @click="verifyProfileWithUcan">{{ mt('verify') }}</el-button>
-	              </div>
-	            </div>
-	            <div class="result-json compact-result-json">
-	              <pre>{{ prettyTotpResult }}</pre>
-	            </div>
-	          </div>
-	        </div>
-	      </div>
-	      <template #footer>
-	        <el-button @click="goTotpTestHistory">{{ mt('testHistory') }}</el-button>
-	        <el-button type="primary" @click="totpTestDialogVisible = false">{{ mt('close') }}</el-button>
-	      </template>
-	    </el-dialog>
 	  </div>
 </template>
 
@@ -431,7 +216,6 @@
 import { computed, onMounted, reactive, ref, watch } from 'vue';
 import { ElMessageBox } from 'element-plus';
 import { CopyDocument, Delete, EditPen } from '@element-plus/icons-vue';
-import QRCode from 'qrcode';
 import { useRoute, useRouter } from 'vue-router';
 import { apiUrl } from '@/plugins/api';
 import { getAuthToken, getCurrentAccount, getStoredAuthToken } from '@/plugins/auth';
@@ -447,31 +231,6 @@ type Envelope<T> = {
   timestamp: number;
 };
 
-type TotpStatus = {
-  enabled: boolean;
-  ready: boolean;
-  issuerName: string;
-  verifyPath: string;
-  portalBaseUrl: string;
-  requestTtlMs: number;
-  codeDigits: number;
-  codePeriodSec: number;
-  codeWindow: number;
-  maxAttempts: number;
-  error?: string;
-};
-
-type TotpProvision = {
-  subject: string;
-  issuer: string;
-  accountName: string;
-  secret: string;
-  algorithm: 'SHA1';
-  digits: number;
-  period: number;
-  otpauthUri: string;
-};
-
 type PasskeyStatus = {
   enabled: boolean;
   ready: boolean;
@@ -483,9 +242,19 @@ type PasskeyStatus = {
   error?: string;
 };
 
+type TotpStatus = {
+  enabled: boolean;
+  ready: boolean;
+  issuerName: string;
+  digits: number;
+  period: number;
+  algorithm: string;
+  error?: string;
+};
+
 type PasskeyCredentialRecord = {
   credentialId: string;
-  subjectId?: string;
+  identity?: string;
   walletAddress?: string;
   deviceName?: string;
   transports?: string[];
@@ -494,8 +263,8 @@ type PasskeyCredentialRecord = {
   revokedAt?: string;
 };
 
-type PassportPasskeyCredentialListResult = {
-  subjectId: string;
+type IdentityPasskeyCredentialListResult = {
+  identity: string;
   walletAddress: string;
   credentials: PasskeyCredentialRecord[];
 };
@@ -528,7 +297,7 @@ type PasskeyRegisterOptions = {
 };
 
 type PasskeyRegisterRequestResult = {
-  subjectId: string;
+  identity: string;
   walletAddress: string;
   passkeyRequest: PasskeyRegisterOptions;
 };
@@ -561,10 +330,9 @@ type UcanCapability = {
 type AuthorizeRequestResult = {
   requestId: string;
   status: string;
-  subject?: string;
-  subjectId?: string;
-  subjectHint?: string;
+  did?: string;
   walletAddress?: string;
+  scopes?: string[];
   appId: string;
   redirectUri: string;
   state?: string;
@@ -579,8 +347,7 @@ type AuthorizeRequestResult = {
 type AuthorizeApproveResult = {
   requestId: string;
   appName?: string;
-  subjectId?: string;
-  walletAddress?: string;
+  did?: string;
   approvedAt?: number | string;
   authorizationCode: string;
   authorizationCodeExpiresAt: number | string;
@@ -590,8 +357,10 @@ type AuthorizeApproveResult = {
 type AuthorizeExchangeResult = {
   requestId: string;
   subject?: string;
-  subjectId?: string;
+  did?: string;
   walletAddress?: string;
+  scopes?: string[];
+  credentials?: Array<Record<string, unknown>>;
   appId: string;
   redirectUri: string;
   state?: string;
@@ -628,7 +397,7 @@ type PasskeyTestHistoryRecord = {
   createdAt: string;
   appId?: string;
   requestId?: string;
-  subjectId?: string;
+  did?: string;
   walletAddress?: string;
   detail: Record<string, unknown>;
 };
@@ -640,21 +409,17 @@ function mt(key: MyConfigMessageKey): string {
   return getMyConfigMessage(locale.value, key);
 }
 
-const PASSKEY_TEST_HISTORY_KEY = 'passport:passkey:test-history';
-const TOTP_TEST_HISTORY_KEY = 'passport:totp:test-history';
+const PASSKEY_TEST_HISTORY_KEY = 'identity:passkey:test-history';
 const LEGACY_PASSKEY_DEVICE_NAMES = new Set(['passkey-device', 'Passkey Device']);
 
 const authTab = ref('passkey');
 const passkeyTestDialogVisible = ref(false);
-const totpTestDialogVisible = ref(false);
 const passkeyTestStep = ref(0);
 const currentAccount = ref('');
 const ownedApplications = ref<ApplicationMetadata[]>([]);
-const totpStatus = ref<TotpStatus | null>(null);
-const totpProvision = ref<TotpProvision | null>(null);
-const totpQrDataUrl = ref('');
 const passkeyStatus = ref<PasskeyStatus | null>(null);
-const passportPasskeyBinding = ref<PassportPasskeyCredentialListResult | null>(null);
+const totpStatus = ref<TotpStatus | null>(null);
+const identityPasskeyBinding = ref<IdentityPasskeyCredentialListResult | null>(null);
 const passkeyCredentials = ref<PasskeyCredentialRecord[]>([]);
 const passkeyDeviceName = ref(createDefaultPasskeyDeviceName());
 const passkeyRequestResult = ref<AuthorizeRequestResult | null>(null);
@@ -665,14 +430,6 @@ const passkeyAuthChallenge = ref<PasskeyAuthorizeChallengeResponse | null>(null)
 const passkeyRequestIdInput = ref('');
 const passkeyAuthCodeInput = ref('');
 const passkeyCodeVerifier = ref('');
-const requestResult = ref<AuthorizeRequestResult | null>(null);
-const approveResult = ref<AuthorizeApproveResult | null>(null);
-const exchangeResult = ref<AuthorizeExchangeResult | null>(null);
-const profileResult = ref<ProfileResult | null>(null);
-const requestIdInput = ref('');
-const totpCode = ref('');
-const authCodeInput = ref('');
-
 const form = reactive<ConfigForm>({
   selectedAppUid: '',
   state: '',
@@ -692,18 +449,24 @@ const selectedRedirectUri = computed(() => {
   return String(redirectUris[0] || '').trim();
 });
 
-const activePasskeyCount = computed(() =>
-  passkeyCredentials.value.filter((item) => !String(item.revokedAt || '').trim()).length
-);
-
-const revokedPasskeyCount = computed(() =>
-  passkeyCredentials.value.filter((item) => Boolean(String(item.revokedAt || '').trim())).length
-);
-
-const walletAddressDisplay = computed(() => {
-  const address = String(passportPasskeyBinding.value?.walletAddress || currentAccount.value || '').trim();
-  return formatAddress(address);
+const totpPeriodDigits = computed(() => {
+  if (!totpStatus.value) return '-';
+  return `${totpStatus.value.period || '-'}s / ${totpStatus.value.digits || '-'}`;
 });
+
+function readHistoryList(storageKey: string) {
+  try {
+    const raw = localStorage.getItem(storageKey) || '[]';
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+function writeHistoryList(storageKey: string, list: unknown[]) {
+  localStorage.setItem(storageKey, JSON.stringify(list.slice(0, 50)));
+}
 
 function formatAddress(address: string): string {
   const value = String(address || '').trim();
@@ -755,32 +518,6 @@ async function getBearerToken(options: { interactive?: boolean } = {}): Promise<
     throw new Error(mt('missingLogin'));
   }
   return token;
-}
-
-async function getAuthJson<T>(path: string, fallbackMessage: string): Promise<T> {
-  const token = await getBearerToken();
-  const response = await fetch(apiUrl(path), {
-    method: 'GET',
-    headers: {
-      Authorization: `Bearer ${token}`,
-    },
-    credentials: 'include',
-  });
-  return await parseEnvelope<T>(response, fallbackMessage);
-}
-
-async function postAuthJson<T>(path: string, body: unknown, fallbackMessage: string): Promise<T> {
-  const token = await getBearerToken({ interactive: true });
-  const response = await fetch(apiUrl(path), {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${token}`,
-      'Content-Type': 'application/json',
-    },
-    credentials: 'include',
-    body: JSON.stringify(body),
-  });
-  return await parseEnvelope<T>(response, fallbackMessage);
 }
 
 function base64UrlToUint8Array(value: string): Uint8Array {
@@ -840,14 +577,6 @@ function ensurePasskeyReady() {
   if (!passkeyStatus.value?.ready) {
     throw new Error(mt('passkeyNotReady'));
   }
-}
-
-function ensureAddress() {
-  const address = String(currentAccount.value || getCurrentAccount() || '').trim();
-  if (!address) {
-    throw new Error(mt('missingAddress'));
-  }
-  return address;
 }
 
 function detectBrowserName(userAgent: string): string {
@@ -921,176 +650,35 @@ async function loadOwnedApplications() {
   }
 }
 
-async function loadTotpStatus() {
-  try {
-    totpStatus.value = await getJson<TotpStatus>(
-      '/api/v1/public/auth/totp/status',
-      mt('loadTotpStatusFailed')
-    );
-  } catch (error) {
-    notifyError(String(error));
-  }
-}
-
 async function loadPasskeyStatus() {
   try {
-    const status = await getJson<{ passkey: PasskeyStatus }>(
-      '/api/v1/public/auth/passport/status',
+    const status = await getJson<{ passkey: PasskeyStatus; totp: TotpStatus }>(
+      '/api/v1/public/identity/status',
       mt('loadPasskeyStatusFailed')
     );
     passkeyStatus.value = status.passkey;
+    totpStatus.value = status.totp;
   } catch (error) {
     notifyError(String(error));
   }
 }
 
 async function refreshStatuses() {
-  await Promise.all([loadTotpStatus(), loadPasskeyStatus()]);
-}
-
-async function renderTotpQrCode(uri: string) {
-  const value = String(uri || '').trim();
-  if (!value) {
-    totpQrDataUrl.value = '';
-    return;
-  }
-  try {
-    totpQrDataUrl.value = await QRCode.toDataURL(value, {
-      margin: 1,
-      width: 220,
-      errorCorrectionLevel: 'M',
-    });
-  } catch {
-    totpQrDataUrl.value = '';
-    notifyError(mt('generateQrFailed'));
-  }
-}
-
-function maskMiddle(value: string, left = 4, right = 4) {
-  const normalized = String(value || '').trim();
-  if (!normalized) return '';
-  if (normalized.length <= left + right + 2) {
-    return `${normalized.slice(0, Math.min(left, normalized.length))}****`;
-  }
-  return `${normalized.slice(0, left)}****${normalized.slice(-right)}`;
-}
-
-async function loadTotpProvision(options: { silent?: boolean; force?: boolean } = {}) {
-  try {
-    if (!options.force && totpProvision.value?.secret && totpQrDataUrl.value) {
-      return;
-    }
-    const token = await getBearerToken({ interactive: true });
-    const response = await fetch(apiUrl('/api/v1/public/auth/totp/totp/provision'), {
-      method: 'GET',
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
-      credentials: 'include',
-    });
-    totpProvision.value = await parseEnvelope<TotpProvision>(
-      response,
-      mt('loadTotpProvisionFailed')
-    );
-    await renderTotpQrCode(totpProvision.value.otpauthUri);
-    if (!options.silent) {
-      notifySuccess(mt('totpProvisionLoaded'));
-    }
-  } catch (error) {
-    totpQrDataUrl.value = '';
-    if (!options.silent) {
-      notifyError(String(error));
-    }
-  }
+  await loadPasskeyStatus();
 }
 
 async function loadPasskeyCredentials() {
-  try {
-    ensurePasskeyReady();
-    const result = await getAuthJson<PassportPasskeyCredentialListResult>(
-      '/api/v1/public/auth/passport/passkey/credentials',
-      mt('loadPasskeyCredentialsFailed')
-    );
-    passportPasskeyBinding.value = result;
-    passkeyCredentials.value = result.credentials || [];
-  } catch (error) {
-    notifyError(String(error));
-  }
+  identityPasskeyBinding.value = null;
+  passkeyCredentials.value = [];
+  notifyInfo(mt('passkeyManagedInWallet'));
 }
 
 async function registerPasskey() {
-  try {
-    ensurePasskeyReady();
-    ensurePasskeySupported();
-    const request = await postAuthJson<PasskeyRegisterRequestResult>(
-      '/api/v1/public/auth/passport/passkey/register/request',
-      {
-        deviceName: String(passkeyDeviceName.value || '').trim() || undefined,
-      },
-      mt('createPasskeyRegisterFailed')
-    );
+  notifyInfo(mt('passkeyManagedInWallet'));
+}
 
-    const passkeyRequest = request.passkeyRequest;
-    const publicKey: PublicKeyCredentialCreationOptions = {
-      challenge: base64UrlToUint8Array(passkeyRequest.challenge),
-      rp: passkeyRequest.rp,
-      user: {
-        id: base64UrlToUint8Array(passkeyRequest.user.id),
-        name: passkeyRequest.user.name,
-        displayName: passkeyRequest.user.displayName,
-      },
-      pubKeyCredParams: passkeyRequest.pubKeyCredParams,
-      timeout: passkeyRequest.timeout,
-      attestation: passkeyRequest.attestation,
-      excludeCredentials: (passkeyRequest.excludeCredentials || []).map((item) => ({
-        id: base64UrlToUint8Array(item.id),
-        type: item.type,
-        transports: item.transports as AuthenticatorTransport[] | undefined,
-      })),
-      authenticatorSelection: passkeyRequest.authenticatorSelection,
-    };
-
-    const credential = (await navigator.credentials.create({
-      publicKey,
-    })) as PublicKeyCredential | null;
-
-    if (!credential) {
-      throw new Error(mt('passkeyRegisterCancelled'));
-    }
-
-    const response = credential.response;
-    if (!(response instanceof AuthenticatorAttestationResponse)) {
-      throw new Error(mt('passkeyRegisterResponseInvalid'));
-    }
-
-    const transports =
-      typeof response.getTransports === 'function' ? response.getTransports() : undefined;
-
-    await postAuthJson<PasskeyCredentialRecord>(
-      '/api/v1/public/auth/passport/passkey/register/confirm',
-      {
-        requestId: request.passkeyRequest.requestId,
-        deviceName: String(passkeyDeviceName.value || '').trim() || undefined,
-        credential: {
-          id: credential.id,
-          rawId: arrayBufferToBase64Url(credential.rawId),
-          type: credential.type,
-          response: {
-            attestationObject: arrayBufferToBase64Url(response.attestationObject),
-            clientDataJSON: arrayBufferToBase64Url(response.clientDataJSON),
-            transports,
-          },
-          clientExtensionResults: credential.getClientExtensionResults(),
-        },
-      },
-      mt('confirmPasskeyRegisterFailed')
-    );
-
-    await loadPasskeyCredentials();
-    notifySuccess(mt('passkeyRegisterSuccess'));
-  } catch (error) {
-    notifyError(String(error));
-  }
+async function manageAuthenticatorInWallet() {
+  notifyInfo(mt('authenticatorManagedInWallet'));
 }
 
 function buildPasskeyTestDetail(): Record<string, unknown> {
@@ -1103,35 +691,12 @@ function buildPasskeyTestDetail(): Record<string, unknown> {
         }
       : null,
     passkeyStatus: passkeyStatus.value,
-    passportBinding: passportPasskeyBinding.value,
+    identityPasskey: identityPasskeyBinding.value,
     passkeyRequest: passkeyRequestResult.value,
     passkeyChallenge: passkeyAuthChallenge.value,
     passkeyApprove: passkeyApproveResult.value,
     passkeyExchange: passkeyExchangeResult.value,
     passkeyProfile: passkeyProfileResult.value,
-  };
-}
-
-function buildTotpTestDetail(): Record<string, unknown> {
-  return {
-    selectedApp: selectedApplication.value
-      ? {
-          uid: selectedApplication.value.uid,
-          name: selectedApplication.value.name,
-          redirectUri: selectedRedirectUri.value,
-        }
-      : null,
-    totpStatus: totpStatus.value,
-    totpProvision: totpProvision.value
-      ? {
-          ...totpProvision.value,
-          secret: maskedTotpSecret.value,
-        }
-      : null,
-    request: requestResult.value,
-    approve: approveResult.value,
-    exchange: exchangeResult.value,
-    profile: profileResult.value,
   };
 }
 
@@ -1143,35 +708,12 @@ function savePasskeyTestHistory(action: string, status: 'success' | 'failed') {
     createdAt: new Date().toISOString(),
     appId: String(selectedApplication.value?.uid || ''),
     requestId: String(passkeyRequestIdInput.value || passkeyRequestResult.value?.requestId || ''),
-    subjectId: String(passkeyExchangeResult.value?.subjectId || passportPasskeyBinding.value?.subjectId || ''),
-    walletAddress: String(passkeyExchangeResult.value?.walletAddress || passportPasskeyBinding.value?.walletAddress || currentAccount.value || ''),
+    did: String(passkeyExchangeResult.value?.did || identityPasskeyBinding.value?.identity || ''),
+    walletAddress: String(passkeyExchangeResult.value?.walletAddress || identityPasskeyBinding.value?.walletAddress || currentAccount.value || ''),
     detail: buildPasskeyTestDetail(),
   };
   try {
-    const parsed = JSON.parse(localStorage.getItem(PASSKEY_TEST_HISTORY_KEY) || '[]');
-    const list = Array.isArray(parsed) ? parsed : [];
-    localStorage.setItem(PASSKEY_TEST_HISTORY_KEY, JSON.stringify([record, ...list].slice(0, 50)));
-  } catch {
-    // ignore local storage failure
-  }
-}
-
-function saveTotpTestHistory(action: string, status: 'success' | 'failed') {
-  const record: PasskeyTestHistoryRecord = {
-    id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
-    action,
-    status,
-    createdAt: new Date().toISOString(),
-    appId: String(selectedApplication.value?.uid || ''),
-    requestId: String(requestIdInput.value || requestResult.value?.requestId || ''),
-    subjectId: String(exchangeResult.value?.subjectId || ''),
-    walletAddress: String(exchangeResult.value?.walletAddress || currentAccount.value || ''),
-    detail: buildTotpTestDetail(),
-  };
-  try {
-    const parsed = JSON.parse(localStorage.getItem(TOTP_TEST_HISTORY_KEY) || '[]');
-    const list = Array.isArray(parsed) ? parsed : [];
-    localStorage.setItem(TOTP_TEST_HISTORY_KEY, JSON.stringify([record, ...list].slice(0, 50)));
+    writeHistoryList(PASSKEY_TEST_HISTORY_KEY, [record, ...readHistoryList(PASSKEY_TEST_HISTORY_KEY)]);
   } catch {
     // ignore local storage failure
   }
@@ -1184,14 +726,6 @@ function openPasskeyTestDialog() {
 
 function goPasskeyTestHistory() {
   router.push('/market/dev/my-config/passkey-history').catch(() => undefined);
-}
-
-function goTotpTestHistory() {
-  router.push('/market/dev/my-config/totp-history').catch(() => undefined);
-}
-
-function openTotpTestDialog() {
-  totpTestDialogVisible.value = true;
 }
 
 async function runPasskeyTestCreateRequest() {
@@ -1220,13 +754,14 @@ async function createPasskeyAuthorizeRequestAction(): Promise<boolean> {
     const pkce = await createPkcePair();
     passkeyCodeVerifier.value = pkce.verifier;
     const result = await postJson<AuthorizeRequestResult>(
-      '/api/v1/public/auth/passport/authorize/request',
+      '/api/v1/public/identity/authorize/request',
       {
         appId,
         redirectUri,
         state: form.state || undefined,
         codeChallenge: pkce.challenge,
         codeChallengeMethod: 'S256',
+        scopes: ['identity.basic', 'identity.wallet', 'identity.username', 'identity.email'],
         requestTtlMs: form.requestTtlMs,
       },
       mt('createPasskeyAuthorizeRequestFailed')
@@ -1254,7 +789,7 @@ async function queryPasskeyAuthorizeRequest() {
       return;
     }
     const result = await getJson<AuthorizeRequestResult>(
-      `/api/v1/public/auth/passport/authorize/request/${encodeURIComponent(requestId)}`,
+      `/api/v1/public/identity/authorize/request/${encodeURIComponent(requestId)}`,
       mt('queryPasskeyAuthorizeRequestFailed')
     );
     passkeyRequestResult.value = result;
@@ -1275,7 +810,7 @@ async function approveAuthorizeRequestWithPasskey(): Promise<boolean> {
     }
 
     const challenge = await postJson<PasskeyAuthorizeChallengeResponse>(
-      '/api/v1/public/auth/passport/authorize/challenge',
+      '/api/v1/public/identity/authorize/challenge',
       { requestId },
       mt('createPasskeyChallengeFailed')
     );
@@ -1306,7 +841,7 @@ async function approveAuthorizeRequestWithPasskey(): Promise<boolean> {
     }
 
     const result = await postJson<AuthorizeApproveResult>(
-      '/api/v1/public/auth/passport/authorize/approve',
+      '/api/v1/public/identity/authorize/approve',
       {
         requestId,
         passkeyRequestId: challenge.passkeyRequest.requestId,
@@ -1355,7 +890,7 @@ async function exchangePasskeyAuthorizeCode(): Promise<boolean> {
       return false;
     }
     const result = await postJson<AuthorizeExchangeResult>(
-      '/api/v1/public/auth/passport/authorize/exchange',
+      '/api/v1/public/identity/authorize/exchange',
       { code, appId, redirectUri, codeVerifier },
       mt('exchangePasskeyCodeFailed')
     );
@@ -1370,185 +905,13 @@ async function exchangePasskeyAuthorizeCode(): Promise<boolean> {
 }
 
 async function revokePasskeyCredentialAction(credentialId: string) {
-  try {
-    ensurePasskeyReady();
-    await postAuthJson(
-      '/api/v1/public/auth/passport/passkey/credentials/revoke',
-      { credentialId },
-      mt('revokePasskeyCredentialFailed')
-    );
-    await loadPasskeyCredentials();
-    notifySuccess(mt('passkeyCredentialRevoked'));
-  } catch (error) {
-    notifyError(String(error));
-  }
+  void credentialId;
+  notifyInfo(mt('passkeyManagedInWallet'));
 }
 
 async function renamePasskeyCredentialAction(credential: PasskeyCredentialRecord) {
-  try {
-    ensurePasskeyReady();
-    const result = await ElMessageBox.prompt(mt('renamePasskeyPrompt'), mt('renamePasskeyTitle'), {
-      confirmButtonText: mt('confirm'),
-      cancelButtonText: mt('cancel'),
-      inputValue: getCredentialDeviceName(credential),
-      inputPlaceholder: mt('devicePlaceholder'),
-      inputValidator: (value) => Boolean(String(value || '').trim()) || mt('deviceNameRequired'),
-    });
-    const deviceName = String(result.value || '').trim();
-    await postAuthJson(
-      '/api/v1/public/auth/passport/passkey/credentials/rename',
-      { credentialId: credential.credentialId, deviceName },
-      mt('renamePasskeyCredentialFailed')
-    );
-    await loadPasskeyCredentials();
-    notifySuccess(mt('passkeyCredentialRenamed'));
-  } catch (error) {
-    if (String((error as { action?: unknown })?.action || '') === 'cancel') {
-      return;
-    }
-    notifyError(String(error));
-  }
-}
-
-async function createAuthorizeRequest() {
-  try {
-    const address = ensureAddress();
-    const { appId, redirectUri } = ensureAppConfig();
-    const payload = {
-      address,
-      appId,
-      redirectUri,
-      state: form.state || undefined,
-      requestTtlMs: form.requestTtlMs,
-    };
-    const result = await postJson<AuthorizeRequestResult>(
-      '/api/v1/public/auth/totp/authorize/request',
-      payload,
-      mt('createAuthorizeRequestFailed')
-    );
-    requestResult.value = result;
-    requestIdInput.value = result.requestId;
-    approveResult.value = null;
-    exchangeResult.value = null;
-    profileResult.value = null;
-    notifySuccess(mt('authorizeRequestCreated'));
-    saveTotpTestHistory('create_request', 'success');
-  } catch (error) {
-    notifyError(String(error));
-    saveTotpTestHistory('create_request', 'failed');
-  }
-}
-
-async function queryAuthorizeRequest() {
-  try {
-    const requestId = String(requestIdInput.value || '').trim();
-    if (!requestId) {
-      notifyError(mt('enterRequestIdFirst'));
-      return;
-    }
-    const result = await getJson<AuthorizeRequestResult>(
-      `/api/v1/public/auth/totp/authorize/request/${encodeURIComponent(requestId)}`,
-      mt('queryAuthorizeRequestFailed')
-    );
-    requestResult.value = result;
-    notifySuccess(mt('authorizeRequestRefreshed'));
-  } catch (error) {
-    notifyError(String(error));
-  }
-}
-
-async function approveAuthorizeRequest() {
-  try {
-    const requestId = String(requestIdInput.value || '').trim();
-    const code = String(totpCode.value || '').trim();
-    if (!requestId || !code) {
-      notifyError(mt('fillRequestIdAndTotpCode'));
-      return;
-    }
-    const result = await postJson<AuthorizeApproveResult>(
-      '/api/v1/public/auth/totp/authorize/approve',
-      { requestId, code },
-      mt('totpAuthorizeFailed')
-    );
-    approveResult.value = result;
-    authCodeInput.value = result.authorizationCode;
-    exchangeResult.value = null;
-    profileResult.value = null;
-    notifySuccess(mt('authorizeApproved'));
-    saveTotpTestHistory('approve_totp', 'success');
-  } catch (error) {
-    notifyError(String(error));
-    saveTotpTestHistory('approve_totp', 'failed');
-  }
-}
-
-async function exchangeAuthorizeCode() {
-  try {
-    const code = String(authCodeInput.value || '').trim();
-    const { appId, redirectUri } = ensureAppConfig();
-    if (!code) {
-      notifyError(mt('enterAuthorizationCode'));
-      return;
-    }
-    const result = await postJson<AuthorizeExchangeResult>(
-      '/api/v1/public/auth/totp/authorize/exchange',
-      { code, appId, redirectUri },
-      mt('exchangeAuthorizeCodeFailed')
-    );
-    exchangeResult.value = result;
-    profileResult.value = null;
-    notifySuccess(mt('authorizeCodeExchanged'));
-    saveTotpTestHistory('exchange_code', 'success');
-  } catch (error) {
-    notifyError(String(error));
-    saveTotpTestHistory('exchange_code', 'failed');
-  }
-}
-
-async function verifyProfileWithJwt() {
-  try {
-    const token = exchangeResult.value?.token;
-    if (!token) {
-      notifyError(mt('missingJwtToken'));
-      return false;
-    }
-    const response = await fetch(apiUrl('/api/v1/public/profile/me'), {
-      method: 'GET',
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
-      credentials: 'include',
-    });
-    profileResult.value = await parseEnvelope<ProfileResult>(response, mt('verifyJwtFailed'));
-    notifySuccess(mt('verifyJwtSuccess'));
-    saveTotpTestHistory('verify_jwt', 'success');
-  } catch (error) {
-    notifyError(String(error));
-    saveTotpTestHistory('verify_jwt', 'failed');
-  }
-}
-
-async function verifyProfileWithUcan() {
-  try {
-    const token = exchangeResult.value?.ucan;
-    if (!token) {
-      notifyError(mt('missingUcanToken'));
-      return false;
-    }
-    const response = await fetch(apiUrl('/api/v1/public/profile/me'), {
-      method: 'GET',
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
-      credentials: 'include',
-    });
-    profileResult.value = await parseEnvelope<ProfileResult>(response, mt('verifyUcanFailed'));
-    notifySuccess(mt('verifyUcanSuccess'));
-    saveTotpTestHistory('verify_ucan', 'success');
-  } catch (error) {
-    notifyError(String(error));
-    saveTotpTestHistory('verify_ucan', 'failed');
-  }
+  void credential;
+  notifyInfo(mt('passkeyManagedInWallet'));
 }
 
 function openLink(url: string) {
@@ -1557,14 +920,6 @@ function openLink(url: string) {
     return;
   }
   window.open(url, '_blank');
-}
-
-function openVerifyUrl() {
-  openLink(requestResult.value?.verifyUrl || '');
-}
-
-function openRedirectTo() {
-  openLink(approveResult.value?.redirectTo || '');
 }
 
 async function writeClipboardText(value: string) {
@@ -1611,16 +966,6 @@ function goPublishApp() {
   router.push('/market/dev/apply-edit').catch(() => undefined);
 }
 
-const prettyTotpResult = computed(() => {
-  const payload = {
-    request: requestResult.value,
-    approve: approveResult.value,
-    exchange: exchangeResult.value,
-    profile: profileResult.value,
-  };
-  return JSON.stringify(payload, null, 2);
-});
-
 const prettyPasskeyResult = computed(() => {
   const payload = {
     passkeyStatus: passkeyStatus.value,
@@ -1634,15 +979,13 @@ const prettyPasskeyResult = computed(() => {
   return JSON.stringify(payload, null, 2);
 });
 
-const maskedTotpSecret = computed(() => maskMiddle(totpProvision.value?.secret || ''));
-
 onMounted(async () => {
   currentAccount.value = String(getCurrentAccount() || '').trim();
   if (!String(passkeyDeviceName.value || '').trim()) {
     passkeyDeviceName.value = createDefaultPasskeyDeviceName();
   }
   const routeAuthTab = String(route.query.authTab || '').trim();
-  if (routeAuthTab === 'passkey' || routeAuthTab === 'totp') {
+  if (routeAuthTab === 'passkey') {
     authTab.value = routeAuthTab;
   }
   const routeSelectedAppUid = String(route.query.selectedAppUid || '').trim();
@@ -1651,18 +994,12 @@ onMounted(async () => {
   }
   await loadOwnedApplications();
   await refreshStatuses();
-  if (authTab.value === 'totp' && totpStatus.value?.enabled && totpStatus.value?.ready) {
-    await loadTotpProvision({ silent: true });
-  }
-  if (passkeyStatus.value?.enabled && passkeyStatus.value?.ready) {
-    await loadPasskeyCredentials();
-  }
 });
 
 watch(
   () => authTab.value,
   async (value) => {
-    if ((value === 'passkey' || value === 'totp') && route.query.authTab !== value) {
+    if (value === 'passkey' && route.query.authTab !== value) {
       await router
         .replace({
           query: {
@@ -1672,9 +1009,6 @@ watch(
         })
         .catch(() => undefined);
     }
-    if (value === 'totp' && totpStatus.value?.enabled && totpStatus.value?.ready) {
-      await loadTotpProvision({ silent: true });
-    }
   }
 );
 
@@ -1682,7 +1016,7 @@ watch(
   () => route.query.authTab,
   (value) => {
     const normalized = String(value || '').trim();
-    if (normalized === 'passkey' || normalized === 'totp') {
+    if (normalized === 'passkey') {
       authTab.value = normalized;
     }
   }
@@ -1784,13 +1118,6 @@ watch(
     line-height: 1.5;
   }
 
-  .totp-card {
-    padding: 16px;
-    border: 1px solid #e8edf4;
-    border-radius: 10px;
-    background: #fff;
-  }
-
   .primary-grid {
     margin-top: 14px;
     display: grid;
@@ -1799,25 +1126,37 @@ watch(
     align-items: start;
   }
 
+  .security-card-grid {
+    margin-top: 14px;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 14px;
+    align-items: stretch;
+  }
+
+  .security-card {
+    min-height: 100%;
+  }
+
   .passkey-card {
     min-height: 100%;
   }
 
-  .passport-main-card {
+  .identity-main-card {
     padding: 18px;
     border: 1px solid #e8edf4;
     border-radius: 10px;
     background: #fff;
   }
 
-  .passport-card-head {
+  .identity-card-head {
     display: flex;
     align-items: flex-start;
     justify-content: space-between;
     gap: 16px;
   }
 
-  .passport-title-row {
+  .identity-title-row {
     display: flex;
     align-items: center;
     gap: 10px;
@@ -1828,17 +1167,24 @@ watch(
     color: rgba(0, 0, 0, 0.88);
   }
 
-  .passport-head-actions {
+  .identity-head-actions {
     display: flex;
     justify-content: flex-end;
     gap: 10px;
     flex-wrap: wrap;
   }
 
-  .passport-summary-grid {
+  .identity-summary-grid {
     margin-top: 16px;
     display: grid;
     grid-template-columns: 150px 150px minmax(0, 1fr) minmax(0, 1fr);
+    gap: 10px;
+  }
+
+  .security-summary-grid {
+    margin-top: 16px;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 10px;
   }
 
@@ -2074,7 +1420,7 @@ watch(
     grid-template-columns: minmax(0, 1fr);
   }
 
-  .totp-head {
+  .test-panel-head {
     margin-bottom: 12px;
     display: flex;
     justify-content: space-between;
@@ -2082,80 +1428,10 @@ watch(
     gap: 16px;
   }
 
-  .totp-title-row {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    flex-wrap: wrap;
-    font-size: 16px;
-    line-height: 1.4;
-    font-weight: 600;
-    color: rgba(0, 0, 0, 0.88);
-  }
-
-  .totp-head-actions {
-    display: flex;
-    justify-content: flex-end;
-    gap: 10px;
-    flex-wrap: wrap;
-  }
-
-  .totp-title {
+  .panel-title {
     font-size: 15px;
     font-weight: 500;
     color: rgba(0, 0, 0, 0.86);
-  }
-
-  .totp-body {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) 260px;
-    gap: 16px;
-    align-items: start;
-  }
-
-  .totp-meta {
-    display: grid;
-    gap: 18px;
-    align-content: stretch;
-  }
-
-  .totp-meta-item {
-    min-height: 0;
-    padding: 16px 0;
-    display: grid;
-    gap: 12px;
-    font-size: 14px;
-    line-height: 1.5;
-    border-bottom: 1px solid #edf1f7;
-  }
-
-  .totp-meta-item:first-child {
-    padding-top: 0;
-  }
-
-  .totp-meta-item:last-child {
-    padding-bottom: 0;
-    border-bottom: none;
-  }
-
-  .totp-field-controls {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) auto auto;
-    gap: 8px;
-    align-items: center;
-  }
-
-  .qr-box {
-    justify-self: end;
-  }
-
-  .qr-panel {
-    width: 232px;
-    height: 232px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    overflow: hidden;
   }
 
   .qr-panel img {
@@ -2439,15 +1715,11 @@ watch(
       grid-template-columns: 1fr;
     }
 
-    .totp-body {
+    .security-card-grid {
       grid-template-columns: 1fr;
     }
 
-    .qr-box {
-      justify-self: start;
-    }
-
-    .passport-summary-grid {
+    .identity-summary-grid {
       grid-template-columns: repeat(2, minmax(0, 1fr));
     }
 
@@ -2457,9 +1729,6 @@ watch(
       gap: 10px;
     }
 
-    .qr-box {
-      justify-self: start;
-    }
   }
 }
 
@@ -2480,12 +1749,11 @@ watch(
 
     .line,
     .field-line,
-    .register-inline,
-    .totp-field-controls {
+    .register-inline {
       grid-template-columns: 1fr;
     }
 
-    .passport-summary-grid {
+    .identity-summary-grid {
       grid-template-columns: 1fr;
     }
 
@@ -2522,8 +1790,8 @@ watch(
       display: block;
     }
 
-    .passport-card-head,
-    .totp-head,
+    .identity-card-head,
+    .test-panel-head,
     .status-actions,
     .status-badges {
       flex-direction: column;

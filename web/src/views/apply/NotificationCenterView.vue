@@ -4,25 +4,6 @@
       <el-breadcrumb-item>{{ $t('notification_page_breadcrumb') }}</el-breadcrumb-item>
     </el-breadcrumb>
 
-    <div class="page-head">
-      <div>
-        <h1>{{ $t('notification_page_title') }}</h1>
-        <p>{{ $t('notification_page_subtitle') }}</p>
-      </div>
-      <div class="page-head-actions">
-        <span class="summary">
-          {{
-            unreadCount > 0
-              ? `${unreadCount}${$t('header_notification_unread_suffix')}`
-              : $t('header_notification_summary_done')
-          }}
-        </span>
-        <el-button :disabled="unreadCount <= 0" @click="handleMarkAllRead">
-          {{ $t('header_notification_all_read') }}
-        </el-button>
-      </div>
-    </div>
-
     <el-tabs v-model="activeView" class="page-view-tabs">
       <el-tab-pane :label="$t('notification_tab_inbox')" name="inbox" />
       <el-tab-pane :label="$t('notification_tab_webhook')" name="webhook" />
@@ -53,7 +34,6 @@
         <el-option :label="$t('notification_filter_all_sources')" value="" />
         <el-option :label="$t('notification_source_application')" value="application" />
         <el-option :label="$t('notification_source_audit')" value="audit" />
-        <el-option :label="$t('notification_source_totp')" value="totp" />
       </el-select>
       <el-select
         v-model="filters.level"
@@ -77,29 +57,31 @@
 
     <div class="content-grid">
       <section class="list-panel">
-        <div v-if="loading" class="panel-empty">{{ $t('header_notification_loading') }}</div>
-        <div v-else-if="items.length === 0" class="panel-empty">{{ $t('header_notification_empty') }}</div>
-        <button
-          v-for="item in items"
-          :key="item.notificationUid"
-          type="button"
-          class="notification-row"
-          :class="{ active: selectedUid === item.notificationUid, unread: !item.isRead }"
-          @click="selectNotification(item)"
-        >
-          <span class="row-marker" :class="{ unread: !item.isRead }"></span>
-          <div class="row-main">
-            <div class="row-head">
-              <span class="row-title">{{ item.title || notificationTypeLabel(item.type) }}</span>
-              <span class="row-time">{{ formatTime(item.createdAt) }}</span>
+        <div class="notification-list-scroll">
+          <div v-if="loading" class="panel-empty">{{ $t('header_notification_loading') }}</div>
+          <div v-else-if="items.length === 0" class="panel-empty">{{ $t('header_notification_empty') }}</div>
+          <button
+            v-for="item in items"
+            :key="item.notificationUid"
+            type="button"
+            class="notification-row"
+            :class="{ active: selectedUid === item.notificationUid, unread: !item.isRead }"
+            @click="selectNotification(item)"
+          >
+            <span class="row-marker" :class="{ unread: !item.isRead }"></span>
+            <div class="row-main">
+              <div class="row-head">
+                <span class="row-title">{{ item.title || notificationTypeLabel(item.type) }}</span>
+                <span class="row-time">{{ formatTime(item.createdAt) }}</span>
+              </div>
+              <div class="row-meta">
+                <el-tag size="small" effect="plain">{{ notificationSourceLabel(item.source) }}</el-tag>
+                <el-tag size="small" effect="plain">{{ notificationLevelLabel(item.level) }}</el-tag>
+              </div>
+              <p class="row-body">{{ item.body || notificationTypeLabel(item.type) }}</p>
             </div>
-            <div class="row-meta">
-              <el-tag size="small" effect="plain">{{ notificationSourceLabel(item.source) }}</el-tag>
-              <el-tag size="small" effect="plain">{{ notificationLevelLabel(item.level) }}</el-tag>
-            </div>
-            <p class="row-body">{{ item.body || notificationTypeLabel(item.type) }}</p>
-          </div>
-        </button>
+          </button>
+        </div>
 
         <div class="pagination-wrap">
           <el-pagination
@@ -389,8 +371,6 @@ const webhookEventOptions = computed(() => [
   { label: 'audit.created', value: 'audit.created' },
   { label: 'audit.approved', value: 'audit.approved' },
   { label: 'audit.rejected', value: 'audit.rejected' },
-  { label: 'totp.request_approved', value: 'totp.request_approved' },
-  { label: 'totp.request_expired', value: 'totp.request_expired' },
 ])
 
 let notificationStream: { close: () => Promise<void> } | null = null
@@ -902,42 +882,13 @@ onBeforeUnmount(() => {
 
 <style scoped lang="less">
 .notification-center {
-  min-height: calc(100dvh - 72px);
+  height: calc(100dvh - 72px);
+  min-height: 0;
   padding: 20px;
   background: #f5f7fb;
-}
-
-.page-head {
   display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  gap: 16px;
-  margin: 18px 0 16px;
-
-  h1 {
-    margin: 0;
-    font-size: 24px;
-    font-weight: 600;
-    color: #111827;
-  }
-
-  p {
-    margin: 8px 0 0;
-    color: #6b7280;
-    font-size: 14px;
-  }
-}
-
-.page-head-actions {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
-.summary {
-  color: #4b5563;
-  font-size: 14px;
-  white-space: nowrap;
+  flex-direction: column;
+  overflow: hidden;
 }
 
 .filter-bar {
@@ -972,10 +923,12 @@ onBeforeUnmount(() => {
   display: grid;
   grid-template-columns: minmax(340px, 420px) minmax(0, 1fr);
   gap: 16px;
+  min-height: 0;
+  flex: 1;
 }
 
 .page-view-tabs {
-  margin-bottom: 12px;
+  margin: 16px 0 12px;
 }
 
 .list-panel,
@@ -983,15 +936,26 @@ onBeforeUnmount(() => {
   background: #fff;
   border: 1px solid #e5e7eb;
   border-radius: 8px;
-  min-height: 640px;
+  min-height: 0;
+  overflow: hidden;
 }
 
 .list-panel {
   padding: 12px;
+  display: flex;
+  flex-direction: column;
 }
 
 .detail-panel {
   padding: 18px;
+  overflow-y: auto;
+}
+
+.notification-list-scroll {
+  min-height: 0;
+  flex: 1;
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
 
 .panel-empty {
@@ -1080,6 +1044,7 @@ onBeforeUnmount(() => {
   padding-top: 12px;
   display: flex;
   justify-content: center;
+  flex: 0 0 auto;
 }
 
 .detail-head {
@@ -1328,19 +1293,22 @@ onBeforeUnmount(() => {
   .list-panel,
   .detail-panel {
     min-height: auto;
+    overflow: visible;
+  }
+
+  .notification-center {
+    height: auto;
+    min-height: calc(100dvh - 72px);
+    overflow: visible;
+  }
+
+  .notification-list-scroll {
+    max-height: none;
+    overflow: visible;
   }
 }
 
 @media (max-width: 768px) {
-  .page-head {
-    flex-direction: column;
-  }
-
-  .page-head-actions {
-    width: 100%;
-    justify-content: space-between;
-  }
-
   .filter-bar.compact {
     flex-wrap: wrap;
   }

@@ -23,6 +23,8 @@ const PUBLIC_ROUTES = [
   '/public/healthCheck',
   '/public/ready',
 ];
+const DEFAULT_MPC_UCAN_WITH = 'mpc';
+const DEFAULT_MPC_UCAN_CAN = 'coordinate';
 
 type AuthUser = {
   address: string;
@@ -55,8 +57,8 @@ export function getRouteRequiredUcanCapabilities(
   const notificationSource = String(req.query?.source || '').trim().toLowerCase();
   if (routePath === '/api/v1/public/notifications' && notificationSource === 'mpc') {
     const config = (getConfig<MpcRuntimeConfig>('mpc') || {}) as MpcRuntimeConfig;
-    const resource = String(config.ucanWith || '').trim();
-    const action = String(config.ucanCan || '').trim();
+    const resource = String(config.ucanWith || DEFAULT_MPC_UCAN_WITH).trim();
+    const action = String(config.ucanCan || DEFAULT_MPC_UCAN_CAN).trim();
     return [
       {
         with: resource || '*',
@@ -74,11 +76,8 @@ export function getRouteRequiredUcanCapabilities(
     return [{ with: 'custody', can: 'write' }];
   }
   const config = (getConfig<MpcRuntimeConfig>('mpc') || {}) as MpcRuntimeConfig;
-  const resource = String(config.ucanWith || '').trim();
-  const action = String(config.ucanCan || '').trim();
-  if (!resource && !action) {
-    return [];
-  }
+  const resource = String(config.ucanWith || DEFAULT_MPC_UCAN_WITH).trim();
+  const action = String(config.ucanCan || DEFAULT_MPC_UCAN_CAN).trim();
   return [
     {
       with: resource || '*',

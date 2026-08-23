@@ -16,16 +16,10 @@ export const routes = [
         ]
     },
     {
-        path: '/totp-auth',
-        name: 'totpAuth',
+        path: '/identity/authorize',
+        name: 'identityAuth',
         meta: { public: true },
-        component: () => import('../views/TotpAuthView.vue')
-    },
-    {
-        path: '/passport/authorize',
-        name: 'passportAuth',
-        meta: { public: true },
-        component: () => import('../views/PassportAuthView.vue')
+        component: () => import('../views/IdentityAuthView.vue')
     },
     {
         path: '/market',
@@ -79,11 +73,6 @@ export const routes = [
                         path: 'my-config/passkey-history',
                         name: 'passkeyTestHistory',
                         component: () => import('../views/apply/PasskeyTestHistoryView.vue')
-                    },
-                    {
-                        path: 'my-config/totp-history',
-                        name: 'totpTestHistory',
-                        component: () => import('../views/apply/TotpTestHistoryView.vue')
                     },
                     {
                         path: 'notifications',
