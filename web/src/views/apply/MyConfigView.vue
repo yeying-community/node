@@ -4,119 +4,105 @@
       <el-breadcrumb-item>{{ mt('breadcrumb') }}</el-breadcrumb-item>
     </el-breadcrumb>
 
-    <el-tabs v-model="authTab" class="page-tabs">
-      <el-tab-pane :label="mt('passkeyTab')" name="passkey">
-        <div class="method-section passkey-dashboard">
-          <div class="identity-main-card">
-            <div class="identity-card-head">
-              <div>
-                <div class="identity-title-row">
-                  <span>{{ mt('passkeyListTitle') }}</span>
-                  <el-tag :type="passkeyStatus?.enabled ? 'success' : 'info'" effect="light">
-                    {{ passkeyStatus ? (passkeyStatus.enabled ? mt('enabled') : mt('disabled')) : '-' }}
-                  </el-tag>
-                  <el-tag :type="passkeyStatus?.ready ? 'success' : 'warning'" effect="light">
-                    {{ passkeyStatus ? (passkeyStatus.ready ? mt('ready') : mt('notReady')) : '-' }}
-                  </el-tag>
-                </div>
-                <div class="section-hint">{{ mt('passkeyManageHint') }}</div>
-              </div>
-              <div class="identity-head-actions">
-                <el-button @click="goPasskeyTestHistory">{{ mt('testHistory') }}</el-button>
-                <el-button :disabled="!passkeyStatus?.enabled || !passkeyStatus?.ready" type="success" plain @click="openPasskeyTestDialog">
-                  {{ mt('testPasskey') }}
-                </el-button>
-                <el-button type="primary" @click="registerPasskey">
-                  {{ mt('manageInWallet') }}
-                </el-button>
-              </div>
-            </div>
+    <div class="page-head">
+      <div>
+        <div class="page-title">{{ mt('pageTitle') }}</div>
+        <div class="page-subtitle">{{ mt('pageSubtitle') }}</div>
+      </div>
+      <div class="head-actions">
+        <el-button @click="refreshStatuses">{{ mt('refreshStatus') }}</el-button>
+      </div>
+    </div>
 
-            <div v-if="passkeyStatus?.error" class="status-error compact-error">{{ mt('errorPrefix') }}{{ passkeyStatus.error }}</div>
-
-            <div class="identity-summary-grid">
-              <div class="summary-metric">
-                <span class="summary-label">{{ mt('serviceSwitch') }}</span>
-                <strong>{{ passkeyStatus ? (passkeyStatus.enabled ? mt('enabled') : mt('disabled')) : '-' }}</strong>
-              </div>
-              <div class="summary-metric">
-                <span class="summary-label">{{ mt('serviceReady') }}</span>
-                <strong>{{ passkeyStatus ? (passkeyStatus.ready ? mt('ready') : mt('notReady')) : '-' }}</strong>
-              </div>
-              <div class="summary-identity">
-                <span class="summary-label">{{ mt('rpId') }}</span>
-                <span>{{ passkeyStatus?.rpId || '-' }}</span>
-              </div>
-              <div class="summary-identity">
-                <span class="summary-label">{{ mt('origin') }}</span>
-                <span class="path-text">{{ passkeyStatus?.origin || '-' }}</span>
-              </div>
+    <div class="security-card-grid">
+      <div class="identity-main-card security-card">
+        <div class="identity-card-head">
+          <div>
+            <div class="identity-title-row">
+              <span>{{ mt('passkeyCardTitle') }}</span>
+              <el-tag :type="passkeyStatus?.enabled ? 'success' : 'info'" effect="light">
+                {{ passkeyStatus ? (passkeyStatus.enabled ? mt('enabled') : mt('disabled')) : '-' }}
+              </el-tag>
+              <el-tag :type="passkeyStatus?.ready ? 'success' : 'warning'" effect="light">
+                {{ passkeyStatus ? (passkeyStatus.ready ? mt('ready') : mt('notReady')) : '-' }}
+              </el-tag>
             </div>
-
-            <div class="credential-list">
-              <div class="credential-empty compact-empty">
-                {{ mt('passkeyManagedInWallet') }}
-              </div>
-              <div v-for="credential in passkeyCredentials" v-show="false" :key="credential.credentialId" class="credential-row">
-                <div class="credential-cell credential-device">
-                  <div class="credential-name">{{ getCredentialDeviceName(credential) }}</div>
-                  <div v-if="credential.revokedAt" class="credential-revoked-mobile">
-                    {{ mt('revokedAt') }}：{{ credential.revokedAt }}
-                  </div>
-                </div>
-                <div class="credential-cell credential-transports">{{ credential.transports?.join(', ') || '-' }}</div>
-                <div class="credential-cell credential-created">{{ credential.createdAt || '-' }}</div>
-                <div class="credential-cell credential-status">
-                  <el-tag :type="credential.revokedAt ? 'info' : 'success'" effect="light">
-                    {{ credential.revokedAt ? mt('revoked') : mt('valid') }}
-                  </el-tag>
-                </div>
-                <div class="credential-cell credential-actions">
-                  <el-tooltip :content="mt('copyId')" placement="top">
-                    <el-button
-                      circle
-                      size="small"
-                      class="credential-icon-button"
-                      @click="copyText(credential.credentialId, mt('credentialId'))"
-                    >
-                      <el-icon><CopyDocument /></el-icon>
-                    </el-button>
-                  </el-tooltip>
-                  <el-tooltip :content="mt('rename')" placement="top">
-                    <el-button
-                      :disabled="Boolean(credential.revokedAt)"
-                      circle
-                      size="small"
-                      class="credential-icon-button"
-                      @click="renamePasskeyCredentialAction(credential)"
-                    >
-                      <el-icon><EditPen /></el-icon>
-                    </el-button>
-                  </el-tooltip>
-                  <el-tooltip :content="mt('revoke')" placement="top">
-                    <el-button
-                      :disabled="Boolean(credential.revokedAt)"
-                      circle
-                      size="small"
-                      type="danger"
-                      plain
-                      class="credential-icon-button"
-                      @click="revokePasskeyCredentialAction(credential.credentialId)"
-                    >
-                      <el-icon><Delete /></el-icon>
-                    </el-button>
-                  </el-tooltip>
-                </div>
-              </div>
-            </div>
+            <div class="section-hint">{{ mt('passkeyManageHint') }}</div>
+          </div>
+          <div class="identity-head-actions">
+            <el-button @click="goPasskeyTestHistory">{{ mt('testHistory') }}</el-button>
+            <el-button :disabled="!passkeyStatus?.enabled || !passkeyStatus?.ready" type="success" plain @click="openPasskeyTestDialog">
+              {{ mt('testPasskey') }}
+            </el-button>
+            <el-button type="primary" @click="registerPasskey">{{ mt('manageInWallet') }}</el-button>
           </div>
         </div>
 
-      </el-tab-pane>
+        <div v-if="passkeyStatus?.error" class="status-error compact-error">{{ mt('errorPrefix') }}{{ passkeyStatus.error }}</div>
 
-	    </el-tabs>
+        <div class="security-summary-grid">
+          <div class="summary-metric">
+            <span class="summary-label">{{ mt('serviceSwitch') }}</span>
+            <strong>{{ passkeyStatus ? (passkeyStatus.enabled ? mt('enabled') : mt('disabled')) : '-' }}</strong>
+          </div>
+          <div class="summary-metric">
+            <span class="summary-label">{{ mt('serviceReady') }}</span>
+            <strong>{{ passkeyStatus ? (passkeyStatus.ready ? mt('ready') : mt('notReady')) : '-' }}</strong>
+          </div>
+          <div class="summary-identity">
+            <span class="summary-label">{{ mt('rpId') }}</span>
+            <span>{{ passkeyStatus?.rpId || '-' }}</span>
+          </div>
+          <div class="summary-identity">
+            <span class="summary-label">{{ mt('origin') }}</span>
+            <span class="path-text">{{ passkeyStatus?.origin || '-' }}</span>
+          </div>
+        </div>
+      </div>
 
-	    <el-dialog v-model="passkeyTestDialogVisible" :title="mt('testPasskeyDialogTitle')" width="760px" class="passkey-test-dialog">
+      <div class="identity-main-card security-card">
+        <div class="identity-card-head">
+          <div>
+            <div class="identity-title-row">
+              <span>{{ mt('authenticatorCardTitle') }}</span>
+              <el-tag :type="totpStatus?.enabled ? 'success' : 'info'" effect="light">
+                {{ totpStatus ? (totpStatus.enabled ? mt('enabled') : mt('disabled')) : '-' }}
+              </el-tag>
+              <el-tag :type="totpStatus?.ready ? 'success' : 'warning'" effect="light">
+                {{ totpStatus ? (totpStatus.ready ? mt('ready') : mt('notReady')) : '-' }}
+              </el-tag>
+            </div>
+            <div class="section-hint">{{ mt('authenticatorManageHint') }}</div>
+          </div>
+          <div class="identity-head-actions">
+            <el-button type="primary" @click="manageAuthenticatorInWallet">{{ mt('manageInWallet') }}</el-button>
+          </div>
+        </div>
+
+        <div v-if="totpStatus?.error" class="status-error compact-error">{{ mt('errorPrefix') }}{{ totpStatus.error }}</div>
+
+        <div class="security-summary-grid">
+          <div class="summary-metric">
+            <span class="summary-label">{{ mt('serviceSwitch') }}</span>
+            <strong>{{ totpStatus ? (totpStatus.enabled ? mt('enabled') : mt('disabled')) : '-' }}</strong>
+          </div>
+          <div class="summary-metric">
+            <span class="summary-label">{{ mt('serviceReady') }}</span>
+            <strong>{{ totpStatus ? (totpStatus.ready ? mt('ready') : mt('notReady')) : '-' }}</strong>
+          </div>
+          <div class="summary-identity">
+            <span class="summary-label">{{ mt('issuer') }}</span>
+            <span>{{ totpStatus?.issuerName || '-' }}</span>
+          </div>
+          <div class="summary-identity">
+            <span class="summary-label">{{ mt('periodDigits') }}</span>
+            <span>{{ totpPeriodDigits }}</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+	  <el-dialog v-model="passkeyTestDialogVisible" :title="mt('testPasskeyDialogTitle')" width="760px" class="passkey-test-dialog">
       <div class="dialog-test-layout">
         <div class="panel-card compact-test-card">
           <div class="test-panel-head">
@@ -199,8 +185,8 @@
                 <strong>{{ passkeyExchangeResult?.did || '-' }}</strong>
               </div>
               <div>
-                <span>{{ mt('walletIdentityId') }}</span>
-                <strong>{{ passkeyExchangeResult?.walletIdentityId || '-' }}</strong>
+                <span>{{ mt('walletAddress') }}</span>
+                <strong>{{ passkeyExchangeResult?.walletAddress || '-' }}</strong>
               </div>
               <div>
                 <span>{{ mt('appId') }}</span>
@@ -256,10 +242,19 @@ type PasskeyStatus = {
   error?: string;
 };
 
+type TotpStatus = {
+  enabled: boolean;
+  ready: boolean;
+  issuerName: string;
+  digits: number;
+  period: number;
+  algorithm: string;
+  error?: string;
+};
+
 type PasskeyCredentialRecord = {
   credentialId: string;
   identity?: string;
-  walletIdentityId?: string;
   walletAddress?: string;
   deviceName?: string;
   transports?: string[];
@@ -270,7 +265,6 @@ type PasskeyCredentialRecord = {
 
 type IdentityPasskeyCredentialListResult = {
   identity: string;
-  walletIdentityId?: string;
   walletAddress: string;
   credentials: PasskeyCredentialRecord[];
 };
@@ -304,7 +298,6 @@ type PasskeyRegisterOptions = {
 
 type PasskeyRegisterRequestResult = {
   identity: string;
-  walletIdentityId?: string;
   walletAddress: string;
   passkeyRequest: PasskeyRegisterOptions;
 };
@@ -338,7 +331,6 @@ type AuthorizeRequestResult = {
   requestId: string;
   status: string;
   did?: string;
-  walletIdentityId?: string;
   walletAddress?: string;
   scopes?: string[];
   appId: string;
@@ -356,7 +348,6 @@ type AuthorizeApproveResult = {
   requestId: string;
   appName?: string;
   did?: string;
-  walletIdentityId?: string;
   approvedAt?: number | string;
   authorizationCode: string;
   authorizationCodeExpiresAt: number | string;
@@ -367,7 +358,6 @@ type AuthorizeExchangeResult = {
   requestId: string;
   subject?: string;
   did?: string;
-  walletIdentityId?: string;
   walletAddress?: string;
   scopes?: string[];
   credentials?: Array<Record<string, unknown>>;
@@ -408,7 +398,6 @@ type PasskeyTestHistoryRecord = {
   appId?: string;
   requestId?: string;
   did?: string;
-  walletIdentityId?: string;
   walletAddress?: string;
   detail: Record<string, unknown>;
 };
@@ -429,6 +418,7 @@ const passkeyTestStep = ref(0);
 const currentAccount = ref('');
 const ownedApplications = ref<ApplicationMetadata[]>([]);
 const passkeyStatus = ref<PasskeyStatus | null>(null);
+const totpStatus = ref<TotpStatus | null>(null);
 const identityPasskeyBinding = ref<IdentityPasskeyCredentialListResult | null>(null);
 const passkeyCredentials = ref<PasskeyCredentialRecord[]>([]);
 const passkeyDeviceName = ref(createDefaultPasskeyDeviceName());
@@ -457,6 +447,11 @@ const selectedApplication = computed(() => {
 const selectedRedirectUri = computed(() => {
   const redirectUris = selectedApplication.value?.redirectUris || [];
   return String(redirectUris[0] || '').trim();
+});
+
+const totpPeriodDigits = computed(() => {
+  if (!totpStatus.value) return '-';
+  return `${totpStatus.value.period || '-'}s / ${totpStatus.value.digits || '-'}`;
 });
 
 function readHistoryList(storageKey: string) {
@@ -657,11 +652,12 @@ async function loadOwnedApplications() {
 
 async function loadPasskeyStatus() {
   try {
-    const status = await getJson<{ passkey: PasskeyStatus }>(
+    const status = await getJson<{ passkey: PasskeyStatus; totp: TotpStatus }>(
       '/api/v1/public/identity/status',
       mt('loadPasskeyStatusFailed')
     );
     passkeyStatus.value = status.passkey;
+    totpStatus.value = status.totp;
   } catch (error) {
     notifyError(String(error));
   }
@@ -679,6 +675,10 @@ async function loadPasskeyCredentials() {
 
 async function registerPasskey() {
   notifyInfo(mt('passkeyManagedInWallet'));
+}
+
+async function manageAuthenticatorInWallet() {
+  notifyInfo(mt('authenticatorManagedInWallet'));
 }
 
 function buildPasskeyTestDetail(): Record<string, unknown> {
@@ -709,7 +709,6 @@ function savePasskeyTestHistory(action: string, status: 'success' | 'failed') {
     appId: String(selectedApplication.value?.uid || ''),
     requestId: String(passkeyRequestIdInput.value || passkeyRequestResult.value?.requestId || ''),
     did: String(passkeyExchangeResult.value?.did || identityPasskeyBinding.value?.identity || ''),
-    walletIdentityId: String(passkeyExchangeResult.value?.walletIdentityId || identityPasskeyBinding.value?.walletIdentityId || ''),
     walletAddress: String(passkeyExchangeResult.value?.walletAddress || identityPasskeyBinding.value?.walletAddress || currentAccount.value || ''),
     detail: buildPasskeyTestDetail(),
   };
@@ -1127,6 +1126,18 @@ watch(
     align-items: start;
   }
 
+  .security-card-grid {
+    margin-top: 14px;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 14px;
+    align-items: stretch;
+  }
+
+  .security-card {
+    min-height: 100%;
+  }
+
   .passkey-card {
     min-height: 100%;
   }
@@ -1167,6 +1178,13 @@ watch(
     margin-top: 16px;
     display: grid;
     grid-template-columns: 150px 150px minmax(0, 1fr) minmax(0, 1fr);
+    gap: 10px;
+  }
+
+  .security-summary-grid {
+    margin-top: 16px;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 10px;
   }
 
@@ -1694,6 +1712,10 @@ watch(
 @media (max-width: 1200px) {
   .my-config {
     .primary-grid {
+      grid-template-columns: 1fr;
+    }
+
+    .security-card-grid {
       grid-template-columns: 1fr;
     }
 

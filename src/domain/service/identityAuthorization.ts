@@ -307,7 +307,7 @@ export class IdentityAuthorizationService {
     const wanted = new Set(requested.includes('identity.email') ? ['EmailCredential'] : []); if (requested.includes('identity.username')) wanted.add('UsernameCredential')
     const accountLinks = await dataSource().getRepository(IdentityAccountLinkDO).findBy({ identityDid: row.identityDid, status: 'active' })
     const walletAddress = accountLinks.find(link => link.chainKey?.startsWith('eip155:'))?.accountId || ''
-    return { requestId: row.requestId, appId: row.appId, redirectUri: row.redirectUri, state: row.state, walletIdentityId: row.identityDid.slice('did:yeying:'.length), did: row.identityDid, walletAddress, scopes: requested, issuedAt: row.usedAt, credentials: credentials.filter(item => wanted.has(item.credentialType) && Date.parse(item.expiresAt) > Date.now()).map(item => ({ type: item.credentialType, credentialId: item.credentialId, credential: item.token })) }
+    return { requestId: row.requestId, appId: row.appId, redirectUri: row.redirectUri, state: row.state, did: row.identityDid, walletAddress, scopes: requested, issuedAt: row.usedAt, credentials: credentials.filter(item => wanted.has(item.credentialType) && Date.parse(item.expiresAt) > Date.now()).map(item => ({ type: item.credentialType, credentialId: item.credentialId, credential: item.token })) }
   }
 
   private async requirePendingRequest(requestId: unknown) {
@@ -330,7 +330,7 @@ export class IdentityAuthorizationService {
     const codeRow = new IdentityAuthorizationCodeDO(); Object.assign(codeRow, { code, requestId: row.requestId, appId: row.appId, redirectUri: row.redirectUri, state: row.state, codeChallenge: row.codeChallenge, scopesJson: row.scopesJson, identityDid, issuedAt, expiresAt: new Date(Date.now() + CODE_TTL_MS).toISOString(), used: false, usedAt: '' })
     row.status = 'approved'; row.identityDid = identityDid; row.approvedAt = issuedAt; row.updatedAt = issuedAt
     await dataSource().transaction(async manager => { await manager.getRepository(IdentityAuthorizationRequestDO).save(row); await manager.getRepository(IdentityAuthorizationCodeDO).save(codeRow) })
-    return { requestId: row.requestId, did: identityDid, walletIdentityId: identityDid.slice('did:yeying:'.length), authorizationCode: code, authorizationCodeExpiresAt: codeRow.expiresAt, redirectTo: `${row.redirectUri}${row.redirectUri.includes('?') ? '&' : '?'}code=${encodeURIComponent(code)}${row.state ? `&state=${encodeURIComponent(row.state)}` : ''}` }
+    return { requestId: row.requestId, did: identityDid, authorizationCode: code, authorizationCodeExpiresAt: codeRow.expiresAt, redirectTo: `${row.redirectUri}${row.redirectUri.includes('?') ? '&' : '?'}code=${encodeURIComponent(code)}${row.state ? `&state=${encodeURIComponent(row.state)}` : ''}` }
   }
 
   private view(row: IdentityAuthorizationRequestDO, appName: string) { return { requestId: row.requestId, status: row.status, appId: row.appId, appName, redirectUri: row.redirectUri, state: row.state, audience: origin(row.redirectUri), nonce: row.nonce, scopes: scopes(JSON.parse(row.scopesJson)), expiresAt: row.expiresAt, verifyUrl: verifyUrl(row.requestId), codeChallengeMethod: row.codeChallengeMethod || 'S256' } }

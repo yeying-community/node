@@ -96,7 +96,6 @@ type IdentityChallengeResult = {
 type IdentityApproveResult = {
   requestId: string
   did: string
-  walletIdentityId: string
   authorizationCode: string
   authorizationCodeExpiresAt: string
   redirectTo: string

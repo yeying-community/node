@@ -54,7 +54,6 @@
             <div><span>{{ label('应用', 'App') }}</span><strong>{{ selectedRecord.appId || '-' }}</strong></div>
             <div><span>{{ label('请求', 'Request') }}</span><strong>{{ selectedRecord.requestId || '-' }}</strong></div>
             <div><span>{{ label('钱包身份 DID', 'Wallet Identity DID') }}</span><strong>{{ selectedRecord.did || '-' }}</strong></div>
-            <div><span>{{ label('钱包身份 ID', 'Wallet Identity ID') }}</span><strong>{{ selectedRecord.walletIdentityId || '-' }}</strong></div>
             <div><span>{{ label('已验证钱包', 'Verified Wallet') }}</span><strong>{{ selectedRecord.walletAddress || '-' }}</strong></div>
           </div>
           <pre class="detail-json">{{ JSON.stringify(selectedRecord.detail, null, 2) }}</pre>
@@ -79,7 +78,6 @@ type PasskeyTestHistoryRecord = {
   appId?: string;
   requestId?: string;
   did?: string;
-  walletIdentityId?: string;
   walletAddress?: string;
   detail: Record<string, unknown>;
 };

@@ -56,7 +56,6 @@ issuer: {
 ```json
 {
   "did": "did:yeying:wid_example",
-  "walletIdentityId": "wid_example",
   "walletAddress": "0x...",
   "scopes": ["identity.basic", "identity.wallet", "identity.email"],
   "credentials": [
