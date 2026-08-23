@@ -243,7 +243,7 @@ watch(
 
     .top-group {
         background: white;
-        margin-top: 0;
+        margin-top: 16px;
         padding: 12px;
         .search {
             width: 50%;
