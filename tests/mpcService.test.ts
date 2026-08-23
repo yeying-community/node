@@ -285,6 +285,83 @@ describe('MpcService notifications', () => {
     await expect(service.cancelSession('session-1', invited)).rejects.toThrow('FORBIDDEN')
   })
 
+  it('lets a configured session participant read session detail before joining', async () => {
+    const actor = '0x1111111111111111111111111111111111111111'
+    const invited = '0x2222222222222222222222222222222222222222'
+    managerMocks.getSession.mockResolvedValue({
+      id: 'session-1',
+      name: '团队金库',
+      type: 'keygen',
+      walletId: 'mpc-wallet-1',
+      threshold: 2,
+      participants: JSON.stringify([actor, invited]),
+      status: 'rounds',
+      round: 1,
+      curve: 'secp256k1',
+      keyVersion: 0,
+      shareVersion: 0,
+      resultJson: '{}',
+      createdAt: '1',
+      expiresAt: '',
+    })
+    managerMocks.listParticipants.mockResolvedValue([
+      {
+        sessionId: 'session-1',
+        participantId: invited,
+        deviceId: 'device-2',
+        identity: `did:pkh:eth:${invited}`,
+        e2ePublicKey: 'x25519:key',
+        signingPublicKey: 'ed25519:key',
+        status: 'active',
+        joinedAt: '1',
+      },
+    ])
+    const service = new MpcService()
+
+    const detail = await service.getSession('session-1', actor)
+
+    expect(detail.id).toBe('session-1')
+    expect(detail.name).toBe('团队金库')
+    expect(detail.joinedCount).toBe(1)
+  })
+
+  it('rejects session detail reads from addresses outside the configured participants', async () => {
+    const actor = '0x1111111111111111111111111111111111111111'
+    const invited = '0x2222222222222222222222222222222222222222'
+    const outsider = '0x3333333333333333333333333333333333333333'
+    managerMocks.getSession.mockResolvedValue({
+      id: 'session-1',
+      name: '团队金库',
+      type: 'keygen',
+      walletId: 'mpc-wallet-1',
+      threshold: 2,
+      participants: JSON.stringify([actor, invited]),
+      status: 'rounds',
+      round: 1,
+      curve: 'secp256k1',
+      keyVersion: 0,
+      shareVersion: 0,
+      resultJson: '{}',
+      createdAt: '1',
+      expiresAt: '',
+    })
+    managerMocks.listParticipants.mockResolvedValue([
+      {
+        sessionId: 'session-1',
+        participantId: invited,
+        deviceId: 'device-2',
+        identity: `did:pkh:eth:${invited}`,
+        e2ePublicKey: 'x25519:key',
+        signingPublicKey: 'ed25519:key',
+        status: 'active',
+        joinedAt: '1',
+      },
+    ])
+    const service = new MpcService()
+
+    await expect(service.getSession('session-1', outsider)).rejects.toThrow('FORBIDDEN')
+  })
+
   it('completes keygen session and stores generated address result', async () => {
     const actor = '0x1111111111111111111111111111111111111111'
     const invited = '0x2222222222222222222222222222222222222222'

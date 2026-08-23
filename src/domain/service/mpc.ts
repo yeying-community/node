@@ -375,6 +375,20 @@ export class MpcService {
     return addresses.some((address) => normalizeAddress(address) === normalized)
   }
 
+  private ensureActorSessionAccess(session: MpcSession, participants: MpcSessionParticipant[], actor: string) {
+    const normalized = normalizeAddress(actor || '')
+    if (!normalized) {
+      return false
+    }
+    const sessionParticipants = session.participants
+      .map((participant) => normalizeAddress(participant || ''))
+      .filter(Boolean)
+    if (sessionParticipants.includes(normalized)) {
+      return true
+    }
+    return this.ensureActorAccess(participants, actor)
+  }
+
   async listInvites(actor: string, pageInput = 1, pageSizeInput = 20) {
     const actorAddress = normalizeAddress(actor || '')
     const page = Math.max(Number.isFinite(pageInput) ? Math.floor(pageInput) : 1, 1)
@@ -530,7 +544,7 @@ export class MpcService {
     }
     const session = convertMpcSessionFrom(sessionDO)
     const participants = (await this.manager.listParticipants(sessionId)).map(convertMpcParticipantFrom)
-    if (!this.ensureActorAccess(participants, actor)) {
+    if (!this.ensureActorSessionAccess(session, participants, actor)) {
       throw new Error('FORBIDDEN')
     }
     return {
