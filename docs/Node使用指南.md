@@ -128,8 +128,10 @@ Node 自身的应用中心登录是钱包签名 / UCAN 自举登录，不依赖�
 | --- | --- | --- |
 | POST | `/api/v1/public/identity/account-links/challenge` | 创建钱包身份与链账户关联 challenge |
 | POST | `/api/v1/public/identity/account-links/verify` | 校验身份控制器签名和账户签名，保存账户关联 |
-| POST | `/api/v1/public/identity/verifications/request` | 请求邮箱/用户名验证事务 |
-| POST | `/api/v1/public/identity/verifications/confirm` | 确认验证码并签发 `EmailCredential` / `UsernameCredential` |
+| POST | `/api/v1/public/identity/verifications/request` | 请求邮箱/用户名/头像验证事务 |
+| POST | `/api/v1/public/identity/verifications/confirm` | 确认验证码并签发 `EmailCredential` / `UsernameCredential` / `AvatarCredential` |
+| POST | `/api/v1/public/identity/credentials/reissue/challenge` | 为已验证邮箱/用户名/头像凭证创建自动续签 challenge |
+| POST | `/api/v1/public/identity/credentials/reissue/confirm` | 校验 identity controller proof 并重签短期 JWT-VC |
 | POST | `/api/v1/public/identity/passkeys/register/request` | 使用签名身份文档创建身份级 Passkey 注册请求 |
 | POST | `/api/v1/public/identity/passkeys/register/confirm` | 确认 WebAuthn registration 并保存到该钱包身份 |
 | GET | `/api/v1/public/identity/totp/status` | 查询钱包身份 TOTP 服务状态 |

@@ -8,6 +8,7 @@ const managerMocks = {
   getParticipant: vi.fn(),
   listParticipants: vi.fn(),
   saveMessage: vi.fn(),
+  saveWireMessageWithNextSequence: vi.fn(),
   getMaxMessageSeq: vi.fn(),
   queryMessages: vi.fn(),
   getSignRequest: vi.fn(),
@@ -73,6 +74,10 @@ describe('MpcService notifications', () => {
     managerMocks.getParticipant.mockResolvedValue(null)
     managerMocks.listParticipants.mockResolvedValue([])
     managerMocks.saveMessage.mockImplementation(async (message) => message)
+    managerMocks.saveWireMessageWithNextSequence.mockImplementation(async (_sessionId, buildMessage) => {
+      const maxSeq = await managerMocks.getMaxMessageSeq(_sessionId)
+      return buildMessage(maxSeq + 1)
+    })
     managerMocks.getMaxMessageSeq.mockResolvedValue(0)
     managerMocks.queryMessages.mockResolvedValue([])
     managerMocks.getSignRequest.mockResolvedValue(null)
@@ -731,12 +736,48 @@ describe('MpcService notifications', () => {
       audience: { 'one-party': { recipient_index: 1 } },
       payload: { Round1b: { ciphertext: 'opaque' } },
     }))
-    expect(managerMocks.saveMessage).toHaveBeenCalledWith(expect.objectContaining({
-      sessionId: 'session-1',
-      sender: '0',
-      receiver: '1',
-      seq: 4,
-    }))
+    expect(managerMocks.saveMessage).not.toHaveBeenCalled()
+    expect(managerMocks.saveWireMessageWithNextSequence).toHaveBeenCalledWith(
+      'session-1',
+      expect.any(Function)
+    )
+  })
+
+  it('rejects camelCase fields in cggmp24 wire envelopes', async () => {
+    const actor = '0x1111111111111111111111111111111111111111'
+    const recipient = '0x2222222222222222222222222222222222222222'
+    managerMocks.getSession.mockResolvedValue({
+      id: 'session-1',
+      name: '团队金库',
+      type: 'keygen',
+      walletId: 'mpc-wallet-1',
+      threshold: 2,
+      participants: JSON.stringify([actor, recipient]),
+      status: 'ready',
+      round: 0,
+      curve: 'secp256k1',
+      keyVersion: 0,
+      shareVersion: 0,
+      resultJson: '{}',
+      createdAt: '1',
+      expiresAt: '',
+    })
+    const service = new MpcService()
+
+    await expect(service.sendWireMessage(
+      'session-1',
+      {
+        protocolVersion: 1,
+        engine: 'cggmp24',
+        sessionId: 'session-1',
+        protocol: 'sign',
+        sequence: 99,
+        senderIndex: 0,
+        audience: { oneParty: { recipientIndex: 1 } },
+        payload: { Round1b: { ciphertext: 'opaque' } },
+      } as never,
+      actor
+    )).rejects.toThrow('INVALID_MPC_MESSAGE')
   })
 
   it('fetches only messages visible to the requested participant index', async () => {

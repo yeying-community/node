@@ -139,7 +139,8 @@ const document = {
           email: { type: 'string', format: 'email' },
           username: { type: 'string', minLength: 3, maxLength: 32 },
           type: { type: 'string', enum: ['email', 'username'] },
-          types: { type: 'array', items: { type: 'string', enum: ['email', 'username'] } },
+          types: { type: 'array', items: { type: 'string', enum: ['email', 'username', 'avatar'] } },
+          avatarUri: { type: 'string' },
         },
       },
       IdentityVerificationConfirmRequest: {
@@ -150,7 +151,7 @@ const document = {
           code: { type: 'string' },
           codes: { type: 'object', additionalProperties: { type: 'string' } },
           type: { type: 'string', enum: ['email', 'username'] },
-          types: { type: 'array', items: { type: 'string', enum: ['email', 'username'] } },
+          types: { type: 'array', items: { type: 'string', enum: ['email', 'username', 'avatar'] } },
         },
       },
       IdentityCredentialsStatusRequest: {
@@ -159,6 +160,24 @@ const document = {
         properties: {
           issuer: { type: 'string' },
           credentials: { type: 'array', minItems: 1, items: { type: 'string' } },
+        },
+      },
+      IdentityCredentialReissueChallengeRequest: {
+        type: 'object',
+        required: ['identity', 'credentialTypes'],
+        properties: {
+          identity: ref('IdentityDid'),
+          credentialTypes: { type: 'array', minItems: 1, items: { type: 'string', enum: ['EmailCredential', 'UsernameCredential', 'AvatarCredential'] } },
+        },
+      },
+      IdentityCredentialReissueConfirmRequest: {
+        type: 'object',
+        required: ['identity', 'challengeId', 'identityDocument', 'proof'],
+        properties: {
+          identity: ref('IdentityDid'),
+          challengeId: { type: 'string' },
+          identityDocument: { type: 'object', additionalProperties: true },
+          proof: { type: 'object', additionalProperties: true },
         },
       },
       IdentityPasskeyRegisterRequest: {
@@ -235,8 +254,8 @@ const document = {
           appId: { type: 'string' },
           redirectUri: { type: 'string', format: 'uri' },
           state: { type: 'string' },
-          scopes: { type: 'array', items: { type: 'string', enum: ['identity.basic', 'identity.wallet', 'identity.username', 'identity.email'] } },
-          scope: { type: 'array', items: { type: 'string', enum: ['identity.basic', 'identity.wallet', 'identity.username', 'identity.email'] } },
+          scopes: { type: 'array', items: { type: 'string', enum: ['identity.basic', 'identity.wallet', 'identity.username', 'identity.email', 'identity.avatar'] } },
+          scope: { type: 'array', items: { type: 'string', enum: ['identity.basic', 'identity.wallet', 'identity.username', 'identity.email', 'identity.avatar'] } },
           codeChallenge: { type: 'string', minLength: 43, maxLength: 128 },
           code_challenge: { type: 'string', minLength: 43, maxLength: 128 },
           codeChallengeMethod: { type: 'string', enum: ['S256'] },
@@ -383,6 +402,8 @@ const operations = [
   ['get', '/.well-known/openid-credential-issuer', 'Identity', '查询钱包身份 issuer 元数据', 'none'],
   ['get', '/api/v1/public/identity/status', 'Identity', '查询钱包身份 Passkey 运行状态', 'none'],
   ['post', '/api/v1/public/identity/credentials/status', 'Identity', '查询钱包身份凭证状态', 'none', 'IdentityCredentialsStatusRequest'],
+  ['post', '/api/v1/public/identity/credentials/reissue/challenge', 'Identity', '创建钱包身份凭证自动续签 challenge', 'none', 'IdentityCredentialReissueChallengeRequest'],
+  ['post', '/api/v1/public/identity/credentials/reissue/confirm', 'Identity', '确认钱包身份凭证自动续签', 'none', 'IdentityCredentialReissueConfirmRequest'],
   ['post', '/api/v1/public/identity/account-links/challenge', 'Identity', '创建钱包身份账户关联 challenge', 'none', 'IdentityAccountLinkChallengeRequest'],
   ['post', '/api/v1/public/identity/account-links/verify', 'Identity', '校验钱包身份账户关联证明', 'none', 'IdentityAccountLinkVerifyRequest'],
   ['post', '/api/v1/public/identity/verifications/request', 'Identity', '请求用户名和邮箱验证', 'none', 'IdentityVerificationRequest'],

@@ -52,19 +52,16 @@ export type SendMpcMessageInput = {
 
 export type MpcWireAudience =
   | 'all-parties'
-  | { 'one-party': { recipient_index?: number; recipientIndex?: number } }
-  | { oneParty: { recipient_index?: number; recipientIndex?: number } }
+  | { 'one-party': { recipient_index?: number } }
 
 export type SendMpcWireMessageInput = {
   protocol_version?: number
-  protocolVersion?: number
   engine: string
   session_id?: string
-  sessionId?: string
   protocol: string
+  request_id?: string
   sequence?: number
   sender_index?: number
-  senderIndex?: number
   audience: MpcWireAudience
   payload: unknown
 }
@@ -153,6 +150,14 @@ function normalizeAddress(value: string) {
   return value.trim().toLowerCase()
 }
 
+function normalizeMpcVersion(value: unknown, fallback = 1) {
+  const version = Number(value)
+  if (Number.isInteger(version) && version > 0) {
+    return version
+  }
+  return fallback
+}
+
 function extractEthAddress(identity: string): string | null {
   if (!identity) return null
   const lower = identity.trim().toLowerCase()
@@ -181,11 +186,11 @@ function parseWireAudience(audience: MpcWireAudience): { receiver: string; recip
     throw new Error('INVALID_MPC_MESSAGE_AUDIENCE')
   }
   const audienceRecord = audience as Record<string, unknown>
-  const oneParty = audienceRecord['one-party'] || audienceRecord.oneParty
+  const oneParty = audienceRecord['one-party']
   if (!isRecord(oneParty)) {
     throw new Error('INVALID_MPC_MESSAGE_AUDIENCE')
   }
-  const recipientIndex = Number(oneParty.recipient_index ?? oneParty.recipientIndex)
+  const recipientIndex = Number(oneParty.recipient_index)
   if (!Number.isInteger(recipientIndex) || recipientIndex < 0) {
     throw new Error('INVALID_MPC_MESSAGE_AUDIENCE')
   }
@@ -480,8 +485,8 @@ export class MpcService {
       status: 'created',
       round: 0,
       curve: input.curve || 'secp256k1',
-      keyVersion: input.keyVersion ?? 0,
-      shareVersion: input.shareVersion ?? 0,
+      keyVersion: normalizeMpcVersion(input.keyVersion),
+      shareVersion: normalizeMpcVersion(input.shareVersion),
       createdAt: now,
       expiresAt: input.expiresAt || ''
     }
@@ -737,7 +742,7 @@ export class MpcService {
     }
 
     const session = convertMpcSessionFrom(sessionDO)
-    const protocolVersion = Number(input.protocol_version ?? input.protocolVersion)
+    const protocolVersion = Number(input.protocol_version)
     if (protocolVersion !== MPC_WIRE_PROTOCOL_VERSION) {
       throw new Error('INVALID_MPC_MESSAGE')
     }
@@ -745,7 +750,7 @@ export class MpcService {
     if (engine !== MPC_WIRE_ENGINE) {
       throw new Error('INVALID_MPC_MESSAGE')
     }
-    const envelopeSessionId = String(input.session_id ?? input.sessionId ?? '').trim()
+    const envelopeSessionId = String(input.session_id ?? '').trim()
     if (envelopeSessionId && envelopeSessionId !== sessionId) {
       throw new Error('INVALID_MPC_MESSAGE')
     }
@@ -753,7 +758,8 @@ export class MpcService {
     if (!MPC_WIRE_PROTOCOLS.has(protocol)) {
       throw new Error('INVALID_MPC_MESSAGE')
     }
-    const senderIndex = Number(input.sender_index ?? input.senderIndex)
+    const requestId = String(input.request_id ?? '').trim()
+    const senderIndex = Number(input.sender_index)
     if (!Number.isInteger(senderIndex) || senderIndex < 0 || senderIndex >= session.participants.length) {
       throw new Error('INVALID_MPC_PARTICIPANT_INDEX')
     }
@@ -784,35 +790,36 @@ export class MpcService {
       }
     }
 
-    const seq = (await this.manager.getMaxMessageSeq(sessionId)) + 1
-    const now = this.nowEpoch()
-    const envelope = {
-      protocol_version: MPC_WIRE_PROTOCOL_VERSION,
-      engine: MPC_WIRE_ENGINE,
-      session_id: sessionId,
-      protocol,
-      sequence: seq,
-      sender_index: senderIndex,
-      audience: audience.recipientIndex === undefined
-        ? 'all-parties'
-        : { 'one-party': { recipient_index: audience.recipientIndex } },
-      payload: input.payload,
-    }
-    const message: MpcMessage = {
-      id: uuidv4(),
-      sessionId,
-      sender: String(senderIndex),
-      receiver: audience.receiver,
-      round: inferWireRound(input.payload),
-      type: protocol,
-      seq,
-      envelope,
-      createdAt: now,
-    }
-
-    const saved = await this.manager.saveMessage(convertMpcMessageTo(message))
+    const saved = await this.manager.saveWireMessageWithNextSequence(sessionId, (seq) => {
+      const now = this.nowEpoch()
+      const envelope = {
+        protocol_version: MPC_WIRE_PROTOCOL_VERSION,
+        engine: MPC_WIRE_ENGINE,
+        session_id: sessionId,
+        protocol,
+        ...(requestId ? { request_id: requestId } : {}),
+        sequence: seq,
+        sender_index: senderIndex,
+        audience: audience.recipientIndex === undefined
+          ? 'all-parties'
+          : { 'one-party': { recipient_index: audience.recipientIndex } },
+        payload: input.payload,
+      }
+      return convertMpcMessageTo({
+        id: uuidv4(),
+        sessionId,
+        sender: String(senderIndex),
+        receiver: audience.receiver,
+        round: inferWireRound(input.payload),
+        type: protocol,
+        seq,
+        envelope,
+        createdAt: now,
+      })
+    })
+    const output = convertMpcMessageFrom(saved)
     let updated = false
-    const nextRound = Math.max(session.round || 0, message.round || 0)
+    const nextRound = Math.max(session.round || 0, output.round || 0)
     let nextStatus = session.status
     if (nextStatus === 'created' || nextStatus === 'invited' || nextStatus === 'ready') {
       nextStatus = 'rounds'
@@ -822,13 +829,12 @@ export class MpcService {
       updated = true
     }
 
-    const output = convertMpcMessageFrom(saved)
     await this.writeAuditLog(session.walletId, session.id, 'message-sent', actor, 'wire message delivered', {
       messageId: output.id,
       senderIndex,
       receiver: audience.receiver,
       protocol,
-      seq,
+      seq: output.seq,
     })
     this.emitEvent(session.id, 'message', output)
 
@@ -883,8 +889,8 @@ export class MpcService {
       keyVersion: input.result.keyVersion ?? session.keyVersion,
       shareVersion: input.result.shareVersion ?? session.shareVersion,
     }
-    const keyVersion = Number(result.keyVersion || session.keyVersion || 0)
-    const shareVersion = Number(result.shareVersion || session.shareVersion || 0)
+    const keyVersion = normalizeMpcVersion(result.keyVersion, normalizeMpcVersion(session.keyVersion))
+    const shareVersion = normalizeMpcVersion(result.shareVersion, normalizeMpcVersion(session.shareVersion))
     const updatedDO = await this.manager.updateSession(sessionId, {
       status: 'completed',
       resultJson: JSON.stringify(result),

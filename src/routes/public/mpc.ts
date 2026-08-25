@@ -557,7 +557,7 @@ export function registerPublicMpcRoutes(app: Express) {
       const isWireMessage =
         payload &&
         typeof payload === 'object' &&
-        ('protocol_version' in payload || 'protocolVersion' in payload) &&
+        'protocol_version' in payload &&
         'engine' in payload &&
         'protocol' in payload &&
         'audience' in payload &&
@@ -568,14 +568,15 @@ export function registerPublicMpcRoutes(app: Express) {
           action: 'mpc_message_send',
           actor: user.address,
           payload: {
-            sessionId,
-            protocolVersion: (payload as Record<string, unknown>).protocol_version ?? (payload as Record<string, unknown>).protocolVersion,
+            session_id: sessionId,
+            protocol_version: (payload as Record<string, unknown>).protocol_version,
             engine: (payload as Record<string, unknown>).engine,
-            envelopeSessionId: (payload as Record<string, unknown>).session_id ?? (payload as Record<string, unknown>).sessionId,
+            envelope_session_id: (payload as Record<string, unknown>).session_id,
             protocol: (payload as Record<string, unknown>).protocol,
-            senderIndex: (payload as Record<string, unknown>).sender_index ?? (payload as Record<string, unknown>).senderIndex,
+            request_id: (payload as Record<string, unknown>).request_id ?? '',
+            sender_index: (payload as Record<string, unknown>).sender_index,
             audience: (payload as Record<string, unknown>).audience,
-            messagePayload: (payload as Record<string, unknown>).payload,
+            message_payload: (payload as Record<string, unknown>).payload,
           },
           execute: async () => {
             const response = await service.sendWireMessage(

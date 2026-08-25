@@ -6,7 +6,7 @@ import { IdentityAuditLogDO, IdentityCredentialDO, IdentityUsernameDO, IdentityV
 import { getConfig } from '../../config/runtime'
 
 type Delivery = (input: { email: string; code: string; expiresAt: string }) => Promise<void>
-type Challenge = { id: string; identity: string; account: { chainKey: string; address: string }; email: string; username?: string; hash: string; attempts: number; expiresAt: number; status: 'pending' | 'verified' | 'expired'; types: string[] }
+type Challenge = { id: string; identity: string; account: { chainKey: string; address: string }; email: string; username?: string; avatarUri?: string; hash: string; attempts: number; expiresAt: number; status: 'pending' | 'verified' | 'expired'; types: string[] }
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 const TTL_MS = 10 * 60 * 1000
 const MAX_ATTEMPTS = 5
@@ -30,6 +30,17 @@ function normalizeUsername(username: unknown) {
   return value
 }
 
+function normalizeAvatarUri(avatarUri: unknown) {
+  const value = String(avatarUri || '').trim()
+  if (!value || value.length > 2048) throw new Error('IDENTITY_AVATAR_INVALID')
+  if (value.startsWith('ipfs://')) return value
+  let parsed: URL
+  try { parsed = new URL(value) } catch { throw new Error('IDENTITY_AVATAR_INVALID') }
+  if (parsed.protocol !== 'https:' && parsed.protocol !== 'http:') throw new Error('IDENTITY_AVATAR_INVALID')
+  parsed.hash = ''
+  return parsed.toString()
+}
+
 function hashCode(id: string, code: string) {
   return createHash('sha256').update(`${id}:${code}`).digest('hex')
 }
@@ -37,11 +48,12 @@ function hashCode(id: string, code: string) {
 export class IdentityEmailService {
   constructor(private readonly delivery: Delivery) {}
 
-  async request(input: { type?: string; types?: string[]; identity: string; account: { chainKey: string; address: string }; email: string; username?: string }) {
+  async request(input: { type?: string; types?: string[]; identity: string; account: { chainKey: string; address: string }; email: string; username?: string; avatarUri?: string; avatarUrl?: string; avatar?: string }) {
     const types = normalizeTypes(input)
-    if (types.some(type => !['email', 'username'].includes(type))) throw new Error('IDENTITY_VERIFICATION_TYPE_UNSUPPORTED')
+    if (types.some(type => !['email', 'username', 'avatar'].includes(type))) throw new Error('IDENTITY_VERIFICATION_TYPE_UNSUPPORTED')
     const email = normalizeEmail(input.email)
     const username = types.includes('username') ? normalizeUsername((input as any).username) : undefined
+    const avatarUri = types.includes('avatar') ? normalizeAvatarUri(input.avatarUri || input.avatarUrl || input.avatar) : undefined
     if (!await isAccountLinked(input.identity, input.account)) throw new Error('IDENTITY_ACCOUNT_PROOF_INVALID')
     const id = `email_${randomUUID()}`
     const code = String(randomInt(100000, 1000000))
@@ -49,7 +61,7 @@ export class IdentityEmailService {
     const ds = requireDataSource()
     {
       const transaction = new IdentityVerificationTransactionDO()
-      Object.assign(transaction, { verificationId: id, identityDid: input.identity, typesJson: JSON.stringify(types), email, username: username || '', emailCodeHash: hashCode(id, code), attempts: 0, status: 'pending', expiresAt, createdAt: new Date().toISOString(), completedAt: '' })
+      Object.assign(transaction, { verificationId: id, identityDid: input.identity, typesJson: JSON.stringify(types), email, avatarUri: avatarUri || '', username: username || '', emailCodeHash: hashCode(id, code), attempts: 0, status: 'pending', expiresAt, createdAt: new Date().toISOString(), completedAt: '' })
       try {
         if (username) {
           await ds.transaction(async manager => {
@@ -88,16 +100,16 @@ export class IdentityEmailService {
       await ds.getRepository(IdentityVerificationTransactionDO).update({ verificationId: id }, { status: 'expired' })
       throw error
     }
-    return { verificationId: id, types, email, ...(username ? { username } : {}), expiresAt }
+    return { verificationId: id, types, email, ...(username ? { username } : {}), ...(avatarUri ? { avatarUri } : {}), expiresAt }
   }
 
   async confirm(input: { type?: string; types?: string[]; verificationId: string; code?: string; codes?: Record<string, string> }) {
     const types = normalizeTypes(input)
-    if (types.some(type => !['email', 'username'].includes(type))) throw new Error('IDENTITY_VERIFICATION_TYPE_UNSUPPORTED')
+    if (types.some(type => !['email', 'username', 'avatar'].includes(type))) throw new Error('IDENTITY_VERIFICATION_TYPE_UNSUPPORTED')
     const id = String(input.verificationId || '')
     const ds = requireDataSource()
     const row = await ds.getRepository(IdentityVerificationTransactionDO).findOneBy({ verificationId: id })
-    const challenge = row && { id: row.verificationId, identity: row.identityDid, account: { chainKey: '', address: '' }, email: row.email, username: row.username || undefined, hash: row.emailCodeHash, attempts: row.attempts, expiresAt: Date.parse(row.expiresAt), status: row.status as Challenge['status'], types: JSON.parse(row.typesJson) }
+    const challenge = row && { id: row.verificationId, identity: row.identityDid, account: { chainKey: '', address: '' }, email: row.email, username: row.username || undefined, avatarUri: row.avatarUri || undefined, hash: row.emailCodeHash, attempts: row.attempts, expiresAt: Date.parse(row.expiresAt), status: row.status as Challenge['status'], types: JSON.parse(row.typesJson) }
     if (!challenge) throw new Error('IDENTITY_EMAIL_VERIFICATION_NOT_FOUND')
     if (challenge.status !== 'pending' || Date.now() > challenge.expiresAt || types.join(',') !== challenge.types.join(',')) {
       challenge.status = 'expired'
@@ -145,6 +157,21 @@ export class IdentityEmailService {
         }
       })
       credentials.push({ type: 'EmailCredential', credentialId, credential })
+    }
+    if (challenge.types.includes('avatar') && challenge.avatarUri) {
+      const credentialId = `urn:yeying:credential:avatar:${challenge.id}`
+      const credential = issueIdentityCredential({
+        credentialId,
+        subject: challenge.identity,
+        type: 'AvatarCredential',
+        claim: {
+          avatarUri: challenge.avatarUri,
+          avatarVerifiedAt: verifiedAt,
+          avatarVerificationMethod: 'wallet-profile-v1',
+          credentialStatus: { id: credentialId, type: 'YeyingCredentialStatusV1' }
+        }
+      })
+      credentials.push({ type: 'AvatarCredential', credentialId, credential })
     }
     {
       await ds.getRepository(IdentityVerificationTransactionDO).update({ verificationId: challenge.id }, { status: 'completed', completedAt: verifiedAt })
