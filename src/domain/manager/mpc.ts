@@ -79,6 +79,42 @@ export class MpcManager {
     return await this.messageRepository.save(message)
   }
 
+  async saveWireMessageWithNextSequence(
+    sessionId: string,
+    buildMessage: (seq: number) => MpcMessageDO
+  ): Promise<MpcMessageDO> {
+    const ds = SingletonDataSource.get()
+    return await ds.transaction(async (entityManager) => {
+      const lockKey = `mpc_messages:${sessionId}`
+      const isMysql = ds.options.type === 'mysql' || ds.options.type === 'mariadb'
+      if (ds.options.type === 'postgres') {
+        await entityManager.query('SELECT pg_advisory_xact_lock(hashtext($1))', [lockKey])
+      } else if (isMysql) {
+        const rows = await entityManager.query('SELECT GET_LOCK(?, 10) AS acquired', [lockKey])
+        const acquired = Number(rows?.[0]?.acquired ?? rows?.[0]?.['GET_LOCK(?, 10)'])
+        if (acquired !== 1) {
+          throw new Error('MPC_MESSAGE_SEQUENCE_LOCK_TIMEOUT')
+        }
+      }
+
+      try {
+        const repository = entityManager.getRepository(MpcMessageDO)
+        const row = await repository
+          .createQueryBuilder('message')
+          .select('MAX(message.seq)', 'maxSeq')
+          .where('message.session_id = :sessionId', { sessionId })
+          .getRawOne<{ maxSeq?: string | number | null }>()
+        const maxSeq = Number(row?.maxSeq ?? 0)
+        const seq = (Number.isFinite(maxSeq) ? maxSeq : 0) + 1
+        return await repository.save(buildMessage(seq))
+      } finally {
+        if (isMysql) {
+          await entityManager.query('SELECT RELEASE_LOCK(?)', [lockKey]).catch(() => null)
+        }
+      }
+    })
+  }
+
   async getMessageById(id: string) {
     return await this.messageRepository.findOneBy({ id })
   }
