@@ -161,6 +161,24 @@ const document = {
           credentials: { type: 'array', minItems: 1, items: { type: 'string' } },
         },
       },
+      IdentityCredentialReissueChallengeRequest: {
+        type: 'object',
+        required: ['identity', 'credentialTypes'],
+        properties: {
+          identity: ref('IdentityDid'),
+          credentialTypes: { type: 'array', minItems: 1, items: { type: 'string', enum: ['EmailCredential', 'UsernameCredential'] } },
+        },
+      },
+      IdentityCredentialReissueConfirmRequest: {
+        type: 'object',
+        required: ['identity', 'challengeId', 'identityDocument', 'proof'],
+        properties: {
+          identity: ref('IdentityDid'),
+          challengeId: { type: 'string' },
+          identityDocument: { type: 'object', additionalProperties: true },
+          proof: { type: 'object', additionalProperties: true },
+        },
+      },
       IdentityPasskeyRegisterRequest: {
         type: 'object',
         required: ['identity', 'identityDocument'],
@@ -383,6 +401,8 @@ const operations = [
   ['get', '/.well-known/openid-credential-issuer', 'Identity', '查询钱包身份 issuer 元数据', 'none'],
   ['get', '/api/v1/public/identity/status', 'Identity', '查询钱包身份 Passkey 运行状态', 'none'],
   ['post', '/api/v1/public/identity/credentials/status', 'Identity', '查询钱包身份凭证状态', 'none', 'IdentityCredentialsStatusRequest'],
+  ['post', '/api/v1/public/identity/credentials/reissue/challenge', 'Identity', '创建钱包身份凭证自动续签 challenge', 'none', 'IdentityCredentialReissueChallengeRequest'],
+  ['post', '/api/v1/public/identity/credentials/reissue/confirm', 'Identity', '确认钱包身份凭证自动续签', 'none', 'IdentityCredentialReissueConfirmRequest'],
   ['post', '/api/v1/public/identity/account-links/challenge', 'Identity', '创建钱包身份账户关联 challenge', 'none', 'IdentityAccountLinkChallengeRequest'],
   ['post', '/api/v1/public/identity/account-links/verify', 'Identity', '校验钱包身份账户关联证明', 'none', 'IdentityAccountLinkVerifyRequest'],
   ['post', '/api/v1/public/identity/verifications/request', 'Identity', '请求用户名和邮箱验证', 'none', 'IdentityVerificationRequest'],

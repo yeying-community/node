@@ -153,6 +153,19 @@ export class IdentityCredentialDO {
     @Column({ length: 64, name: 'revoked_at', default: '' }) revokedAt!: string
 }
 
+@Entity('identity_credential_reissue_challenges')
+@Index('idx_identity_credential_reissue_expires', ['status', 'expiresAt'])
+export class IdentityCredentialReissueChallengeDO {
+    @PrimaryColumn({ length: 64, name: 'challenge_id' }) challengeId!: string
+    @Column({ length: 128, name: 'identity_did' }) identityDid!: string
+    @Column({ type: 'text', name: 'types_json' }) typesJson!: string
+    @Column({ length: 128 }) nonce!: string
+    @Column({ length: 32, default: 'pending' }) status!: string
+    @Column({ length: 64, name: 'issued_at' }) issuedAt!: string
+    @Column({ length: 64, name: 'expires_at' }) expiresAt!: string
+    @Column({ length: 64, name: 'consumed_at', default: '' }) consumedAt!: string
+}
+
 @Entity('identity_audit_logs')
 @Index('idx_identity_audit_identity_created', ['identityDid', 'createdAt'])
 export class IdentityAuditLogDO {
