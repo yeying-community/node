@@ -2420,6 +2420,9 @@ components:
             enum:
               - email
               - username
+              - avatar
+        avatarUri:
+          type: string
     IdentityVerificationConfirmRequest:
       type: object
       required:
@@ -2447,6 +2450,7 @@ components:
             enum:
               - email
               - username
+              - avatar
     IdentityCredentialsStatusRequest:
       type: object
       required:
@@ -2475,6 +2479,7 @@ components:
             enum:
               - EmailCredential
               - UsernameCredential
+              - AvatarCredential
     IdentityCredentialReissueConfirmRequest:
       type: object
       required:
@@ -2611,6 +2616,7 @@ components:
               - identity.wallet
               - identity.username
               - identity.email
+              - identity.avatar
         scope:
           type: array
           items:
@@ -2620,6 +2626,7 @@ components:
               - identity.wallet
               - identity.username
               - identity.email
+              - identity.avatar
         codeChallenge:
           type: string
           minLength: 43

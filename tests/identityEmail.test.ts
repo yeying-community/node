@@ -61,10 +61,11 @@ describe('identity email credential', () => {
     await verifyAccountLink({ identityDocument: document, identity, account: link.account, nonce: link.nonce, issuedAt: link.issuedAt, expiresAt: link.expiresAt, accountSignature: await wallet.signMessage(link.message) })
     let sent = ''
     const service = new IdentityEmailService(async ({ code }) => { sent = code })
-    const request = await service.request({ types: ['email', 'username'], identity, account: link.account, email: 'alice@example.com', username: 'Alice_01' } as any)
+    const request = await service.request({ types: ['email', 'username', 'avatar'], identity, account: link.account, email: 'alice@example.com', username: 'Alice_01', avatarUri: 'https://avatar.example/alice.png' } as any)
     expect(request.username).toBe('alice_01')
-    const result = await service.confirm({ types: ['email', 'username'], verificationId: request.verificationId, codes: { email: sent } })
-    expect(result.credentials.map(item => item.type)).toEqual(['UsernameCredential', 'EmailCredential'])
+    expect(request.avatarUri).toBe('https://avatar.example/alice.png')
+    const result = await service.confirm({ types: ['email', 'username', 'avatar'], verificationId: request.verificationId, codes: { email: sent } })
+    expect(result.credentials.map(item => item.type)).toEqual(['UsernameCredential', 'EmailCredential', 'AvatarCredential'])
   })
 
   it('allows the same identity to retry a username and rejects another identity', async () => {

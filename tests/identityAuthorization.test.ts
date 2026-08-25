@@ -102,16 +102,21 @@ function totpCode(secretBase32: string, nowMs = Date.now()) {
 }
 
 describe('identity authorization', () => {
-  it('exchanges a DID presentation once and returns only requested credentials', async () => {
+  it('exchanges a DID presentation once and returns requested credentials', async () => {
     const service = new IdentityAuthorizationService()
     const verifier = 'a'.repeat(43)
     const challenge = Buffer.from(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(verifier))).toString('base64url')
-    const request = await service.create({ appId: 'project', redirectUri: 'https://project.example/auth/callback', codeChallenge: challenge, codeChallengeMethod: 'S256', scopes: ['identity.email'] })
+    const request = await service.create({ appId: 'project', redirectUri: 'https://project.example/auth/callback', codeChallenge: challenge, codeChallengeMethod: 'S256', scopes: ['identity.email', 'identity.avatar'] })
     await SingletonDataSource.get()!.getRepository(IdentityCredentialDO).save(Object.assign(new IdentityCredentialDO(), { credentialId: 'email-1', identityDid: identity, credentialType: 'EmailCredential', token: 'credential', status: 'active', issuedAt: new Date().toISOString(), expiresAt: new Date(Date.now() + 60_000).toISOString(), revokedAt: '' }))
+    await SingletonDataSource.get()!.getRepository(IdentityCredentialDO).save(Object.assign(new IdentityCredentialDO(), { credentialId: 'avatar-1', identityDid: identity, credentialType: 'AvatarCredential', token: 'avatar-credential', status: 'active', issuedAt: new Date().toISOString(), expiresAt: new Date(Date.now() + 60_000).toISOString(), revokedAt: '' }))
     const approved = await service.approve({ requestId: request.requestId, presentation: presentation(request) })
     const exchanged = await service.exchange({ code: approved.authorizationCode, appId: 'project', redirectUri: 'https://project.example/auth/callback', codeVerifier: verifier })
     expect(exchanged.did).toBe(identity)
-    expect(exchanged.credentials).toEqual([{ type: 'EmailCredential', credentialId: 'email-1', credential: 'credential' }])
+    expect(exchanged.credentials).toEqual(expect.arrayContaining([
+      { type: 'EmailCredential', credentialId: 'email-1', credential: 'credential' },
+      { type: 'AvatarCredential', credentialId: 'avatar-1', credential: 'avatar-credential' }
+    ]))
+    expect(exchanged.credentials).toHaveLength(2)
     await expect(service.exchange({ code: approved.authorizationCode, appId: 'project', redirectUri: 'https://project.example/auth/callback', codeVerifier: verifier })).rejects.toThrow('IDENTITY_AUTHORIZATION_CODE_INVALID')
   })
 

@@ -89,6 +89,7 @@ import { AddMpcSignRequestResult20260821152000 } from './migrations/202608211520
 import { AddMpcSignRequestPayload20260821162000 } from './migrations/20260821162000-add-mpc-sign-request-payload';
 import { AddIdentityTotpAuthenticators20260823110000 } from './migrations/20260823110000-add-identity-totp-authenticators';
 import { AddIdentityCredentialReissueChallenges20260825100000 } from './migrations/20260825100000-add-identity-credential-reissue-challenges';
+import { AddIdentityVerificationAvatarUri20260825110000 } from './migrations/20260825110000-add-identity-verification-avatar-uri';
 import { AddScopedGrants20260808090000 } from './migrations/20260808090000-add-scoped-grants';
 import { getConfig } from './config/runtime';
 import { startActionRequestCleanupJobs } from './domain/service/actionRequestCleanup';
@@ -337,7 +338,8 @@ builder.migrations([
     AddMpcSignRequestResult20260821152000,
     AddMpcSignRequestPayload20260821162000,
     AddIdentityTotpAuthenticators20260823110000,
-    AddIdentityCredentialReissueChallenges20260825100000
+    AddIdentityCredentialReissueChallenges20260825100000,
+    AddIdentityVerificationAvatarUri20260825110000
 ])
 
 builder.build().initialize().then(async (conn) => {

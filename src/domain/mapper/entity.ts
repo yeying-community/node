@@ -118,6 +118,7 @@ export class IdentityVerificationTransactionDO {
     @Column({ length: 128, name: 'identity_did' }) identityDid!: string
     @Column({ type: 'text', name: 'types_json' }) typesJson!: string
     @Column({ length: 320, default: '' }) email!: string
+    @Column({ length: 2048, name: 'avatar_uri', default: '' }) avatarUri!: string
     @Column({ length: 128, name: 'username', default: '' }) username!: string
     @Column({ length: 128, name: 'email_code_hash', default: '' }) emailCodeHash!: string
     @Column({ type: 'integer', default: 0 }) attempts!: number

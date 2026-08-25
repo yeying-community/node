@@ -139,7 +139,8 @@ const document = {
           email: { type: 'string', format: 'email' },
           username: { type: 'string', minLength: 3, maxLength: 32 },
           type: { type: 'string', enum: ['email', 'username'] },
-          types: { type: 'array', items: { type: 'string', enum: ['email', 'username'] } },
+          types: { type: 'array', items: { type: 'string', enum: ['email', 'username', 'avatar'] } },
+          avatarUri: { type: 'string' },
         },
       },
       IdentityVerificationConfirmRequest: {
@@ -150,7 +151,7 @@ const document = {
           code: { type: 'string' },
           codes: { type: 'object', additionalProperties: { type: 'string' } },
           type: { type: 'string', enum: ['email', 'username'] },
-          types: { type: 'array', items: { type: 'string', enum: ['email', 'username'] } },
+          types: { type: 'array', items: { type: 'string', enum: ['email', 'username', 'avatar'] } },
         },
       },
       IdentityCredentialsStatusRequest: {
@@ -166,7 +167,7 @@ const document = {
         required: ['identity', 'credentialTypes'],
         properties: {
           identity: ref('IdentityDid'),
-          credentialTypes: { type: 'array', minItems: 1, items: { type: 'string', enum: ['EmailCredential', 'UsernameCredential'] } },
+          credentialTypes: { type: 'array', minItems: 1, items: { type: 'string', enum: ['EmailCredential', 'UsernameCredential', 'AvatarCredential'] } },
         },
       },
       IdentityCredentialReissueConfirmRequest: {
@@ -253,8 +254,8 @@ const document = {
           appId: { type: 'string' },
           redirectUri: { type: 'string', format: 'uri' },
           state: { type: 'string' },
-          scopes: { type: 'array', items: { type: 'string', enum: ['identity.basic', 'identity.wallet', 'identity.username', 'identity.email'] } },
-          scope: { type: 'array', items: { type: 'string', enum: ['identity.basic', 'identity.wallet', 'identity.username', 'identity.email'] } },
+          scopes: { type: 'array', items: { type: 'string', enum: ['identity.basic', 'identity.wallet', 'identity.username', 'identity.email', 'identity.avatar'] } },
+          scope: { type: 'array', items: { type: 'string', enum: ['identity.basic', 'identity.wallet', 'identity.username', 'identity.email', 'identity.avatar'] } },
           codeChallenge: { type: 'string', minLength: 43, maxLength: 128 },
           code_challenge: { type: 'string', minLength: 43, maxLength: 128 },
           codeChallengeMethod: { type: 'string', enum: ['S256'] },

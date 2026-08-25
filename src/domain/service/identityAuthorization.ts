@@ -10,7 +10,7 @@ import { getConfig } from '../../config/runtime'
 
 const REQUEST_TTL_MS = 5 * 60 * 1000
 const CODE_TTL_MS = 60 * 1000
-const ALLOWED_SCOPES = new Set(['identity.basic', 'identity.wallet', 'identity.username', 'identity.email'])
+const ALLOWED_SCOPES = new Set(['identity.basic', 'identity.wallet', 'identity.username', 'identity.email', 'identity.avatar'])
 const ED25519_SPKI_PREFIX = Buffer.from('302a300506032b6570032100', 'hex')
 const VERIFY_PATH = '/identity/authorize'
 
@@ -304,7 +304,7 @@ export class IdentityAuthorizationService {
     if (row.appId !== string(input.appId) || row.redirectUri !== string(input.redirectUri)) throw new Error('IDENTITY_AUTHORIZATION_CODE_APP_MISMATCH')
     pkce(input.codeVerifier, row.codeChallenge); row.used = true; row.usedAt = now(); await repo.save(row)
     const requested = scopes(JSON.parse(row.scopesJson)); const credentials = await dataSource().getRepository(IdentityCredentialDO).findBy({ identityDid: row.identityDid, status: 'active' })
-    const wanted = new Set(requested.includes('identity.email') ? ['EmailCredential'] : []); if (requested.includes('identity.username')) wanted.add('UsernameCredential')
+    const wanted = new Set(requested.includes('identity.email') ? ['EmailCredential'] : []); if (requested.includes('identity.username')) wanted.add('UsernameCredential'); if (requested.includes('identity.avatar')) wanted.add('AvatarCredential')
     const accountLinks = await dataSource().getRepository(IdentityAccountLinkDO).findBy({ identityDid: row.identityDid, status: 'active' })
     const walletAddress = accountLinks.find(link => link.chainKey?.startsWith('eip155:'))?.accountId || ''
     return { requestId: row.requestId, appId: row.appId, redirectUri: row.redirectUri, state: row.state, did: row.identityDid, walletAddress, scopes: requested, issuedAt: row.usedAt, credentials: credentials.filter(item => wanted.has(item.credentialType) && Date.parse(item.expiresAt) > Date.now()).map(item => ({ type: item.credentialType, credentialId: item.credentialId, credential: item.token })) }
@@ -323,6 +323,7 @@ export class IdentityAuthorizationService {
     const activeTypes = new Set(credentials.filter(item => !string(item.revokedAt) && Date.parse(item.expiresAt) > Date.now()).map(item => item.credentialType))
     if (requested.includes('identity.email') && !activeTypes.has('EmailCredential')) throw new Error('IDENTITY_EMAIL_REQUIRED')
     if (requested.includes('identity.username') && !activeTypes.has('UsernameCredential')) throw new Error('IDENTITY_USERNAME_REQUIRED')
+    if (requested.includes('identity.avatar') && !activeTypes.has('AvatarCredential')) throw new Error('IDENTITY_AVATAR_REQUIRED')
   }
 
   private async issueCode(row: IdentityAuthorizationRequestDO, identityDid: string) {

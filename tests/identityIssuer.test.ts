@@ -97,16 +97,34 @@ describe('identity issuer foundation', () => {
       expiresAt: '2026-08-20T00:01:00.000Z',
       revokedAt: ''
     }))
+    const expiredAvatarCredential = issueIdentityCredential({
+      credentialId: 'avatar-expired-1',
+      subject: identity,
+      type: 'AvatarCredential',
+      claim: { avatarUri: 'https://avatar.example/alice.png', credentialStatus: { id: 'avatar-expired-1', type: 'YeyingCredentialStatusV1' } },
+      expiresInSeconds: 60
+    })
+    await SingletonDataSource.get()!.getRepository(IdentityCredentialDO).save(Object.assign(new IdentityCredentialDO(), {
+      credentialId: 'avatar-expired-1',
+      identityDid: identity,
+      credentialType: 'AvatarCredential',
+      token: expiredAvatarCredential,
+      status: 'active',
+      issuedAt: '2026-08-20T00:00:00.000Z',
+      expiresAt: '2026-08-20T00:01:00.000Z',
+      revokedAt: ''
+    }))
 
-    const challenge = await createCredentialReissueChallenge({ identity, credentialTypes: ['EmailCredential'] })
+    const challenge = await createCredentialReissueChallenge({ identity, credentialTypes: ['EmailCredential', 'AvatarCredential'] })
     const proof = { type: 'YeyingCredentialReissueProofV1', verificationMethod: `${identity}#controller-1`, purpose: 'authentication', proofValue: sign(null, Buffer.from(challenge.signingInput), privateKey).toString('base64url') }
     const result = await confirmCredentialReissue({ identity, challengeId: challenge.challengeId, identityDocument, proof })
 
-    expect(result.credentials).toHaveLength(1)
+    expect(result.credentials).toHaveLength(2)
     expect(result.credentials[0].credentialId).toContain('urn:yeying:credential:reissue:email:')
     const payload = JSON.parse(Buffer.from(result.credentials[0].credential.split('.')[1], 'base64url').toString())
     expect(payload.vc.credentialSubject.email).toBe('alice@example.com')
     expect(payload.vc.credentialSubject.credentialStatus.id).toBe(result.credentials[0].credentialId)
+    expect(result.credentials[1].credentialId).toContain('urn:yeying:credential:reissue:avatar:')
     await expect(confirmCredentialReissue({ identity, challengeId: challenge.challengeId, identityDocument, proof })).rejects.toThrow('IDENTITY_CREDENTIAL_REISSUE_CHALLENGE_NOT_FOUND')
   })
 })

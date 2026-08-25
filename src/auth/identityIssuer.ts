@@ -23,14 +23,16 @@ function assertIdentityDid(value: unknown) {
   return did
 }
 
-function normalizeCredentialTypes(input: unknown): Array<'EmailCredential' | 'UsernameCredential'> {
+type IdentityCredentialType = 'EmailCredential' | 'UsernameCredential' | 'AvatarCredential'
+
+function normalizeCredentialTypes(input: unknown): IdentityCredentialType[] {
   const values = Array.isArray(input) ? input : []
   const types = [...new Set(values.map(value => String(value || '').trim()).filter(Boolean))]
   if (types.length === 0) throw new Error('IDENTITY_CREDENTIAL_TYPES_REQUIRED')
   for (const type of types) {
-    if (type !== 'EmailCredential' && type !== 'UsernameCredential') throw new Error('IDENTITY_CREDENTIAL_TYPE_UNSUPPORTED')
+    if (type !== 'EmailCredential' && type !== 'UsernameCredential' && type !== 'AvatarCredential') throw new Error('IDENTITY_CREDENTIAL_TYPE_UNSUPPORTED')
   }
-  return types as Array<'EmailCredential' | 'UsernameCredential'>
+  return types as IdentityCredentialType[]
 }
 
 function decodeCredentialPayload(token: string): any {
@@ -48,6 +50,12 @@ function credentialClaimForReissue(record: IdentityCredentialDO) {
     ...claim,
     credentialStatus: { id: '', type: 'YeyingCredentialStatusV1' }
   }
+}
+
+function credentialKind(type: IdentityCredentialType) {
+  if (type === 'EmailCredential') return 'email'
+  if (type === 'UsernameCredential') return 'username'
+  return 'avatar'
 }
 
 export function getIdentityIssuerDid() {
@@ -77,7 +85,7 @@ export function getIdentityIssuerJwks() {
 export function issueIdentityCredential(input: {
   credentialId: string
   subject: string
-  type: 'UsernameCredential' | 'EmailCredential'
+  type: IdentityCredentialType
   claim: Record<string, unknown>
   expiresInSeconds?: number
 }) {
@@ -167,7 +175,7 @@ export async function confirmCredentialReissue(input: { identity: unknown; chall
         .filter((record: IdentityCredentialDO) => !String(record.revokedAt || '').trim())
         .sort((a: IdentityCredentialDO, b: IdentityCredentialDO) => Date.parse(b.issuedAt) - Date.parse(a.issuedAt))[0]
       if (!source) throw new Error(`IDENTITY_CREDENTIAL_REISSUE_UNAVAILABLE:${credentialType}`)
-      const credentialId = `urn:yeying:credential:reissue:${credentialType === 'EmailCredential' ? 'email' : 'username'}:${randomUUID()}`
+      const credentialId = `urn:yeying:credential:reissue:${credentialKind(credentialType)}:${randomUUID()}`
       const claim = credentialClaimForReissue(source)
       claim.credentialStatus = { id: credentialId, type: 'YeyingCredentialStatusV1' }
       const credential = issueIdentityCredential({ credentialId, subject: identity, type: credentialType, claim })
