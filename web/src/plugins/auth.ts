@@ -1,5 +1,6 @@
 import { notifyError } from '@/utils/message';
 import { getWalletDataStore } from '@/stores/auth';
+import { apiUrl } from '@/plugins/api';
 import {
   authUcanFetch,
   classifyWalletError,
@@ -35,9 +36,40 @@ type CachedToken = {
   token: string;
 };
 
+type AuthProfile = {
+  address: string;
+  issuer?: string;
+  ucanSource?: 'wallet' | 'central';
+  authType?: 'jwt' | 'ucan';
+  issuedAt?: number;
+};
+
+type AuthEnvelope<T> = {
+  code: number;
+  message: string;
+  data: T;
+  timestamp: number;
+};
+
+type SiweChallenge = {
+  address: string;
+  challenge: string;
+  nonce: string;
+  issuedAt: number;
+  expiresAt: number;
+};
+
+type SiweVerifyResult = {
+  address: string;
+  token: string;
+  expiresAt: number;
+  refreshExpiresAt: number;
+};
+
 const UCAN_API_TOKEN_KEY = 'ucanToken';
 const UCAN_WEBDAV_TOKEN_KEY = 'webdavToken';
 const AUTH_TOKEN_KEY = 'authToken';
+const AUTH_TOKEN_EXPIRES_AT_KEY = 'authTokenExpiresAt';
 const AUTH_MANUAL_LOGOUT_KEY = 'authManualLogout';
 const LOGIN_COMPLETION_WAIT_MS = 60000;
 const LOGIN_COMPLETION_POLL_MS = 300;
@@ -55,6 +87,7 @@ let loginInFlight: {
   promise: Promise<boolean>;
 } | null = null;
 let cachedApiToken: CachedToken | null = null;
+let cachedApiUcanToken: CachedToken | null = null;
 let cachedWebDavToken: CachedToken | null = null;
 let cachedSession: UcanSessionKey | null = null;
 let cachedRoot: UcanRootProof | null = null;
@@ -533,6 +566,31 @@ function parseCachedToken(token: string): CachedToken | null {
   return { token };
 }
 
+function decodeBase64UrlJson<T>(segment: string): T | null {
+  try {
+    const normalized = segment.replace(/-/g, '+').replace(/_/g, '/');
+    const padded = normalized.padEnd(normalized.length + ((4 - normalized.length % 4) % 4), '=');
+    return JSON.parse(window.atob(padded)) as T;
+  } catch {
+    return null;
+  }
+}
+
+function getJwtExpiresAt(token: string): number | null {
+  const [, payloadPart] = String(token || '').split('.');
+  if (!payloadPart) return null;
+  const payload = decodeBase64UrlJson<{ exp?: number; typ?: string }>(payloadPart);
+  if (!payload || payload.typ !== 'access' || typeof payload.exp !== 'number') {
+    return null;
+  }
+  return payload.exp * 1000;
+}
+
+function isJwtTokenFresh(token: string, skewMs = DEFAULT_UCAN_TOKEN_SKEW_MS): boolean {
+  const expiresAt = getJwtExpiresAt(token);
+  return Boolean(expiresAt && Date.now() + skewMs < expiresAt);
+}
+
 function isTokenValid(entry: CachedToken | null): boolean {
   return Boolean(entry && isUcanTokenFresh(entry.token, {
     skewMs: DEFAULT_UCAN_TOKEN_SKEW_MS,
@@ -579,9 +637,33 @@ function persistToken(key: string, entry: CachedToken) {
   localStorage.setItem(key, entry.token);
 }
 
+function persistAuthToken(token: string, expiresAt?: number) {
+  if (typeof localStorage === 'undefined') return;
+  const resolvedExpiresAt = Number(expiresAt || getJwtExpiresAt(token) || 0);
+  localStorage.setItem(AUTH_TOKEN_KEY, token);
+  if (resolvedExpiresAt > 0) {
+    localStorage.setItem(AUTH_TOKEN_EXPIRES_AT_KEY, String(resolvedExpiresAt));
+  } else {
+    localStorage.removeItem(AUTH_TOKEN_EXPIRES_AT_KEY);
+  }
+  cachedApiToken = { token };
+}
+
 function clearStoredToken(key: string) {
   if (typeof localStorage === 'undefined') return;
   localStorage.removeItem(key);
+}
+
+function readStoredAuthToken(): CachedToken | null {
+  if (typeof localStorage === 'undefined') return null;
+  const token = String(localStorage.getItem(AUTH_TOKEN_KEY) || '').trim();
+  if (!token) return null;
+  if (!isJwtTokenFresh(token)) {
+    clearStoredToken(AUTH_TOKEN_KEY);
+    clearStoredToken(AUTH_TOKEN_EXPIRES_AT_KEY);
+    return null;
+  }
+  return { token };
 }
 
 function isManualLogout(): boolean {
@@ -599,12 +681,86 @@ function clearManualLogoutMark() {
   localStorage.removeItem(AUTH_MANUAL_LOGOUT_KEY);
 }
 
-function updateAuthTokenCache(token: string) {
-  const parsed = parseCachedToken(token);
-  if (!parsed) return;
-  cachedApiToken = parsed;
-  persistToken(UCAN_API_TOKEN_KEY, parsed);
-  persistToken(AUTH_TOKEN_KEY, parsed);
+async function parseAuthEnvelope<T>(response: Response, fallbackMessage: string): Promise<T> {
+  const text = await response.text();
+  let payload: AuthEnvelope<T> | null = null;
+  if (text) {
+    try {
+      payload = JSON.parse(text) as AuthEnvelope<T>;
+    } catch {
+      throw new Error(`${fallbackMessage}: ${text}`);
+    }
+  }
+  if (!response.ok || payload?.code !== 0) {
+    throw new Error(payload?.message || `${fallbackMessage}: ${response.status}`);
+  }
+  return payload.data;
+}
+
+async function postAuthJson<T>(path: string, body: Record<string, unknown>, fallbackMessage: string): Promise<T> {
+  const response = await fetch(apiUrl(path), {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    credentials: 'include',
+    body: JSON.stringify(body),
+  });
+  return await parseAuthEnvelope<T>(response, fallbackMessage);
+}
+
+async function requestSiweChallenge(address: string, chainId?: number): Promise<SiweChallenge> {
+  return await postAuthJson<SiweChallenge>(
+    '/api/v1/public/auth/challenge',
+    { address, chainId },
+    '创建登录挑战失败'
+  );
+}
+
+async function verifySiweSignature(address: string, signature: string): Promise<SiweVerifyResult> {
+  return await postAuthJson<SiweVerifyResult>(
+    '/api/v1/public/auth/verify',
+    { address, signature },
+    '钱包签名验证失败'
+  );
+}
+
+async function refreshSiweToken(): Promise<CachedToken | null> {
+  if (isManualLogout()) return null;
+  try {
+    const result = await postAuthJson<SiweVerifyResult>(
+      '/api/v1/public/auth/refresh',
+      {},
+      '刷新登录态失败'
+    );
+    persistAuthToken(result.token, result.expiresAt);
+    if (result.address) {
+      localStorage.setItem('currentAccount', result.address);
+    }
+    return { token: result.token };
+  } catch {
+    clearStoredToken(AUTH_TOKEN_KEY);
+    clearStoredToken(AUTH_TOKEN_EXPIRES_AT_KEY);
+    cachedApiToken = null;
+    return null;
+  }
+}
+
+export async function getVerifiedAuthProfile(): Promise<AuthProfile | null> {
+  const token = await getAuthToken();
+  if (!token) return null;
+  try {
+    const response = await fetch(apiUrl('/api/v1/public/profile/me'), {
+      method: 'GET',
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+      credentials: 'include',
+    });
+    return await parseAuthEnvelope<AuthProfile>(response, '查询登录身份失败');
+  } catch {
+    return null;
+  }
 }
 
 function updateWebDavTokenCache(token: string) {
@@ -616,6 +772,7 @@ function updateWebDavTokenCache(token: string) {
 
 function resetTokenCaches() {
   cachedApiToken = null;
+  cachedApiUcanToken = null;
   cachedWebDavToken = null;
   cachedSession = null;
   cachedRoot = null;
@@ -626,13 +783,17 @@ function clearTokenStores() {
   clearStoredToken(UCAN_API_TOKEN_KEY);
   clearStoredToken(UCAN_WEBDAV_TOKEN_KEY);
   clearStoredToken(AUTH_TOKEN_KEY);
+  clearStoredToken(AUTH_TOKEN_EXPIRES_AT_KEY);
 }
 
 function hasValidApiToken(): boolean {
-  const audience = resolveApiAudience();
-  const capabilities = getApiUcanCapabilities();
-  if (tokenMatchesExpectedClaims(cachedApiToken, { audience, capabilities })) return true;
-  return Boolean(readStoredToken(UCAN_API_TOKEN_KEY, { audience, capabilities }));
+  if (cachedApiToken?.token && isJwtTokenFresh(cachedApiToken.token)) return true;
+  const stored = readStoredAuthToken();
+  if (stored) {
+    cachedApiToken = stored;
+    return true;
+  }
+  return false;
 }
 
 function clearUcanSessionQuietly() {
@@ -740,7 +901,7 @@ async function issueInvocationToken(options: {
     throw new Error('用户已退出登录');
   }
 
-  const cache = options.cache === 'api' ? cachedApiToken : cachedWebDavToken;
+  const cache = options.cache === 'api' ? cachedApiUcanToken : cachedWebDavToken;
   if (tokenMatchesExpectedClaims(cache, {
     audience: options.audience,
     capabilities: options.capabilities,
@@ -756,9 +917,8 @@ async function issueInvocationToken(options: {
     }
   );
   if (stored) {
-    if (options.cache === 'api') {
-      cachedApiToken = stored;
-      persistToken(AUTH_TOKEN_KEY, stored);
+  if (options.cache === 'api') {
+      cachedApiUcanToken = stored;
     } else {
       cachedWebDavToken = stored;
     }
@@ -778,7 +938,11 @@ async function issueInvocationToken(options: {
     proofs: [root],
   });
   if (options.cache === 'api') {
-    updateAuthTokenCache(token);
+    const parsed = parseCachedToken(token);
+    if (parsed) {
+      cachedApiUcanToken = parsed;
+      persistToken(UCAN_API_TOKEN_KEY, parsed);
+    }
   } else {
     updateWebDavTokenCache(token);
   }
@@ -786,13 +950,22 @@ async function issueInvocationToken(options: {
 }
 
 export async function getAuthToken(providerOverride?: Eip1193Provider): Promise<string> {
-  const capabilities = getApiUcanCapabilities();
-  return await issueInvocationToken({
-    provider: providerOverride,
-    audience: resolveApiAudience(),
-    capabilities,
-    cache: 'api',
-  });
+  if (isManualLogout()) {
+    throw new Error('用户已退出登录');
+  }
+  if (cachedApiToken?.token && isJwtTokenFresh(cachedApiToken.token)) {
+    return cachedApiToken.token;
+  }
+  const stored = readStoredAuthToken();
+  if (stored) {
+    cachedApiToken = stored;
+    return stored.token;
+  }
+  const refreshed = await refreshSiweToken();
+  if (refreshed) {
+    return refreshed.token;
+  }
+  throw new Error('缺少登录态，请重新登录');
 }
 
 export async function getWebDavToken(providerOverride?: Eip1193Provider): Promise<string> {
@@ -858,7 +1031,7 @@ export async function connectWallet(router: any, route: any) {
       const accounts = await requestWalletAccounts(provider);
       if (Array.isArray(accounts) && accounts.length > 0) {
         const currentAccount = accounts[0];
-        const ok = await loginWithUcan(provider, currentAccount);
+        const ok = await loginWithSiwe(provider, currentAccount);
         if (!ok) {
           notifyError('登录失败，未获取到令牌');
           return;
@@ -895,16 +1068,20 @@ export function getStoredAuthToken() {
   if (typeof localStorage === 'undefined') {
     return '';
   }
-  const stored = readStoredToken(AUTH_TOKEN_KEY, {
-    audience: resolveApiAudience(),
-    capabilities: getApiUcanCapabilities(),
-  });
+  const stored = readStoredAuthToken();
+  if (stored) {
+    cachedApiToken = stored;
+  }
   return String(stored?.token || '').trim();
 }
 
 export async function logoutWithUcan(options: { redirect?: boolean } = {}) {
   const redirect = options.redirect !== false;
   markManualLogout();
+  await fetch(apiUrl('/api/v1/public/auth/logout'), {
+    method: 'POST',
+    credentials: 'include',
+  }).catch(() => undefined);
   await clearAuthSession({ waitForUcanSession: true });
   emitAccountChange(null);
   if (redirect) {
@@ -990,10 +1167,7 @@ export async function ensureWalletSession(options: { redirect?: boolean } = {}) 
     emitAccountChange(activeAccount);
   }
   if (!accountChanged && hasValidApiToken()) {
-    const stored = readStoredToken(UCAN_API_TOKEN_KEY, {
-      audience: resolveApiAudience(),
-      capabilities: getApiUcanCapabilities(),
-    });
+    const stored = readStoredAuthToken();
     if (stored) {
       cachedApiToken = stored;
     }
@@ -1072,8 +1246,8 @@ export async function getBalance() {
   }
 }
 
-// UCAN 登录
-export async function loginWithUcan(
+// SIWE 登录
+export async function loginWithSiwe(
   providerOverride?: Eip1193Provider,
   accountOverride?: string
 ): Promise<boolean> {
@@ -1105,7 +1279,20 @@ export async function loginWithUcan(
       handleAccountChange(currentAccount);
       emitAccountChange(currentAccount);
       clearManualLogoutMark();
-      await getAuthToken(provider);
+      let chainId: number | undefined;
+      try {
+        const rawChainId = await web3GetChainId(provider);
+        chainId = rawChainId ? Number.parseInt(String(rawChainId), 16) : undefined;
+      } catch {
+        chainId = undefined;
+      }
+      const challenge = await requestSiweChallenge(currentAccount, chainId);
+      const signature = (await provider.request({
+        method: 'personal_sign',
+        params: [challenge.challenge, currentAccount],
+      })) as string;
+      const verified = await verifySiweSignature(currentAccount, signature);
+      persistAuthToken(verified.token, verified.expiresAt);
       try {
         await getWebDavToken(provider);
       } catch {
@@ -1125,6 +1312,14 @@ export async function loginWithUcan(
       loginInFlight = null;
     }
   }
+}
+
+// 保留旧名称，避免已有调用断裂；Node 主登录现在走 SIWE/JWT。
+export async function loginWithUcan(
+  providerOverride?: Eip1193Provider,
+  accountOverride?: string
+): Promise<boolean> {
+  return await loginWithSiwe(providerOverride, accountOverride);
 }
 
 // 保留旧名称，保持兼容

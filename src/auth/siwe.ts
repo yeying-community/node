@@ -9,6 +9,10 @@ export type ChallengeRecord = {
   address: string;
   challenge: string;
   nonce: string;
+  domain: string;
+  uri: string;
+  version: '1';
+  chainId: number;
   issuedAt: number;
   expiresAt: number;
 };
@@ -74,6 +78,10 @@ const CHALLENGE_TTL_MS = parseNumber(
   getConfig<number>('auth.challengeTtlMs'),
   5 * 60 * 1000
 );
+const DEFAULT_CHAIN_ID = parseNumber(
+  getConfig<number>('auth.chainId'),
+  1
+);
 
 const challenges = new Map<string, ChallengeRecord>();
 const refreshStore = new Map<string, { address: string; expiresAt: number }>();
@@ -92,27 +100,72 @@ function normalizeAddress(address: string): string {
   return address.trim().toLowerCase();
 }
 
-function createChallengeMessage(address: string, nonce: string, issuedAt: number, expiresAt: number): string {
+function createChallengeMessage(input: {
+  domain: string;
+  address: string;
+  uri: string;
+  chainId: number;
+  nonce: string;
+  issuedAt: number;
+  expiresAt: number;
+}): string {
   return [
-    'Sign to login YeYing Wallet',
+    `${input.domain} wants you to sign in with your Ethereum account:`,
+    input.address,
     '',
-    `Address: ${address}`,
-    `Nonce: ${nonce}`,
-    `Issued At: ${new Date(issuedAt).toISOString()}`,
-    `Expires At: ${new Date(expiresAt).toISOString()}`,
+    'Sign in to YeYing Node.',
+    '',
+    `URI: ${input.uri}`,
+    'Version: 1',
+    `Chain ID: ${input.chainId}`,
+    `Nonce: ${input.nonce}`,
+    `Issued At: ${new Date(input.issuedAt).toISOString()}`,
+    `Expiration Time: ${new Date(input.expiresAt).toISOString()}`,
   ].join('\n');
 }
 
-export function issueChallenge(address: string): ChallengeRecord {
+function normalizeDomain(value: unknown): string {
+  const raw = String(value || '').trim();
+  if (!raw) return 'localhost';
+  return raw.replace(/^https?:\/\//i, '').split('/')[0] || 'localhost';
+}
+
+function normalizeUri(value: unknown, domain: string): string {
+  const raw = String(value || '').trim();
+  if (/^https?:\/\//i.test(raw)) {
+    return raw;
+  }
+  return `https://${domain}`;
+}
+
+export function issueChallenge(
+  address: string,
+  context: { domain?: string; uri?: string; chainId?: number } = {}
+): ChallengeRecord {
   const normalized = normalizeAddress(address);
+  const domain = normalizeDomain(context.domain);
+  const uri = normalizeUri(context.uri, domain);
+  const chainId = parseNumber(context.chainId, DEFAULT_CHAIN_ID);
   const nonce = randomBytes(16).toString('hex');
   const issuedAt = now();
   const expiresAt = issuedAt + CHALLENGE_TTL_MS;
-  const challenge = createChallengeMessage(normalized, nonce, issuedAt, expiresAt);
+  const challenge = createChallengeMessage({
+    domain,
+    address: normalized,
+    uri,
+    chainId,
+    nonce,
+    issuedAt,
+    expiresAt,
+  });
   const record: ChallengeRecord = {
     address: normalized,
     challenge,
     nonce,
+    domain,
+    uri,
+    version: '1',
+    chainId,
     issuedAt,
     expiresAt,
   };

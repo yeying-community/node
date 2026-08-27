@@ -18,7 +18,15 @@ vi.mock('../src/config/runtime', () => ({
   }),
 }))
 
-const { getRouteRequiredUcanCapabilities } = await import('../src/middleware/authMiddleware')
+vi.mock('../src/domain/facade/logger', () => ({
+  SingletonLogger: {
+    get: () => ({
+      warn: vi.fn(),
+    }),
+  },
+}))
+
+const { default: authenticateToken, getRouteRequiredUcanCapabilities } = await import('../src/middleware/authMiddleware')
 
 describe('auth middleware route capabilities', () => {
   afterEach(() => {
@@ -70,5 +78,34 @@ describe('auth middleware route capabilities', () => {
         path: '/public/applications',
       }),
     ).toBeNull()
+  })
+
+  it('rejects non-UCAN tokens on capability routes', () => {
+    const status = vi.fn().mockReturnThis()
+    const json = vi.fn()
+    const next = vi.fn()
+
+    authenticateToken(
+      {
+        method: 'GET',
+        baseUrl: '/api/v1',
+        path: '/public/custody/status',
+        originalUrl: '/api/v1/public/custody/status',
+        headers: {
+          authorization: 'Bearer jwt-token',
+        },
+        query: {},
+        socket: {},
+      } as any,
+      { status, json } as any,
+      next,
+    )
+
+    expect(status).toHaveBeenCalledWith(401)
+    expect(json).toHaveBeenCalledWith(expect.objectContaining({
+      code: 401,
+      message: 'UCAN token required',
+    }))
+    expect(next).not.toHaveBeenCalled()
   })
 })

@@ -111,9 +111,9 @@ const authenticateToken = (req: Request, res: Response, next: NextFunction) => {
     return;
   }
 
+  const routeCaps = getRouteRequiredUcanCapabilities(req);
   if (isUcanToken(token)) {
     try {
-      const routeCaps = getRouteRequiredUcanCapabilities(req);
       const result =
         routeCaps && routeCaps.length > 0
           ? verifyUcanInvocationWithCap(token, routeCaps)
@@ -148,6 +148,17 @@ const authenticateToken = (req: Request, res: Response, next: NextFunction) => {
       res.status(401).json(fail(401, message));
       return;
     }
+  }
+
+  if (routeCaps && routeCaps.length > 0) {
+    logger.warn('ucan required for capability route', {
+      method: req.method,
+      path: req.originalUrl,
+      ip: getRequestIp(req),
+      expectedCap: routeCaps,
+    });
+    res.status(401).json(fail(401, 'UCAN token required'));
+    return;
   }
 
   const payload = verifyAccessToken(token);

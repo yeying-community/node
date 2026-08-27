@@ -4,6 +4,39 @@
       <el-breadcrumb-item>{{ mt('breadcrumb') }}</el-breadcrumb-item>
     </el-breadcrumb>
 
+    <div class="identity-main-card wallet-identity-card">
+      <div class="identity-card-head">
+        <div>
+          <div class="identity-title-row">
+            <span>{{ mt('walletIdentityCardTitle') }}</span>
+            <span class="identity-status" :class="{ verified: Boolean(authProfile?.address) }">
+              {{ authProfile?.address ? mt('verified') : mt('notVerified') }}
+            </span>
+          </div>
+          <div class="section-hint">{{ mt('walletIdentityHint') }}</div>
+        </div>
+      </div>
+
+      <div class="security-summary-grid wallet-summary-grid">
+        <div class="summary-identity">
+          <span class="summary-label">{{ mt('walletAddress') }}</span>
+          <span class="path-text">{{ authProfile?.address || '-' }}</span>
+        </div>
+        <div class="summary-identity">
+          <span class="summary-label">{{ mt('authMethod') }}</span>
+          <span>{{ authMethodLabel }}</span>
+        </div>
+        <div class="summary-identity">
+          <span class="summary-label">{{ mt('authSource') }}</span>
+          <span>{{ authSourceLabel }}</span>
+        </div>
+        <div class="summary-identity">
+          <span class="summary-label">{{ mt('issuer') }}</span>
+          <span class="path-text">{{ authProfile?.issuer || '-' }}</span>
+        </div>
+      </div>
+    </div>
+
     <div class="security-card-grid">
       <div class="identity-main-card security-card">
         <div class="identity-card-head">
@@ -65,7 +98,7 @@
             <strong>{{ totpConfigSummary }}</strong>
           </div>
           <div class="summary-identity">
-            <span class="summary-label">{{ mt('issuer') }}</span>
+            <span class="summary-label">{{ mt('totpIssuer') }}</span>
             <span>{{ totpStatus?.issuerName || '-' }}</span>
           </div>
           <div class="summary-identity">
@@ -82,6 +115,7 @@
 import { computed, onMounted, ref } from 'vue';
 import { apiUrl } from '@/plugins/api';
 import { getLocaleRef } from '@/lang/locale';
+import { getVerifiedAuthProfile } from '@/plugins/auth';
 import { notifyError, notifyInfo } from '@/utils/message';
 import { getMyConfigMessage, type MyConfigMessageKey } from './myConfigI18n';
 
@@ -113,6 +147,13 @@ type TotpStatus = {
   error?: string;
 };
 
+type AuthProfile = {
+  address: string;
+  issuer?: string;
+  ucanSource?: 'wallet' | 'central';
+  authType?: 'jwt' | 'ucan';
+};
+
 const locale = getLocaleRef();
 
 function mt(key: MyConfigMessageKey): string {
@@ -121,6 +162,18 @@ function mt(key: MyConfigMessageKey): string {
 
 const passkeyStatus = ref<PasskeyStatus | null>(null);
 const totpStatus = ref<TotpStatus | null>(null);
+const authProfile = ref<AuthProfile | null>(null);
+
+const authMethodLabel = computed(() => {
+  if (!authProfile.value?.authType) return '-';
+  return authProfile.value.authType === 'jwt' ? 'SIWE' : 'UCAN';
+});
+
+const authSourceLabel = computed(() => {
+  if (!authProfile.value?.authType) return '-';
+  if (authProfile.value.authType === 'jwt') return 'wallet';
+  return authProfile.value.ucanSource || '-';
+});
 
 const totpPeriodDigits = computed(() => {
   if (!totpStatus.value) return '-';
@@ -201,6 +254,14 @@ async function loadPasskeyStatus() {
   }
 }
 
+async function loadAuthProfile() {
+  try {
+    authProfile.value = await getVerifiedAuthProfile();
+  } catch (error) {
+    notifyError(`${mt('loadProfileFailed')}：${error instanceof Error ? error.message : String(error)}`);
+  }
+}
+
 async function registerPasskey() {
   notifyInfo(mt('passkeyManagedInWallet'));
 }
@@ -210,7 +271,7 @@ async function manageAuthenticatorInWallet() {
 }
 
 onMounted(async () => {
-  await loadPasskeyStatus();
+  await Promise.all([loadAuthProfile(), loadPasskeyStatus()]);
 });
 </script>
 
@@ -224,6 +285,14 @@ onMounted(async () => {
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 14px;
     align-items: stretch;
+  }
+
+  .wallet-identity-card {
+    margin-top: 14px;
+  }
+
+  .wallet-summary-grid {
+    grid-template-columns: minmax(260px, 2fr) repeat(3, minmax(140px, 1fr));
   }
 
   .security-card {
@@ -253,6 +322,21 @@ onMounted(async () => {
     line-height: 1.4;
     font-weight: 600;
     color: rgba(0, 0, 0, 0.88);
+  }
+
+  .identity-status {
+    padding: 2px 8px;
+    border-radius: 999px;
+    background: #f3f4f6;
+    color: rgba(0, 0, 0, 0.52);
+    font-size: 12px;
+    line-height: 1.5;
+    font-weight: 500;
+  }
+
+  .identity-status.verified {
+    background: #ecfdf3;
+    color: #15803d;
   }
 
   .identity-head-actions {
@@ -335,6 +419,10 @@ onMounted(async () => {
 
 @media (max-width: 1200px) {
   .my-config {
+    .wallet-summary-grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
     .security-card-grid {
       grid-template-columns: 1fr;
     }
@@ -349,6 +437,10 @@ onMounted(async () => {
     }
 
     .security-summary-grid {
+      grid-template-columns: 1fr;
+    }
+
+    .wallet-summary-grid {
       grid-template-columns: 1fr;
     }
   }
