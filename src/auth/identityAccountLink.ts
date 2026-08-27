@@ -29,7 +29,7 @@ function normalizeAccount(input: unknown): Account {
   const address = String(value?.address || '').trim()
   if (chainKey !== 'eip155:1' && !/^eip155:[0-9]+$/.test(chainKey)) throw new Error('IDENTITY_ACCOUNT_CHAIN_UNSUPPORTED')
   let normalizedAddress: string
-  try { normalizedAddress = getAddress(address) } catch { throw new Error('IDENTITY_ACCOUNT_PROOF_INVALID') }
+  try { normalizedAddress = getAddress(address).toLowerCase() } catch { throw new Error('IDENTITY_ACCOUNT_PROOF_INVALID') }
   return { chainKey, address: normalizedAddress }
 }
 
@@ -94,7 +94,7 @@ export async function verifyAccountLink(input: { identityDocument: any; identity
   verifyIdentityController(input.identityDocument, identity)
   const message = accountLinkMessage({ identity, account, nonce: input.nonce, issuedAt: input.issuedAt, expiresAt: input.expiresAt })
   let recovered: string
-  try { recovered = getAddress(verifyMessage(message, input.accountSignature)) } catch { throw new Error('IDENTITY_ACCOUNT_PROOF_INVALID') }
+  try { recovered = getAddress(verifyMessage(message, input.accountSignature)).toLowerCase() } catch { throw new Error('IDENTITY_ACCOUNT_PROOF_INVALID') }
   if (recovered !== account.address) throw new Error('IDENTITY_ACCOUNT_PROOF_INVALID')
   const result = { identity, account, verifiedAt: new Date().toISOString(), purpose: 'identity-account-link' }
   await ds.getRepository(IdentityAccountLinkChallengeDO).update({ nonce: input.nonce, status: 'pending' }, { status: 'consumed', consumedAt: result.verifiedAt })
