@@ -27,6 +27,7 @@ import {
   resolveUcanAuthorization,
   watchProvider,
   type Eip1193Provider,
+  type IdentityPresentationScope,
   type UcanCapability,
   type UcanRootProof,
   type UcanSessionKey,
@@ -75,6 +76,18 @@ const LOGIN_COMPLETION_WAIT_MS = 60000;
 const LOGIN_COMPLETION_POLL_MS = 300;
 const LOGIN_ROUTE_READY_WAIT_MS = 3000;
 const WALLET_ACCOUNT_REQUEST_TIMEOUT_MS = 60000;
+const WALLET_LOGIN_IDENTITY_SCOPES: IdentityPresentationScope[] = [
+  'identity.basic',
+  'identity.wallet',
+];
+
+type WalletPermission = {
+  parentCapability?: string;
+  caveats?: Array<{
+    type?: string;
+    value?: unknown;
+  }>;
+};
 
 let cachedProvider: Eip1193Provider | null = null;
 let providerWatcherReady = false;
@@ -169,7 +182,7 @@ async function requestWalletAccounts(provider: Eip1193Provider) {
     return await accountRequestInFlight.promise;
   }
 
-  const request = requestAccounts({ provider });
+  const request = requestWalletLoginPermissions(provider);
   const timeout = new Promise<string[]>((_, reject) => {
     window.setTimeout(() => {
       reject(new Error('Wallet approval timed out after 60 seconds'));
@@ -184,6 +197,69 @@ async function requestWalletAccounts(provider: Eip1193Provider) {
       accountRequestInFlight = null;
     }
   }
+}
+
+function walletErrorCode(error: unknown) {
+  const value = error as { code?: unknown; data?: { code?: unknown } };
+  const code = value?.code ?? value?.data?.code;
+  return typeof code === 'number' ? code : Number.NaN;
+}
+
+function isUnsupportedPermissionRequest(error: unknown) {
+  const code = walletErrorCode(error);
+  const message = String((error as { message?: unknown })?.message || '').toLowerCase();
+  return (
+    code === -32601 ||
+    code === -32602 ||
+    message.includes('method not found') ||
+    message.includes('unsupported') ||
+    message.includes('not supported')
+  );
+}
+
+function extractWalletPermissionAccounts(result: unknown): string[] {
+  if (!Array.isArray(result)) {
+    return [];
+  }
+  const accountPermission = (result as WalletPermission[]).find(
+    (item) => item?.parentCapability === 'eth_accounts'
+  );
+  const accountCaveat = accountPermission?.caveats?.find(
+    (item) => item?.type === 'restrictReturnedAccounts'
+  );
+  return Array.isArray(accountCaveat?.value)
+    ? accountCaveat.value.map((account) => String(account || '').trim()).filter(Boolean)
+    : [];
+}
+
+async function requestWalletLoginPermissions(provider: Eip1193Provider): Promise<string[]> {
+  try {
+    const permissions = await provider.request({
+      method: 'wallet_requestPermissions',
+      params: [
+        {
+          eth_accounts: {},
+          wallet_identity: {
+            scopes: WALLET_LOGIN_IDENTITY_SCOPES,
+          },
+        },
+      ],
+    });
+    const permittedAccounts = extractWalletPermissionAccounts(permissions);
+    if (permittedAccounts.length > 0) {
+      return permittedAccounts;
+    }
+    const accounts = await getAccounts(provider);
+    if (accounts.length > 0) {
+      return accounts;
+    }
+    return [];
+  } catch (error) {
+    if (!isUnsupportedPermissionRequest(error)) {
+      throw error;
+    }
+  }
+  return await requestAccounts({ provider });
 }
 
 function delay(ms: number) {
