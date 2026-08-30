@@ -74,7 +74,17 @@ export function registerPublicAuthRoutes(app: Express) {
       return;
     }
 
-    const challenge = issueChallenge(address);
+    const host = String(req.headers['x-forwarded-host'] || req.headers.host || '').trim();
+    const protocol = String(req.headers['x-forwarded-proto'] || req.protocol || 'https')
+      .split(',')[0]
+      .trim();
+    const origin = String(req.headers.origin || '').trim();
+    const chainId = Number(req.body?.chainId || 0);
+    const challenge = issueChallenge(address, {
+      domain: host,
+      uri: origin || (host ? `${protocol}://${host}` : undefined),
+      chainId: Number.isFinite(chainId) && chainId > 0 ? chainId : undefined,
+    });
     res.json(ok(challenge));
   });
 

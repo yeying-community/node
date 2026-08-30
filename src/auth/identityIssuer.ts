@@ -3,7 +3,7 @@ import { randomBytes, randomUUID } from 'node:crypto'
 import { getConfig } from '../config/runtime'
 import { getNodeIssuerDid, getNodeIssuerJwk, getNodeIssuerKeyId, signNodeBytes } from '../security/nodeIssuer'
 import { SingletonDataSource } from '../domain/facade/datasource'
-import { IdentityAuditLogDO, IdentityCredentialDO, IdentityCredentialReissueChallengeDO } from '../domain/mapper/entity'
+import { IdentityAccountLinkDO, IdentityAuditLogDO, IdentityCredentialDO, IdentityCredentialReissueChallengeDO } from '../domain/mapper/entity'
 import { canonicalizeIdentityValue, verifyIdentityController } from './identityAccountLink'
 
 
@@ -23,14 +23,14 @@ function assertIdentityDid(value: unknown) {
   return did
 }
 
-type IdentityCredentialType = 'EmailCredential' | 'UsernameCredential' | 'AvatarCredential'
+export type IdentityCredentialType = 'EmailCredential' | 'UsernameCredential' | 'AvatarCredential' | 'WalletAccountCredential'
 
 function normalizeCredentialTypes(input: unknown): IdentityCredentialType[] {
   const values = Array.isArray(input) ? input : []
   const types = [...new Set(values.map(value => String(value || '').trim()).filter(Boolean))]
   if (types.length === 0) throw new Error('IDENTITY_CREDENTIAL_TYPES_REQUIRED')
   for (const type of types) {
-    if (type !== 'EmailCredential' && type !== 'UsernameCredential' && type !== 'AvatarCredential') throw new Error('IDENTITY_CREDENTIAL_TYPE_UNSUPPORTED')
+    if (type !== 'EmailCredential' && type !== 'UsernameCredential' && type !== 'AvatarCredential' && type !== 'WalletAccountCredential') throw new Error('IDENTITY_CREDENTIAL_TYPE_UNSUPPORTED')
   }
   return types as IdentityCredentialType[]
 }
@@ -55,7 +55,8 @@ function credentialClaimForReissue(record: IdentityCredentialDO) {
 function credentialKind(type: IdentityCredentialType) {
   if (type === 'EmailCredential') return 'email'
   if (type === 'UsernameCredential') return 'username'
-  return 'avatar'
+  if (type === 'AvatarCredential') return 'avatar'
+  return 'wallet-account'
 }
 
 export function getIdentityIssuerDid() {
@@ -105,6 +106,52 @@ export function issueIdentityCredential(input: {
   return `${signingInput}.${base64url(signNodeBytes(Buffer.from(signingInput)))}`
 }
 
+export async function issueWalletAccountCredential(input: {
+  identity: string
+  account: { chainKey: string; address: string }
+  verifiedAt: string
+}) {
+  const identity = assertIdentityDid(input.identity)
+  const chainKey = String(input.account?.chainKey || '').trim()
+  const address = String(input.account?.address || '').trim().toLowerCase()
+  if (!/^eip155:[0-9]+$/.test(chainKey) || !/^0x[0-9a-f]{40}$/.test(address)) throw new Error('IDENTITY_ACCOUNT_PROOF_INVALID')
+  const repo = requireDataSource().getRepository(IdentityCredentialDO)
+  const records = await repo.findBy({ identityDid: identity, credentialType: 'WalletAccountCredential', status: 'active' })
+  const existing = records.find(record => {
+    if (String(record.revokedAt || '').trim() || Date.parse(record.expiresAt) <= Date.now()) return false
+    const subject = decodeCredentialPayload(record.token)?.vc?.credentialSubject
+    return subject?.chainKey === chainKey && String(subject?.address || '').toLowerCase() === address
+  })
+  if (existing) return { type: 'WalletAccountCredential' as const, credentialId: existing.credentialId, credential: existing.token }
+
+  const credentialId = `urn:yeying:credential:wallet-account:${randomUUID()}`
+  const credential = issueIdentityCredential({
+    credentialId,
+    subject: identity,
+    type: 'WalletAccountCredential',
+    claim: {
+      chainKey,
+      address,
+      linkedAt: input.verifiedAt,
+      credentialStatus: { id: credentialId, type: 'YeyingCredentialStatusV1' }
+    }
+  })
+  const payload = decodeCredentialPayload(credential)
+  const row = new IdentityCredentialDO()
+  Object.assign(row, {
+    credentialId,
+    identityDid: identity,
+    credentialType: 'WalletAccountCredential',
+    token: credential,
+    status: 'active',
+    issuedAt: new Date(payload.iat * 1000).toISOString(),
+    expiresAt: new Date(payload.exp * 1000).toISOString(),
+    revokedAt: ''
+  })
+  await repo.save(row)
+  return { type: 'WalletAccountCredential' as const, credentialId, credential }
+}
+
 export async function getCredentialStatus(credentialId: string) {
   const id = String(credentialId || '').trim()
   const ds = SingletonDataSource.get()
@@ -122,6 +169,11 @@ export async function createCredentialReissueChallenge(input: { identity: unknow
   const ds = requireDataSource()
   const repo = ds.getRepository(IdentityCredentialDO)
   for (const credentialType of credentialTypes) {
+    if (credentialType === 'WalletAccountCredential') {
+      const links = await ds.getRepository(IdentityAccountLinkDO).findBy({ identityDid: identity, status: 'active' })
+      if (links.length === 0) throw new Error(`IDENTITY_CREDENTIAL_REISSUE_UNAVAILABLE:${credentialType}`)
+      continue
+    }
     const records = await repo.findBy({ identityDid: identity, credentialType, status: 'active' })
     const latest = records
       .filter(record => !String(record.revokedAt || '').trim())
@@ -174,9 +226,16 @@ export async function confirmCredentialReissue(input: { identity: unknown; chall
       const source = records
         .filter((record: IdentityCredentialDO) => !String(record.revokedAt || '').trim())
         .sort((a: IdentityCredentialDO, b: IdentityCredentialDO) => Date.parse(b.issuedAt) - Date.parse(a.issuedAt))[0]
-      if (!source) throw new Error(`IDENTITY_CREDENTIAL_REISSUE_UNAVAILABLE:${credentialType}`)
-      const credentialId = `urn:yeying:credential:reissue:${credentialKind(credentialType)}:${randomUUID()}`
-      const claim = credentialClaimForReissue(source)
+      let credentialId = `urn:yeying:credential:reissue:${credentialKind(credentialType)}:${randomUUID()}`
+      let claim: Record<string, unknown>
+      if (credentialType === 'WalletAccountCredential' && !source) {
+        const link = (await ds.getRepository(IdentityAccountLinkDO).findBy({ identityDid: identity, status: 'active' }))[0]
+        if (!link) throw new Error(`IDENTITY_CREDENTIAL_REISSUE_UNAVAILABLE:${credentialType}`)
+        claim = { chainKey: link.chainKey, address: link.accountId, linkedAt: link.verifiedAt }
+      } else {
+        if (!source) throw new Error(`IDENTITY_CREDENTIAL_REISSUE_UNAVAILABLE:${credentialType}`)
+        claim = credentialClaimForReissue(source)
+      }
       claim.credentialStatus = { id: credentialId, type: 'YeyingCredentialStatusV1' }
       const credential = issueIdentityCredential({ credentialId, subject: identity, type: credentialType, claim })
       const payload = decodeCredentialPayload(credential)

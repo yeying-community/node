@@ -503,6 +503,6 @@ function verifyUcanInvocationWithRequired(
     throw new Error('UCAN wallet mode denied');
   }
   const root = verifyProofChain(payload.iss, payload.cap || [], exp, payload.prf || []);
-  const address = root.iss.replace(/^did:pkh:eth:/, '');
+  const address = normalizeSubject(root.iss.replace(/^did:pkh:eth:/, ''));
   return { address, issuer: payload.iss, source: 'wallet' };
 }

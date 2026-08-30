@@ -28,13 +28,14 @@ describe('identity account link', () => {
   it('requires both the wallet identity proof and EVM account signature', async () => {
     const wallet = Wallet.createRandom()
     const challenge = await issueAccountLinkChallenge({ identity, account: { chainKey: 'eip155:1', address: wallet.address } })
+    expect(challenge.account.address).toBe(wallet.address.toLowerCase())
     const accountSignature = await wallet.signMessage(challenge.message)
     const result = await verifyAccountLink({ identityDocument: document, identity, account: challenge.account, nonce: challenge.nonce, issuedAt: challenge.issuedAt, expiresAt: challenge.expiresAt, accountSignature })
-    expect(result.account.address).toBe(wallet.address)
+    expect(result.account.address).toBe(wallet.address.toLowerCase())
     const retryChallenge = await issueAccountLinkChallenge({ identity, account: challenge.account })
     const retrySignature = await wallet.signMessage(retryChallenge.message)
     const duplicate = await verifyAccountLink({ identityDocument: document, identity, account: retryChallenge.account, nonce: retryChallenge.nonce, issuedAt: retryChallenge.issuedAt, expiresAt: retryChallenge.expiresAt, accountSignature: retrySignature })
-    expect(duplicate.account.address).toBe(wallet.address)
+    expect(duplicate.account.address).toBe(wallet.address.toLowerCase())
     expect(duplicate.duplicate).toBe(true)
   })
 

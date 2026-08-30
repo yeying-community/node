@@ -304,7 +304,7 @@ export class IdentityAuthorizationService {
     if (row.appId !== string(input.appId) || row.redirectUri !== string(input.redirectUri)) throw new Error('IDENTITY_AUTHORIZATION_CODE_APP_MISMATCH')
     pkce(input.codeVerifier, row.codeChallenge); row.used = true; row.usedAt = now(); await repo.save(row)
     const requested = scopes(JSON.parse(row.scopesJson)); const credentials = await dataSource().getRepository(IdentityCredentialDO).findBy({ identityDid: row.identityDid, status: 'active' })
-    const wanted = new Set(requested.includes('identity.email') ? ['EmailCredential'] : []); if (requested.includes('identity.username')) wanted.add('UsernameCredential'); if (requested.includes('identity.avatar')) wanted.add('AvatarCredential')
+    const wanted = new Set(requested.includes('identity.email') ? ['EmailCredential'] : []); if (requested.includes('identity.username')) wanted.add('UsernameCredential'); if (requested.includes('identity.avatar')) wanted.add('AvatarCredential'); if (requested.includes('identity.wallet')) wanted.add('WalletAccountCredential')
     const accountLinks = await dataSource().getRepository(IdentityAccountLinkDO).findBy({ identityDid: row.identityDid, status: 'active' })
     const walletAddress = accountLinks.find(link => link.chainKey?.startsWith('eip155:'))?.accountId || ''
     return { requestId: row.requestId, appId: row.appId, redirectUri: row.redirectUri, state: row.state, did: row.identityDid, walletAddress, scopes: requested, issuedAt: row.usedAt, credentials: credentials.filter(item => wanted.has(item.credentialType) && Date.parse(item.expiresAt) > Date.now()).map(item => ({ type: item.credentialType, credentialId: item.credentialId, credential: item.token })) }
@@ -324,6 +324,7 @@ export class IdentityAuthorizationService {
     if (requested.includes('identity.email') && !activeTypes.has('EmailCredential')) throw new Error('IDENTITY_EMAIL_REQUIRED')
     if (requested.includes('identity.username') && !activeTypes.has('UsernameCredential')) throw new Error('IDENTITY_USERNAME_REQUIRED')
     if (requested.includes('identity.avatar') && !activeTypes.has('AvatarCredential')) throw new Error('IDENTITY_AVATAR_REQUIRED')
+    if (requested.includes('identity.wallet') && !activeTypes.has('WalletAccountCredential')) throw new Error('IDENTITY_WALLET_CREDENTIAL_REQUIRED')
   }
 
   private async issueCode(row: IdentityAuthorizationRequestDO, identityDid: string) {

@@ -1,9 +1,10 @@
 <template>
   <Menu as="div" class="relative inline-block text-left">
-    <MenuButton class="lang-trigger" :aria-label="currentLabel">
-      <span class="lang-trigger-text">{{ currentLabel }}</span>
-      <span class="lang-trigger-sep">/</span>
-      <span class="lang-trigger-alt">{{ altLabel }}</span>
+    <MenuButton class="lang-trigger" :aria-label="currentLabel" :title="currentLabel">
+      <el-icon class="lang-trigger-icon" aria-hidden="true">
+        <Connection />
+      </el-icon>
+      <span class="lang-trigger-label">{{ currentLabel }}</span>
     </MenuButton>
     <transition
       enter-active-class="transition ease-out duration-100"
@@ -36,6 +37,7 @@
 <script lang="ts" setup>
 import { computed, ref } from "vue";
 import { Menu, MenuButton, MenuItem, MenuItems } from "@headlessui/vue";
+import { Connection } from "@element-plus/icons-vue";
 import { ensureDefaultLocale, getLocaleRef, setLocale } from "@/lang/locale";
 
 const changeLang = async (code: string) => {
@@ -47,39 +49,41 @@ const menuList = ref([
   { title: "中文", code: "zh-CN" },
   { title: "English", code: "en-US" },
 ]);
-const currentLabel = computed(() => (locale.value === "en-US" ? "EN" : "中文"));
-const altLabel = computed(() => (locale.value === "en-US" ? "中文" : "EN"));
+const currentLabel = computed(() => (locale.value === "en-US" ? "English" : "中文"));
 </script>
 <style scoped>
 .lang-trigger {
-  height: 28px;
-  padding: 0 10px;
-  border: 1px solid rgba(0, 0, 0, 0.12);
-  border-radius: 8px;
-  background: #fff;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
   color: rgba(0, 0, 0, 0.72);
   display: inline-flex;
   align-items: center;
   gap: 6px;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: color 0.2s ease;
 }
 
 .lang-trigger:hover {
-  border-color: rgba(0, 0, 0, 0.2);
   color: rgba(0, 0, 0, 0.88);
 }
 
-.lang-trigger-text {
-  font-size: 12px;
-  font-weight: 600;
-  line-height: 1;
+.lang-trigger-icon {
+  font-size: 18px;
 }
 
-.lang-trigger-sep,
-.lang-trigger-alt {
-  font-size: 12px;
-  line-height: 1;
-  color: rgba(0, 0, 0, 0.45);
+.lang-trigger-label {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
 }
 </style>
