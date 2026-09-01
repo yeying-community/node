@@ -4,6 +4,8 @@ const path = require('path');
 const fs = require('fs');
 const { readPassword } = require('./secret-vault.cjs');
 
+const PASSWORD_PROMPT_TIMEOUT_MS = 30_000;
+
 function parseArgs(argv) {
   const options = { file: '' };
   for (let index = 0; index < argv.length; index += 1) {
@@ -48,7 +50,7 @@ async function run() {
     throw new Error('--file must match config.js secrets.file');
   }
   if (!fs.existsSync(passwordFile)) {
-    const password = await readPassword({ promptText: '请输入密钥文件密码' });
+    const password = await readPassword({ promptText: '请输入密钥文件密码', timeoutMs: PASSWORD_PROMPT_TIMEOUT_MS });
     if (!password) {
       throw new Error('密码不能为空');
     }

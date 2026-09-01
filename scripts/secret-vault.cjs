@@ -141,7 +141,7 @@ function replaceVault(filePath, vault) {
   return absolutePath;
 }
 
-function promptHidden(question) {
+function promptHidden(question, options = {}) {
   return new Promise((resolve, reject) => {
     if (!process.stdin.isTTY || typeof process.stdin.setRawMode !== 'function') {
       reject(new Error('Interactive password input requires a TTY'));
@@ -149,10 +149,13 @@ function promptHidden(question) {
     }
 
     const stdin = process.stdin;
+    const timeoutMs = Number(options.timeoutMs || 0);
+    let timeout = null;
     let buffer = '';
     process.stdout.write(`${question}: `);
 
     const cleanup = () => {
+      if (timeout) clearTimeout(timeout);
       stdin.removeListener('data', onData);
       stdin.setRawMode(false);
       stdin.pause();
@@ -184,12 +187,19 @@ function promptHidden(question) {
     stdin.setRawMode(true);
     stdin.resume();
     stdin.on('data', onData);
+    if (Number.isFinite(timeoutMs) && timeoutMs > 0) {
+      timeout = setTimeout(() => {
+        cleanup();
+        process.stdout.write('\n');
+        resolve('');
+      }, timeoutMs);
+    }
   });
 }
 
 async function readPassword(options = {}) {
   const promptText = String(options.promptText || '请输入密钥文件密码').trim();
-  return promptHidden(promptText);
+  return promptHidden(promptText, { timeoutMs: options.timeoutMs });
 }
 
 function base58Encode(input) {
