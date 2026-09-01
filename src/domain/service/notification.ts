@@ -3,7 +3,7 @@ import { v4 as uuidv4 } from 'uuid'
 import { getCurrentUtcString } from '../../common/date'
 import { SingletonDataSource } from '../facade/datasource'
 import { SingletonLogger } from '../facade/logger'
-import { NotificationDO, NotificationInboxDO, NotificationWebhookDO, NotificationDeliveryDO } from '../mapper/entity'
+import { IdentityCredentialDO, NotificationDO, NotificationInboxDO, NotificationWebhookDO, NotificationDeliveryDO, NotificationPreferenceDO, ProjectIdentityMappingDO } from '../mapper/entity'
 import {
   publishNotificationEvent,
   type NotificationStreamEvent,
@@ -184,6 +184,9 @@ export class NotificationService {
   private inboxRepository: Repository<NotificationInboxDO>
   private webhookRepository: Repository<NotificationWebhookDO>
   private deliveryRepository: Repository<NotificationDeliveryDO>
+  private identityCredentialRepository: Repository<IdentityCredentialDO>
+  private preferenceRepository: Repository<NotificationPreferenceDO>
+  private projectIdentityRepository: Repository<ProjectIdentityMappingDO>
 
   constructor() {
     const dataSource = SingletonDataSource.get()
@@ -191,6 +194,9 @@ export class NotificationService {
     this.inboxRepository = dataSource.getRepository(NotificationInboxDO)
     this.webhookRepository = dataSource.getRepository(NotificationWebhookDO)
     this.deliveryRepository = dataSource.getRepository(NotificationDeliveryDO)
+    this.identityCredentialRepository = dataSource.getRepository(IdentityCredentialDO)
+    this.preferenceRepository = dataSource.getRepository(NotificationPreferenceDO)
+    this.projectIdentityRepository = dataSource.getRepository(ProjectIdentityMappingDO)
   }
 
   private normalizeRecipients(input: string[]): string[] {
@@ -301,6 +307,11 @@ export class NotificationService {
       await this.deliveryRepository.save(webhookDeliveries)
     }
 
+    const emailDeliveries = await this.prepareEmailDeliveries(notification, recipients, now)
+    if (emailDeliveries.length > 0) {
+      await this.deliveryRepository.save(emailDeliveries)
+    }
+
     for (const recipient of recipients) {
       const unreadCount = await this.getUnreadCount(recipient)
       this.publish({
@@ -313,6 +324,131 @@ export class NotificationService {
       })
     }
     return notification
+  }
+
+  private shouldCreateEmailDelivery(notification: NotificationDO): boolean {
+    if (notification.type.startsWith('security.') || notification.type.includes('.security.')) {
+      return true
+    }
+    if (notification.level === 'warning' || notification.level === 'error') {
+      return true
+    }
+    const payload = parseJsonObject(notification.payload)
+    return payload.email === true || payload.emailNotification === true
+  }
+
+  private async isEmailEnabledForRecipient(recipient: string, notification: NotificationDO): Promise<boolean> {
+    const exact = await this.preferenceRepository.findOneBy({
+      subject: recipient,
+      appId: notification.source,
+      eventType: notification.type,
+    })
+    if (exact) {
+      return Boolean(exact.emailEnabled)
+    }
+    const appDefault = await this.preferenceRepository.findOneBy({
+      subject: recipient,
+      appId: notification.source,
+      eventType: '',
+    })
+    if (appDefault) {
+      return Boolean(appDefault.emailEnabled)
+    }
+    const globalDefault = await this.preferenceRepository.findOneBy({
+      subject: recipient,
+      appId: '',
+      eventType: '',
+    })
+    if (globalDefault) {
+      return Boolean(globalDefault.emailEnabled)
+    }
+    return true
+  }
+
+  private decodeEmailCredentialEmail(token: string): string {
+    try {
+      const payload = String(token || '').split('.')[1]
+      if (!payload) {
+        return ''
+      }
+      const parsed = JSON.parse(Buffer.from(payload, 'base64url').toString())
+      return String(parsed?.vc?.credentialSubject?.email || '').trim().toLowerCase()
+    } catch {
+      return ''
+    }
+  }
+
+  private async resolveRecipientEmail(recipient: string): Promise<string> {
+    const normalized = normalizeRecipient(recipient)
+    if (!normalized) {
+      return ''
+    }
+    let identityDid = normalized.startsWith('did:yeying:') ? normalized : ''
+    if (!identityDid) {
+      const mapping = await this.projectIdentityRepository.findOneBy({
+        walletAddress: normalized,
+        status: 'active',
+      })
+      identityDid = String(mapping?.identityDid || '').trim().toLowerCase()
+    }
+    if (!identityDid) {
+      return ''
+    }
+    const credentials = await this.identityCredentialRepository.findBy({
+      identityDid,
+      credentialType: 'EmailCredential',
+      status: 'active',
+    })
+    const active = credentials
+      .filter((item) => !String(item.revokedAt || '').trim())
+      .filter((item) => !item.expiresAt || Date.parse(item.expiresAt) > Date.now())
+      .sort((left, right) => String(right.issuedAt || '').localeCompare(String(left.issuedAt || '')))
+    for (const credential of active) {
+      const email = this.decodeEmailCredentialEmail(credential.token)
+      if (email) {
+        return email
+      }
+    }
+    return ''
+  }
+
+  private async prepareEmailDeliveries(
+    notification: NotificationDO,
+    recipients: string[],
+    now: string
+  ): Promise<NotificationDeliveryDO[]> {
+    if (!this.shouldCreateEmailDelivery(notification)) {
+      return []
+    }
+    const deliveries: NotificationDeliveryDO[] = []
+    for (const recipient of recipients) {
+      const emailEnabled = await this.isEmailEnabledForRecipient(recipient, notification)
+      if (!emailEnabled) {
+        continue
+      }
+      const email = await this.resolveRecipientEmail(recipient)
+      if (!email) {
+        continue
+      }
+      deliveries.push(
+        this.deliveryRepository.create({
+          notificationUid: notification.uid,
+          webhookUid: '',
+          channel: 'email',
+          target: email,
+          status: 'pending',
+          lockToken: '',
+          lockedAt: '',
+          attemptCount: 0,
+          lastError: '',
+          deliveredAt: '',
+          nextRetryAt: '',
+          createdAt: now,
+          updatedAt: now,
+        })
+      )
+    }
+    return deliveries
   }
 
   async list(query: NotificationListQuery) {
