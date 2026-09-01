@@ -1,6 +1,4 @@
-import nodemailer from 'nodemailer'
-import { getConfig } from '../../config/runtime'
-import { getRuntimeSecret } from '../../security/secretVault'
+import { sendMail } from './mailProvider'
 
 export type IdentityEmailVerificationDelivery = (input: {
   email: string
@@ -8,13 +6,6 @@ export type IdentityEmailVerificationDelivery = (input: {
   verificationId: string
   expiresAt: string
 }) => Promise<void>
-
-type MailConfig = {
-  host?: string
-  port?: number
-  secure?: boolean
-  from?: string
-}
 
 function escapeHtml(value: string): string {
   return value
@@ -68,30 +59,9 @@ function buildVerificationEmail(input: { code: string; expiresAt: string }) {
   return { text, html }
 }
 
-function getMailConfig(): Required<Pick<MailConfig, 'host' | 'port' | 'secure' | 'from'>> & { auth?: { user: string; pass: string } } {
-  const config = getConfig<MailConfig>('mail') || {}
-  const host = String(config.host || '').trim()
-  const port = Number(config.port)
-  const user = getRuntimeSecret('MAIL_SMTP_USER')
-  const pass = getRuntimeSecret('MAIL_SMTP_PASSWORD')
-  const from = String(config.from || user).trim()
-  if (!host || host === 'smtp.example.com' || !Number.isInteger(port) || port <= 0 || !from || (user && !pass) || (!user && pass)) {
-    throw new Error('Identity email delivery is not configured')
-  }
-  return { host, port, secure: Boolean(config.secure), from, ...(user ? { auth: { user, pass } } : {}) }
-}
-
 export const deliverIdentityEmailVerification: IdentityEmailVerificationDelivery = async ({ email, code, expiresAt }) => {
-  const config = getMailConfig()
-  const transporter = nodemailer.createTransport({
-    host: config.host,
-    port: config.port,
-    secure: config.secure,
-    auth: config.auth,
-  })
   const content = buildVerificationEmail({ code, expiresAt })
-  await transporter.sendMail({
-    from: config.from,
+  await sendMail({
     to: email,
     subject: `【夜莺社区】身份绑定验证码：${code}`,
     text: content.text,

@@ -21,6 +21,7 @@ export interface MailRuntimeConfig {
     port?: number
     secure?: boolean
     from?: string
+    replyTo?: string
 }
 
 export interface SecretsRuntimeConfig {
@@ -113,6 +114,12 @@ export interface NotificationRuntimeConfig {
     webhookMaxAttempts?: number
     webhookRetryBaseDelayMs?: number
     webhookRetryMaxDelayMs?: number
+    emailDeliveryEnabled?: boolean
+    emailDeliveryIntervalMs?: number
+    emailDeliveryBatchSize?: number
+    emailMaxAttempts?: number
+    emailRetryBaseDelayMs?: number
+    emailRetryMaxDelayMs?: number
 }
 
 export interface RedisRuntimeConfig {
@@ -123,6 +130,7 @@ export interface RedisRuntimeConfig {
     db?: number
     keyPrefix?: string
     channel?: string
+    pusherChannel?: string
     tls?: boolean
     instanceId?: string
     streamEnabled?: boolean

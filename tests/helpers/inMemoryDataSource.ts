@@ -14,7 +14,16 @@ export function createInMemoryDataSource() {
   const repository = (target: any) => {
     const rows = tableFor(target)
     return {
-      async save(row: Row) {
+      create(row: Row = {}) {
+        return { ...row }
+      },
+      async save(row: Row | Row[]) {
+        if (Array.isArray(row)) {
+          for (const item of row) {
+            await this.save(item)
+          }
+          return row
+        }
         if (target.name === 'IdentityUsernameDO' && rows.some(item => item.namespace === row.namespace && item.normalizedUsername === row.normalizedUsername && ['active', 'reserved'].includes(item.status))) {
           throw new Error('duplicate username')
         }
@@ -25,6 +34,27 @@ export function createInMemoryDataSource() {
       },
       async findOneBy(where: Row) { return rows.find(row => matches(row, where)) || null },
       async findBy(where: Row) { return rows.filter(row => matches(row, where)) },
+      async find(options: any = {}) {
+        let result = rows.slice()
+        if (options.where && !Array.isArray(options.where)) {
+          result = result.filter(row => matches(row, options.where))
+        }
+        if (options.order) {
+          const entries = Object.entries(options.order)
+          result.sort((left, right) => {
+            for (const [key, direction] of entries) {
+              if (left[key] === right[key]) continue
+              const compare = left[key] > right[key] ? 1 : -1
+              return String(direction).toUpperCase() === 'DESC' ? -compare : compare
+            }
+            return 0
+          })
+        }
+        if (options.take) {
+          result = result.slice(0, options.take)
+        }
+        return result
+      },
       async update(where: Row, values: Row) {
         let affected = 0
         rows.forEach(row => { if (matches(row, where)) { Object.assign(row, values); affected += 1 } })

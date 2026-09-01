@@ -32,6 +32,7 @@ const document = {
     MPC: '多方计算会话、消息和事件流。',
     Custody: '钱包客户端加密密钥托管。',
     Notifications: '通知收件箱、事件流和 Webhook。',
+    Pusher: 'Node Pusher 原生 publish、SSE subscribe 和 Project 身份映射。',
     Publisher: '应用发布包提交、审核和 release artifact 管理。',
     Admin: '管理员治理接口。',
   }).map(([name, description]) => ({ name, description })),
@@ -48,6 +49,21 @@ const document = {
         type: 'apiKey',
         in: 'cookie',
         name: 'refresh_token',
+      },
+      pusherKey: {
+        type: 'apiKey',
+        in: 'header',
+        name: 'x-pusher-key',
+      },
+      pusherTimestamp: {
+        type: 'apiKey',
+        in: 'header',
+        name: 'x-pusher-timestamp',
+      },
+      pusherSignature: {
+        type: 'apiKey',
+        in: 'header',
+        name: 'x-pusher-signature',
       },
     },
     schemas: {
@@ -468,6 +484,17 @@ const operations = [
   ['post', '/api/v1/public/notifications/webhooks/{uid}/deliveries/{deliveryUid}/retry', 'Notifications', '重试 Webhook 投递', 'bearer'],
   ['post', '/api/v1/public/notifications/webhooks/{uid}/replay/{notificationUid}', 'Notifications', '重放通知到 Webhook', 'bearer'],
   ['get', '/api/v1/admin/notifications/{uid}/deliveries', 'Admin', '管理员查询通知投递', 'bearer'],
+  ['post', '/api/v1/public/pusher/apps/{appId}/events', 'Pusher', '发布 Node Pusher 事件', 'pusher'],
+  ['get', '/api/v1/public/pusher/apps/{appId}/stream', 'Pusher', '订阅 Node Pusher SSE', 'bearer', null, true],
+  ['get', '/api/v1/public/pusher/notification-preferences', 'Pusher', '查询通知偏好', 'bearer'],
+  ['patch', '/api/v1/public/pusher/notification-preferences', 'Pusher', '更新通知偏好', 'bearer'],
+  ['get', '/api/v1/admin/pusher/apps', 'Pusher', '列出 Pusher App', 'bearer'],
+  ['post', '/api/v1/admin/pusher/apps', 'Pusher', '创建 Pusher App', 'bearer'],
+  ['get', '/api/v1/admin/pusher/project-identities', 'Pusher', '列出 Project 身份映射', 'bearer'],
+  ['post', '/api/v1/admin/pusher/project-identities', 'Pusher', '写入 Project 身份映射', 'bearer'],
+  ['get', '/api/v1/admin/pusher/email/templates', 'Pusher', '列出 Email 模板', 'bearer'],
+  ['post', '/api/v1/admin/pusher/email/templates', 'Pusher', '创建 Email 模板', 'bearer'],
+  ['patch', '/api/v1/admin/pusher/email/templates/{templateId}', 'Pusher', '更新 Email 模板', 'bearer'],
   ['post', '/api/v1/publisher/releases/submit', 'Publisher', '提交签名发布包', 'bearer', 'ReleaseSubmitRequest'],
   ['post', '/api/v1/admin/releases/{uid}/approve', 'Admin', '批准发布包', 'bearer'],
   ['post', '/api/v1/admin/releases/{uid}/reject', 'Admin', '驳回发布包', 'bearer'],
@@ -488,6 +515,7 @@ function operationId(method, route) {
 function securityFor(auth) {
   if (auth === 'none') return []
   if (auth === 'cookie') return [{ refreshCookie: [] }]
+  if (auth === 'pusher') return [{ pusherKey: [], pusherTimestamp: [], pusherSignature: [] }]
   return [{ bearerAuth: [] }]
 }
 

@@ -50,6 +50,13 @@ function getMountedRoutePath(req: Pick<Request, 'baseUrl' | 'path'>): string {
   return `${baseUrl}${requestPath.startsWith('/') ? requestPath : `/${requestPath}`}`;
 }
 
+function isPublicAppPublishRoute(req: Request): boolean {
+  return (
+    req.method === 'POST' &&
+    /^\/public\/pusher\/apps\/[^/]+\/events$/.test(String(req.path || ''))
+  );
+}
+
 export function getRouteRequiredUcanCapabilities(
   req: Pick<Request, 'baseUrl' | 'path'> & Partial<Pick<Request, 'query'>>
 ) {
@@ -93,7 +100,12 @@ const authenticateToken = (req: Request, res: Response, next: NextFunction) => {
     return runWithRequestContext(undefined, () => next());
   }
 
-  if (PUBLIC_ROUTES.includes(req.path) || req.path.startsWith('/public/auth/') || req.path.startsWith('/public/identity/')) {
+  if (
+    PUBLIC_ROUTES.includes(req.path) ||
+    req.path.startsWith('/public/auth/') ||
+    req.path.startsWith('/public/identity/') ||
+    isPublicAppPublishRoute(req)
+  ) {
     return runWithRequestContext(undefined, () => next());
   }
 

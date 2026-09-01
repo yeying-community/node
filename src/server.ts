@@ -22,6 +22,11 @@ import {
     NotificationInboxDO,
     NotificationWebhookDO,
     NotificationDeliveryDO,
+    EmailTemplateDO,
+    NotificationPreferenceDO,
+    PusherAppDO,
+    PusherEventDO,
+    ProjectIdentityMappingDO,
     MpcSessionDO,
     MpcSessionParticipantDO,
     MpcMessageDO,
@@ -49,6 +54,7 @@ import { registerPublicHealthRoute } from './routes/public/health';
 import { registerPublicMpcRoutes } from './routes/public/mpc';
 import { registerPublicCustodyRoutes } from './routes/public/custody';
 import { registerPublicNotificationRoutes } from './routes/public/notifications';
+import { registerAdminPusherRoutes, registerPublicPusherRoutes } from './routes/public/pusher';
 import { registerPublicIdentityRoutes } from './routes/publicIdentity';
 import { registerPublicIdentityAccountLinkRoutes } from './routes/publicIdentityAccountLinks';
 import { IdentityEmailService } from './domain/service/identityEmail';
@@ -91,12 +97,15 @@ import { AddIdentityTotpAuthenticators20260823110000 } from './migrations/202608
 import { AddIdentityCredentialReissueChallenges20260825100000 } from './migrations/20260825100000-add-identity-credential-reissue-challenges';
 import { AddIdentityVerificationAvatarUri20260825110000 } from './migrations/20260825110000-add-identity-verification-avatar-uri';
 import { NormalizeWalletAddressSubjects20260827080000 } from './migrations/20260827080000-normalize-wallet-address-subjects';
+import { AddPusherCore20260901120000 } from './migrations/20260901120000-add-pusher-core';
 import { AddScopedGrants20260808090000 } from './migrations/20260808090000-add-scoped-grants';
 import { getConfig } from './config/runtime';
 import { startActionRequestCleanupJobs } from './domain/service/actionRequestCleanup';
 import { startMpcCleanupJobs } from './domain/service/mpcCleanup';
 import { initMpcEventBus } from './domain/service/mpcEvents';
+import { initPusherEventBus } from './domain/service/pusherEvents';
 import { startNotificationDeliveryJobs } from './domain/service/notificationDelivery';
+import { startEmailNotificationDeliveryJobs } from './domain/service/emailNotificationDelivery';
 import { SingletonLogger } from './domain/facade/logger';
 import { getCentralIssuerStatus } from './auth/ucanIssuer';
 import { getPasskeyAuthStatus } from './auth/identityPasskeyAuth';
@@ -287,6 +296,11 @@ builder.entities([
     NotificationInboxDO,
     NotificationWebhookDO,
     NotificationDeliveryDO,
+    EmailTemplateDO,
+    NotificationPreferenceDO,
+    PusherAppDO,
+    PusherEventDO,
+    ProjectIdentityMappingDO,
     MpcSessionDO,
     MpcSessionParticipantDO,
     MpcMessageDO,
@@ -341,7 +355,8 @@ builder.migrations([
     AddIdentityTotpAuthenticators20260823110000,
     AddIdentityCredentialReissueChallenges20260825100000,
     AddIdentityVerificationAvatarUri20260825110000,
-    NormalizeWalletAddressSubjects20260827080000
+    NormalizeWalletAddressSubjects20260827080000,
+    AddPusherCore20260901120000
 ])
 
 builder.build().initialize().then(async (conn) => {
@@ -357,9 +372,11 @@ builder.build().initialize().then(async (conn) => {
     }
     logger.info('database initialized')
     initMpcEventBus()
+    initPusherEventBus()
     startActionRequestCleanupJobs()
     startMpcCleanupJobs()
     startNotificationDeliveryJobs()
+    startEmailNotificationDeliveryJobs()
     // 创建 Express 应用
     const app = express();
     const webDistDir = resolveWebDistDir()
@@ -397,9 +414,11 @@ builder.build().initialize().then(async (conn) => {
     registerPublicMpcRoutes(app);
     registerPublicCustodyRoutes(app);
     registerPublicNotificationRoutes(app);
+    registerPublicPusherRoutes(app);
     registerAdminAuditRoutes(app);
     registerAdminUserRoutes(app);
     registerAdminReleaseRoutes(app);
+    registerAdminPusherRoutes(app);
     registerWebStaticRoutes(app, webDistDir);
 
     // 启动服务器
