@@ -15,6 +15,9 @@ const notifyApplicationDeletedMock = vi.fn()
 const notifyApplicationConfigUpdatedMock = vi.fn()
 const notifyApplicationPublishedMock = vi.fn()
 const notifyApplicationUnpublishedMock = vi.fn()
+const createPusherAppMock = vi.fn()
+const getPusherAppByApplicationUidMock = vi.fn()
+const rotatePusherAppCredentialsMock = vi.fn()
 
 const requestReplayStore = new Map<
   string,
@@ -77,6 +80,14 @@ vi.doMock('../src/domain/service/notification', () => ({
     notifyApplicationConfigUpdated: notifyApplicationConfigUpdatedMock,
     notifyApplicationPublished: notifyApplicationPublishedMock,
     notifyApplicationUnpublished: notifyApplicationUnpublishedMock,
+  })),
+}))
+
+vi.doMock('../src/domain/service/pusher', () => ({
+  PusherService: mockClass(() => ({
+    createApp: createPusherAppMock,
+    getAppByApplicationUid: getPusherAppByApplicationUidMock,
+    rotateAppCredentials: rotatePusherAppCredentialsMock,
   })),
 }))
 
@@ -195,6 +206,50 @@ describe('public application routes idempotency', () => {
     notifyApplicationConfigUpdatedMock.mockClear()
     notifyApplicationPublishedMock.mockClear()
     notifyApplicationUnpublishedMock.mockClear()
+    createPusherAppMock.mockReset()
+    getPusherAppByApplicationUidMock.mockReset()
+    rotatePusherAppCredentialsMock.mockReset()
+    createPusherAppMock.mockResolvedValue({
+      uid: 'pusher-app-1',
+      applicationUid: 'app-pusher-1',
+      owner: '0x1111111111111111111111111111111111111111',
+      appId: 'project',
+      key: 'pk_test',
+      secret: 'ps_test',
+      secretMasked: 'ps_tes***test',
+      allowedOrigins: ['http://127.0.0.1:2222'],
+      channelPatterns: ['public-*', 'private-user.*', 'private-project.*'],
+      status: 'active',
+      createdAt: '2026-09-02T00:00:00.000Z',
+      updatedAt: '2026-09-02T00:00:00.000Z',
+    })
+    getPusherAppByApplicationUidMock.mockResolvedValue({
+      uid: 'pusher-app-1',
+      applicationUid: 'app-pusher-1',
+      owner: '0x1111111111111111111111111111111111111111',
+      appId: 'project',
+      key: 'pk_test',
+      secretMasked: 'ps_tes***test',
+      allowedOrigins: ['http://127.0.0.1:2222'],
+      channelPatterns: ['public-*', 'private-user.*', 'private-project.*'],
+      status: 'active',
+      createdAt: '2026-09-02T00:00:00.000Z',
+      updatedAt: '2026-09-02T00:00:00.000Z',
+    })
+    rotatePusherAppCredentialsMock.mockResolvedValue({
+      uid: 'pusher-app-1',
+      applicationUid: 'app-pusher-1',
+      owner: '0x1111111111111111111111111111111111111111',
+      appId: 'project',
+      key: 'pk_rotated',
+      secret: 'ps_rotated',
+      secretMasked: 'ps_rot***ated',
+      allowedOrigins: ['http://127.0.0.1:2222'],
+      channelPatterns: ['public-*', 'private-user.*', 'private-project.*'],
+      status: 'active',
+      createdAt: '2026-09-02T00:00:00.000Z',
+      updatedAt: '2026-09-02T00:01:00.000Z',
+    })
   })
 
   it('replays the first create response and only saves once', async () => {
@@ -542,6 +597,48 @@ describe('public application routes idempotency', () => {
     })
   })
 
+  it('queries applications by did and version from the collection endpoint', async () => {
+    const wallet = Wallet.createRandom()
+    const actor = wallet.address.toLowerCase()
+    const app = createTestApp(actor)
+    const existing = {
+      uid: 'app-query-1',
+      owner: actor,
+      ownerName: actor,
+      network: '',
+      address: '',
+      did: 'did:app:query-1',
+      version: 2,
+      name: 'Query App',
+      description: 'desc',
+      code: 'APPLICATION_CODE_TEST',
+      location: '/query',
+      serviceCodes: 'svc-a',
+      redirectUris: '',
+      avatar: 'avatar',
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      signature: '',
+      codePackagePath: '/pkg',
+      status: 'BUSINESS_STATUS_PENDING',
+      isOnline: false,
+    }
+    applicationStore.set(`uid:${existing.uid}`, existing)
+    applicationStore.set(`did:${existing.did}:${existing.version}`, existing)
+
+    await withServer(app, async (baseUrl) => {
+      const url = new URL('/api/v1/public/applications', baseUrl)
+      url.searchParams.set('did', existing.did)
+      url.searchParams.set('version', String(existing.version))
+      const response = await fetch(url)
+      const responseJson = await response.json()
+
+      expect(response.status).toBe(200)
+      expect(responseJson.data.items).toEqual([existing])
+      expect(responseJson.data.page).toEqual({ total: 1, page: 1, pageSize: 10 })
+    })
+  })
+
   it('replays the first config upsert response after the application is later removed', async () => {
     const wallet = Wallet.createRandom()
     const actor = wallet.address.toLowerCase()
@@ -614,6 +711,216 @@ describe('public application routes idempotency', () => {
       expect(firstJson.data.applicationUid).toBe(existing.uid)
       expect(firstJson.data.applicant).toBe(actor)
       expect(firstJson.data.config).toEqual([{ code: 'domain-a', instance: 'inst-1' }])
+    })
+  })
+
+  it('creates pusher credentials for an application owner without caching the one-time secret', async () => {
+    const wallet = Wallet.createRandom()
+    const actor = wallet.address.toLowerCase()
+    const app = createTestApp(actor)
+    const existing = {
+      uid: 'app-pusher-1',
+      owner: actor,
+      ownerName: actor,
+      network: '',
+      address: '',
+      did: 'did:app:pusher-1',
+      version: 1,
+      name: 'Pusher App',
+      description: 'desc',
+      code: 'APPLICATION_CODE_TEST',
+      location: 'http://127.0.0.1:2222/app',
+      serviceCodes: 'svc-a',
+      redirectUris: 'http://127.0.0.1:2222/callback',
+      avatar: 'avatar',
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      signature: '',
+      codePackagePath: '/pkg',
+      status: 'BUSINESS_STATUS_PENDING',
+      isOnline: false,
+    }
+    applicationStore.set(`uid:${existing.uid}`, existing)
+    applicationStore.set(`did:${existing.did}:${existing.version}`, existing)
+    const rawBody = {
+      pusherAppId: 'project',
+      allowedOrigins: ['http://127.0.0.1:2222/dashboard'],
+    }
+    const signedBody = await signBody({
+      wallet,
+      action: 'application_pusher_credentials_create',
+      requestId: 'req-application-pusher-credentials',
+      rawBody,
+      signablePayload: {
+        applicationUid: existing.uid,
+        pusherAppId: 'project',
+        allowedOrigins: ['http://127.0.0.1:2222'],
+      },
+    })
+
+    await withServer(app, async (baseUrl) => {
+      const response = await fetch(`${baseUrl}/api/v1/public/applications/${existing.uid}/pusher/credentials`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(signedBody),
+      })
+      const responseJson = await response.json()
+
+      expect(response.status).toBe(200)
+      expect(responseJson.data.secret).toBe('ps_test')
+      expect(createPusherAppMock).toHaveBeenCalledWith({
+        appId: 'project',
+        applicationUid: existing.uid,
+        owner: actor,
+        allowedOrigins: ['http://127.0.0.1:2222'],
+        channelPatterns: ['public-*', 'private-user.*', 'private-project.*'],
+      })
+      expect(requestReplayStore.size).toBe(0)
+    })
+  })
+
+  it('returns current pusher credential metadata for an application owner', async () => {
+    const wallet = Wallet.createRandom()
+    const actor = wallet.address.toLowerCase()
+    const app = createTestApp(actor)
+    const existing = {
+      uid: 'app-pusher-1',
+      owner: actor,
+      ownerName: actor,
+      network: '',
+      address: '',
+      did: 'did:app:pusher-1',
+      version: 1,
+      name: 'Pusher App',
+      description: 'desc',
+      code: 'APPLICATION_CODE_TEST',
+      location: 'http://127.0.0.1:2222/app',
+      serviceCodes: 'svc-a',
+      redirectUris: 'http://127.0.0.1:2222/callback',
+      avatar: 'avatar',
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      signature: '',
+      codePackagePath: '/pkg',
+      status: 'BUSINESS_STATUS_PENDING',
+      isOnline: false,
+    }
+    applicationStore.set(`uid:${existing.uid}`, existing)
+    applicationStore.set(`did:${existing.did}:${existing.version}`, existing)
+
+    await withServer(app, async (baseUrl) => {
+      const response = await fetch(`${baseUrl}/api/v1/public/applications/${existing.uid}/pusher/credentials`)
+      const responseJson = await response.json()
+
+      expect(response.status).toBe(200)
+      expect(responseJson.data.key).toBe('pk_test')
+      expect(responseJson.data.secretMasked).toBe('ps_tes***test')
+      expect(responseJson.data.secret).toBeUndefined()
+      expect(getPusherAppByApplicationUidMock).toHaveBeenCalledWith(existing.uid)
+    })
+  })
+
+  it('rotates pusher credentials for an application owner without caching the one-time secret', async () => {
+    const wallet = Wallet.createRandom()
+    const actor = wallet.address.toLowerCase()
+    const app = createTestApp(actor)
+    const existing = {
+      uid: 'app-pusher-1',
+      owner: actor,
+      ownerName: actor,
+      network: '',
+      address: '',
+      did: 'did:app:pusher-1',
+      version: 1,
+      name: 'Pusher App',
+      description: 'desc',
+      code: 'APPLICATION_CODE_TEST',
+      location: 'http://127.0.0.1:2222/app',
+      serviceCodes: 'svc-a',
+      redirectUris: 'http://127.0.0.1:2222/callback',
+      avatar: 'avatar',
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      signature: '',
+      codePackagePath: '/pkg',
+      status: 'BUSINESS_STATUS_PENDING',
+      isOnline: false,
+    }
+    applicationStore.set(`uid:${existing.uid}`, existing)
+    applicationStore.set(`did:${existing.did}:${existing.version}`, existing)
+    const rawBody = {
+      allowedOrigins: ['http://127.0.0.1:2222/settings'],
+    }
+    const signedBody = await signBody({
+      wallet,
+      action: 'application_pusher_credentials_rotate',
+      requestId: 'req-application-pusher-credentials-rotate',
+      rawBody,
+      signablePayload: {
+        applicationUid: existing.uid,
+        allowedOrigins: ['http://127.0.0.1:2222'],
+      },
+    })
+
+    await withServer(app, async (baseUrl) => {
+      const response = await fetch(`${baseUrl}/api/v1/public/applications/${existing.uid}/pusher/credentials/rotations`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(signedBody),
+      })
+      const responseJson = await response.json()
+
+      expect(response.status).toBe(200)
+      expect(responseJson.data.key).toBe('pk_rotated')
+      expect(responseJson.data.secret).toBe('ps_rotated')
+      expect(rotatePusherAppCredentialsMock).toHaveBeenCalledWith({
+        applicationUid: existing.uid,
+        allowedOrigins: ['http://127.0.0.1:2222'],
+      })
+      expect(requestReplayStore.size).toBe(0)
+    })
+  })
+
+  it('rejects pusher credentials creation for non-owners', async () => {
+    const wallet = Wallet.createRandom()
+    const actor = wallet.address.toLowerCase()
+    const app = createTestApp(actor)
+    const existing = {
+      uid: 'app-pusher-owner-mismatch',
+      owner: '0x2222222222222222222222222222222222222222',
+      ownerName: '0x2222222222222222222222222222222222222222',
+      network: '',
+      address: '',
+      did: 'did:app:pusher-owner-mismatch',
+      version: 1,
+      name: 'Other App',
+      description: 'desc',
+      code: 'APPLICATION_CODE_TEST',
+      location: 'http://127.0.0.1:2222/app',
+      serviceCodes: 'svc-a',
+      redirectUris: '',
+      avatar: 'avatar',
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      signature: '',
+      codePackagePath: '/pkg',
+      status: 'BUSINESS_STATUS_PENDING',
+      isOnline: false,
+    }
+    applicationStore.set(`uid:${existing.uid}`, existing)
+    applicationStore.set(`did:${existing.did}:${existing.version}`, existing)
+
+    await withServer(app, async (baseUrl) => {
+      const response = await fetch(`${baseUrl}/api/v1/public/applications/${existing.uid}/pusher/credentials`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({}),
+      })
+      const responseJson = await response.json()
+
+      expect(response.status).toBe(403)
+      expect(responseJson.message).toBe('Owner mismatch')
+      expect(createPusherAppMock).not.toHaveBeenCalled()
     })
   })
 })

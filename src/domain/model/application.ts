@@ -2,6 +2,8 @@ import { ApplicationDO } from '../mapper/entity'
 import { ResponsePage } from '../../common/page'
 
 export interface SearchCondition {
+    did?: string
+    version?: number
     code?: string
     owner?: string
     name?: string

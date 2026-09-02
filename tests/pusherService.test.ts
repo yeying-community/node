@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 
 vi.mock('../src/security/secretVault', () => ({
   getDerivedRuntimeSecret: () => 'pusher-app-master-key-for-test',
+  getRuntimeSecret: () => '',
 }))
 
 import {
@@ -36,6 +37,80 @@ describe('pusher service helpers', () => {
       secret: 'ps_secret-value-123',
     })
     expect(signature).toBe('sha256=d76205d19074f16bb3177375908afbfa4d8f5f7401266fd66a71e3d03ac944e2')
+  })
+
+  it('creates one pusher app per application uid', async () => {
+    const dataSource = createInMemoryDataSource()
+    SingletonDataSource.set(dataSource as any)
+    const service = new PusherService()
+
+    const created = await service.createApp({
+      appId: 'project',
+      applicationUid: 'application-1',
+      owner: '0xABCDEFabcdefABCDEFabcdefABCDEFabcdefABCD',
+      allowedOrigins: ['http://127.0.0.1:2222'],
+      channelPatterns: ['private-user.*'],
+    })
+
+    expect(created.applicationUid).toBe('application-1')
+    expect(created.owner).toBe('0xabcdefabcdefabcdefabcdefabcdefabcdefabcd')
+    expect(created.secret).toMatch(/^ps_/)
+    await expect(
+      service.createApp({
+        appId: 'project-secondary',
+        applicationUid: 'application-1',
+      })
+    ).rejects.toThrow('Pusher app already exists for application')
+  })
+
+  it('rotates pusher app credentials and invalidates the old key', async () => {
+    const dataSource = createInMemoryDataSource()
+    SingletonDataSource.set(dataSource as any)
+    const service = new PusherService()
+
+    const created = await service.createApp({
+      appId: 'project',
+      applicationUid: 'application-rotate',
+      owner: '0x1111111111111111111111111111111111111111',
+      allowedOrigins: ['http://127.0.0.1:2222'],
+      channelPatterns: ['private-user.*'],
+    })
+    const rotated = await service.rotateAppCredentials({
+      applicationUid: 'application-rotate',
+      allowedOrigins: ['http://127.0.0.1:3333'],
+    })
+
+    expect(rotated.appId).toBe(created.appId)
+    expect(rotated.applicationUid).toBe(created.applicationUid)
+    expect(rotated.key).not.toBe(created.key)
+    expect(rotated.secret).not.toBe(created.secret)
+    expect(rotated.allowedOrigins).toEqual(['http://127.0.0.1:3333'])
+
+    const timestamp = new Date().toISOString()
+    const body = {
+      eventId: 'evt-rotate-1',
+      type: 'task.updated',
+      channels: ['private-user.0x1'],
+      data: { ok: true },
+    }
+    await expect(
+      service.publish({
+        appId: 'project',
+        key: created.key,
+        timestamp,
+        signature: buildPusherPublishSignature({ timestamp, body, secret: created.secret }),
+        body,
+      })
+    ).rejects.toThrow('Invalid pusher key')
+    await expect(
+      service.publish({
+        appId: 'project',
+        key: rotated.key,
+        timestamp,
+        signature: buildPusherPublishSignature({ timestamp, body, secret: rotated.secret }),
+        body,
+      })
+    ).resolves.toMatchObject({ accepted: true, idempotent: false })
   })
 
   it('authorizes private project channels through project identity mappings', async () => {

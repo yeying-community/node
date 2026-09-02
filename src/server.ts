@@ -98,6 +98,7 @@ import { AddIdentityCredentialReissueChallenges20260825100000 } from './migratio
 import { AddIdentityVerificationAvatarUri20260825110000 } from './migrations/20260825110000-add-identity-verification-avatar-uri';
 import { NormalizeWalletAddressSubjects20260827080000 } from './migrations/20260827080000-normalize-wallet-address-subjects';
 import { AddPusherCore20260901120000 } from './migrations/20260901120000-add-pusher-core';
+import { AddPusherAppOwner20260902100000 } from './migrations/20260902100000-add-pusher-app-owner';
 import { AddScopedGrants20260808090000 } from './migrations/20260808090000-add-scoped-grants';
 import { getConfig } from './config/runtime';
 import { startActionRequestCleanupJobs } from './domain/service/actionRequestCleanup';
@@ -356,7 +357,8 @@ builder.migrations([
     AddIdentityCredentialReissueChallenges20260825100000,
     AddIdentityVerificationAvatarUri20260825110000,
     NormalizeWalletAddressSubjects20260827080000,
-    AddPusherCore20260901120000
+    AddPusherCore20260901120000,
+    AddPusherAppOwner20260902100000
 ])
 
 builder.build().initialize().then(async (conn) => {

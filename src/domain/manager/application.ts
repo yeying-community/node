@@ -43,6 +43,12 @@ export class ApplicationManager {
         } else if (isOnline !== undefined) {
             baseFilter.isOnline = isOnline
         }
+        if (condition.did) {
+            baseFilter.did = condition.did
+        }
+        if (Number.isFinite(Number(condition.version))) {
+            baseFilter.version = Number(condition.version)
+        }
         if (condition.keyword && condition.keyword !== '') {
             const safeKeyword = condition.keyword.replace(/([%_])/g, "\\$1");
             completeCondition.push({name: Like(`%${safeKeyword}%`), ...baseFilter})
@@ -59,7 +65,7 @@ export class ApplicationManager {
             if (condition.code) {
                 cond.code = condition.code
             }
-            if (cond.name || cond.owner || cond.code) {
+            if (cond.name || cond.owner || cond.code || baseFilter.did || baseFilter.version !== undefined) {
                 completeCondition.push({ ...cond, ...baseFilter })
             }
             if (completeCondition.length == 0) {
@@ -78,7 +84,7 @@ export class ApplicationManager {
                 page: createResponsePage(total, page, pageSize)
             }
         }
-        const where = hasStatus ? { status: condition.status } : (isOnline !== undefined ? { isOnline: isOnline } : {})
+        const where = baseFilter
         const [applications, total] = await this.repository.findAndCount({
             where: where,
             skip: (page - 1) * pageSize,

@@ -688,6 +688,12 @@ export class PusherAppDO {
     @PrimaryGeneratedColumn('uuid')
     uid!: string
 
+    @Column({ length: 128, name: 'application_uid', default: '' })
+    applicationUid!: string
+
+    @Column({ length: 128, default: '' })
+    owner!: string
+
     @Column({ length: 64, name: 'app_id' })
     appId!: string
 

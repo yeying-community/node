@@ -136,7 +136,24 @@ export interface ApplicationMetadata {
   applyStatus?: 'success' | 'applying' | 'reject'
 }
 
+export interface ApplicationPusherCredential {
+  uid: string
+  applicationUid: string
+  owner: string
+  appId: string
+  key: string
+  secret?: string
+  secretMasked: string
+  allowedOrigins: string[]
+  channelPatterns: string[]
+  status: string
+  createdAt: string
+  updatedAt: string
+}
+
 export interface ApplicationSearchCondition {
+  did?: string
+  version?: number
   code?: string
   status?: string
   owner?: string
@@ -482,6 +499,8 @@ class ApplicationClient {
       body: JSON.stringify({
         condition: {
           code: condition.code,
+          did: condition.did,
+          version: condition.version,
           owner: condition.owner,
           name: condition.name,
           keyword: condition.keyword,
@@ -611,9 +630,7 @@ class ApplicationClient {
     if (!token) {
       return
     }
-    const url = apiUrl(
-      `/api/v1/public/applications/by-did?did=${encodeURIComponent(did)}&version=${version}`
-    )
+    const url = apiUrl(`/api/v1/public/applications?did=${encodeURIComponent(did)}&version=${version}`)
     const response = await fetch(url, {
       method: 'GET',
       headers: {
@@ -622,8 +639,8 @@ class ApplicationClient {
         accept: 'application/json'
       }
     })
-    const data = await parseEnvelope<ApplicationMetadata>(response, '获取应用详情失败')
-    return normalizeApplication(data)
+    const data = await parseEnvelope<{ items?: ApplicationMetadata[] }>(response, '获取应用详情失败')
+    return normalizeApplication((data.items || [])[0] || null)
   }
 
   async queryByUid(uid: string) {
@@ -699,6 +716,90 @@ class ApplicationClient {
       body: JSON.stringify(signedBody)
     })
     return parseEnvelope<Record<string, unknown>>(response, '保存应用配置失败')
+  }
+
+  async getPusherCredentials(uid: string) {
+    const token = await requireReadToken()
+    if (!token) {
+      return
+    }
+    const response = await fetch(apiUrl(`/api/v1/public/applications/${uid}/pusher/credentials`), {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+        authorization: `Bearer ${token}`,
+        accept: 'application/json'
+      }
+    })
+    if (response.status === 404) {
+      return null
+    }
+    return parseEnvelope<ApplicationPusherCredential>(response, '获取 Pusher 凭据失败')
+  }
+
+  async createPusherCredentials(
+    uid: string,
+    input: { pusherAppId: string; allowedOrigins: string[] }
+  ) {
+    const session = await requireWriteSession()
+    if (!session) {
+      return
+    }
+    const body = {
+      pusherAppId: String(input.pusherAppId || '').trim(),
+      allowedOrigins: input.allowedOrigins || []
+    }
+    const signedBody = await createSignedActionBody({
+      action: 'application_pusher_credentials_create',
+      actor: session.actor,
+      payload: {
+        applicationUid: uid,
+        pusherAppId: body.pusherAppId,
+        allowedOrigins: body.allowedOrigins
+      },
+      body,
+      sign: signWithWallet
+    })
+    const response = await fetch(apiUrl(`/api/v1/public/applications/${uid}/pusher/credentials`), {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        authorization: `Bearer ${session.token}`,
+        accept: 'application/json'
+      },
+      body: JSON.stringify(signedBody)
+    })
+    return parseEnvelope<ApplicationPusherCredential>(response, '创建 Pusher 凭据失败')
+  }
+
+  async rotatePusherCredentials(uid: string, input: { allowedOrigins: string[] }) {
+    const session = await requireWriteSession()
+    if (!session) {
+      return
+    }
+    const body = {
+      allowedOrigins: input.allowedOrigins || []
+    }
+    const signedBody = await createSignedActionBody({
+      action: 'application_pusher_credentials_rotate',
+      actor: session.actor,
+      payload: {
+        applicationUid: uid,
+        allowedOrigins: body.allowedOrigins
+      },
+      body,
+      sign: signWithWallet
+    })
+    const response = await fetch(apiUrl(`/api/v1/public/applications/${uid}/pusher/credentials/rotations`), {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        authorization: `Bearer ${session.token}`,
+        accept: 'application/json'
+      },
+      body: JSON.stringify(signedBody)
+    })
+    return parseEnvelope<ApplicationPusherCredential>(response, '重新生成 Pusher 凭据失败')
   }
 
   async offline(

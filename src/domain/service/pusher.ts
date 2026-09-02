@@ -16,6 +16,8 @@ const DEFAULT_MAX_PAYLOAD_BYTES = 64 * 1024
 
 export type PusherAppRecord = {
   uid: string
+  applicationUid: string
+  owner: string
   appId: string
   key: string
   secretMasked: string
@@ -325,6 +327,8 @@ export class PusherService {
   private mapApp(app: PusherAppDO): PusherAppRecord {
     return {
       uid: app.uid,
+      applicationUid: app.applicationUid,
+      owner: app.owner,
       appId: app.appId,
       key: app.key,
       secretMasked: app.secretMasked,
@@ -406,18 +410,30 @@ export class PusherService {
 
   async createApp(input: {
     appId?: string
+    applicationUid?: string
+    owner?: string
     allowedOrigins?: string[]
     channelPatterns?: string[]
   }): Promise<PusherAppCreateResult> {
     const now = getCurrentUtcString()
     const appId = normalizeIdentifier(input.appId, `app-${randomUUID()}`)
+    const applicationUid = String(input.applicationUid || '').trim()
     const existing = await this.appRepository.findOneBy({ appId })
     if (existing) {
       throw new Error('Pusher app already exists')
     }
+    if (applicationUid) {
+      const existingForApplication = await this.appRepository.findOneBy({ applicationUid })
+      if (existingForApplication) {
+        throw new Error('Pusher app already exists for application')
+      }
+    }
 
     const secret = `ps_${toBase64Url(crypto.randomBytes(32))}`
     const app = this.appRepository.create({
+      uid: randomUUID(),
+      applicationUid,
+      owner: String(input.owner || '').trim().toLowerCase(),
       appId,
       key: `pk_${toBase64Url(crypto.randomBytes(18))}`,
       secretMasked: maskSecret(secret),
@@ -432,6 +448,45 @@ export class PusherService {
       createdAt: now,
       updatedAt: now,
     })
+
+    const saved = await this.appRepository.save(app)
+    return {
+      ...this.mapApp(saved),
+      secret,
+    }
+  }
+
+  async getAppByApplicationUid(applicationUidInput: string): Promise<PusherAppRecord | null> {
+    const applicationUid = String(applicationUidInput || '').trim()
+    if (!applicationUid) {
+      return null
+    }
+    const app = await this.appRepository.findOneBy({ applicationUid })
+    return app ? this.mapApp(app) : null
+  }
+
+  async rotateAppCredentials(input: {
+    applicationUid: string
+    allowedOrigins?: string[]
+  }): Promise<PusherAppCreateResult> {
+    const applicationUid = String(input.applicationUid || '').trim()
+    if (!applicationUid) {
+      throw new Error('Application uid is required')
+    }
+    const app = await this.appRepository.findOneBy({ applicationUid })
+    if (!app) {
+      throw new Error('Pusher app not found for application')
+    }
+
+    const now = getCurrentUtcString()
+    const secret = `ps_${toBase64Url(crypto.randomBytes(32))}`
+    app.key = `pk_${toBase64Url(crypto.randomBytes(18))}`
+    app.secretMasked = maskSecret(secret)
+    app.secretCiphertext = encryptPusherAppSecret(secret)
+    if (input.allowedOrigins !== undefined) {
+      app.allowedOriginsJson = JSON.stringify(normalizeStringArray(input.allowedOrigins))
+    }
+    app.updatedAt = now
 
     const saved = await this.appRepository.save(app)
     return {
