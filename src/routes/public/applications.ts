@@ -1,8 +1,8 @@
 import { Express, Request, Response } from 'express';
 import { ok, fail } from '../../auth/envelope';
-import { executeSignedAction, getActionSignatureErrorStatus } from '../../auth/actionSignature';
+import { assertActionSignature, executeSignedAction, getActionSignatureErrorStatus } from '../../auth/actionSignature';
 import { ApplicationService } from '../../domain/service/application';
-import { Application } from '../../domain/model/application';
+import { Application, SearchCondition } from '../../domain/model/application';
 import { getRequestUser } from '../../common/requestContext';
 import {
   ensureUserActive,
@@ -16,6 +16,7 @@ import { CommentManager } from '../../domain/manager/comments';
 import { ApplicationManager } from '../../domain/manager/application';
 import { ApplicationConfigService } from '../../domain/service/applicationConfig';
 import { NotificationService } from '../../domain/service/notification';
+import { PusherService } from '../../domain/service/pusher';
 import {
   ApplicationUcanPolicyError,
   resolveApplicationUcanPolicy,
@@ -116,8 +117,111 @@ function parsePage(input: any) {
   };
 }
 
+function parseOptionalBoolean(value: unknown): boolean | undefined {
+  if (typeof value === 'boolean') {
+    return value;
+  }
+  if (typeof value !== 'string') {
+    return undefined;
+  }
+  const normalized = value.trim().toLowerCase();
+  if (normalized === 'true' || normalized === '1') {
+    return true;
+  }
+  if (normalized === 'false' || normalized === '0') {
+    return false;
+  }
+  return undefined;
+}
+
 function normalizeAddress(value: unknown): string {
   return String(value ?? '').trim().toLowerCase();
+}
+
+function buildApplicationSearchCondition(input: Record<string, unknown>): SearchCondition {
+  const condition: SearchCondition = {};
+  const did = String(input.did ?? '').trim();
+  const version = Number(input.version);
+  const code = String(input.code ?? '').trim();
+  const owner = String(input.owner ?? '').trim();
+  const name = String(input.name ?? '').trim();
+  const keyword = String(input.keyword ?? '').trim();
+  const status = String(input.status ?? '').trim();
+  const isOnline = parseOptionalBoolean(input.isOnline);
+  const includeOffline = parseOptionalBoolean(input.includeOffline);
+  if (did) condition.did = did;
+  if (Number.isFinite(version)) condition.version = version;
+  if (code) condition.code = code;
+  if (owner) condition.owner = owner;
+  if (name) condition.name = name;
+  if (keyword) condition.keyword = keyword;
+  if (status) condition.status = status;
+  if (isOnline !== undefined) condition.isOnline = isOnline;
+  if (includeOffline !== undefined) condition.includeOffline = includeOffline;
+  return condition;
+}
+
+async function scopeApplicationSearchCondition(condition: SearchCondition, address: string): Promise<SearchCondition> {
+  if (!condition.includeOffline) {
+    return condition;
+  }
+  const isAdmin = await isAdminUser(address);
+  if (isAdmin || normalizeAddress(condition.owner) === normalizeAddress(address)) {
+    return condition;
+  }
+  return { ...condition, includeOffline: false, isOnline: condition.isOnline ?? true };
+}
+
+function normalizeStringList(value: unknown): string[] {
+  if (Array.isArray(value)) {
+    return Array.from(new Set(value.map((item) => String(item ?? '').trim()).filter(Boolean)));
+  }
+  const text = String(value ?? '').trim();
+  if (!text) {
+    return [];
+  }
+  return Array.from(new Set(text.split(/[,\n]/).map((item) => item.trim()).filter(Boolean)));
+}
+
+function normalizeOrigin(value: unknown): string {
+  const text = String(value ?? '').trim();
+  if (!text) {
+    return '';
+  }
+  try {
+    const url = new URL(text);
+    return url.origin.toLowerCase();
+  } catch {
+    return '';
+  }
+}
+
+function deriveAllowedOrigins(appRecord: Application, requested: unknown): string[] {
+  const explicit = normalizeStringList(requested)
+    .map((item) => normalizeOrigin(item))
+    .filter(Boolean);
+  if (explicit.length > 0) {
+    return Array.from(new Set(explicit));
+  }
+  return Array.from(
+    new Set(
+      [appRecord.location, ...toRedirectUriArray(appRecord.redirectUris)]
+        .map((item) => normalizeOrigin(item))
+        .filter(Boolean)
+    )
+  );
+}
+
+function derivePusherCredentialAppId(appRecord: Application, requested: unknown): string {
+  const explicit = String(requested ?? '').trim();
+  if (explicit) {
+    return explicit;
+  }
+  return `app.${appRecord.uid}`;
+}
+
+function hasOwnProperty(input: Record<string, unknown>, key: string): boolean {
+  return Object.prototype.hasOwnProperty.call(input, key);
 }
 
 async function resolveByUid(uid: string) {
@@ -341,6 +445,43 @@ export function registerPublicApplicationRoutes(app: Express) {
     }
   });
 
+  app.get('/api/v1/public/applications', async (req: Request, res: Response) => {
+    try {
+      const user = getRequestUser();
+      if (!user?.address) {
+        res.status(401).json(fail(401, 'Missing access token'));
+        return;
+      }
+      await ensureUserActive(user.address);
+      const { page, pageSize } = parsePage(req.query);
+      const condition = buildApplicationSearchCondition(req.query as Record<string, unknown>);
+      if (condition.did && Number.isFinite(Number(condition.version))) {
+        const appRecord = await resolveByDid(condition.did, Number(condition.version));
+        const visible = appRecord ? await canViewApplication(appRecord, user.address) : false;
+        res.json(ok({
+          items: visible && appRecord ? [appRecord] : [],
+          page: { total: visible && appRecord ? 1 : 0, page, pageSize },
+        }));
+        return;
+      }
+      const service = new ApplicationService();
+      const result = await service.search(
+        await scopeApplicationSearchCondition(condition, user.address),
+        page,
+        pageSize
+      );
+      res.json(
+        ok({
+          items: result.data,
+          page: result.page,
+        })
+      );
+    } catch (error) {
+      const { status, message } = mapApplicationReadError(error, 'Query applications failed');
+      res.status(status).json(fail(status, message));
+    }
+  });
+
   app.patch('/api/v1/public/applications/:uid', async (req: Request, res: Response) => {
     try {
       const user = getRequestUser();
@@ -557,43 +698,164 @@ export function registerPublicApplicationRoutes(app: Express) {
     }
   });
 
-  app.get('/api/v1/public/applications/by-did', async (req: Request, res: Response) => {
+  app.get('/api/v1/public/applications/:uid/pusher/credentials', async (req: Request, res: Response) => {
     try {
       const user = getRequestUser();
       if (!user?.address) {
         res.status(401).json(fail(401, 'Missing access token'));
         return;
       }
-      const did = String(req.query.did || '');
-      const version = Number(req.query.version);
-      if (!did || !Number.isFinite(version)) {
-        res.status(400).json(fail(400, 'Missing did or version'));
-        return;
-      }
-      const appRecord = await resolveByDid(did, version);
+      await ensureUserActive(user.address);
+      const applicationUid = req.params.uid;
+      const appRecord = await resolveByUid(applicationUid);
       if (!appRecord) {
         res.status(404).json(fail(404, 'Application not found'));
         return;
       }
-      const visible = await canViewApplication(appRecord, user.address);
-      if (!visible) {
+      if (normalizeAddress(appRecord.owner) !== normalizeAddress(user.address)) {
+        res.status(403).json(fail(403, 'Owner mismatch'));
+        return;
+      }
+      const credentials = await new PusherService().getAppByApplicationUid(applicationUid);
+      if (!credentials) {
+        res.status(404).json(fail(404, 'Pusher app not found for application'));
+        return;
+      }
+      res.json(ok(credentials));
+    } catch (error) {
+      const { status, message } = mapApplicationReadError(error, 'Fetch pusher credentials failed');
+      res.status(status).json(fail(status, message));
+    }
+  });
+
+  app.post('/api/v1/public/applications/:uid/pusher/credentials', async (req: Request, res: Response) => {
+    try {
+      const user = getRequestUser();
+      if (!user?.address) {
+        res.status(401).json(fail(401, 'Missing access token'));
+        return;
+      }
+      await ensureUserActive(user.address);
+      await ensureUserCanWriteBusinessData(user.address);
+      const applicationUid = req.params.uid;
+      const body = req.body || {};
+      const appRecord = await resolveByUid(applicationUid);
+      if (!appRecord) {
         res.status(404).json(fail(404, 'Application not found'));
         return;
       }
-      res.json(ok(appRecord));
+      if (normalizeAddress(appRecord.owner) !== normalizeAddress(user.address)) {
+        res.status(403).json(fail(403, 'Owner mismatch'));
+        return;
+      }
+      const pusherAppId = derivePusherCredentialAppId(appRecord, body.pusherAppId);
+      const allowedOrigins = deriveAllowedOrigins(appRecord, body.allowedOrigins);
+      try {
+        await assertActionSignature({
+          raw: body,
+          action: 'application_pusher_credentials_create',
+          actor: user.address,
+          payload: {
+            applicationUid,
+            pusherAppId,
+            allowedOrigins,
+          },
+        });
+      } catch (error) {
+        const { status, message } = mapApplicationWriteError(error, 'Create pusher credentials failed');
+        res.status(status).json(fail(status, message));
+        return;
+      }
+      try {
+        const created = await new PusherService().createApp({
+          appId: pusherAppId,
+          applicationUid: appRecord.uid,
+          owner: user.address,
+          allowedOrigins,
+          channelPatterns: ['public-*', 'private-user.*', 'private-project.*'],
+        });
+        res.json(ok(created));
+      } catch (error) {
+        const message = error instanceof Error ? error.message : 'Create pusher credentials failed';
+        const status = message.includes('already exists') ? 409 : 400;
+        res.status(status).json(fail(status, message));
+      }
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Fetch application failed';
-      res.status(500).json(fail(500, message));
+      const { status, message } = mapApplicationWriteError(error, 'Create pusher credentials failed');
+      res.status(status).json(fail(status, message));
+    }
+  });
+
+  app.post('/api/v1/public/applications/:uid/pusher/credentials/rotations', async (req: Request, res: Response) => {
+    try {
+      const user = getRequestUser();
+      if (!user?.address) {
+        res.status(401).json(fail(401, 'Missing access token'));
+        return;
+      }
+      await ensureUserActive(user.address);
+      await ensureUserCanWriteBusinessData(user.address);
+      const applicationUid = req.params.uid;
+      const body = req.body || {};
+      const appRecord = await resolveByUid(applicationUid);
+      if (!appRecord) {
+        res.status(404).json(fail(404, 'Application not found'));
+        return;
+      }
+      if (normalizeAddress(appRecord.owner) !== normalizeAddress(user.address)) {
+        res.status(403).json(fail(403, 'Owner mismatch'));
+        return;
+      }
+      const signablePayload: Record<string, unknown> = { applicationUid };
+      const rotationInput: { applicationUid: string; allowedOrigins?: string[] } = { applicationUid };
+      if (hasOwnProperty(body, 'allowedOrigins')) {
+        const allowedOrigins = deriveAllowedOrigins(appRecord, body.allowedOrigins);
+        signablePayload.allowedOrigins = allowedOrigins;
+        rotationInput.allowedOrigins = allowedOrigins;
+      }
+      try {
+        await assertActionSignature({
+          raw: body,
+          action: 'application_pusher_credentials_rotate',
+          actor: user.address,
+          payload: signablePayload,
+        });
+      } catch (error) {
+        const { status, message } = mapApplicationWriteError(error, 'Rotate pusher credentials failed');
+        res.status(status).json(fail(status, message));
+        return;
+      }
+      try {
+        const rotated = await new PusherService().rotateAppCredentials(rotationInput);
+        res.json(ok(rotated));
+      } catch (error) {
+        const message = error instanceof Error ? error.message : 'Rotate pusher credentials failed';
+        const status = message.includes('not found') ? 404 : 400;
+        res.status(status).json(fail(status, message));
+      }
+    } catch (error) {
+      const { status, message } = mapApplicationWriteError(error, 'Rotate pusher credentials failed');
+      res.status(status).json(fail(status, message));
     }
   });
 
   app.post('/api/v1/public/applications/search', async (req: Request, res: Response) => {
     try {
+      const user = getRequestUser();
+      if (!user?.address) {
+        res.status(401).json(fail(401, 'Missing access token'));
+        return;
+      }
+      await ensureUserActive(user.address);
       const body = req.body || {};
-      const condition = body.condition || body || {};
+      const condition = buildApplicationSearchCondition(body.condition || body || {});
       const { page, pageSize } = parsePage(body);
       const service = new ApplicationService();
-      const result = await service.search(condition, page, pageSize);
+      const result = await service.search(
+        await scopeApplicationSearchCondition(condition, user.address),
+        page,
+        pageSize
+      );
       res.json(
         ok({
           items: result.data,

@@ -121,6 +121,97 @@
             </el-row>
         </div>
 
+        <div v-if="pageFrom === 'myCreate'" class="part pusher-part">
+            <div class="part-title-row">
+                <div class="title">{{ $t('app_detail_pusher_title') }}</div>
+                <el-button :icon="Refresh" plain size="small" :loading="pusherLoading" @click="loadPusherCredentials">
+                    {{ $t('app_detail_pusher_refresh') }}
+                </el-button>
+            </div>
+            <el-alert
+                class="pusher-alert"
+                type="info"
+                :closable="false"
+                :title="$t('app_detail_pusher_hint')"
+                show-icon
+            />
+            <div v-if="pusherLoading" class="pusher-loading">{{ $t('app_detail_pusher_loading') }}</div>
+            <template v-else>
+                <div class="pusher-form">
+                    <el-row :gutter="20">
+                        <el-col :span="12" :xs="24">
+                            <div class="pusher-field-label">{{ $t('app_detail_pusher_app_id') }}</div>
+                            <el-input
+                                v-model="pusherAppIdInput"
+                                :disabled="Boolean(pusherCredentials)"
+                                :placeholder="defaultPusherAppId"
+                            />
+                        </el-col>
+                        <el-col :span="12" :xs="24">
+                            <div class="pusher-field-label">{{ $t('app_detail_pusher_origins') }}</div>
+                            <el-input
+                                v-model="pusherOriginsInput"
+                                type="textarea"
+                                :rows="3"
+                                :placeholder="$t('app_detail_pusher_origins_placeholder')"
+                            />
+                        </el-col>
+                    </el-row>
+                </div>
+
+                <div v-if="pusherCredentials" class="pusher-meta">
+                    <div class="pusher-meta-row">
+                        <span>{{ $t('app_detail_pusher_app_id') }}</span>
+                        <code>{{ pusherCredentials.appId }}</code>
+                        <el-button text type="primary" :icon="CopyDocument" @click="copyPusherValue(pusherCredentials.appId)" />
+                    </div>
+                    <div class="pusher-meta-row">
+                        <span>{{ $t('app_detail_pusher_key') }}</span>
+                        <code>{{ pusherCredentials.key }}</code>
+                        <el-button text type="primary" :icon="CopyDocument" @click="copyPusherValue(pusherCredentials.key)" />
+                    </div>
+                    <div class="pusher-meta-row">
+                        <span>{{ $t('app_detail_pusher_secret_masked') }}</span>
+                        <code>{{ pusherCredentials.secretMasked || '-' }}</code>
+                    </div>
+                    <div class="pusher-meta-row">
+                        <span>{{ $t('app_detail_pusher_channels') }}</span>
+                        <div class="pusher-tags">
+                            <el-tag v-for="item in pusherCredentials.channelPatterns" :key="item" size="small" effect="plain">
+                                {{ item }}
+                            </el-tag>
+                        </div>
+                    </div>
+                    <div class="pusher-actions">
+                        <el-button type="warning" plain :loading="pusherRotating" @click="confirmRotatePusherCredentials">
+                            {{ $t('app_detail_pusher_rotate') }}
+                        </el-button>
+                    </div>
+                </div>
+                <div v-else class="pusher-actions">
+                    <el-button type="primary" :loading="pusherSaving" @click="createPusherCredentials">
+                        {{ $t('app_detail_pusher_create') }}
+                    </el-button>
+                </div>
+
+                <el-alert
+                    v-if="pusherPlainSecret"
+                    class="pusher-secret-alert"
+                    type="warning"
+                    :closable="false"
+                    :title="$t('app_detail_pusher_secret_once')"
+                    show-icon
+                >
+                    <template #default>
+                        <div class="pusher-secret-value">
+                            <code>{{ pusherPlainSecret }}</code>
+                            <el-button text type="primary" :icon="CopyDocument" @click="copyPusherValue(pusherPlainSecret)" />
+                        </div>
+                    </template>
+                </el-alert>
+            </template>
+        </div>
+
         <AuditSummaryPanel v-if="isApplicationRequestDetail && auditDetail" :audit="auditDetail" />
     </div>
 
@@ -153,13 +244,14 @@
 import { computed, getCurrentInstance, onMounted, ref } from 'vue'
 import BreadcrumbHeader from '@/views/components/BreadcrumbHeader.vue'
 import ApplyStatus from '@/views/components/ApplyStatus.vue'
-import { WarningFilled, SuccessFilled, Link, CopyDocument } from '@element-plus/icons-vue'
+import { WarningFilled, SuccessFilled, Link, CopyDocument, Refresh } from '@element-plus/icons-vue'
 import ResultChooseModal from '@/views/components/ResultChooseModal.vue'
 import { ElMessageBox } from 'element-plus'
 import { h } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import $application, {
     ApplicationMetadata,
+    type ApplicationPusherCredential,
     businessStatusMap,
     filterLegacyDependencies,
     resolveApplicationCategoryLabel,
@@ -202,6 +294,13 @@ const modalVisible = ref(false)
 const dialogVisible = ref(false)
 const currentAuditId = ref(String(route.query.auditId || ''))
 const auditDetail = ref<AuditAuditDetail | null>(null)
+const pusherCredentials = ref<ApplicationPusherCredential | null>(null)
+const pusherLoading = ref(false)
+const pusherSaving = ref(false)
+const pusherRotating = ref(false)
+const pusherAppIdInput = ref('')
+const pusherOriginsInput = ref('')
+const pusherPlainSecret = ref('')
 
 /**
  * 应用是否上架
@@ -225,6 +324,11 @@ const businessStatusText = computed(() => {
 const appIdText = computed(() => {
     const uid = String(detailInfo.value?.uid || applyUid || '').trim()
     return uid || '-'
+})
+
+const defaultPusherAppId = computed(() => {
+    const uid = String(detailInfo.value?.uid || applyUid || '').trim()
+    return uid ? `app.${uid}` : ''
 })
 
 const applicationCodeText = computed(() => {
@@ -296,6 +400,54 @@ const redirectUriText = computed(() => {
     const preview = values.slice(0, 2).join('、')
     return values.length > 2 ? `${preview}...` : preview
 })
+
+const normalizeOrigin = (value: unknown) => {
+    const text = String(value || '').trim()
+    if (!text) {
+        return ''
+    }
+    try {
+        return new URL(text).origin.toLowerCase()
+    } catch {
+        return ''
+    }
+}
+
+const deriveDefaultPusherOrigins = () => {
+    const values = [detailInfo.value.location, ...toRedirectUriArray(detailInfo.value.redirectUris)]
+    return Array.from(new Set(values.map((item) => normalizeOrigin(item)).filter(Boolean)))
+}
+
+const syncPusherFormFromDetail = () => {
+    if (!pusherAppIdInput.value) {
+        pusherAppIdInput.value = defaultPusherAppId.value
+    }
+    if (!pusherOriginsInput.value) {
+        pusherOriginsInput.value = deriveDefaultPusherOrigins().join('\n')
+    }
+}
+
+const syncPusherFormFromCredentials = (credentials: ApplicationPusherCredential | null) => {
+    if (!credentials) {
+        syncPusherFormFromDetail()
+        return
+    }
+    pusherAppIdInput.value = credentials.appId || defaultPusherAppId.value
+    pusherOriginsInput.value = (credentials.allowedOrigins || []).join('\n')
+}
+
+const parsePusherOrigins = () => {
+    const rawItems = String(pusherOriginsInput.value || '')
+        .split(/[\n,]/)
+        .map((item) => item.trim())
+        .filter(Boolean)
+    const invalid = rawItems.filter((item) => !normalizeOrigin(item))
+    if (invalid.length > 0) {
+        throw new Error(String($t('app_detail_pusher_invalid_origin')))
+    }
+    const origins = Array.from(new Set(rawItems.map((item) => normalizeOrigin(item)).filter(Boolean)))
+    return origins.length > 0 ? origins : deriveDefaultPusherOrigins()
+}
 
 const isCodePackageUrl = computed(() => {
     const source = String(detailInfo.value.codePackagePath || '').trim()
@@ -388,6 +540,95 @@ const copyAppId = async () => {
     }
 }
 
+const copyPusherValue = async (value: string) => {
+    try {
+        const copied = await writeClipboardText(value)
+        if (!copied) {
+            notifyError(String($t('app_detail_pusher_copy_failed')))
+            return
+        }
+        notifySuccess(String($t('app_detail_pusher_copy_success')))
+    } catch {
+        notifyError(String($t('app_detail_pusher_copy_failed')))
+    }
+}
+
+const loadPusherCredentials = async () => {
+    const uid = String(detailInfo.value?.uid || applyUid || '').trim()
+    if (!uid) {
+        return
+    }
+    pusherLoading.value = true
+    try {
+        const credentials = await $application.getPusherCredentials(uid)
+        pusherCredentials.value = credentials || null
+        syncPusherFormFromCredentials(pusherCredentials.value)
+    } catch (error) {
+        notifyError(`${$t('app_detail_pusher_load_failed')}：${error instanceof Error ? error.message : String(error)}`)
+    } finally {
+        pusherLoading.value = false
+    }
+}
+
+const createPusherCredentials = async () => {
+    const uid = String(detailInfo.value?.uid || applyUid || '').trim()
+    if (!uid || pusherSaving.value) {
+        return
+    }
+    pusherSaving.value = true
+    pusherPlainSecret.value = ''
+    try {
+        const credentials = await $application.createPusherCredentials(uid, {
+            pusherAppId: String(pusherAppIdInput.value || defaultPusherAppId.value).trim(),
+            allowedOrigins: parsePusherOrigins()
+        })
+        if (credentials) {
+            pusherCredentials.value = credentials
+            pusherPlainSecret.value = credentials.secret || ''
+            syncPusherFormFromCredentials(credentials)
+            notifySuccess(String($t('app_detail_pusher_create_success')))
+        }
+    } catch (error) {
+        notifyError(`${$t('app_detail_pusher_create_failed')}：${error instanceof Error ? error.message : String(error)}`)
+    } finally {
+        pusherSaving.value = false
+    }
+}
+
+const rotatePusherCredentials = async () => {
+    const uid = String(detailInfo.value?.uid || applyUid || '').trim()
+    if (!uid || pusherRotating.value) {
+        return
+    }
+    pusherRotating.value = true
+    pusherPlainSecret.value = ''
+    try {
+        const credentials = await $application.rotatePusherCredentials(uid, {
+            allowedOrigins: parsePusherOrigins()
+        })
+        if (credentials) {
+            pusherCredentials.value = credentials
+            pusherPlainSecret.value = credentials.secret || ''
+            syncPusherFormFromCredentials(credentials)
+            notifySuccess(String($t('app_detail_pusher_rotate_success')))
+        }
+    } catch (error) {
+        notifyError(`${$t('app_detail_pusher_rotate_failed')}：${error instanceof Error ? error.message : String(error)}`)
+    } finally {
+        pusherRotating.value = false
+    }
+}
+
+const confirmRotatePusherCredentials = () => {
+    ElMessageBox.confirm(String($t('app_detail_pusher_rotate_confirm_desc')), String($t('app_detail_pusher_rotate_confirm_title')), {
+        confirmButtonText: String($t('btn_ok')),
+        cancelButtonText: String($t('btn_cancel')),
+        type: 'warning'
+    })
+        .then(() => rotatePusherCredentials())
+        .catch(() => undefined)
+}
+
 const resolveCurrentAuditId = async () => {
     if (currentAuditId.value) {
         return currentAuditId.value
@@ -428,6 +669,8 @@ const detail = async () => {
         const detailRst = await $application.myCreateDetailByUid(applyUid)
         detailInfo.value = detailRst || {}
         updateOnlineState()
+        syncPusherFormFromDetail()
+        void loadPusherCredentials()
         return
     }
     if (isApplicationRequestDetail.value) {
@@ -674,6 +917,68 @@ onMounted(() => {
             margin-top: 16px;
         }
     }
+    .part-title-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+    }
+    .pusher-alert {
+        margin-top: 14px;
+    }
+    .pusher-loading {
+        padding: 18px 0 0;
+        color: rgba(0, 0, 0, 0.45);
+    }
+    .pusher-form {
+        margin-top: 18px;
+    }
+    .pusher-field-label {
+        margin-bottom: 8px;
+        font-size: 13px;
+        color: rgba(0, 0, 0, 0.65);
+    }
+    .pusher-meta {
+        display: grid;
+        gap: 12px;
+        margin-top: 18px;
+    }
+    .pusher-meta-row {
+        display: grid;
+        grid-template-columns: 120px minmax(0, 1fr) auto;
+        align-items: center;
+        gap: 10px;
+        min-height: 32px;
+        font-size: 14px;
+        color: rgba(0, 0, 0, 0.85);
+        code {
+            overflow-wrap: anywhere;
+            font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New',
+                monospace;
+        }
+    }
+    .pusher-tags {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+    }
+    .pusher-actions {
+        margin-top: 18px;
+    }
+    .pusher-secret-alert {
+        margin-top: 18px;
+    }
+    .pusher-secret-value {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin-top: 8px;
+        code {
+            overflow-wrap: anywhere;
+            font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New',
+                monospace;
+        }
+    }
     .link-url {
         vertical-align: middle;
     }
@@ -697,6 +1002,18 @@ onMounted(() => {
         transition: color 0.2s ease;
         &:hover {
             color: #4096ff;
+        }
+    }
+    @media (max-width: 768px) {
+        .part-title-row {
+            align-items: flex-start;
+            flex-direction: column;
+        }
+        .pusher-meta-row {
+            grid-template-columns: 1fr auto;
+            span {
+                grid-column: 1 / -1;
+            }
         }
     }
 }
