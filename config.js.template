@@ -176,7 +176,18 @@ module.exports = {
     webhookRetryBaseDelayMs: 15 * 1000,
     // Retry delay ceiling.
     webhookRetryMaxDelayMs: 10 * 60 * 1000,
-    // Optional secret master key for encrypting webhook signing secrets.
+    // Enable background notification email delivery worker.
+    emailDeliveryEnabled: true,
+    // Poll interval for pending email deliveries.
+    emailDeliveryIntervalMs: 30 * 1000,
+    // Maximum email deliveries processed per poll.
+    emailDeliveryBatchSize: 20,
+    // Max email retry count before giving up.
+    emailMaxAttempts: 5,
+    // Exponential retry base delay for email.
+    emailRetryBaseDelayMs: 30 * 1000,
+    // Email retry delay ceiling.
+    emailRetryMaxDelayMs: 15 * 60 * 1000,
   },
   redis: {
     // Optional secrets loaded from secrets.enc.json: REDIS_USERNAME, REDIS_PASSWORD.
@@ -187,7 +198,10 @@ module.exports = {
     port: 6379,
     db: 0,
     keyPrefix: '',
+    // Pub/Sub channel for MPC event fanout.
     channel: 'mpc_events',
+    // Pub/Sub channel for Node Pusher SSE fanout.
+    pusherChannel: 'pusher_events',
     tls: false,
     // Optional: fixed instance id for event origin
     instanceId: '',
@@ -222,6 +236,7 @@ module.exports = {
     host: 'smtp.example.com',
     port: 465,
     secure: true,
-    from: 'YeYing Identity <no-reply@example.com>',
+    from: 'YeYing Notifications <no-reply@example.com>',
+    replyTo: 'support@example.com',
   }
 }

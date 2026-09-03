@@ -57,13 +57,34 @@ database: {
 初始化本地密钥仓后启动热更新服务：
 
 ```bash
-npm run secrets:init
+./cmd secrets init
 npm run dev:secure
 ```
 
 后端地址：<http://localhost:8100>。健康检查：<http://localhost:8100/api/v1/public/health>。
 
-使用 `npm run secrets:set DATABASE_USERNAME`、`npm run secrets:set DATABASE_PASSWORD` 写入本地数据库凭据。
+使用 `./cmd secrets set DATABASE_USERNAME`、`./cmd secrets set DATABASE_PASSWORD` 写入本地数据库凭据。首次管理员 bootstrap 不使用环境变量，改用加密密钥仓中的 `ADMIN_DIDS`：
+
+```bash
+./cmd admin allow add 0x你的钱包地址
+./cmd admin allow list
+```
+
+`admin:allow` 会要求输入密钥仓密码并重写 `secrets.enc.json`。Node 启动后只有命中 vault `ADMIN_DIDS` 的地址，或数据库 `user_state.role=USER_ROLE_OWNER` 的账号，才会被视为管理员。
+运行中的 Node 会在启动时加载 vault；修改 `ADMIN_DIDS` 后需要执行 `./cmd service restart`，然后重新登录或刷新页面。登录后可通过 `/api/v1/public/profile/me` 响应里的 `data.address` 和 `data.isAdmin` 确认后端实际识别到的主体和管理员状态。
+
+### 统一运维入口
+
+源码目录和生产发布包根目录都提供 `./cmd`。它只是运维薄封装，调用 `scripts/starter.sh`、`scripts/health-check.sh`、密钥仓和管理员工具。Pusher 凭据在应用界面创建或轮换。
+
+```bash
+./cmd service start|stop|restart|status|logs
+./cmd health --level readiness
+./cmd secrets set MAIL_SMTP_PASSWORD
+./cmd admin allow add 0x你的钱包地址
+```
+
+本地开发、测试、构建和打包继续使用 `npm run dev:secure`、`npm test`、`npm run build:all`、`npm run package:release -- <tag>`；这些源码态能力不放进 `./cmd`。
 
 ### 密钥仓运维
 
@@ -81,33 +102,34 @@ secrets: {
 初始化只应执行一次。它生成统一 Issuer 私钥 `ISSUER_PRIVATE_KEY` 和内部派生根 `NODE_KEY_DERIVATION_SECRET`，不会擅自生成数据库、Redis 或 SMTP 的外部凭据：
 
 ```bash
-npm run secrets:init
+./cmd secrets init
 ```
 
 将外部凭据逐项交互写入或轮换。每次更新都会先解密、以新的随机 salt/iv 重新加密，然后原子替换密钥仓文件：
 
 ```bash
-npm run secrets:set DATABASE_USERNAME
-npm run secrets:set DATABASE_PASSWORD
-npm run secrets:set ISSUER_PRIVATE_KEY
-npm run secrets:set NODE_KEY_DERIVATION_SECRET
-npm run secrets:set REDIS_USERNAME
-npm run secrets:set REDIS_PASSWORD
-npm run secrets:set MAIL_SMTP_USER
-npm run secrets:set MAIL_SMTP_PASSWORD
-npm run secrets:remove LEGACY_KEY
+./cmd secrets set DATABASE_USERNAME
+./cmd secrets set DATABASE_PASSWORD
+./cmd secrets set ISSUER_PRIVATE_KEY
+./cmd secrets set NODE_KEY_DERIVATION_SECRET
+./cmd admin allow add 0x你的钱包地址
+./cmd secrets set REDIS_USERNAME
+./cmd secrets set REDIS_PASSWORD
+./cmd secrets set MAIL_SMTP_USER
+./cmd secrets set MAIL_SMTP_PASSWORD
+./cmd secrets remove LEGACY_KEY
 ```
 
 若是从旧版 `config.js` 迁移，不要手工复制或输出密码，使用下列命令将其中的数据库、Redis 和 SMTP 凭据写入 vault，成功后自动从 `config.js` 删除。Issuer 私钥和派生根不支持从配置文件迁移，必须使用 `secrets:set` 写入 vault：
 
 ```bash
-npm run secrets:migrate-config
+./cmd secrets migrate-config
 ```
 
 将旧 vault 一次迁移到统一 Issuer 和派生根，并重加密已有的 TOTP 与 Webhook 密文：
 
 ```bash
-npm run secrets:migrate
+./cmd secrets migrate
 ```
 
 该命令会先创建带时间戳的 vault 备份；JWT、TOTP 密文和 Webhook 密文会按新派生根重新处理，用户可能需要重新登录。生产执行前仍应完成数据库备份并停止服务。
@@ -115,17 +137,17 @@ npm run secrets:migrate
 启动前执行安全检查。该命令只显示密钥名和校验结果，绝不显示密钥值：
 
 ```bash
-npm run secrets:verify
-npm run secrets:unlock
+./cmd secrets verify
+./cmd secrets unlock
 ```
 
 `secrets:verify` 会按当前 `config.js` 检查数据库、统一 Issuer 和派生根，以及已启用功能所需的外部凭据。`secrets:unlock` 仅用于确认 vault 可解密并列出键名。不要使用重定向、截图或日志记录这些命令的交互过程。
 
-清理旧密钥前先备份 `secrets.enc.json`，确认新版本已使用 `ISSUER_PRIVATE_KEY` 和 `NODE_KEY_DERIVATION_SECRET` 正常运行，再逐项执行 `npm run secrets:remove KEY`。命令会要求再次输入键名确认，并且不会显示密钥值。不要删除仍用于历史数据解密或历史凭证验证的密钥，除非已经完成数据迁移或确认全部过期。
+清理旧密钥前先备份 `secrets.enc.json`，确认新版本已使用 `ISSUER_PRIVATE_KEY` 和 `NODE_KEY_DERIVATION_SECRET` 正常运行，再逐项执行 `./cmd secrets remove KEY`。命令会要求再次输入键名确认，并且不会显示密钥值。不要删除仍用于历史数据解密或历史凭证验证的密钥，除非已经完成数据迁移或确认全部过期。
 
 新配置下，JWT、TOTP 存储和 Webhook 加密密钥都从 `NODE_KEY_DERIVATION_SECRET` 按用途派生。`ISSUER_PRIVATE_KEY` 的公钥自动生成 Issuer `kid`，Issuer DID 从 `issuer.baseUrl` 派生。
 
-生产更新顺序：备份现有 `secrets.enc.json` 到受保护的主机级备份系统，停止服务或在维护窗口中执行 `secrets:set` / `secrets:remove`，执行 `secrets:verify`，然后通过 `bash scripts/starter.sh restart` 重启。不得重新执行 `secrets:init --force` 覆盖生产 vault。
+生产更新顺序：备份现有 `secrets.enc.json` 到受保护的主机级备份系统，停止服务或在维护窗口中执行 `./cmd secrets set` / `./cmd secrets remove`，执行 `./cmd secrets verify`，然后通过 `./cmd service restart` 重启。不得重新执行 `secrets:init --force` 覆盖生产 vault。
 
 ### 3. 启动前端
 

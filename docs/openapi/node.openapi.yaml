@@ -28,6 +28,8 @@ tags:
     description: 钱包客户端加密密钥托管。
   - name: Notifications
     description: 通知收件箱、事件流和 Webhook。
+  - name: Pusher
+    description: Node Pusher 原生 publish、SSE subscribe 和 Project 身份映射。
   - name: Publisher
     description: 应用发布包提交、审核和 release artifact 管理。
   - name: Admin
@@ -910,6 +912,25 @@ paths:
         "409":
           $ref: "#/components/responses/Conflict"
   /api/v1/public/applications:
+    get:
+      tags:
+        - Applications
+      summary: 按条件查询应用
+      operationId: get_api_v1_public_applications
+      security:
+        - bearerAuth: []
+      parameters: []
+      responses:
+        "200":
+          $ref: "#/components/responses/Success"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
     post:
       tags:
         - Applications
@@ -1069,15 +1090,20 @@ paths:
           application/json:
             schema:
               $ref: "#/components/schemas/JsonObject"
-  /api/v1/public/applications/by-did:
+  /api/v1/public/applications/{uid}/pusher/credentials:
     get:
       tags:
         - Applications
-      summary: 按 DID 和版本查询应用
-      operationId: get_api_v1_public_applications_by_did
+      summary: 查询应用 Pusher 凭据元数据
+      operationId: get_api_v1_public_applications_uid_pusher_credentials
       security:
         - bearerAuth: []
-      parameters: []
+      parameters:
+        - name: uid
+          in: path
+          required: true
+          schema:
+            type: string
       responses:
         "200":
           $ref: "#/components/responses/Success"
@@ -1089,6 +1115,67 @@ paths:
           $ref: "#/components/responses/Forbidden"
         "409":
           $ref: "#/components/responses/Conflict"
+    post:
+      tags:
+        - Applications
+      summary: 创建应用 Pusher 凭据
+      operationId: post_api_v1_public_applications_uid_pusher_credentials
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: uid
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          $ref: "#/components/responses/Success"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/JsonObject"
+  /api/v1/public/applications/{uid}/pusher/credentials/rotations:
+    post:
+      tags:
+        - Applications
+      summary: 轮换应用 Pusher 凭据
+      operationId: post_api_v1_public_applications_uid_pusher_credentials_rotations
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: uid
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          $ref: "#/components/responses/Success"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/JsonObject"
   /api/v1/public/applications/search:
     post:
       tags:
@@ -2051,6 +2138,319 @@ paths:
           $ref: "#/components/responses/Forbidden"
         "409":
           $ref: "#/components/responses/Conflict"
+  /api/v1/public/pusher/apps/{appId}/events:
+    post:
+      tags:
+        - Pusher
+      summary: 发布 Node Pusher 事件
+      operationId: post_api_v1_public_pusher_apps_appId_events
+      security:
+        - pusherKey: []
+          pusherTimestamp: []
+          pusherSignature: []
+      parameters:
+        - name: appId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          $ref: "#/components/responses/Success"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/JsonObject"
+  /api/v1/public/pusher/apps/{appId}/stream:
+    get:
+      tags:
+        - Pusher
+      summary: 订阅 Node Pusher SSE
+      operationId: get_api_v1_public_pusher_apps_appId_stream
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: appId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: SSE event stream
+          content:
+            text/event-stream:
+              schema:
+                type: string
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+  /api/v1/public/pusher/notification-preferences:
+    get:
+      tags:
+        - Pusher
+      summary: 查询通知偏好
+      operationId: get_api_v1_public_pusher_notification_preferences
+      security:
+        - bearerAuth: []
+      parameters: []
+      responses:
+        "200":
+          $ref: "#/components/responses/Success"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+    patch:
+      tags:
+        - Pusher
+      summary: 更新通知偏好
+      operationId: patch_api_v1_public_pusher_notification_preferences
+      security:
+        - bearerAuth: []
+      parameters: []
+      responses:
+        "200":
+          $ref: "#/components/responses/Success"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/JsonObject"
+  /api/v1/admin/pusher/apps:
+    get:
+      tags:
+        - Pusher
+      summary: 列出 Pusher App
+      operationId: get_api_v1_admin_pusher_apps
+      security:
+        - bearerAuth: []
+      parameters: []
+      responses:
+        "200":
+          $ref: "#/components/responses/Success"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+    post:
+      tags:
+        - Pusher
+      summary: 创建 Pusher App
+      operationId: post_api_v1_admin_pusher_apps
+      security:
+        - bearerAuth: []
+      parameters: []
+      responses:
+        "200":
+          $ref: "#/components/responses/Success"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/JsonObject"
+  /api/v1/admin/pusher/project-identities:
+    get:
+      tags:
+        - Pusher
+      summary: 列出 Project 身份映射
+      operationId: get_api_v1_admin_pusher_project_identities
+      security:
+        - bearerAuth: []
+      parameters: []
+      responses:
+        "200":
+          $ref: "#/components/responses/Success"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+    post:
+      tags:
+        - Pusher
+      summary: 写入 Project 身份映射
+      operationId: post_api_v1_admin_pusher_project_identities
+      security:
+        - bearerAuth: []
+      parameters: []
+      responses:
+        "200":
+          $ref: "#/components/responses/Success"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/JsonObject"
+  /api/v1/admin/mail/settings:
+    get:
+      tags:
+        - Mail
+      summary: 查询邮件配置状态
+      operationId: get_api_v1_admin_mail_settings
+      security:
+        - bearerAuth: []
+      parameters: []
+      responses:
+        "200":
+          $ref: "#/components/responses/Success"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+  /api/v1/admin/mail/tests:
+    post:
+      tags:
+        - Mail
+      summary: 发送测试邮件
+      operationId: post_api_v1_admin_mail_tests
+      security:
+        - bearerAuth: []
+      parameters: []
+      responses:
+        "200":
+          $ref: "#/components/responses/Success"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/JsonObject"
+  /api/v1/admin/mail/templates:
+    get:
+      tags:
+        - Mail
+      summary: 列出 Email 模板
+      operationId: get_api_v1_admin_mail_templates
+      security:
+        - bearerAuth: []
+      parameters: []
+      responses:
+        "200":
+          $ref: "#/components/responses/Success"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+    post:
+      tags:
+        - Mail
+      summary: 创建 Email 模板
+      operationId: post_api_v1_admin_mail_templates
+      security:
+        - bearerAuth: []
+      parameters: []
+      responses:
+        "200":
+          $ref: "#/components/responses/Success"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/JsonObject"
+  /api/v1/admin/mail/templates/{templateId}:
+    patch:
+      tags:
+        - Mail
+      summary: 更新 Email 模板
+      operationId: patch_api_v1_admin_mail_templates_templateId
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: templateId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          $ref: "#/components/responses/Success"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/JsonObject"
   /api/v1/publisher/releases/submit:
     post:
       tags:
@@ -2257,6 +2657,18 @@ components:
       type: apiKey
       in: cookie
       name: refresh_token
+    pusherKey:
+      type: apiKey
+      in: header
+      name: x-pusher-key
+    pusherTimestamp:
+      type: apiKey
+      in: header
+      name: x-pusher-timestamp
+    pusherSignature:
+      type: apiKey
+      in: header
+      name: x-pusher-signature
   schemas:
     JsonObject:
       type: object

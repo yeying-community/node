@@ -96,7 +96,7 @@ async function run() {
   process.stdout.write('  - issuer.ucan.enabled = true\n');
   process.stdout.write('  - issuer.ucan.mode = hybrid (or issue)\n');
   process.stdout.write('\nSet config.js secrets.file to this path, then start:\n');
-  process.stdout.write('  bash scripts/starter.sh restart\n');
+  process.stdout.write('  ./cmd service restart\n');
 }
 
 run().catch((error) => {

@@ -607,6 +607,192 @@ export class NotificationDeliveryDO {
     updatedAt!: string
 }
 
+@Entity('email_templates')
+@Index('uidx_email_template_id_version', ['templateId', 'version'], { unique: true })
+export class EmailTemplateDO {
+    @PrimaryGeneratedColumn('uuid')
+    uid!: string
+
+    @Column({ length: 128, name: 'template_id' })
+    templateId!: string
+
+    @Column({ type: 'int', default: 1 })
+    version!: number
+
+    @Column({ length: 128, name: 'app_id', default: '' })
+    appId!: string
+
+    @Column({ length: 64, default: 'transactional' })
+    category!: string
+
+    @Column({ type: 'text', name: 'event_types_json', default: '[]' })
+    eventTypesJson!: string
+
+    @Column({ type: 'text', name: 'subject_json' })
+    subjectJson!: string
+
+    @Column({ type: 'text', name: 'html_body_json' })
+    htmlBodyJson!: string
+
+    @Column({ type: 'text', name: 'text_body_json' })
+    textBodyJson!: string
+
+    @Column({ type: 'text', name: 'variables_json', default: '[]' })
+    variablesJson!: string
+
+    @Column({ type: 'boolean', default: true })
+    enabled!: boolean
+
+    @Column({ length: 64, name: 'created_at', default: '' })
+    createdAt!: string
+
+    @Column({ length: 64, name: 'updated_at', default: '' })
+    updatedAt!: string
+}
+
+@Entity('notification_preferences')
+@Index('uidx_notification_preference_subject_event', ['subject', 'appId', 'eventType'], { unique: true })
+export class NotificationPreferenceDO {
+    @PrimaryGeneratedColumn('uuid')
+    uid!: string
+
+    @Column({ length: 128 })
+    subject!: string
+
+    @Column({ length: 128, name: 'app_id', default: '' })
+    appId!: string
+
+    @Column({ length: 128, name: 'event_type', default: '' })
+    eventType!: string
+
+    @Column({ type: 'boolean', name: 'inbox_enabled', default: true })
+    inboxEnabled!: boolean
+
+    @Column({ type: 'boolean', name: 'email_enabled', default: true })
+    emailEnabled!: boolean
+
+    @Column({ length: 32, name: 'digest_mode', default: 'disabled' })
+    digestMode!: string
+
+    @Column({ length: 64, name: 'created_at', default: '' })
+    createdAt!: string
+
+    @Column({ length: 64, name: 'updated_at', default: '' })
+    updatedAt!: string
+}
+
+@Entity('pusher_apps')
+@Index('uidx_pusher_app_id', ['appId'], { unique: true })
+@Index('uidx_pusher_app_key', ['key'], { unique: true })
+export class PusherAppDO {
+    @PrimaryGeneratedColumn('uuid')
+    uid!: string
+
+    @Column({ length: 128, name: 'application_uid', default: '' })
+    applicationUid!: string
+
+    @Column({ length: 128, default: '' })
+    owner!: string
+
+    @Column({ length: 64, name: 'app_id' })
+    appId!: string
+
+    @Column({ length: 128 })
+    key!: string
+
+    @Column({ length: 128, name: 'secret_masked', default: '' })
+    secretMasked!: string
+
+    @Column({ type: 'text', name: 'secret_ciphertext' })
+    secretCiphertext!: string
+
+    @Column({ type: 'text', name: 'allowed_origins_json', default: '[]' })
+    allowedOriginsJson!: string
+
+    @Column({ type: 'text', name: 'channel_patterns_json', default: '[]' })
+    channelPatternsJson!: string
+
+    @Column({ length: 32, default: 'active' })
+    status!: string
+
+    @Column({ length: 64, name: 'created_at', default: '' })
+    createdAt!: string
+
+    @Column({ length: 64, name: 'updated_at', default: '' })
+    updatedAt!: string
+}
+
+@Entity('pusher_events')
+@Index('uidx_pusher_event_app_event', ['appId', 'eventId'], { unique: true })
+@Index('idx_pusher_event_app_created', ['appId', 'createdAt'])
+export class PusherEventDO {
+    @PrimaryGeneratedColumn('uuid')
+    uid!: string
+
+    @Column({ length: 64, name: 'app_id' })
+    appId!: string
+
+    @Column({ length: 128, name: 'event_id' })
+    eventId!: string
+
+    @Column({ length: 128 })
+    type!: string
+
+    @Column({ length: 128, default: '' })
+    source!: string
+
+    @Column({ length: 128, default: '' })
+    actor!: string
+
+    @Column({ type: 'text', name: 'channels_json', default: '[]' })
+    channelsJson!: string
+
+    @Column({ type: 'text', name: 'data_json', default: '{}' })
+    dataJson!: string
+
+    @Column({ type: 'text', name: 'notification_json', default: '{}' })
+    notificationJson!: string
+
+    @Column({ type: 'boolean', default: false })
+    persist!: boolean
+
+    @Column({ length: 64, name: 'created_at', default: '' })
+    createdAt!: string
+}
+
+@Entity('project_identity_mappings')
+@Index('uidx_project_identity_mapping_user', ['instanceId', 'projectUserId'], { unique: true })
+@Index('idx_project_identity_mapping_identity', ['instanceId', 'identityDid'])
+@Index('idx_project_identity_mapping_wallet', ['instanceId', 'walletAddress'])
+export class ProjectIdentityMappingDO {
+    @PrimaryGeneratedColumn('uuid')
+    uid!: string
+
+    @Column({ length: 128, name: 'instance_id' })
+    instanceId!: string
+
+    @Column({ length: 128, name: 'project_user_id' })
+    projectUserId!: string
+
+    @Column({ length: 128, name: 'identity_did' })
+    identityDid!: string
+
+    @Column({ length: 128, name: 'wallet_address', default: '' })
+    walletAddress!: string
+
+    @Column({ type: 'text', name: 'metadata_json', default: '{}' })
+    metadataJson!: string
+
+    @Column({ length: 32, default: 'active' })
+    status!: string
+
+    @Column({ length: 64, name: 'created_at', default: '' })
+    createdAt!: string
+
+    @Column({ length: 64, name: 'updated_at', default: '' })
+    updatedAt!: string
+}
+
 @Entity('action_requests')
 @Index('idx_action_request_dedup', ['actor', 'requestId'], { unique: true })
 export class ActionRequestDO {

@@ -93,6 +93,43 @@ export type NotificationDeliveryItem = {
   updatedAt: string
 }
 
+export type MailSettings = {
+  provider: 'smtp'
+  configured: boolean
+  host: string
+  port: number
+  secure: boolean
+  from: string
+  replyTo: string
+  hasAuthUser: boolean
+  hasAuthPassword: boolean
+  issues: string[]
+  delivery: {
+    enabled: boolean
+    intervalMs: number
+    batchSize: number
+    maxAttempts: number
+    retryBaseDelayMs: number
+    retryMaxDelayMs: number
+  }
+}
+
+export type EmailTemplateItem = {
+  uid: string
+  templateId: string
+  version: number
+  appId: string
+  category: string
+  eventTypes: string[]
+  subject: Record<string, string>
+  htmlBody: Record<string, string>
+  textBody: Record<string, string>
+  variables: string[]
+  enabled: boolean
+  createdAt: string
+  updatedAt: string
+}
+
 type NotificationStreamHandlers = {
   onEvent?: (event: string, data: NotificationStreamPayload) => void
   onError?: (error: Error) => void
@@ -333,6 +370,83 @@ class NotificationClient {
       },
     })
     return await parseEnvelope<NotificationDeliveryItem>(response)
+  }
+
+  async getMailSettings() {
+    const response = await fetch(apiUrl('/api/v1/admin/mail/settings'), {
+      method: 'GET',
+      headers: {
+        ...(await getAuthorizationHeaders()),
+      },
+    })
+    return await parseEnvelope<MailSettings>(response)
+  }
+
+  async sendMailTest(input: { to: string; subject?: string }) {
+    const response = await fetch(apiUrl('/api/v1/admin/mail/tests'), {
+      method: 'POST',
+      headers: {
+        ...(await getAuthorizationHeaders({ interactive: true })),
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(input),
+    })
+    return await parseEnvelope<{ accepted: boolean; messageId: string }>(response)
+  }
+
+  async listEmailTemplates() {
+    const response = await fetch(apiUrl('/api/v1/admin/mail/templates'), {
+      method: 'GET',
+      headers: {
+        ...(await getAuthorizationHeaders()),
+      },
+    })
+    return await parseEnvelope<{ items: EmailTemplateItem[] }>(response)
+  }
+
+  async upsertEmailTemplate(input: {
+    templateId: string
+    version?: number
+    appId?: string
+    category?: string
+    eventTypes?: string[]
+    subject: Record<string, string>
+    htmlBody: Record<string, string>
+    textBody: Record<string, string>
+    variables?: string[]
+    enabled?: boolean
+  }) {
+    const response = await fetch(apiUrl('/api/v1/admin/mail/templates'), {
+      method: 'POST',
+      headers: {
+        ...(await getAuthorizationHeaders({ interactive: true })),
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(input),
+    })
+    return await parseEnvelope<EmailTemplateItem>(response)
+  }
+
+  async updateEmailTemplate(templateId: string, input: {
+    version?: number
+    appId?: string
+    category?: string
+    eventTypes?: string[]
+    subject: Record<string, string>
+    htmlBody: Record<string, string>
+    textBody: Record<string, string>
+    variables?: string[]
+    enabled?: boolean
+  }) {
+    const response = await fetch(apiUrl(`/api/v1/admin/mail/templates/${encodeURIComponent(templateId)}`), {
+      method: 'PATCH',
+      headers: {
+        ...(await getAuthorizationHeaders({ interactive: true })),
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(input),
+    })
+    return await parseEnvelope<EmailTemplateItem>(response)
   }
 
   openStream(handlers: NotificationStreamHandlers = {}) {

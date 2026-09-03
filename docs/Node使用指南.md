@@ -29,7 +29,7 @@ Node 不保存钱包明文密钥。托管接口只接受客户端加密后的 `c
 ```bash
 cp config.js.template config.js
 npm ci
-npm run secrets:init
+./cmd secrets init
 npm run dev:secure
 ```
 
@@ -42,6 +42,7 @@ http://localhost:8100
 验证服务：
 
 ```bash
+./cmd health
 curl http://localhost:8100/api/v1/public/health
 ```
 
@@ -156,14 +157,14 @@ Node 自身的应用中心登录是钱包签名 / UCAN 自举登录，不依赖�
 不要把 JWT、UCAN issuer、TOTP 或 Webhook 主密钥直接提交到 `config.js`。推荐使用加密密钥文件：
 
 ```bash
-npm run secrets:init
-bash scripts/starter.sh restart
+./cmd secrets init
+./cmd service restart
 ```
 
 自动化部署可使用受权限保护的密码文件：
 
 ```bash
-bash scripts/starter.sh restart
+./cmd service restart
 ```
 
 ## 6. 鉴权模型
@@ -269,7 +270,7 @@ npm run openapi:check
 
 ```bash
 npm run build:all
-bash scripts/starter.sh restart
+./cmd service restart
 ```
 
 发布包：
