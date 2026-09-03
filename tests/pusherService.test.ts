@@ -5,6 +5,10 @@ vi.mock('../src/security/secretVault', () => ({
   getRuntimeSecret: () => '',
 }))
 
+vi.mock('../src/domain/service/pusherEvents', () => ({
+  publishPusherEvent: vi.fn(),
+}))
+
 import {
   buildPusherPublishSignature,
   decryptPusherAppSecret,
