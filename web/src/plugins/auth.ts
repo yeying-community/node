@@ -27,7 +27,6 @@ import {
   resolveUcanAuthorization,
   watchProvider,
   type Eip1193Provider,
-  type IdentityPresentationScope,
   type UcanCapability,
   type UcanRootProof,
   type UcanSessionKey,
@@ -77,11 +76,6 @@ const LOGIN_COMPLETION_WAIT_MS = 60000;
 const LOGIN_COMPLETION_POLL_MS = 300;
 const LOGIN_ROUTE_READY_WAIT_MS = 3000;
 const WALLET_ACCOUNT_REQUEST_TIMEOUT_MS = 60000;
-const WALLET_LOGIN_IDENTITY_SCOPES: IdentityPresentationScope[] = [
-  'identity.basic',
-  'identity.wallet',
-];
-
 type WalletPermission = {
   parentCapability?: string;
   caveats?: Array<{
@@ -235,14 +229,13 @@ function extractWalletPermissionAccounts(result: unknown): string[] {
 
 async function requestWalletLoginPermissions(provider: Eip1193Provider): Promise<string[]> {
   try {
+    // Node's own login is SIWE/JWT. Wallet Identity presentation is requested only by
+    // application identity flows, not as part of the Node shell login.
     const permissions = await provider.request({
       method: 'wallet_requestPermissions',
       params: [
         {
           eth_accounts: {},
-          wallet_identity: {
-            scopes: WALLET_LOGIN_IDENTITY_SCOPES,
-          },
         },
       ],
     });
@@ -1370,11 +1363,6 @@ export async function loginWithSiwe(
       })) as string;
       const verified = await verifySiweSignature(currentAccount, signature);
       persistAuthToken(verified.token, verified.expiresAt);
-      try {
-        await getWebDavToken(provider);
-      } catch {
-        // webdav may be optional in some environments
-      }
       return true;
     } catch (error) {
       notifyError(`登录失败：${error}`);
