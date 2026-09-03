@@ -829,15 +829,26 @@ type EmailTemplateContext = {
 - 安全类邮件不能被完全关闭，但必须支持频率限制和异常抑制。
 - 通知偏好 API 必须拒绝把 `security.*` 或包含 `.security.` 的事件类型设置为 `emailEnabled=false`。
 
-### 10.7 Email API 草案
+### 10.7 Email API
 
-管理邮件模板：
+邮件配置状态和测试发送由 Node 管理员在通知中心维护。SMTP 密钥不通过 HTTP 返回，继续使用 `MAIL_SMTP_USER` / `MAIL_SMTP_PASSWORD` 加密密钥；页面只展示是否已配置账号和密码。前端进入 `Email` 页时先读取 `/api/v1/public/profile/me` 的 `isAdmin`，非管理员不请求 Admin Mail API。
+
+配置状态与测试：
 
 ```http
-GET /api/v1/admin/pusher/email/templates
-POST /api/v1/admin/pusher/email/templates
-PATCH /api/v1/admin/pusher/email/templates/:templateId
+GET /api/v1/admin/mail/settings
+POST /api/v1/admin/mail/tests
 ```
+
+邮件模板：
+
+```http
+GET /api/v1/admin/mail/templates
+POST /api/v1/admin/mail/templates
+PATCH /api/v1/admin/mail/templates/:templateId
+```
+
+历史兼容路径 `/api/v1/admin/pusher/email/templates` 可短期保留，但新前端和 OpenAPI 只使用 `/api/v1/admin/mail/templates`。
 
 用户偏好：
 

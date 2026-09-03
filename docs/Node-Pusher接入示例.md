@@ -73,7 +73,7 @@ Content-Type: application/json
 
 轮换会保持 `appId` 不变，只生成新的 `key` 和 `secret`；旧 `key` / `secret` 立即失效。`secret` 仍只在轮换响应里明文返回一次。
 
-后台管理接口只作为平台兜底或初始化入口：
+后台管理接口只作为平台兜底或初始化入口，常规创建和轮换应在个人应用 / 应用中心界面完成：
 
 管理员可以通过 API 创建：
 
@@ -93,18 +93,6 @@ Content-Type: application/json
     "https://project.example.com"
   ]
 }
-```
-
-也可以使用脚本：
-
-```bash
-NODE_ADMIN_TOKEN="<admin token>" \
-npm run pusher:create-app -- \
-  --app-id project \
-  --channel-pattern 'public-*' \
-  --channel-pattern 'private-user.*' \
-  --channel-pattern 'private-project.*' \
-  --origin 'https://project.example.com'
 ```
 
 返回里的 `secret` 同样只在创建时明文返回一次。

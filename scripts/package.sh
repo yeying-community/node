@@ -115,8 +115,10 @@ copy_release_files() {
   cp "$WORKTREE_DIR/package-lock.json" "$release_root/package-lock.json"
   cp "$WORKTREE_DIR/config.js.template" "$release_root/config.js.template"
   cp "$WORKTREE_DIR/README.md" "$release_root/README.md"
+  cp "$WORKTREE_DIR/cmd" "$release_root/cmd"
   cp "$WORKTREE_DIR/scripts/starter.sh" "$release_root/scripts/starter.sh"
   cp "$WORKTREE_DIR/scripts/health-check.sh" "$release_root/scripts/health-check.sh"
+  cp "$WORKTREE_DIR/scripts/admin-allow.cjs" "$release_root/scripts/admin-allow.cjs"
   cp "$WORKTREE_DIR/scripts/init-secrets.cjs" "$release_root/scripts/init-secrets.cjs"
   cp "$WORKTREE_DIR/scripts/unlock-secrets.cjs" "$release_root/scripts/unlock-secrets.cjs"
   cp "$WORKTREE_DIR/scripts/secret-vault.cjs" "$release_root/scripts/secret-vault.cjs"
@@ -126,9 +128,11 @@ copy_release_files() {
   cp "$WORKTREE_DIR/scripts/migrate-secrets.cjs" "$release_root/scripts/migrate-secrets.cjs"
   cp "$WORKTREE_DIR/scripts/remove-secret.cjs" "$release_root/scripts/remove-secret.cjs"
   chmod +x \
+    "$release_root/cmd" \
     "$release_root/scripts/starter.sh" \
     "$release_root/scripts/health-check.sh"
   chmod +x \
+    "$release_root/scripts/admin-allow.cjs" \
     "$release_root/scripts/init-secrets.cjs" \
     "$release_root/scripts/unlock-secrets.cjs" \
     "$release_root/scripts/secret-vault.cjs" \

@@ -2329,12 +2329,12 @@ paths:
           application/json:
             schema:
               $ref: "#/components/schemas/JsonObject"
-  /api/v1/admin/pusher/email/templates:
+  /api/v1/admin/mail/settings:
     get:
       tags:
-        - Pusher
-      summary: 列出 Email 模板
-      operationId: get_api_v1_admin_pusher_email_templates
+        - Mail
+      summary: 查询邮件配置状态
+      operationId: get_api_v1_admin_mail_settings
       security:
         - bearerAuth: []
       parameters: []
@@ -2349,11 +2349,12 @@ paths:
           $ref: "#/components/responses/Forbidden"
         "409":
           $ref: "#/components/responses/Conflict"
+  /api/v1/admin/mail/tests:
     post:
       tags:
-        - Pusher
-      summary: 创建 Email 模板
-      operationId: post_api_v1_admin_pusher_email_templates
+        - Mail
+      summary: 发送测试邮件
+      operationId: post_api_v1_admin_mail_tests
       security:
         - bearerAuth: []
       parameters: []
@@ -2374,12 +2375,57 @@ paths:
           application/json:
             schema:
               $ref: "#/components/schemas/JsonObject"
-  /api/v1/admin/pusher/email/templates/{templateId}:
+  /api/v1/admin/mail/templates:
+    get:
+      tags:
+        - Mail
+      summary: 列出 Email 模板
+      operationId: get_api_v1_admin_mail_templates
+      security:
+        - bearerAuth: []
+      parameters: []
+      responses:
+        "200":
+          $ref: "#/components/responses/Success"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+    post:
+      tags:
+        - Mail
+      summary: 创建 Email 模板
+      operationId: post_api_v1_admin_mail_templates
+      security:
+        - bearerAuth: []
+      parameters: []
+      responses:
+        "200":
+          $ref: "#/components/responses/Success"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/JsonObject"
+  /api/v1/admin/mail/templates/{templateId}:
     patch:
       tags:
-        - Pusher
+        - Mail
       summary: 更新 Email 模板
-      operationId: patch_api_v1_admin_pusher_email_templates_templateId
+      operationId: patch_api_v1_admin_mail_templates_templateId
       security:
         - bearerAuth: []
       parameters:
