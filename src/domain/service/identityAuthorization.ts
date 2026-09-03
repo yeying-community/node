@@ -7,10 +7,11 @@ import * as crypto from 'node:crypto'
 import { generateAuthenticationOptions, generateRegistrationOptions, verifyAuthenticationResponse, verifyRegistrationResponse } from '@simplewebauthn/server'
 import { assertPasskeyAuthReady, getPasskeyAuthStatus } from '../../auth/identityPasskeyAuth'
 import { getConfig } from '../../config/runtime'
+import { issueCustodyRecoveryToken } from '../../auth/custodyRecoveryToken'
 
 const REQUEST_TTL_MS = 5 * 60 * 1000
 const CODE_TTL_MS = 60 * 1000
-const ALLOWED_SCOPES = new Set(['identity.basic', 'identity.wallet', 'identity.username', 'identity.email', 'identity.avatar'])
+const ALLOWED_SCOPES = new Set(['identity.basic', 'identity.wallet', 'identity.username', 'identity.email', 'identity.avatar', 'custody.recovery'])
 const ED25519_SPKI_PREFIX = Buffer.from('302a300506032b6570032100', 'hex')
 const VERIFY_PATH = '/identity/authorize'
 
@@ -307,7 +308,12 @@ export class IdentityAuthorizationService {
     const wanted = new Set(requested.includes('identity.email') ? ['EmailCredential'] : []); if (requested.includes('identity.username')) wanted.add('UsernameCredential'); if (requested.includes('identity.avatar')) wanted.add('AvatarCredential'); if (requested.includes('identity.wallet')) wanted.add('WalletAccountCredential')
     const accountLinks = await dataSource().getRepository(IdentityAccountLinkDO).findBy({ identityDid: row.identityDid, status: 'active' })
     const walletAddress = accountLinks.find(link => link.chainKey?.startsWith('eip155:'))?.accountId || ''
-    return { requestId: row.requestId, appId: row.appId, redirectUri: row.redirectUri, state: row.state, did: row.identityDid, walletAddress, scopes: requested, issuedAt: row.usedAt, credentials: credentials.filter(item => wanted.has(item.credentialType) && Date.parse(item.expiresAt) > Date.now()).map(item => ({ type: item.credentialType, credentialId: item.credentialId, credential: item.token })) }
+    let custodyRecovery: { token: string; expiresAt: number } | undefined
+    if (requested.includes('custody.recovery')) {
+      if (!walletAddress) throw new Error('IDENTITY_WALLET_ACCOUNT_REQUIRED')
+      custodyRecovery = issueCustodyRecoveryToken({ subjectId: row.identityDid, walletAddress, appId: row.appId, requestId: row.requestId })
+    }
+    return { requestId: row.requestId, appId: row.appId, redirectUri: row.redirectUri, state: row.state, did: row.identityDid, walletAddress, scopes: requested, issuedAt: row.usedAt, credentials: credentials.filter(item => wanted.has(item.credentialType) && Date.parse(item.expiresAt) > Date.now()).map(item => ({ type: item.credentialType, credentialId: item.credentialId, credential: item.token })), ...(custodyRecovery ? { custodyRecovery } : {}) }
   }
 
   private async requirePendingRequest(requestId: unknown) {
@@ -325,6 +331,10 @@ export class IdentityAuthorizationService {
     if (requested.includes('identity.username') && !activeTypes.has('UsernameCredential')) throw new Error('IDENTITY_USERNAME_REQUIRED')
     if (requested.includes('identity.avatar') && !activeTypes.has('AvatarCredential')) throw new Error('IDENTITY_AVATAR_REQUIRED')
     if (requested.includes('identity.wallet') && !activeTypes.has('WalletAccountCredential')) throw new Error('IDENTITY_WALLET_CREDENTIAL_REQUIRED')
+    if (requested.includes('custody.recovery')) {
+      const passkeys = await dataSource().getRepository(IdentityPasskeyCredentialDO).findBy({ identityDid })
+      if (!passkeys.some(item => !string(item.revokedAt))) throw new Error('IDENTITY_PASSKEY_REQUIRED')
+    }
   }
 
   private async issueCode(row: IdentityAuthorizationRequestDO, identityDid: string) {

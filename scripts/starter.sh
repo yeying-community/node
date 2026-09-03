@@ -11,6 +11,7 @@ CONFIG_PATH="${APP_CONFIG_PATH:-$ROOT_DIR/config.js}"
 WEB_DIST_PATH="${WEB_DIST_DIR:-$ROOT_DIR/web/dist}"
 NODE_ENV_VALUE="${NODE_ENV:-production}"
 START_WAIT_SECONDS="${START_WAIT_SECONDS:-3}"
+SECRETS_PASSWORD_PROMPT_TIMEOUT_SECONDS="${SECRETS_PASSWORD_PROMPT_TIMEOUT_SECONDS:-30}"
 SECRETS_FILE=""
 SECRETS_PASSWORD_FILE=""
 TEMP_SECRETS_PASSWORD_FILE=""
@@ -99,7 +100,9 @@ prepare_secrets_password_file() {
   chmod 600 "$temp_password_file"
 
   local password=''
-  read -r -s -p "请输入密钥文件密码: " password
+  if ! read -r -s -t "$SECRETS_PASSWORD_PROMPT_TIMEOUT_SECONDS" -p "请输入密钥文件密码: " password; then
+    password=''
+  fi
   printf '\n'
   [[ -n "$password" ]] || fail "密码不能为空"
   printf '%s' "$password" > "$temp_password_file"
