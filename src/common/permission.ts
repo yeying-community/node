@@ -1,5 +1,6 @@
 import { UserService } from '../domain/service/user';
 import { getCurrentUtcString } from './date';
+import { getRuntimeSecret } from '../security/secretVault';
 import {
   USER_ROLE_NORMAL,
   USER_ROLE_OWNER,
@@ -66,13 +67,21 @@ function normalizeUserStatus(status?: string) {
 
 function parseAdminList(value?: string) {
   return (value || '')
-    .split(',')
-    .map((item) => item.trim())
+    .split(/[\n,]/)
+    .map((item) => normalizeAdminPrincipal(item))
     .filter(Boolean);
 }
 
+function normalizeAdminPrincipal(value?: string) {
+  const normalized = String(value || '').trim();
+  if (/^0x[0-9a-fA-F]{40}$/i.test(normalized)) {
+    return normalized.toLowerCase();
+  }
+  return normalized;
+}
+
 export function getAdminDidAllowList() {
-  return new Set(parseAdminList(process.env.ADMIN_DIDS));
+  return new Set(parseAdminList(getRuntimeSecret('ADMIN_DIDS')));
 }
 
 export async function getUserStateByDid(did: string) {
@@ -137,7 +146,7 @@ export async function ensureUserActive(did: string) {
 
 export async function isAdminUser(did: string) {
   const allowList = getAdminDidAllowList();
-  if (allowList.has(did)) {
+  if (allowList.has(normalizeAdminPrincipal(did))) {
     return true;
   }
   const state = await getUserStateByDid(did);

@@ -63,6 +63,7 @@ import { registerPublicIdentityAuthorizationRoutes } from './routes/publicIdenti
 import { registerPublicIdentityTotpRoutes } from './routes/publicIdentityTotp';
 import { deliverIdentityEmailVerification } from './domain/service/identityEmailDelivery';
 import { registerAdminAuditRoutes } from './routes/admin/audits';
+import { registerAdminMailRoutes } from './routes/admin/mail';
 import { registerAdminUserRoutes } from './routes/admin/users';
 import { InitSchema20260126120000 } from './migrations/20260126120000-init-schema';
 import { AddApplicationConfig20260128195500 } from './migrations/20260128195500-add-application-config';
@@ -418,6 +419,7 @@ builder.build().initialize().then(async (conn) => {
     registerPublicNotificationRoutes(app);
     registerPublicPusherRoutes(app);
     registerAdminAuditRoutes(app);
+    registerAdminMailRoutes(app);
     registerAdminUserRoutes(app);
     registerAdminReleaseRoutes(app);
     registerAdminPusherRoutes(app);

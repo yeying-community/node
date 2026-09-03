@@ -460,8 +460,8 @@ mpc: {
 
 UCAN 的 `admin` 能力不能单独授予管理员身份。管理员身份仍来自：
 
-- `ADMIN_DIDS`
-- 用户表 role
+- vault `ADMIN_DIDS`，通过 `./cmd admin allow add <did-or-wallet>` 维护
+- 用户状态表 `user_state.role=USER_ROLE_OWNER`
 
 ## 7. 校验架构规划
 

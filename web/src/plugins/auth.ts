@@ -42,6 +42,7 @@ type AuthProfile = {
   issuer?: string;
   ucanSource?: 'wallet' | 'central';
   authType?: 'jwt' | 'ucan';
+  isAdmin?: boolean;
   issuedAt?: number;
 };
 
