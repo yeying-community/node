@@ -8,6 +8,7 @@ import { generateAuthenticationOptions, generateRegistrationOptions, verifyAuthe
 import { assertPasskeyAuthReady, getPasskeyAuthStatus } from '../../auth/identityPasskeyAuth'
 import { getConfig } from '../../config/runtime'
 import { issueCustodyRecoveryToken } from '../../auth/custodyRecoveryToken'
+import { consumeIdentityActionAuthorization, type IdentityActionAuthorization } from '../../auth/identityActionAuthorization'
 
 const REQUEST_TTL_MS = 5 * 60 * 1000
 const CODE_TTL_MS = 60 * 1000
@@ -162,10 +163,11 @@ export class IdentityAuthorizationService {
     return this.issueCode(row, identityDid)
   }
 
-  async createPasskeyRegisterRequest(input: { identity: unknown; identityDocument: unknown; deviceName?: unknown }) {
+  async createPasskeyRegisterRequest(input: { identity: unknown; identityDocument: unknown; deviceName?: unknown; audience: unknown; authorization: IdentityActionAuthorization }) {
     const status = assertPasskeyAuthReady()
     const identityDid = assertIdentityDid(input.identity)
-    verifyIdentityController(input.identityDocument, identityDid)
+    const deviceName = string(input.deviceName) || 'Passkey'
+    await consumeIdentityActionAuthorization({ identity: identityDid, identityDocument: input.identityDocument, action: 'identity.passkey.register', audience: input.audience, payload: { deviceName }, authorization: input.authorization })
     const credentials = await dataSource().getRepository(IdentityPasskeyCredentialDO).findBy({ identityDid })
     const activeCredentials = credentials.filter(item => !string(item.revokedAt))
     const generated = await generateRegistrationOptions({
@@ -183,7 +185,7 @@ export class IdentityAuthorizationService {
     const challenge = new IdentityWebauthnChallengeDO()
     Object.assign(challenge, { challengeId: id('iwc'), challengeType: 'identity-register', identityDid, requestId: '', challenge: string((generated as any).challenge), allowedCredentialIds: JSON.stringify(activeCredentials.map(item => item.credentialId)), createdAt, expiresAt: new Date(Date.now() + status.challengeTtlMs).toISOString(), used: false })
     await dataSource().getRepository(IdentityWebauthnChallengeDO).save(challenge)
-    return { identity: identityDid, passkeyRequest: { ...(generated as any), requestId: challenge.challengeId }, deviceName: string(input.deviceName) }
+    return { identity: identityDid, passkeyRequest: { ...(generated as any), requestId: challenge.challengeId }, deviceName }
   }
 
   async confirmPasskeyRegistration(input: { identity: unknown; requestId: unknown; credential: any; deviceName?: unknown }) {
@@ -242,11 +244,11 @@ export class IdentityAuthorizationService {
     }
   }
 
-  async revokePasskeyCredential(input: { identity: unknown; identityDocument: unknown; credentialId: unknown }) {
+  async revokePasskeyCredential(input: { identity: unknown; identityDocument: unknown; credentialId: unknown; audience: unknown; authorization: IdentityActionAuthorization }) {
     const identityDid = assertIdentityDid(input.identity)
-    verifyIdentityController(input.identityDocument, identityDid)
     const credentialId = credentialIdValue(input.credentialId)
     if (!credentialId) throw new Error('IDENTITY_PASSKEY_CREDENTIAL_ID_REQUIRED')
+    await consumeIdentityActionAuthorization({ identity: identityDid, identityDocument: input.identityDocument, action: 'identity.passkey.revoke', audience: input.audience, payload: { credentialId }, authorization: input.authorization })
     const repo = dataSource().getRepository(IdentityPasskeyCredentialDO)
     const credential = await repo.findOneBy({ identityDid, credentialId })
     if (!credential) throw new Error('IDENTITY_PASSKEY_CREDENTIAL_NOT_FOUND')

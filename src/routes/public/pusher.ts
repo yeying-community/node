@@ -4,6 +4,7 @@ import { ensureUserActive } from '../../common/permission'
 import { getRequestUser } from '../../common/requestContext'
 import { PusherService } from '../../domain/service/pusher'
 import { subscribePusherEvents } from '../../domain/service/pusherEvents'
+import { executeSignedAction, getActionSignatureErrorStatus } from '../../auth/actionSignature'
 
 function parseChannels(input: unknown): string[] {
   if (Array.isArray(input)) {
@@ -25,6 +26,8 @@ function currentSubject(): string {
 
 function mapPusherError(error: unknown): { status: number; message: string } {
   const message = error instanceof Error ? error.message : 'Pusher request failed'
+  const signatureStatus = getActionSignatureErrorStatus(message)
+  if (signatureStatus !== undefined) return { status: signatureStatus, message }
   if (message === 'Missing access token') {
     return { status: 401, message }
   }
@@ -40,6 +43,12 @@ function mapPusherError(error: unknown): { status: number; message: string } {
     return { status: 403, message }
   }
   return { status: 400, message }
+}
+
+async function signedAdminAction(req: Request, action: string, payload: unknown, execute: () => Promise<unknown>) {
+  const actor = getRequestUser()
+  if (!actor?.address) throw new Error('Missing access token')
+  return executeSignedAction({ raw: req.body || {}, action, actor: actor.address, payload, execute: async () => ({ status: 200, body: ok(await execute()) }), onError: error => { const mapped = mapPusherError(error); return { status: mapped.status, body: fail(mapped.status, mapped.message) } } })
 }
 
 export function registerPublicPusherRoutes(app: Express) {
@@ -190,12 +199,13 @@ export function registerAdminPusherRoutes(app: Express) {
 
   app.post('/api/v1/admin/pusher/apps', async (req: Request, res: Response) => {
     try {
-      const item = await service.createApp({
+      const payload = {
         appId: req.body?.appId,
         allowedOrigins: parseChannels(req.body?.allowedOrigins),
         channelPatterns: parseChannels(req.body?.channelPatterns),
-      })
-      res.json(ok(item))
+      }
+      const result = await signedAdminAction(req, 'admin_pusher_app_create', payload, () => service.createApp(payload))
+      res.status(result.status).json(result.body)
     } catch (error) {
       const mapped = mapPusherError(error)
       res.status(mapped.status).json(fail(mapped.status, mapped.message))
@@ -214,7 +224,7 @@ export function registerAdminPusherRoutes(app: Express) {
 
   app.post('/api/v1/admin/pusher/project-identities', async (req: Request, res: Response) => {
     try {
-      const item = await service.upsertProjectIdentityMapping({
+      const payload = {
         instanceId: req.body?.instanceId,
         projectUserId: req.body?.projectUserId,
         identityDid: req.body?.identityDid,
@@ -223,8 +233,9 @@ export function registerAdminPusherRoutes(app: Express) {
           ? req.body.metadata
           : {},
         status: req.body?.status,
-      })
-      res.json(ok(item))
+      }
+      const result = await signedAdminAction(req, 'admin_pusher_project_identity_upsert', payload, () => service.upsertProjectIdentityMapping(payload))
+      res.status(result.status).json(result.body)
     } catch (error) {
       const mapped = mapPusherError(error)
       res.status(mapped.status).json(fail(mapped.status, mapped.message))
@@ -243,7 +254,7 @@ export function registerAdminPusherRoutes(app: Express) {
 
   app.post('/api/v1/admin/pusher/email/templates', async (req: Request, res: Response) => {
     try {
-      const item = await service.upsertEmailTemplate({
+      const payload = {
         templateId: req.body?.templateId,
         version: req.body?.version,
         appId: req.body?.appId,
@@ -260,8 +271,9 @@ export function registerAdminPusherRoutes(app: Express) {
           : {},
         variables: parseChannels(req.body?.variables),
         enabled: req.body?.enabled,
-      })
-      res.json(ok(item))
+      }
+      const result = await signedAdminAction(req, 'admin_pusher_email_template_upsert', payload, () => service.upsertEmailTemplate(payload))
+      res.status(result.status).json(result.body)
     } catch (error) {
       const mapped = mapPusherError(error)
       res.status(mapped.status).json(fail(mapped.status, mapped.message))
@@ -270,7 +282,7 @@ export function registerAdminPusherRoutes(app: Express) {
 
   app.patch('/api/v1/admin/pusher/email/templates/:templateId', async (req: Request, res: Response) => {
     try {
-      const item = await service.upsertEmailTemplate({
+      const payload = {
         templateId: req.params.templateId,
         version: req.body?.version,
         appId: req.body?.appId,
@@ -287,8 +299,9 @@ export function registerAdminPusherRoutes(app: Express) {
           : {},
         variables: parseChannels(req.body?.variables),
         enabled: req.body?.enabled,
-      })
-      res.json(ok(item))
+      }
+      const result = await signedAdminAction(req, 'admin_pusher_email_template_upsert', payload, () => service.upsertEmailTemplate(payload))
+      res.status(result.status).json(result.body)
     } catch (error) {
       const mapped = mapPusherError(error)
       res.status(mapped.status).json(fail(mapped.status, mapped.message))

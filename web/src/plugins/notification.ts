@@ -1,5 +1,6 @@
 import { apiUrl } from '@/plugins/api'
-import { getAuthToken, getStoredAuthToken } from '@/plugins/auth'
+import { getAuthToken, getStoredAuthToken, getCurrentAccount, signWithWallet } from '@/plugins/auth'
+import { createSignedActionBody } from '@/utils/actionSignature'
 
 type Envelope<T> = {
   code: number
@@ -383,13 +384,15 @@ class NotificationClient {
   }
 
   async sendMailTest(input: { to: string; subject?: string }) {
+    const payload = { to: input.to.trim().toLowerCase(), subject: String(input.subject || 'YeYing Node mail test').trim() || 'YeYing Node mail test' }
+    const body = await createSignedActionBody({ action: 'admin_mail_test', actor: getCurrentAccount() || '', payload, body: input, sign: signWithWallet })
     const response = await fetch(apiUrl('/api/v1/admin/mail/tests'), {
       method: 'POST',
       headers: {
         ...(await getAuthorizationHeaders({ interactive: true })),
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify(input),
+      body: JSON.stringify(body),
     })
     return await parseEnvelope<{ accepted: boolean; messageId: string }>(response)
   }
@@ -416,13 +419,15 @@ class NotificationClient {
     variables?: string[]
     enabled?: boolean
   }) {
+    const payload = { ...input, eventTypes: input.eventTypes || [], subject: input.subject || {}, htmlBody: input.htmlBody || {}, textBody: input.textBody || {}, variables: input.variables || [] }
+    const body = await createSignedActionBody({ action: 'admin_mail_template_upsert', actor: getCurrentAccount() || '', payload, body: input, sign: signWithWallet })
     const response = await fetch(apiUrl('/api/v1/admin/mail/templates'), {
       method: 'POST',
       headers: {
         ...(await getAuthorizationHeaders({ interactive: true })),
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify(input),
+      body: JSON.stringify(body),
     })
     return await parseEnvelope<EmailTemplateItem>(response)
   }
@@ -438,13 +443,15 @@ class NotificationClient {
     variables?: string[]
     enabled?: boolean
   }) {
+    const payload = { templateId, ...input, eventTypes: input.eventTypes || [], subject: input.subject || {}, htmlBody: input.htmlBody || {}, textBody: input.textBody || {}, variables: input.variables || [] }
+    const body = await createSignedActionBody({ action: 'admin_mail_template_upsert', actor: getCurrentAccount() || '', payload, body: input, sign: signWithWallet })
     const response = await fetch(apiUrl(`/api/v1/admin/mail/templates/${encodeURIComponent(templateId)}`), {
       method: 'PATCH',
       headers: {
         ...(await getAuthorizationHeaders({ interactive: true })),
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify(input),
+      body: JSON.stringify(body),
     })
     return await parseEnvelope<EmailTemplateItem>(response)
   }

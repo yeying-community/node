@@ -5,6 +5,7 @@ import { SingletonDataSource } from '../domain/facade/datasource'
 import { IdentityAuditLogDO, IdentityTotpAuthenticatorDO } from '../domain/mapper/entity'
 import { verifyIdentityController } from './identityAccountLink'
 import { getDerivedRuntimeSecret } from '../security/secretVault'
+import { consumeIdentityActionAuthorization, type IdentityActionAuthorization } from './identityActionAuthorization'
 
 const SECRET_BYTES = 20
 const SECRET_CIPHER_VERSION = 'v1'
@@ -220,10 +221,11 @@ export class IdentityTotpService {
     return { identity: identityDid, totp: publicRecord(row) }
   }
 
-  async setup(input: { identity: unknown; identityDocument: unknown; deviceName?: unknown }) {
+  async setup(input: { identity: unknown; identityDocument: unknown; deviceName?: unknown; audience: unknown; authorization: IdentityActionAuthorization }) {
     assertIdentityTotpReady()
     const identityDid = assertIdentityDid(input.identity)
-    verifyIdentityController(input.identityDocument, identityDid)
+    const deviceName = string(input.deviceName) || 'Authenticator app'
+    await consumeIdentityActionAuthorization({ identity: identityDid, identityDocument: input.identityDocument, action: 'identity.totp.setup', audience: input.audience, payload: { deviceName }, authorization: input.authorization })
     const repo = repository()
     const existing = await repo.findOneBy({ identityDid })
     const createdAt = now()
@@ -232,7 +234,7 @@ export class IdentityTotpService {
       identityDid,
       secretCiphertext: encryptSecret(crypto.randomBytes(SECRET_BYTES)),
       status: 'pending',
-      deviceName: string(input.deviceName) || 'Authenticator app',
+      deviceName,
       createdAt: existing?.createdAt || createdAt,
       updatedAt: createdAt,
       confirmedAt: '',
@@ -321,10 +323,10 @@ export class IdentityTotpService {
     return { identity: identityDid, verified: true, verifiedAt: row.lastUsedAt }
   }
 
-  async revoke(input: { identity: unknown; identityDocument: unknown }) {
+  async revoke(input: { identity: unknown; identityDocument: unknown; audience: unknown; authorization: IdentityActionAuthorization }) {
     assertIdentityTotpReady()
     const identityDid = assertIdentityDid(input.identity)
-    verifyIdentityController(input.identityDocument, identityDid)
+    await consumeIdentityActionAuthorization({ identity: identityDid, identityDocument: input.identityDocument, action: 'identity.totp.revoke', audience: input.audience, payload: {}, authorization: input.authorization })
     const repo = repository()
     const row = await repo.findOneBy({ identityDid })
     if (!row) {

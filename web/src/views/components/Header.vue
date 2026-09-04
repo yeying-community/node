@@ -134,7 +134,7 @@ import { useRoute, useRouter } from 'vue-router'
 import dayjs from 'dayjs'
 import { BellFilled, CaretBottom, Check, DocumentCopy, QuestionFilled, Search } from '@element-plus/icons-vue'
 import { apiUrl } from '@/plugins/api'
-import { getCurrentAccount, getStoredAuthToken, logoutWithUcan } from '@/plugins/auth'
+import { getCurrentAccount, getStoredAuthToken, logoutSiweSession } from '@/plugins/auth'
 import $notification, { type NotificationListItem, type NotificationStreamPayload } from '@/plugins/notification'
 import { getNotificationTypeLabel } from '@/plugins/notificationMeta'
 import { notifyError, notifySuccess } from '@/utils/message'
@@ -420,7 +420,7 @@ const handleAccountCommand = async (command: string | number | object) => {
         return
     }
     await closeNotificationStream()
-    await logoutWithUcan({ redirect: false })
+    await logoutSiweSession({ redirect: false })
     currentAccount.value = null
     notifications.value = []
     unreadCount.value = 0

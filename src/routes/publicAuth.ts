@@ -92,30 +92,31 @@ export function registerPublicAuthRoutes(app: Express) {
     try {
       const address = req.body?.address;
       const signature = req.body?.signature;
-      if (!address || typeof address !== 'string' || !signature || typeof signature !== 'string') {
-        res.status(400).json(fail(400, 'Missing address or signature'));
+      const nonce = req.body?.nonce;
+      if (!address || typeof address !== 'string' || !signature || typeof signature !== 'string' || !nonce || typeof nonce !== 'string') {
+        res.status(400).json(fail(400, 'Missing address, nonce or signature'));
         return;
       }
 
-      const record = getChallenge(address);
+      const record = getChallenge(nonce);
       if (!record) {
         res.status(400).json(fail(400, 'Challenge expired'));
         return;
       }
 
       if (Date.now() > record.expiresAt) {
-        deleteChallenge(record.address);
+        deleteChallenge(record.nonce);
         res.status(400).json(fail(400, 'Challenge expired'));
         return;
       }
 
-      const valid = verifyChallengeSignature(record.challenge, signature, record.address);
+      const valid = await verifyChallengeSignature(record.challenge, signature, record);
       if (!valid) {
         res.status(401).json(fail(401, 'Invalid signature'));
         return;
       }
 
-      deleteChallenge(record.address);
+      deleteChallenge(record.nonce);
       await provisionUserState(record.address);
       const tokens = issueTokens(record.address);
       setRefreshCookie(res, tokens.refreshToken, tokens.refreshExpiresAt - Date.now());

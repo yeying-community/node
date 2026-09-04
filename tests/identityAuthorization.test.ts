@@ -70,6 +70,18 @@ function signedIdentityDocument() {
 const { IdentityAuthorizationService } = await import('../src/domain/service/identityAuthorization')
 const { IdentityTotpService, getIdentityTotpStatus } = await import('../src/auth/identityTotpAuth')
 const { verifyRegistrationResponse } = await import('@simplewebauthn/server')
+const { createIdentityActionChallenge } = await import('../src/auth/identityActionAuthorization')
+
+async function actionAuthorization(action: string, payload: unknown) {
+  const challenge = await createIdentityActionChallenge({ identity, action, audience: 'http://localhost:8100', payload })
+  return {
+    audience: 'http://localhost:8100',
+    authorization: {
+      challengeId: challenge.challengeId,
+      signature: sign(null, Buffer.from(canonicalize(challenge.signingPayload)), privateKey).toString('base64url')
+    }
+  }
+}
 
 function base32Decode(value: string): Buffer {
   const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567'
@@ -144,7 +156,7 @@ describe('identity authorization', () => {
     }))
     const listed = await service.listPasskeyCredentials({ identity })
     expect(listed.credentials).toMatchObject([{ credentialId: 'credential-1', deviceName: 'Mac Touch ID', transports: ['internal'], revokedAt: '' }])
-    const revoked = await service.revokePasskeyCredential({ identity, identityDocument: signedIdentityDocument(), credentialId: 'credential-1' })
+    const revoked = await service.revokePasskeyCredential({ identity, identityDocument: signedIdentityDocument(), credentialId: 'credential-1', ...(await actionAuthorization('identity.passkey.revoke', { credentialId: 'credential-1' })) })
     expect(revoked.credentialId).toBe('credential-1')
     expect(revoked.revokedAt).toBeTruthy()
     const after = await service.listPasskeyCredentials({ identity })
@@ -153,7 +165,7 @@ describe('identity authorization', () => {
 
   it('sets up, confirms, verifies, and revokes wallet identity TOTP', async () => {
     const service = new IdentityTotpService()
-    const setup = await service.setup({ identity, identityDocument: signedIdentityDocument(), deviceName: '1Password' })
+    const setup = await service.setup({ identity, identityDocument: signedIdentityDocument(), deviceName: '1Password', ...(await actionAuthorization('identity.totp.setup', { deviceName: '1Password' })) })
     expect(setup.totp.secret).toBeTruthy()
     expect(setup.totp.otpauthUri).toContain('otpauth://totp/')
 
@@ -168,7 +180,7 @@ describe('identity authorization', () => {
     const row = await SingletonDataSource.get()!.getRepository(IdentityTotpAuthenticatorDO).findOneBy({ identityDid: identity })
     expect(row?.secretCiphertext).not.toContain(setup.totp.secret)
 
-    const revoked = await service.revoke({ identity, identityDocument: signedIdentityDocument() })
+    const revoked = await service.revoke({ identity, identityDocument: signedIdentityDocument(), ...(await actionAuthorization('identity.totp.revoke', {})) })
     expect(revoked.totp.status).toBe('revoked')
     await expect(service.verify({ identity, code })).rejects.toMatchObject({ code: 'IDENTITY_TOTP_NOT_ENABLED' })
 
