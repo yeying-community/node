@@ -1,5 +1,19 @@
 import { Wallet } from 'ethers'
-import { deleteChallenge, getChallenge, issueChallenge, verifyChallengeSignature } from '../src/auth/siwe'
+import { vi } from 'vitest'
+
+vi.mock('../src/config/runtime', () => ({
+  getConfig: (key: string) => {
+    const values: Record<string, unknown> = {
+      'auth.accessTtlMs': 15 * 60 * 1000,
+      'auth.refreshTtlMs': 7 * 24 * 60 * 60 * 1000,
+      'auth.challengeTtlMs': 5 * 60 * 1000,
+      'auth.chainId': 1,
+    }
+    return values[key]
+  },
+}))
+
+const { deleteChallenge, getChallenge, issueChallenge, verifyChallengeSignature } = await import('../src/auth/siwe')
 
 describe('SIWE challenge', () => {
   it('creates independently addressable challenges for concurrent logins', () => {
