@@ -3,6 +3,7 @@ import { fail, ok } from '../auth/envelope'
 import { IdentityAuthorizationService } from '../domain/service/identityAuthorization'
 import { getPasskeyAuthStatus } from '../auth/identityPasskeyAuth'
 import { getIdentityTotpStatus } from '../auth/identityTotpAuth'
+import { createIdentityActionChallenge } from '../auth/identityActionAuthorization'
 
 function handle(error: unknown, res: Response) {
   const message = error instanceof Error ? error.message : 'Identity authorization failed'
@@ -21,6 +22,9 @@ export function registerPublicIdentityAuthorizationRoutes(app: Express) {
   })
   app.post('/api/v1/public/identity/authorize/request', async (req: Request, res: Response) => {
     try { res.json(ok(await service.create({ appId: req.body?.appId, redirectUri: req.body?.redirectUri, state: req.body?.state, codeChallenge: req.body?.codeChallenge ?? req.body?.code_challenge, codeChallengeMethod: req.body?.codeChallengeMethod ?? req.body?.code_challenge_method, scopes: req.body?.scopes ?? req.body?.scope }))) } catch (error) { handle(error, res) }
+  })
+  app.post('/api/v1/public/identity/actions/challenge', async (req: Request, res: Response) => {
+    try { res.json(ok(await createIdentityActionChallenge({ identity: req.body?.identity, action: req.body?.action, audience: req.body?.audience, payload: req.body?.payload }))) } catch (error) { handle(error, res) }
   })
   app.get('/api/v1/public/identity/authorize/request/:requestId', async (req: Request, res: Response) => {
     try { res.json(ok(await service.get(req.params.requestId))) } catch (error) { handle(error, res) }
@@ -41,7 +45,7 @@ export function registerPublicIdentityAuthorizationRoutes(app: Express) {
     try { res.json(ok(await service.exchange({ code: req.body?.code, appId: req.body?.appId, redirectUri: req.body?.redirectUri, codeVerifier: req.body?.codeVerifier ?? req.body?.code_verifier }))) } catch (error) { handle(error, res) }
   })
   app.post('/api/v1/public/identity/passkeys/register/request', async (req: Request, res: Response) => {
-    try { res.json(ok(await service.createPasskeyRegisterRequest({ identity: req.body?.identity, identityDocument: req.body?.identityDocument, deviceName: req.body?.deviceName }))) } catch (error) { handle(error, res) }
+    try { res.json(ok(await service.createPasskeyRegisterRequest({ identity: req.body?.identity, identityDocument: req.body?.identityDocument, deviceName: req.body?.deviceName, audience: req.body?.audience, authorization: req.body?.authorization }))) } catch (error) { handle(error, res) }
   })
   app.post('/api/v1/public/identity/passkeys/register/confirm', async (req: Request, res: Response) => {
     try { res.json(ok(await service.confirmPasskeyRegistration({ identity: req.body?.identity, requestId: req.body?.requestId, credential: req.body?.credential, deviceName: req.body?.deviceName }))) } catch (error) { handle(error, res) }
@@ -50,7 +54,7 @@ export function registerPublicIdentityAuthorizationRoutes(app: Express) {
     try { res.json(ok(await service.listPasskeyCredentials({ identity: req.body?.identity }))) } catch (error) { handle(error, res) }
   })
   app.post('/api/v1/public/identity/passkeys/revoke', async (req: Request, res: Response) => {
-    try { res.json(ok(await service.revokePasskeyCredential({ identity: req.body?.identity, identityDocument: req.body?.identityDocument, credentialId: req.body?.credentialId }))) } catch (error) { handle(error, res) }
+    try { res.json(ok(await service.revokePasskeyCredential({ identity: req.body?.identity, identityDocument: req.body?.identityDocument, credentialId: req.body?.credentialId, audience: req.body?.audience, authorization: req.body?.authorization }))) } catch (error) { handle(error, res) }
   })
 }
 

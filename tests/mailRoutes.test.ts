@@ -18,6 +18,15 @@ vi.doMock('../src/domain/service/pusher', () => ({
   PusherService: mockClass(() => pusherServiceMocks),
 }))
 
+vi.doMock('../src/common/requestContext', () => ({
+  getRequestUser: () => ({ address: '0x1111111111111111111111111111111111111111', authType: 'jwt' }),
+}))
+
+vi.doMock('../src/auth/actionSignature', () => ({
+  getActionSignatureErrorStatus: () => undefined,
+  executeSignedAction: async (input: any) => input.execute({ requestId: 'request-1' }),
+}))
+
 const { registerAdminMailRoutes } = await import('../src/routes/admin/mail')
 
 function createTestApp() {

@@ -282,6 +282,21 @@ export class IdentityWebauthnChallengeDO {
     used!: boolean
 }
 
+@Entity('identity_action_challenges')
+@Index('idx_identity_action_challenge_status_expires', ['status', 'expiresAt'])
+export class IdentityActionChallengeDO {
+    @PrimaryColumn({ length: 128, name: 'challenge_id' }) challengeId!: string
+    @Column({ length: 128, name: 'identity_did' }) identityDid!: string
+    @Column({ length: 96 }) action!: string
+    @Column({ length: 512 }) audience!: string
+    @Column({ length: 64, name: 'payload_hash' }) payloadHash!: string
+    @Column({ length: 128 }) nonce!: string
+    @Column({ length: 32, default: 'pending' }) status!: string
+    @Column({ length: 64, name: 'issued_at' }) issuedAt!: string
+    @Column({ length: 64, name: 'expires_at' }) expiresAt!: string
+    @Column({ length: 64, name: 'consumed_at', default: '' }) consumedAt!: string
+}
+
 @Entity('identity_authorization_requests')
 @Index('idx_identity_authorization_request_status_expires', ['status', 'expiresAt'])
 export class IdentityAuthorizationRequestDO {

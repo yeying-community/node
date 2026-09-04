@@ -1,7 +1,8 @@
 import { randomBytes, randomUUID } from 'crypto';
 import * as jwt from 'jsonwebtoken';
 import type { JwtPayload } from 'jsonwebtoken';
-import { verifyMessage } from 'ethers';
+import { SiweMessage } from 'siwe';
+import { getAddress } from 'ethers';
 import { getConfig } from '../config/runtime';
 import { getDerivedRuntimeSecret } from '../security/secretVault';
 
@@ -109,19 +110,17 @@ function createChallengeMessage(input: {
   issuedAt: number;
   expiresAt: number;
 }): string {
-  return [
-    `${input.domain} wants you to sign in with your Ethereum account:`,
-    input.address,
-    '',
-    'Sign in to YeYing Node.',
-    '',
-    `URI: ${input.uri}`,
-    'Version: 1',
-    `Chain ID: ${input.chainId}`,
-    `Nonce: ${input.nonce}`,
-    `Issued At: ${new Date(input.issuedAt).toISOString()}`,
-    `Expiration Time: ${new Date(input.expiresAt).toISOString()}`,
-  ].join('\n');
+  return new SiweMessage({
+    domain: input.domain,
+    address: getAddress(input.address),
+    statement: 'Sign in to YeYing Node.',
+    uri: input.uri,
+    version: '1',
+    chainId: input.chainId,
+    nonce: input.nonce,
+    issuedAt: new Date(input.issuedAt).toISOString(),
+    expirationTime: new Date(input.expiresAt).toISOString(),
+  }).prepareMessage();
 }
 
 function normalizeDomain(value: unknown): string {
@@ -169,28 +168,34 @@ export function issueChallenge(
     issuedAt,
     expiresAt,
   };
-  challenges.set(normalized, record);
+  challenges.set(nonce, record);
   return record;
 }
 
-export function getChallenge(address: string): ChallengeRecord | null {
-  const normalized = normalizeAddress(address);
-  return challenges.get(normalized) || null;
+export function getChallenge(nonce: string): ChallengeRecord | null {
+  return challenges.get(String(nonce || '').trim()) || null;
 }
 
-export function deleteChallenge(address: string): void {
-  const normalized = normalizeAddress(address);
-  challenges.delete(normalized);
+export function deleteChallenge(nonce: string): void {
+  challenges.delete(String(nonce || '').trim());
 }
 
-export function verifyChallengeSignature(
+export async function verifyChallengeSignature(
   challenge: string,
   signature: string,
-  address: string
-): boolean {
+  expected: { address: string; domain: string; uri: string; nonce: string; chainId: number }
+): Promise<boolean> {
   try {
-    const recovered = verifyMessage(challenge, signature);
-    return normalizeAddress(recovered) === normalizeAddress(address);
+    const message = new SiweMessage(challenge);
+    const result = await message.verify({
+      signature,
+      domain: expected.domain,
+      nonce: expected.nonce,
+      time: new Date().toISOString(),
+    });
+    return Boolean(result.success) &&
+      normalizeAddress(message.address) === normalizeAddress(expected.address) &&
+      message.uri === expected.uri && Number(message.chainId) === expected.chainId;
   } catch {
     return false;
   }

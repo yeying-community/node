@@ -29,6 +29,11 @@ vi.doMock('../src/domain/service/pusherEvents', () => ({
   subscribePusherEvents: vi.fn().mockReturnValue(() => undefined),
 }))
 
+vi.doMock('../src/auth/actionSignature', () => ({
+  getActionSignatureErrorStatus: () => undefined,
+  executeSignedAction: async (input: any) => input.execute({ requestId: 'request-1' }),
+}))
+
 const { registerAdminPusherRoutes, registerPublicPusherRoutes } = await import('../src/routes/public/pusher')
 
 const actor = '0x1111111111111111111111111111111111111111'

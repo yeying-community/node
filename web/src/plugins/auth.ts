@@ -228,6 +228,10 @@ function extractWalletPermissionAccounts(result: unknown): string[] {
 }
 
 async function requestWalletLoginPermissions(provider: Eip1193Provider): Promise<string[]> {
+  const connectedAccounts = await getAccounts(provider);
+  if (connectedAccounts.length > 0) {
+    return connectedAccounts;
+  }
   try {
     // Node's own login is SIWE/JWT. Wallet Identity presentation is requested only by
     // application identity flows, not as part of the Node shell login.
@@ -787,10 +791,10 @@ async function requestSiweChallenge(address: string, chainId?: number): Promise<
   );
 }
 
-async function verifySiweSignature(address: string, signature: string): Promise<SiweVerifyResult> {
+async function verifySiweSignature(address: string, nonce: string, signature: string): Promise<SiweVerifyResult> {
   return await postAuthJson<SiweVerifyResult>(
     '/api/v1/public/auth/verify',
-    { address, signature },
+    { address, nonce, signature },
     '钱包签名验证失败'
   );
 }
@@ -1145,7 +1149,7 @@ export function getStoredAuthToken() {
   return String(stored?.token || '').trim();
 }
 
-export async function logoutWithUcan(options: { redirect?: boolean } = {}) {
+export async function logoutSiweSession(options: { redirect?: boolean } = {}) {
   const redirect = options.redirect !== false;
   markManualLogout();
   await fetch(apiUrl('/api/v1/public/auth/logout'), {
@@ -1361,7 +1365,7 @@ export async function loginWithSiwe(
         method: 'personal_sign',
         params: [challenge.challenge, currentAccount],
       })) as string;
-      const verified = await verifySiweSignature(currentAccount, signature);
+      const verified = await verifySiweSignature(currentAccount, challenge.nonce, signature);
       persistAuthToken(verified.token, verified.expiresAt);
       return true;
     } catch (error) {
@@ -1377,20 +1381,4 @@ export async function loginWithSiwe(
       loginInFlight = null;
     }
   }
-}
-
-// 保留旧名称，避免已有调用断裂；Node 主登录现在走 SIWE/JWT。
-export async function loginWithUcan(
-  providerOverride?: Eip1193Provider,
-  accountOverride?: string
-): Promise<boolean> {
-  return await loginWithSiwe(providerOverride, accountOverride);
-}
-
-// 保留旧名称，保持兼容
-export async function loginWithChallenge(
-  providerOverride?: Eip1193Provider,
-  accountOverride?: string
-): Promise<boolean> {
-  return await loginWithUcan(providerOverride, accountOverride);
 }

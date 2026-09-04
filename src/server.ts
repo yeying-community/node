@@ -36,7 +36,7 @@ import {
     ProjectAppInstallationDO,
     AppReleaseDO,
     AppRuntimeTaskDO,
-    IdentityAccountLinkDO, IdentityAccountLinkChallengeDO, IdentityVerificationTransactionDO, IdentityUsernameDO, IdentityCredentialDO, IdentityCredentialReissueChallengeDO, IdentityAuditLogDO, IdentityPasskeyCredentialDO, IdentityTotpAuthenticatorDO, IdentityWebauthnChallengeDO, IdentityAuthorizationRequestDO, IdentityAuthorizationCodeDO
+    IdentityAccountLinkDO, IdentityAccountLinkChallengeDO, IdentityVerificationTransactionDO, IdentityUsernameDO, IdentityCredentialDO, IdentityCredentialReissueChallengeDO, IdentityAuditLogDO, IdentityPasskeyCredentialDO, IdentityTotpAuthenticatorDO, IdentityWebauthnChallengeDO, IdentityActionChallengeDO, IdentityAuthorizationRequestDO, IdentityAuthorizationCodeDO
 } from './domain/mapper/entity'
 import { SingletonDataSource } from './domain/facade/datasource';
 import { LoggerConfig, LoggerService } from './infrastructure/logger';
@@ -100,6 +100,7 @@ import { AddIdentityVerificationAvatarUri20260825110000 } from './migrations/202
 import { NormalizeWalletAddressSubjects20260827080000 } from './migrations/20260827080000-normalize-wallet-address-subjects';
 import { AddPusherCore20260901120000 } from './migrations/20260901120000-add-pusher-core';
 import { AddPusherAppOwner20260902100000 } from './migrations/20260902100000-add-pusher-app-owner';
+import { AddIdentityActionChallenges20260904090000 } from './migrations/20260904090000-add-identity-action-challenges';
 import { AddScopedGrants20260808090000 } from './migrations/20260808090000-add-scoped-grants';
 import { getConfig } from './config/runtime';
 import { startActionRequestCleanupJobs } from './domain/service/actionRequestCleanup';
@@ -322,6 +323,7 @@ builder.entities([
     IdentityPasskeyCredentialDO,
     IdentityTotpAuthenticatorDO,
     IdentityWebauthnChallengeDO,
+    IdentityActionChallengeDO,
     IdentityAuthorizationRequestDO,
     IdentityAuthorizationCodeDO
 ])
@@ -359,7 +361,8 @@ builder.migrations([
     AddIdentityVerificationAvatarUri20260825110000,
     NormalizeWalletAddressSubjects20260827080000,
     AddPusherCore20260901120000,
-    AddPusherAppOwner20260902100000
+    AddPusherAppOwner20260902100000,
+    AddIdentityActionChallenges20260904090000
 ])
 
 builder.build().initialize().then(async (conn) => {

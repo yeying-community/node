@@ -24,7 +24,7 @@ export function registerPublicIdentityTotpRoutes(app: Express) {
   })
 
   app.post('/api/v1/public/identity/totp/setup', async (req: Request, res: Response) => {
-    try { res.json(ok(await service.setup({ identity: req.body?.identity, identityDocument: req.body?.identityDocument, deviceName: req.body?.deviceName }))) } catch (error) { handle(error, res) }
+    try { res.json(ok(await service.setup({ identity: req.body?.identity, identityDocument: req.body?.identityDocument, deviceName: req.body?.deviceName, audience: req.body?.audience, authorization: req.body?.authorization }))) } catch (error) { handle(error, res) }
   })
 
   app.post('/api/v1/public/identity/totp/confirm', async (req: Request, res: Response) => {
@@ -36,6 +36,6 @@ export function registerPublicIdentityTotpRoutes(app: Express) {
   })
 
   app.post('/api/v1/public/identity/totp/revoke', async (req: Request, res: Response) => {
-    try { res.json(ok(await service.revoke({ identity: req.body?.identity, identityDocument: req.body?.identityDocument }))) } catch (error) { handle(error, res) }
+    try { res.json(ok(await service.revoke({ identity: req.body?.identity, identityDocument: req.body?.identityDocument, audience: req.body?.audience, authorization: req.body?.authorization }))) } catch (error) { handle(error, res) }
   })
 }
