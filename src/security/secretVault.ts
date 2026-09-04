@@ -36,7 +36,10 @@ function resolveVaultFilePath(): string {
 function isProductionEnvironment(): boolean {
   const configured = String(getConfig<string>('app.env') ?? '').trim().toLowerCase();
   const runtime = String(process.env.NODE_ENV ?? '').trim().toLowerCase();
-  return configured === 'production' || runtime === 'production';
+  if (configured) {
+    return configured === 'production';
+  }
+  return runtime === 'production';
 }
 
 function readPasswordFromFile(filePathInput: string): string {
