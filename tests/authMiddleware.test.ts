@@ -108,4 +108,28 @@ describe('auth middleware route capabilities', () => {
     }))
     expect(next).not.toHaveBeenCalled()
   })
+
+  it('lets custody recovery routes validate their dedicated recovery token', () => {
+    const status = vi.fn().mockReturnThis()
+    const json = vi.fn()
+    const next = vi.fn()
+
+    authenticateToken(
+      {
+        method: 'GET',
+        baseUrl: '/api/v1',
+        path: '/public/custody/recovery/secrets',
+        originalUrl: '/api/v1/public/custody/recovery/secrets',
+        headers: {},
+        query: {},
+        socket: {},
+      } as any,
+      { status, json } as any,
+      next,
+    )
+
+    expect(next).toHaveBeenCalledOnce()
+    expect(status).not.toHaveBeenCalled()
+    expect(json).not.toHaveBeenCalled()
+  })
 })

@@ -109,6 +109,14 @@ const authenticateToken = (req: Request, res: Response, next: NextFunction) => {
     return runWithRequestContext(undefined, () => next());
   }
 
+  // Custody recovery routes authenticate their short-lived recovery token in
+  // the route handler. They must not be reinterpreted as a normal SIWE/JWT
+  // access token by this global middleware.
+  const routeCaps = getRouteRequiredUcanCapabilities(req);
+  if (routeCaps && routeCaps.length === 0) {
+    return runWithRequestContext(undefined, () => next());
+  }
+
   const authHeader = req.headers.authorization || '';
   const [scheme, rawToken] = authHeader.split(' ');
   const token = scheme?.toLowerCase() === 'bearer' ? rawToken : authHeader;
@@ -123,7 +131,6 @@ const authenticateToken = (req: Request, res: Response, next: NextFunction) => {
     return;
   }
 
-  const routeCaps = getRouteRequiredUcanCapabilities(req);
   if (isUcanToken(token)) {
     try {
       const result =

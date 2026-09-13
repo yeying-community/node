@@ -49,7 +49,7 @@ export function registerPublicCustodyRoutes(app: Express) {
     const claims = verifyCustodyRecoveryToken(recoveryToken(req))
     if (!claims) return void res.status(401).json(fail(401, 'Invalid or expired recovery token'))
     try {
-      res.json(ok({ records: await service.listRecords(claims.address) }))
+      res.json(ok({ identityDid: claims.sub, records: await service.listRecords(claims.address) }))
     } catch (error) {
       const mapped = mapCustodyError(error)
       res.status(mapped.status).json(fail(mapped.status, mapped.message))
