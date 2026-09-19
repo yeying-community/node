@@ -84,6 +84,8 @@
                     <el-form-item :label="$t('app_edit_redirect_uri')">
                         <el-input
                             v-model="redirectUriInput"
+                            type="textarea"
+                            :rows="4"
                             :placeholder="$t('app_edit_redirect_uri_placeholder')"
                         />
                         <div class="field-hint">
@@ -257,17 +259,6 @@ function toRedirectUriArray(value: unknown): string[] {
     )
 }
 
-function toSingleRedirectUri(value: unknown): string {
-    const values = toRedirectUriArray(value)
-    if (values.length === 0) {
-        return ''
-    }
-    if (values.length > 1) {
-        throw new Error(String($t('app_edit_redirect_single')))
-    }
-    return values[0]
-}
-
 function resolveSubmitError(error: unknown): string {
     const message = error instanceof Error ? error.message : String(error || '未知错误')
     if (message.includes('USER_ROLE_DENIED')) {
@@ -297,7 +288,7 @@ async function getDetailInfo() {
         redirectUris: toRedirectUriArray(res.redirectUris),
         codePackagePath: String(res.codePackagePath || '')
     }
-    redirectUriInput.value = toSingleRedirectUri(res.redirectUris)
+    redirectUriInput.value = toRedirectUriArray(res.redirectUris).join('\n')
     avatarValue.value = String(res.avatar || '').trim()
     imageUrl.value = avatarValue.value || defaultAppAvatar
     avatarList.value = res.avatar
@@ -343,12 +334,12 @@ async function loadDependencyOptions() {
 
 function buildSubmitParams(account: string): ApplicationMetadata & { codeType?: string } {
     const normalizedOwner = normalizeAddress(account)
-    const redirectUri = toSingleRedirectUri(redirectUriInput.value)
+    const redirectUris = toRedirectUriArray(redirectUriInput.value)
     return {
         ...detailInfo.value,
         code: String(detailInfo.value.code || '').trim(),
         serviceCodes: toServiceCodeArray(detailInfo.value.serviceCodes),
-        redirectUris: redirectUri ? [redirectUri] : [],
+        redirectUris,
         avatar: avatarValue.value,
         codePackagePath: String(detailInfo.value.codePackagePath || ''),
         codeType: '1',

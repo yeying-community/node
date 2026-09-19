@@ -597,6 +597,64 @@ describe('public application routes idempotency', () => {
     })
   })
 
+  it('stores and returns multiple redirect URIs while preserving exact order', async () => {
+    const wallet = Wallet.createRandom()
+    const actor = wallet.address.toLowerCase()
+    const app = createTestApp(actor)
+    const existing = {
+      uid: 'app-multi-redirect-update-1',
+      owner: actor,
+      ownerName: actor,
+      network: '',
+      address: '',
+      did: 'did:app:multi-redirect-update-1',
+      version: 1,
+      name: 'Multi Redirect App',
+      description: 'desc',
+      code: 'APPLICATION_CODE_TEST',
+      location: 'https://chat.example.com',
+      serviceCodes: '',
+      redirectUris: 'https://chat.example.com/old-callback',
+      avatar: 'avatar',
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      signature: '',
+      codePackagePath: '/pkg',
+      status: 'BUSINESS_STATUS_PENDING',
+      isOnline: false,
+    }
+    applicationStore.set(`uid:${existing.uid}`, existing)
+    applicationStore.set(`did:${existing.did}:${existing.version}`, existing)
+    const redirectUris = [
+      'https://chat.example.com/central-ucan-callback.html',
+      'chat://localhost/central-ucan-callback.html',
+    ]
+    const signedBody = await signBody({
+      wallet,
+      action: 'application_update',
+      requestId: 'req-application-multi-redirect-update',
+      rawBody: { redirectUris },
+      signablePayload: {
+        applicationUid: existing.uid,
+        redirectUris,
+      },
+    })
+
+    await withServer(app, async (baseUrl) => {
+      const response = await fetch(`${baseUrl}/api/v1/public/applications/${existing.uid}`, {
+        method: 'PATCH',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(signedBody),
+      })
+      const responseJson = await response.json()
+
+      expect(response.status).toBe(200)
+      expect(responseJson.data.redirectUris).toBe(JSON.stringify(redirectUris))
+      expect(JSON.parse(responseJson.data.redirectUris)).toEqual(redirectUris)
+      expect(saveApplicationMock).toHaveBeenCalledTimes(1)
+    })
+  })
+
   it('queries applications by did and version from the collection endpoint', async () => {
     const wallet = Wallet.createRandom()
     const actor = wallet.address.toLowerCase()

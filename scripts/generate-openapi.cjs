@@ -263,6 +263,14 @@ const document = {
           identityDocument: { type: 'object', additionalProperties: true },
         },
       },
+      IdentityAuthorizeClientRequest: {
+        type: 'object',
+        required: ['appId', 'redirectUri'],
+        properties: {
+          appId: { type: 'string' },
+          redirectUri: { type: 'string', format: 'uri' },
+        },
+      },
       IdentityAuthorizeRequest: {
         type: 'object',
         required: ['appId', 'redirectUri', 'codeChallenge'],
@@ -305,6 +313,7 @@ const document = {
           redirectUri: { type: 'string', format: 'uri' },
           codeVerifier: { type: 'string', minLength: 43, maxLength: 128 },
           code_verifier: { type: 'string', minLength: 43, maxLength: 128 },
+          issueUcanSession: { type: 'boolean', description: '为需要访问 UCAN 资源服务的应用返回短期签发会话。' },
         },
       },
       CustodyStatus: {
@@ -434,6 +443,7 @@ const operations = [
   ['post', '/api/v1/public/identity/totp/confirm', 'Identity', '使用验证码确认并启用钱包身份 TOTP', 'none', 'IdentityTotpConfirmRequest'],
   ['post', '/api/v1/public/identity/totp/verify', 'Identity', '校验已启用的钱包身份 TOTP 验证码', 'none', 'IdentityTotpConfirmRequest'],
   ['post', '/api/v1/public/identity/totp/revoke', 'Identity', '撤销钱包身份 TOTP 认证器', 'none', 'IdentityTotpRevokeRequest'],
+  ['post', '/api/v1/public/identity/authorize/validate', 'Identity', '校验应用钱包身份授权配置', 'none', 'IdentityAuthorizeClientRequest'],
   ['post', '/api/v1/public/identity/authorize/request', 'Identity', '创建钱包身份授权码请求', 'none', 'IdentityAuthorizeRequest'],
   ['get', '/api/v1/public/identity/authorize/request/{requestId}', 'Identity', '查询钱包身份授权请求', 'none'],
   ['post', '/api/v1/public/identity/authorize/challenge', 'Identity', '创建无钱包登录 Passkey challenge', 'none', 'IdentityAuthorizeChallengeRequest'],

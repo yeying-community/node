@@ -75,8 +75,14 @@ JWT-VC 是短期出示凭证，邮箱、用户名和头像这类已验证事实�
       "credentialId": "urn:yeying:credential:avatar:...",
       "credential": "compact-jwt-vc"
     }
-  ]
+  ],
+  "ucanSession": {
+    "sessionToken": "opaque-short-lived-token",
+    "issuerDid": "did:key:...",
+    "issuedAt": 1789000000000,
+    "expiresAt": 1789000900000
+  }
 }
 ```
 
-该结果不包含 `subjectId`、`sub_xxx` 或 Passport assertion。
+`ucanSession` 仅在 exchange 请求显式传入 `issueUcanSession: true` 时返回，供应用按目标后端调用 `/api/v1/public/auth/central/issue`。它是短期、不透明的资源授权会话，不是身份凭证或 JWT。该结果不包含 `subjectId`、`sub_xxx` 或 Passport assertion。

@@ -32,7 +32,7 @@ flowchart TD
 
 ### 3. 配置回调地址
 
-填写应用登录成功后要跳转的地址，也就是 `redirectUri`。
+填写应用登录成功后要跳转的地址，也就是 `redirectUri`。一个应用可以填写多个地址，每行一个完整 URI。
 
 这个地址很重要。后续登录时，系统只允许跳转到这里。
 
@@ -52,8 +52,15 @@ flowchart TD
 
 ### `redirectUri`
 
-`redirectUri` 必须和你在应用中心配置的一致。  
+`redirectUri` 必须和你在应用中心配置的某一项完全一致。
 如果不一致，登录完成后不会通过校验。
+
+Chat 同时支持 Web 和桌面端时，可以登记：
+
+```text
+https://chat.example.com/central-ucan-callback.html
+chat://localhost/central-ucan-callback.html
+```
 
 ## 常见问题
 
@@ -63,7 +70,7 @@ flowchart TD
 
 ### 回调地址可以随便写吗？
 
-不可以。后续登录时，系统会校验回调地址是否和配置一致。
+不可以。后续登录时，系统会校验回调地址是否和配置中的某一项完全一致，不支持通配符。
 
 ## 继续阅读
 

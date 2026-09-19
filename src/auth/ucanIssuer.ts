@@ -322,8 +322,13 @@ function loadIssuerRuntime(): IssuerRuntimeState {
   }
   try {
     const privateKey = getNodeIssuerPrivateKey();
+    // UCAN `iss` carries the Ed25519 verification key. The service URL
+    // (`did:web`) identifies Node as an identity/credential issuer, but it
+    // cannot verify a detached UCAN signature by itself. Resource services
+    // (Warehouse/Router) consume the stable did:key derived from the same
+    // private key and can validate the token without a network lookup.
     const derivedDid = deriveDidFromPrivateKey(privateKey);
-    runtime.did = configuredDid || derivedDid;
+    runtime.did = derivedDid;
     runtime.privateKey = privateKey;
     runtime.ready = true;
     return runtime;

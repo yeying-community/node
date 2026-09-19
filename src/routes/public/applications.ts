@@ -23,13 +23,6 @@ import {
   serializeApplicationUcanCapabilities,
 } from '../../domain/service/applicationUcanPolicy';
 
-class RedirectUriSingleValueError extends Error {
-  constructor() {
-    super('Only one redirectUri is allowed')
-    this.name = 'RedirectUriSingleValueError'
-  }
-}
-
 function toServiceCodes(value: unknown): string {
   if (Array.isArray(value)) {
     return value.map((item) => String(item)).join(',');
@@ -88,10 +81,9 @@ function toRedirectUrisStorage(value: unknown): string {
   if (uris.length === 0) {
     return '';
   }
-  if (uris.length > 1) {
-    throw new RedirectUriSingleValueError();
-  }
-  return uris[0];
+  // Preserve the historical plain-text representation for one URI. Multiple
+  // values use JSON so existing rows and readers remain backward compatible.
+  return uris.length === 1 ? uris[0] : JSON.stringify(uris);
 }
 
 function normalizeApplicationConfig(input: unknown): Array<{ code: string; instance: string }> {
@@ -304,9 +296,6 @@ async function hasApprovedAudit(did: string, version: number) {
 }
 
 function mapApplicationWriteError(error: unknown, fallback: string) {
-  if (error instanceof RedirectUriSingleValueError) {
-    return { status: 400, message: error.message };
-  }
   if (error instanceof ApplicationUcanPolicyError) {
     return { status: error.status, message: error.message };
   }
@@ -322,9 +311,6 @@ function mapApplicationWriteError(error: unknown, fallback: string) {
 }
 
 function mapApplicationReadError(error: unknown, fallback: string) {
-  if (error instanceof RedirectUriSingleValueError) {
-    return { status: 400, message: error.message };
-  }
   const message = error instanceof Error ? error.message : fallback;
   const status = message === 'USER_BLOCKED' ? 403 : 500;
   return { status, message };
@@ -343,7 +329,8 @@ export function registerPublicApplicationRoutes(app: Express) {
       await ensureUserActive(user.address);
       await ensureUserCanWriteBusinessData(user.address);
       const body = req.body || {};
-      const redirectUrisStorage = toRedirectUrisStorage(body.redirectUris);
+      const redirectUris = toRedirectUriArray(body.redirectUris);
+      const redirectUrisStorage = toRedirectUrisStorage(redirectUris);
       const serviceCodes = toServiceCodes(body.serviceCodes);
       const owner = String(body.owner || user.address).trim();
       if (normalizeAddress(owner) !== normalizeAddress(user.address)) {
@@ -369,7 +356,7 @@ export function registerPublicApplicationRoutes(app: Express) {
         code: String(body.code || 'APPLICATION_CODE_UNKNOWN'),
         location: String(body.location || ''),
         serviceCodes,
-        redirectUris: redirectUrisStorage ? [redirectUrisStorage] : [],
+        redirectUris,
         avatar: String(body.avatar || ''),
         codePackagePath: String(body.codePackagePath || ''),
       };
@@ -493,9 +480,11 @@ export function registerPublicApplicationRoutes(app: Express) {
       await ensureUserCanWriteBusinessData(user.address);
       const uid = req.params.uid;
       const body = req.body || {};
+      const hasRedirectUris = body.redirectUris !== undefined && body.redirectUris !== null;
+      const redirectUris = hasRedirectUris ? toRedirectUriArray(body.redirectUris) : undefined;
       const redirectUrisStorage =
-        body.redirectUris !== undefined && body.redirectUris !== null
-          ? toRedirectUrisStorage(body.redirectUris)
+        hasRedirectUris
+          ? toRedirectUrisStorage(redirectUris)
           : undefined;
       const result = await executeSignedAction({
         raw: body,
@@ -511,12 +500,7 @@ export function registerPublicApplicationRoutes(app: Express) {
             body.serviceCodes !== undefined && body.serviceCodes !== null
               ? toServiceCodes(body.serviceCodes)
               : undefined,
-          redirectUris:
-            redirectUrisStorage !== undefined
-              ? redirectUrisStorage
-                ? [redirectUrisStorage]
-                : []
-              : undefined,
+          redirectUris,
           avatar: body.avatar !== undefined && body.avatar !== null ? String(body.avatar) : undefined,
           codePackagePath:
             body.codePackagePath !== undefined && body.codePackagePath !== null
