@@ -123,6 +123,15 @@ Wallet 插件设置页注册身份 Passkey 时，WebAuthn 响应 origin 是 `chr
 
 Node 自身的应用中心登录是钱包签名 / UCAN 自举登录，不依赖在应用中心先发布一个 Node 应用；`identity.webauthn` 只负责钱包身份 WebAuthn 认证器注册和无插件授权页。Router 等外部 Web3 应用才需要在 Node 应用中心发布应用并配置 `redirectUris`。
 
+应用若同时提供 Web 和桌面版本，可在应用编辑页的回调地址框中每行填写一个完整地址，例如：
+
+```text
+https://chat.example.com/central-ucan-callback.html
+chat://localhost/central-ucan-callback.html
+```
+
+本地 Web 开发可将第一项替换为 `http://localhost:3020/central-ucan-callback.html`。桌面 Chat 固定使用 `chat://localhost/central-ucan-callback.html`；`https://tauri.localhost/...` 是 Tauri WebView 内部 origin，不应登记为外部授权回调。授权请求中的 `redirectUri` 必须与已登记的一项逐字符一致，不支持通配符。
+
 钱包身份相关公共接口：
 
 | 方法 | 路径 | 用途 |
@@ -142,10 +151,11 @@ Node 自身的应用中心登录是钱包签名 / UCAN 自举登录，不依赖�
 | POST | `/api/v1/public/identity/totp/verify` | 校验已启用 TOTP 验证码 |
 | POST | `/api/v1/public/identity/totp/revoke` | 使用签名身份文档撤销 TOTP |
 | POST | `/api/v1/public/identity/authorize/request` | 为 Web3 应用创建授权码请求，返回 `verifyUrl` |
+| POST | `/api/v1/public/identity/authorize/validate` | 校验 AppId、回调地址、Passkey 和 UCAN issuer 发布配置 |
 | GET | `/api/v1/public/identity/authorize/request/:requestId` | 查询授权请求 |
 | POST | `/api/v1/public/identity/authorize/challenge` | 创建无钱包登录 Passkey challenge |
 | POST | `/api/v1/public/identity/authorize/approve` | 用 Passkey assertion 或 Wallet presentation 批准授权 |
-| POST | `/api/v1/public/identity/authorize/exchange` | 应用后端用 PKCE verifier 换取 DID、钱包地址和凭证 |
+| POST | `/api/v1/public/identity/authorize/exchange` | 应用用 PKCE verifier 换取 DID、钱包地址和凭证；资源型应用可请求短期 UCAN 签发会话 |
 
 `/identity/authorize?requestId=...` 是 Node 内置的轻量授权页，供 Router 等 Web3 应用展示二维码或跳转。授权页只使用 Passkey 证明钱包身份控制关系；exchange 结果不包含 Passport assertion 或 `subjectId`。
 

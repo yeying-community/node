@@ -10,6 +10,7 @@ import { getConfig } from '../../config/runtime'
 import { issueCustodyRecoveryToken } from '../../auth/custodyRecoveryToken'
 import { consumeIdentityActionAuthorization, type IdentityActionAuthorization } from '../../auth/identityActionAuthorization'
 import { ensureIdentityCredentials, type IdentityCredentialType } from '../../auth/identityIssuer'
+import { createCentralIssueSession, getCentralIssuerStatus } from '../../auth/ucanIssuer'
 
 const REQUEST_TTL_MS = 5 * 60 * 1000
 const CODE_TTL_MS = 60 * 1000
@@ -35,12 +36,31 @@ function appRedirects(value: unknown): string[] {
   try { const parsed = JSON.parse(raw); if (Array.isArray(parsed)) return parsed.map(string).filter(Boolean) } catch { /* single value */ }
   return raw.split(/[\n,]/).map(string).filter(Boolean)
 }
-function origin(uri: string) { try { return new URL(uri).origin } catch { throw new Error('IDENTITY_REDIRECT_URI_INVALID') } }
+function origin(uri: string) {
+  try {
+    const parsed = new URL(uri)
+    if (parsed.protocol === 'chat:') {
+      if (parsed.hostname !== 'localhost' || parsed.port || parsed.username || parsed.password) throw new Error('IDENTITY_REDIRECT_URI_INVALID')
+      return 'chat://localhost'
+    }
+    if (parsed.protocol === 'chrome-extension:') {
+      if (!parsed.host || parsed.username || parsed.password || parsed.port) throw new Error('IDENTITY_REDIRECT_URI_INVALID')
+      return `chrome-extension://${parsed.host}`
+    }
+    if (!parsed.origin || parsed.origin === 'null') throw new Error('IDENTITY_REDIRECT_URI_INVALID')
+    return parsed.origin
+  } catch {
+    throw new Error('IDENTITY_REDIRECT_URI_INVALID')
+  }
+}
 function normalizedOrigin(uri: unknown): string {
   const raw = string(uri).replace(/\/+$/, '')
   if (!raw) return ''
   try {
     const parsed = new URL(raw)
+    if (parsed.protocol === 'chat:') {
+      return parsed.hostname === 'localhost' && !parsed.port && !parsed.username && !parsed.password ? 'chat://localhost' : ''
+    }
     if (parsed.protocol === 'chrome-extension:') return `chrome-extension://${parsed.host}`
     if (parsed.origin && parsed.origin !== 'null') return parsed.origin
   } catch {
@@ -148,6 +168,23 @@ export class IdentityAuthorizationService {
       throw new Error(`IDENTITY_PASSKEY_ORIGIN_UNAUTHORIZED:${credentialOrigin}`)
     }
     return credentialOrigin
+  }
+
+  async validateClient(input: { appId: unknown; redirectUri: unknown }) {
+    const appId = string(input.appId)
+    const redirectUri = string(input.redirectUri)
+    if (!appId || !redirectUri) throw new Error('IDENTITY_AUTHORIZATION_REQUEST_INVALID')
+    const app = await this.applications.queryByUid(appId)
+    if (!app || !appRedirects(app.redirectUris).includes(redirectUri)) throw new Error('IDENTITY_REDIRECT_URI_UNAUTHORIZED')
+    const passkey = getPasskeyAuthStatus()
+    const issuer = getCentralIssuerStatus()
+    return {
+      appId,
+      appName: app.name || appId,
+      redirectUri,
+      passkey: { enabled: passkey.enabled, ready: passkey.ready, rpId: passkey.rpId, origin: passkey.origin, error: passkey.error },
+      ucanIssuer: { enabled: issuer.enabled, ready: issuer.ready, mode: issuer.mode, issuerDid: issuer.issuerDid, error: issuer.error }
+    }
   }
 
   async create(input: { appId: unknown; redirectUri: unknown; state?: unknown; codeChallenge: unknown; codeChallengeMethod?: unknown; scopes?: unknown }) {
@@ -314,11 +351,11 @@ export class IdentityAuthorizationService {
     return this.issueCode(row, credential.identityDid)
   }
 
-  async exchange(input: { code: unknown; appId: unknown; redirectUri: unknown; codeVerifier: unknown }) {
+  async exchange(input: { code: unknown; appId: unknown; redirectUri: unknown; codeVerifier: unknown; issueUcanSession?: unknown }) {
     const repo = dataSource().getRepository(IdentityAuthorizationCodeDO); const row = await repo.findOneBy({ code: string(input.code) })
     if (!row || row.used || Date.parse(row.expiresAt) <= Date.now()) throw new Error('IDENTITY_AUTHORIZATION_CODE_INVALID')
     if (row.appId !== string(input.appId) || row.redirectUri !== string(input.redirectUri)) throw new Error('IDENTITY_AUTHORIZATION_CODE_APP_MISMATCH')
-    pkce(input.codeVerifier, row.codeChallenge); row.used = true; row.usedAt = now(); await repo.save(row)
+    pkce(input.codeVerifier, row.codeChallenge)
     const requested = scopes(JSON.parse(row.scopesJson)); const credentials = await dataSource().getRepository(IdentityCredentialDO).findBy({ identityDid: row.identityDid, status: 'active' })
     const wanted = new Set(requested.includes('identity.email') ? ['EmailCredential'] : []); if (requested.includes('identity.username')) wanted.add('UsernameCredential'); if (requested.includes('identity.avatar')) wanted.add('AvatarCredential'); if (requested.includes('identity.wallet')) wanted.add('WalletAccountCredential')
     const accountLinks = await dataSource().getRepository(IdentityAccountLinkDO).findBy({ identityDid: row.identityDid, status: 'active', revokedAt: '' })
@@ -328,7 +365,34 @@ export class IdentityAuthorizationService {
       if (!walletAddress) throw new Error('IDENTITY_WALLET_ACCOUNT_REQUIRED')
       custodyRecovery = issueCustodyRecoveryToken({ subjectId: row.identityDid, walletAddress, appId: row.appId, requestId: row.requestId })
     }
-    return { requestId: row.requestId, appId: row.appId, redirectUri: row.redirectUri, state: row.state, did: row.identityDid, walletAddress, scopes: requested, issuedAt: row.usedAt, credentials: credentials.filter(item => wanted.has(item.credentialType) && Date.parse(item.expiresAt) > Date.now()).map(item => ({ type: item.credentialType, credentialId: item.credentialId, credential: item.token })), ...(custodyRecovery ? { custodyRecovery } : {}) }
+    const ucanSession = input.issueUcanSession === true
+      ? createCentralIssueSession({ subject: walletAddress || row.identityDid })
+      : undefined
+    row.used = true
+    row.usedAt = now()
+    await repo.save(row)
+    return {
+      requestId: row.requestId,
+      appId: row.appId,
+      redirectUri: row.redirectUri,
+      state: row.state,
+      did: row.identityDid,
+      walletAddress,
+      scopes: requested,
+      issuedAt: row.usedAt,
+      credentials: credentials
+        .filter(item => wanted.has(item.credentialType) && Date.parse(item.expiresAt) > Date.now())
+        .map(item => ({ type: item.credentialType, credentialId: item.credentialId, credential: item.token })),
+      ...(ucanSession ? {
+        ucanSession: {
+          sessionToken: ucanSession.sessionToken,
+          issuerDid: ucanSession.issuer,
+          issuedAt: ucanSession.issuedAt,
+          expiresAt: ucanSession.expiresAt
+        }
+      } : {}),
+      ...(custodyRecovery ? { custodyRecovery } : {})
+    }
   }
 
   private async requirePendingRequest(requestId: unknown) {

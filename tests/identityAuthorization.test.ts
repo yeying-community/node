@@ -23,6 +23,23 @@ vi.mock('../src/security/secretVault', () => ({
   getDerivedRuntimeSecret: () => '11'.repeat(32)
 }))
 
+vi.mock('../src/auth/ucanIssuer', () => ({
+  getCentralIssuerStatus: vi.fn(() => ({
+    enabled: true,
+    ready: true,
+    mode: 'issue',
+    issuerDid: 'did:key:zIdentityIssuer',
+    error: ''
+  })),
+  createCentralIssueSession: vi.fn(({ subject }: { subject: string }) => ({
+    sessionToken: 'identity-ucan-session',
+    subject,
+    issuer: 'did:key:zIdentityIssuer',
+    issuedAt: 1_789_000_000_000,
+    expiresAt: 1_789_000_900_000
+  }))
+}))
+
 vi.mock('@simplewebauthn/server', () => ({
   generateAuthenticationOptions: vi.fn(),
   generateRegistrationOptions: vi.fn(),
@@ -38,14 +55,19 @@ vi.mock('@simplewebauthn/server', () => ({
 
 vi.mock('../src/domain/service/application', () => ({
   ApplicationService: class {
-    async queryByUid(uid: string) { return uid === 'project' ? { uid, name: 'Project', redirectUris: 'https://project.example/auth/callback' } : null }
+    async queryByUid(uid: string) {
+      if (uid === 'project') return { uid, name: 'Project', redirectUris: JSON.stringify(['https://project.example/auth/callback', 'http://localhost:3020/central-ucan-callback.html']) }
+      if (uid === 'desktop') return { uid, name: 'Chat Desktop', redirectUris: 'chat://localhost/central-ucan-callback.html' }
+      return null
+    }
     async search() {
       return {
         data: [
           { uid: 'wallet', name: 'Wallet', redirectUris: 'chrome-extension://lklhmjkaigpbnfchejbkmkfpkibmnjgf' },
-          { uid: 'project', name: 'Project', redirectUris: 'https://project.example/auth/callback' }
+          { uid: 'project', name: 'Project', redirectUris: JSON.stringify(['https://project.example/auth/callback', 'http://localhost:3020/central-ucan-callback.html']) },
+          { uid: 'desktop', name: 'Chat Desktop', redirectUris: 'chat://localhost/central-ucan-callback.html' }
         ],
-        page: { page: 1, pageSize: 1000, total: 2 }
+        page: { page: 1, pageSize: 1000, total: 3 }
       }
     }
   }
@@ -117,6 +139,41 @@ function totpCode(secretBase32: string, nowMs = Date.now()) {
 }
 
 describe('identity authorization', () => {
+  it('validates the registered redirect and desktop authentication services', async () => {
+    const service = new IdentityAuthorizationService()
+    await expect(service.validateClient({ appId: 'project', redirectUri: 'https://project.example/auth/callback' })).resolves.toMatchObject({
+      appId: 'project',
+      redirectUri: 'https://project.example/auth/callback',
+      passkey: { enabled: true, ready: true },
+      ucanIssuer: { enabled: true, ready: true, mode: 'issue' }
+    })
+    await expect(service.validateClient({ appId: 'project', redirectUri: 'https://other.example/callback' })).rejects.toThrow('IDENTITY_REDIRECT_URI_UNAUTHORIZED')
+  })
+
+  it('uses the chat deep-link origin as the desktop presentation audience', async () => {
+    const service = new IdentityAuthorizationService()
+    const redirectUri = 'chat://localhost/central-ucan-callback.html'
+    await expect(service.validateClient({ appId: 'desktop', redirectUri })).resolves.toMatchObject({
+      appId: 'desktop',
+      redirectUri,
+    })
+
+    const request = await service.create({
+      appId: 'desktop',
+      redirectUri,
+      codeChallenge: 'd'.repeat(43),
+      codeChallengeMethod: 'S256',
+      scopes: ['identity.basic'],
+    })
+    expect(request.audience).toBe('chat://localhost')
+    await expect(service.create({
+      appId: 'desktop',
+      redirectUri: 'chat://attacker/central-ucan-callback.html',
+      codeChallenge: 'e'.repeat(43),
+      codeChallengeMethod: 'S256',
+    })).rejects.toThrow('IDENTITY_REDIRECT_URI_UNAUTHORIZED')
+  })
+
   it('exchanges a DID presentation once and returns requested credentials', async () => {
     const service = new IdentityAuthorizationService()
     const verifier = 'a'.repeat(43)
@@ -125,13 +182,19 @@ describe('identity authorization', () => {
     await SingletonDataSource.get()!.getRepository(IdentityCredentialDO).save(Object.assign(new IdentityCredentialDO(), { credentialId: 'email-1', identityDid: identity, credentialType: 'EmailCredential', token: 'credential', status: 'active', issuedAt: new Date().toISOString(), expiresAt: new Date(Date.now() + 60_000).toISOString(), revokedAt: '' }))
     await SingletonDataSource.get()!.getRepository(IdentityCredentialDO).save(Object.assign(new IdentityCredentialDO(), { credentialId: 'avatar-1', identityDid: identity, credentialType: 'AvatarCredential', token: 'avatar-credential', status: 'active', issuedAt: new Date().toISOString(), expiresAt: new Date(Date.now() + 60_000).toISOString(), revokedAt: '' }))
     const approved = await service.approve({ requestId: request.requestId, presentation: presentation(request) })
-    const exchanged = await service.exchange({ code: approved.authorizationCode, appId: 'project', redirectUri: 'https://project.example/auth/callback', codeVerifier: verifier })
+    const exchanged = await service.exchange({ code: approved.authorizationCode, appId: 'project', redirectUri: 'https://project.example/auth/callback', codeVerifier: verifier, issueUcanSession: true })
     expect(exchanged.did).toBe(identity)
     expect(exchanged.credentials).toEqual(expect.arrayContaining([
       { type: 'EmailCredential', credentialId: 'email-1', credential: 'credential' },
       { type: 'AvatarCredential', credentialId: 'avatar-1', credential: 'avatar-credential' }
     ]))
     expect(exchanged.credentials).toHaveLength(2)
+    expect(exchanged.ucanSession).toEqual({
+      sessionToken: 'identity-ucan-session',
+      issuerDid: 'did:key:zIdentityIssuer',
+      issuedAt: 1_789_000_000_000,
+      expiresAt: 1_789_000_900_000
+    })
     await expect(service.exchange({ code: approved.authorizationCode, appId: 'project', redirectUri: 'https://project.example/auth/callback', codeVerifier: verifier })).rejects.toThrow('IDENTITY_AUTHORIZATION_CODE_INVALID')
   })
 

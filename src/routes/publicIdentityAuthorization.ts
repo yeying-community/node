@@ -20,6 +20,9 @@ export function registerPublicIdentityAuthorizationRoutes(app: Express) {
   app.get('/api/v1/public/identity/status', (_req: Request, res: Response) => {
     res.json(ok({ passkey: getPasskeyAuthStatus(), totp: getIdentityTotpStatus() }))
   })
+  app.post('/api/v1/public/identity/authorize/validate', async (req: Request, res: Response) => {
+    try { res.json(ok(await service.validateClient({ appId: req.body?.appId, redirectUri: req.body?.redirectUri }))) } catch (error) { handle(error, res) }
+  })
   app.post('/api/v1/public/identity/authorize/request', async (req: Request, res: Response) => {
     try { res.json(ok(await service.create({ appId: req.body?.appId, redirectUri: req.body?.redirectUri, state: req.body?.state, codeChallenge: req.body?.codeChallenge ?? req.body?.code_challenge, codeChallengeMethod: req.body?.codeChallengeMethod ?? req.body?.code_challenge_method, scopes: req.body?.scopes ?? req.body?.scope }))) } catch (error) { handle(error, res) }
   })
@@ -42,7 +45,7 @@ export function registerPublicIdentityAuthorizationRoutes(app: Express) {
     try { res.json(ok(await service.createPasskeyAuthorizationChallenge({ requestId: req.body?.requestId }))) } catch (error) { handle(error, res) }
   })
   app.post('/api/v1/public/identity/authorize/exchange', async (req: Request, res: Response) => {
-    try { res.json(ok(await service.exchange({ code: req.body?.code, appId: req.body?.appId, redirectUri: req.body?.redirectUri, codeVerifier: req.body?.codeVerifier ?? req.body?.code_verifier }))) } catch (error) { handle(error, res) }
+    try { res.json(ok(await service.exchange({ code: req.body?.code, appId: req.body?.appId, redirectUri: req.body?.redirectUri, codeVerifier: req.body?.codeVerifier ?? req.body?.code_verifier, issueUcanSession: req.body?.issueUcanSession === true }))) } catch (error) { handle(error, res) }
   })
   app.post('/api/v1/public/identity/passkeys/register/request', async (req: Request, res: Response) => {
     try { res.json(ok(await service.createPasskeyRegisterRequest({ identity: req.body?.identity, identityDocument: req.body?.identityDocument, deviceName: req.body?.deviceName, audience: req.body?.audience, authorization: req.body?.authorization }))) } catch (error) { handle(error, res) }
@@ -97,6 +100,16 @@ const requestId = new URLSearchParams(location.search).get('requestId') || new U
 const $ = (id) => document.getElementById(id);
 function b64ToBuf(value){const s=String(value||'').replace(/-/g,'+').replace(/_/g,'/');const bin=atob(s.padEnd(s.length+((4-s.length%4)%4),'='));const out=new Uint8Array(bin.length);for(let i=0;i<bin.length;i++)out[i]=bin.charCodeAt(i);return out.buffer}
 function bufToB64(value){if(!value)return '';const bytes=new Uint8Array(value);let bin='';for(const b of bytes)bin+=String.fromCharCode(b);return btoa(bin).replace(/\\+/g,'-').replace(/\\//g,'_').replace(/=+$/,'')}
+function isDesktopRedirect(value){try{return new URL(value).protocol==='chat:'}catch{return false}}
+function tryClosePage(){try{window.open('','_self');window.close()}catch{} }
+function returnToApp(value){
+  if(!isDesktopRedirect(value)){location.href=value;return}
+  location.href=value;
+  window.setTimeout(()=>{
+    tryClosePage();
+    $('status').textContent='已返回 Chat；如果此页仍打开，可以手动关闭。';
+  },600);
+}
 async function parse(res){const json=await res.json().catch(()=>({}));if(!res.ok||json.code!==0)throw new Error(json.message||res.statusText);return json.data}
 async function load(){if(!requestId)throw new Error('缺少授权请求 ID');const data=await parse(await fetch('/api/v1/public/identity/authorize/request/'+encodeURIComponent(requestId)));$('appName').textContent=data.appName||data.appId||'-';$('scopes').textContent=(data.scopes||[]).join(', ');$('requestStatus').textContent=data.status||'-';$('approve').disabled=data.status!=='pending'}
 async function approve(){
@@ -111,7 +124,7 @@ async function approve(){
     const payload={id:credential.id,rawId:bufToB64(credential.rawId),type:credential.type,response:{authenticatorData:bufToB64(r.authenticatorData),clientDataJSON:bufToB64(r.clientDataJSON),signature:bufToB64(r.signature),userHandle:bufToB64(r.userHandle)},clientExtensionResults:credential.getClientExtensionResults()};
     const approved=await parse(await fetch('/api/v1/public/identity/authorize/approve',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({requestId,passkeyRequestId:req.requestId,credential:payload})}));
     $('status').className='status ok';$('status').textContent='已确认，正在返回应用...';
-    location.href=approved.redirectTo;
+    returnToApp(approved.redirectTo);
   }catch(error){$('status').textContent=error.message||'授权失败';$('approve').disabled=false}
 }
 $('approve').addEventListener('click',approve);

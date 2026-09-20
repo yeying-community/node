@@ -207,7 +207,27 @@ function startRedirect(redirectTo: string) {
   }, 1000)
   redirectTimer = window.setTimeout(() => {
     window.location.href = redirectTo
+    if (isDesktopRedirect(redirectTo)) {
+      window.setTimeout(tryClosePage, 600)
+    }
   }, 2000)
+}
+
+function isDesktopRedirect(value: string) {
+  try {
+    return new URL(value).protocol === 'chat:'
+  } catch {
+    return false
+  }
+}
+
+function tryClosePage() {
+  try {
+    window.open('', '_self')?.close()
+    window.close()
+  } catch {
+    // Browsers may reject closing a tab that was not opened by script.
+  }
 }
 
 function buildRedirectUrl(baseUrl: string, params: Record<string, string>) {

@@ -767,6 +767,31 @@ paths:
           application/json:
             schema:
               $ref: "#/components/schemas/IdentityTotpRevokeRequest"
+  /api/v1/public/identity/authorize/validate:
+    post:
+      tags:
+        - Identity
+      summary: 校验应用钱包身份授权配置
+      operationId: post_api_v1_public_identity_authorize_validate
+      security: []
+      parameters: []
+      responses:
+        "200":
+          $ref: "#/components/responses/Success"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/IdentityAuthorizeClientRequest"
   /api/v1/public/identity/authorize/request:
     post:
       tags:
@@ -3005,6 +3030,17 @@ components:
         identityDocument:
           type: object
           additionalProperties: true
+    IdentityAuthorizeClientRequest:
+      type: object
+      required:
+        - appId
+        - redirectUri
+      properties:
+        appId:
+          type: string
+        redirectUri:
+          type: string
+          format: uri
     IdentityAuthorizeRequest:
       type: object
       required:
@@ -3105,6 +3141,9 @@ components:
           type: string
           minLength: 43
           maxLength: 128
+        issueUcanSession:
+          type: boolean
+          description: 为需要访问 UCAN 资源服务的应用返回短期签发会话。
     CustodyStatus:
       type: object
       properties:
