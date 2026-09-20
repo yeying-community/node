@@ -195,6 +195,21 @@ describe('identity authorization', () => {
       issuedAt: 1_789_000_000_000,
       expiresAt: 1_789_000_900_000
     })
+    expect(exchanged.refreshToken).toEqual(expect.any(String))
+    expect(exchanged.refreshExpiresAt).toBeGreaterThan(Date.now())
+    const refreshed = await service.refreshSession({
+      refreshToken: exchanged.refreshToken,
+      appId: 'project',
+      redirectUri: 'https://project.example/auth/callback'
+    })
+    expect(refreshed.did).toBe(identity)
+    expect(refreshed.ucanSession.sessionToken).toBe('identity-ucan-session')
+    expect(refreshed.refreshToken).not.toBe(exchanged.refreshToken)
+    await expect(service.refreshSession({
+      refreshToken: exchanged.refreshToken,
+      appId: 'project',
+      redirectUri: 'https://project.example/auth/callback'
+    })).rejects.toThrow('IDENTITY_REFRESH_SESSION_INVALID')
     await expect(service.exchange({ code: approved.authorizationCode, appId: 'project', redirectUri: 'https://project.example/auth/callback', codeVerifier: verifier })).rejects.toThrow('IDENTITY_AUTHORIZATION_CODE_INVALID')
   })
 

@@ -335,6 +335,23 @@ export class IdentityAuthorizationCodeDO {
     @Column({ length: 64, name: 'used_at', default: '' }) usedAt!: string
 }
 
+@Entity('identity_authorization_sessions')
+@Index('idx_identity_authorization_session_identity', ['identityDid'])
+@Index('idx_identity_authorization_session_expires', ['expiresAt'])
+export class IdentityAuthorizationSessionDO {
+    @PrimaryColumn({ length: 128, name: 'token_hash' }) tokenHash!: string
+    @Column({ length: 128, name: 'app_id' }) appId!: string
+    @Column({ type: 'text', name: 'redirect_uri' }) redirectUri!: string
+    @Column({ length: 128, name: 'identity_did' }) identityDid!: string
+    @Column({ length: 128, name: 'subject' }) subject!: string
+    @Column({ type: 'text', name: 'scopes_json', default: '[]' }) scopesJson!: string
+    @Column({ length: 64, name: 'created_at' }) createdAt!: string
+    @Column({ length: 64, name: 'expires_at' }) expiresAt!: string
+    @Column({ length: 64, name: 'last_used_at', default: '' }) lastUsedAt!: string
+    @Column({ length: 64, name: 'revoked_at', default: '' }) revokedAt!: string
+    @Column({ length: 128, name: 'replaced_by_hash', default: '' }) replacedByHash!: string
+}
+
 @Entity('scoped_grants')
 @Index('idx_scoped_grants_subject_status', ['subjectId', 'status'])
 @Index('idx_scoped_grants_app_status', ['appId', 'status'])

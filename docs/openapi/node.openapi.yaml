@@ -916,6 +916,56 @@ paths:
           application/json:
             schema:
               $ref: "#/components/schemas/IdentityAuthorizeExchangeRequest"
+  /api/v1/public/identity/session/refresh:
+    post:
+      tags:
+        - Identity
+      summary: 续期钱包身份登录会话
+      operationId: post_api_v1_public_identity_session_refresh
+      security: []
+      parameters: []
+      responses:
+        "200":
+          $ref: "#/components/responses/Success"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/IdentitySessionRefreshRequest"
+  /api/v1/public/identity/session/revoke:
+    post:
+      tags:
+        - Identity
+      summary: 撤销钱包身份登录会话
+      operationId: post_api_v1_public_identity_session_revoke
+      security: []
+      parameters: []
+      responses:
+        "200":
+          $ref: "#/components/responses/Success"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/IdentitySessionRefreshRequest"
   /api/v1/public/profile/me:
     get:
       tags:
@@ -3144,6 +3194,22 @@ components:
         issueUcanSession:
           type: boolean
           description: 为需要访问 UCAN 资源服务的应用返回短期签发会话。
+    IdentitySessionRefreshRequest:
+      type: object
+      required:
+        - refreshToken
+        - appId
+        - redirectUri
+      properties:
+        refreshToken:
+          type: string
+        refresh_token:
+          type: string
+        appId:
+          type: string
+        redirectUri:
+          type: string
+          format: uri
     CustodyStatus:
       type: object
       properties:

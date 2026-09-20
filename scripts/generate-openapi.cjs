@@ -316,6 +316,16 @@ const document = {
           issueUcanSession: { type: 'boolean', description: '为需要访问 UCAN 资源服务的应用返回短期签发会话。' },
         },
       },
+      IdentitySessionRefreshRequest: {
+        type: 'object',
+        required: ['refreshToken', 'appId', 'redirectUri'],
+        properties: {
+          refreshToken: { type: 'string' },
+          refresh_token: { type: 'string' },
+          appId: { type: 'string' },
+          redirectUri: { type: 'string', format: 'uri' },
+        },
+      },
       CustodyStatus: {
         type: 'object',
         properties: {
@@ -449,6 +459,8 @@ const operations = [
   ['post', '/api/v1/public/identity/authorize/challenge', 'Identity', '创建无钱包登录 Passkey challenge', 'none', 'IdentityAuthorizeChallengeRequest'],
   ['post', '/api/v1/public/identity/authorize/approve', 'Identity', '批准钱包身份授权请求', 'none', 'IdentityAuthorizeApproveRequest'],
   ['post', '/api/v1/public/identity/authorize/exchange', 'Identity', '兑换钱包身份授权码', 'none', 'IdentityAuthorizeExchangeRequest'],
+  ['post', '/api/v1/public/identity/session/refresh', 'Identity', '续期钱包身份登录会话', 'none', 'IdentitySessionRefreshRequest'],
+  ['post', '/api/v1/public/identity/session/revoke', 'Identity', '撤销钱包身份登录会话', 'none', 'IdentitySessionRefreshRequest'],
   ['get', '/api/v1/public/profile/me', 'Profile', '查询当前认证身份', 'bearer'],
   ['get', '/api/v1/public/applications', 'Applications', '按条件查询应用', 'bearer'],
   ['post', '/api/v1/public/applications', 'Applications', '创建应用', 'bearer'],
