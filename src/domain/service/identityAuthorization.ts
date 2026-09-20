@@ -1,7 +1,7 @@
 import { createHash, randomBytes } from 'node:crypto'
 import { ApplicationService } from './application'
 import { SingletonDataSource } from '../facade/datasource'
-import { IdentityAuthorizationCodeDO, IdentityAuthorizationRequestDO, IdentityCredentialDO, IdentityAccountLinkDO, IdentityPasskeyCredentialDO, IdentityWebauthnChallengeDO } from '../mapper/entity'
+import { IdentityAuthorizationCodeDO, IdentityAuthorizationRequestDO, IdentityAuthorizationSessionDO, IdentityCredentialDO, IdentityAccountLinkDO, IdentityPasskeyCredentialDO, IdentityWebauthnChallengeDO } from '../mapper/entity'
 import { canonicalizeIdentityValue, verifyIdentityController } from '../../auth/identityAccountLink'
 import * as crypto from 'node:crypto'
 import { generateAuthenticationOptions, generateRegistrationOptions, verifyAuthenticationResponse, verifyRegistrationResponse } from '@simplewebauthn/server'
@@ -14,6 +14,9 @@ import { createCentralIssueSession, getCentralIssuerStatus } from '../../auth/uc
 
 const REQUEST_TTL_MS = 5 * 60 * 1000
 const CODE_TTL_MS = 60 * 1000
+const DEFAULT_REFRESH_SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000
+const MIN_REFRESH_SESSION_TTL_MS = 5 * 60 * 1000
+const MAX_REFRESH_SESSION_TTL_MS = 180 * 24 * 60 * 60 * 1000
 const ALLOWED_SCOPES = new Set(['identity.basic', 'identity.wallet', 'identity.username', 'identity.email', 'identity.avatar', 'custody.recovery'])
 const ED25519_SPKI_PREFIX = Buffer.from('302a300506032b6570032100', 'hex')
 const VERIFY_PATH = '/identity/authorize'
@@ -22,6 +25,13 @@ function id(prefix: string) { return `${prefix}_${randomBytes(24).toString('base
 function now() { return new Date().toISOString() }
 function dataSource() { const ds = SingletonDataSource.get(); if (!ds?.isInitialized) throw new Error('IDENTITY_STORAGE_UNAVAILABLE'); return ds }
 function string(value: unknown) { return String(value || '').trim() }
+function hashRefreshToken(value: string) { return createHash('sha256').update(value).digest('hex') }
+function refreshSessionTtlMs() {
+  const configured = Number(getConfig<number>('identity.session.refreshTtlMs') || DEFAULT_REFRESH_SESSION_TTL_MS)
+  if (!Number.isFinite(configured) || configured <= 0) return DEFAULT_REFRESH_SESSION_TTL_MS
+  return Math.min(Math.max(configured, MIN_REFRESH_SESSION_TTL_MS), MAX_REFRESH_SESSION_TTL_MS)
+}
+function createRefreshToken() { return randomBytes(48).toString('base64url') }
 function scopes(value: unknown): string[] {
   const input = Array.isArray(value) ? value : typeof value === 'string' ? value.split(/\s+/) : []
   const result = [...new Set(input.map(string).filter(Boolean))]
@@ -368,6 +378,15 @@ export class IdentityAuthorizationService {
     const ucanSession = input.issueUcanSession === true
       ? createCentralIssueSession({ subject: walletAddress || row.identityDid })
       : undefined
+    const refreshSession = ucanSession
+      ? await this.createRefreshSession({
+          appId: row.appId,
+          redirectUri: row.redirectUri,
+          identityDid: row.identityDid,
+          subject: walletAddress || row.identityDid,
+          scopes: requested,
+        })
+      : undefined
     row.used = true
     row.usedAt = now()
     await repo.save(row)
@@ -391,8 +410,106 @@ export class IdentityAuthorizationService {
           expiresAt: ucanSession.expiresAt
         }
       } : {}),
+      ...(refreshSession ? {
+        refreshToken: refreshSession.refreshToken,
+        refreshExpiresAt: refreshSession.refreshExpiresAt,
+      } : {}),
       ...(custodyRecovery ? { custodyRecovery } : {})
     }
+  }
+
+  async refreshSession(input: { refreshToken: unknown; appId: unknown; redirectUri: unknown }) {
+    const refreshToken = string(input.refreshToken)
+    const appId = string(input.appId)
+    const redirectUri = string(input.redirectUri)
+    if (!refreshToken || !appId || !redirectUri) throw new Error('IDENTITY_REFRESH_SESSION_INVALID')
+
+    const repo = dataSource().getRepository(IdentityAuthorizationSessionDO)
+    const tokenHash = hashRefreshToken(refreshToken)
+    const row = await repo.findOneBy({ tokenHash })
+    if (!row || row.appId !== appId || row.redirectUri !== redirectUri || string(row.revokedAt) || Date.parse(row.expiresAt) <= Date.now()) {
+      throw new Error('IDENTITY_REFRESH_SESSION_INVALID')
+    }
+
+    const issuedAt = now()
+    const nextRefreshToken = createRefreshToken()
+    const nextTokenHash = hashRefreshToken(nextRefreshToken)
+    const nextExpiresAt = Date.now() + refreshSessionTtlMs()
+    const ucanSession = createCentralIssueSession({ subject: row.subject })
+    const nextRow = new IdentityAuthorizationSessionDO()
+    Object.assign(nextRow, {
+      tokenHash: nextTokenHash,
+      appId: row.appId,
+      redirectUri: row.redirectUri,
+      identityDid: row.identityDid,
+      subject: row.subject,
+      scopesJson: row.scopesJson || '[]',
+      createdAt: issuedAt,
+      expiresAt: new Date(nextExpiresAt).toISOString(),
+      lastUsedAt: '',
+      revokedAt: '',
+      replacedByHash: '',
+    })
+    await dataSource().transaction(async manager => {
+      await manager.getRepository(IdentityAuthorizationSessionDO).update(
+        { tokenHash },
+        { lastUsedAt: issuedAt, revokedAt: issuedAt, replacedByHash: nextTokenHash },
+      )
+      await manager.getRepository(IdentityAuthorizationSessionDO).save(nextRow)
+    })
+
+    let walletAddress = ''
+    const accountLinks = await dataSource().getRepository(IdentityAccountLinkDO).findBy({ identityDid: row.identityDid, status: 'active', revokedAt: '' })
+    walletAddress = accountLinks.find(link => link.chainKey?.startsWith('eip155:'))?.accountId || ''
+    return {
+      did: row.identityDid,
+      walletAddress,
+      scopes: parseJsonArray(row.scopesJson),
+      ucanSession: {
+        sessionToken: ucanSession.sessionToken,
+        issuerDid: ucanSession.issuer,
+        issuedAt: ucanSession.issuedAt,
+        expiresAt: ucanSession.expiresAt,
+      },
+      refreshToken: nextRefreshToken,
+      refreshExpiresAt: nextExpiresAt,
+    }
+  }
+
+  async revokeSession(input: { refreshToken: unknown; appId: unknown; redirectUri: unknown }) {
+    const refreshToken = string(input.refreshToken)
+    const appId = string(input.appId)
+    const redirectUri = string(input.redirectUri)
+    if (!refreshToken || !appId || !redirectUri) throw new Error('IDENTITY_REFRESH_SESSION_INVALID')
+    const repo = dataSource().getRepository(IdentityAuthorizationSessionDO)
+    const tokenHash = hashRefreshToken(refreshToken)
+    const row = await repo.findOneBy({ tokenHash })
+    if (!row || row.appId !== appId || row.redirectUri !== redirectUri || string(row.revokedAt)) {
+      throw new Error('IDENTITY_REFRESH_SESSION_INVALID')
+    }
+    await repo.update({ tokenHash }, { revokedAt: now() })
+    return { revoked: true }
+  }
+
+  private async createRefreshSession(input: { appId: string; redirectUri: string; identityDid: string; subject: string; scopes: string[] }) {
+    const refreshToken = createRefreshToken()
+    const refreshExpiresAt = Date.now() + refreshSessionTtlMs()
+    const row = new IdentityAuthorizationSessionDO()
+    Object.assign(row, {
+      tokenHash: hashRefreshToken(refreshToken),
+      appId: input.appId,
+      redirectUri: input.redirectUri,
+      identityDid: input.identityDid,
+      subject: input.subject,
+      scopesJson: JSON.stringify(input.scopes),
+      createdAt: now(),
+      expiresAt: new Date(refreshExpiresAt).toISOString(),
+      lastUsedAt: '',
+      revokedAt: '',
+      replacedByHash: '',
+    })
+    await dataSource().getRepository(IdentityAuthorizationSessionDO).save(row)
+    return { refreshToken, refreshExpiresAt }
   }
 
   private async requirePendingRequest(requestId: unknown) {

@@ -19,6 +19,8 @@
 | POST | `/api/v1/public/identity/passkeys/register/confirm` | 保存身份级 Passkey credential |
 | POST | `/api/v1/public/identity/authorize/request` | 创建 Web3 应用身份授权请求，返回 `verifyUrl` |
 | POST | `/api/v1/public/identity/authorize/exchange` | 换取 DID、钱包地址和已授权凭证 |
+| POST | `/api/v1/public/identity/session/refresh` | 轮换身份刷新会话并重新签发短期 `ucanSession` |
+| POST | `/api/v1/public/identity/session/revoke` | 撤销身份刷新会话 |
 
 ## 配置
 
@@ -81,8 +83,13 @@ JWT-VC 是短期出示凭证，邮箱、用户名和头像这类已验证事实�
     "issuerDid": "did:key:...",
     "issuedAt": 1789000000000,
     "expiresAt": 1789000900000
-  }
+  },
+  "refreshToken": "opaque-rotating-refresh-token",
+  "refreshExpiresAt": 1791592000000
 }
 ```
 
 `ucanSession` 仅在 exchange 请求显式传入 `issueUcanSession: true` 时返回，供应用按目标后端调用 `/api/v1/public/auth/central/issue`。它是短期、不透明的资源授权会话，不是身份凭证或 JWT。该结果不包含 `subjectId`、`sub_xxx` 或 Passport assertion。
+
+当 exchange 同时返回 `refreshToken` 时，应用可以在 `ucanSession.expiresAt` 到期后调用
+`POST /api/v1/public/identity/session/refresh`，提交原始 `appId`、`redirectUri` 和刷新令牌。Node 会校验应用绑定、轮换刷新令牌并返回新的短期 `ucanSession`；刷新令牌只在数据库中保存 SHA-256 哈希，默认有效期 30 天（可通过 `identity.session.refreshTtlMs` 配置，最大 180 天）。应用退出登录时应调用 `session/revoke`，然后清理本地刷新令牌。刷新令牌不是 UCAN，也不能直接访问 Router 或 WebDAV。

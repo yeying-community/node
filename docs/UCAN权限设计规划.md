@@ -192,7 +192,9 @@ DApp asks Node issuer for UCAN(aud=WebDAV)
 
 ### 3.5 中心化 session 的职责
 
-中心化 session 不是业务登录态，也不是长期 refresh token。它只用于短时间内换取 UCAN。
+中心化 issuer 的 `sessionToken` 不是业务登录态，也不是长期 refresh token；它只用于短时间内换取 UCAN。
+
+钱包身份授权另外维护绑定 `appId + redirectUri + DID` 的刷新会话。`identity/authorize/exchange` 返回的 `refreshToken` 只用于调用 `identity/session/refresh` 轮换新的短期 `ucanSession`，不能直接访问业务资源。刷新令牌默认有效期 30 天，服务端只保存哈希并在每次刷新时轮换；应用退出时调用 `identity/session/revoke`。
 
 规划后的 session 应包含：
 

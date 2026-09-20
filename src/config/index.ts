@@ -81,10 +81,15 @@ export interface IdentityTotpRuntimeConfig {
     issuerName?: string
 }
 
+export interface IdentitySessionRuntimeConfig {
+    refreshTtlMs?: number
+}
+
 export interface IdentityRuntimeConfig {
     publicBaseUrl?: string
     webauthn?: IdentityPasskeyRuntimeConfig
     totp?: IdentityTotpRuntimeConfig
+    session?: IdentitySessionRuntimeConfig
 }
 
 export interface IdentityIssuerRuntimeConfig {
