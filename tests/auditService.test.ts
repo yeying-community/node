@@ -143,8 +143,14 @@ vi.doMock('../src/domain/manager/application', () => ({
   ApplicationManager: mockClass(() => ({
     query: async (did: string, version: number) =>
       applicationStore.get(`${did}:${version}`) || null,
-    updatePublishState: async (did: string, version: number, status: string, isOnline: boolean) => {
-      updateApplicationPublishStateMock(did, version, status, isOnline)
+    updatePublishState: async (
+      did: string,
+      version: number,
+      status: string,
+      isOnline: boolean,
+      releaseStatus?: string
+    ) => {
+      updateApplicationPublishStateMock(did, version, status, isOnline, releaseStatus)
       const key = `${did}:${version}`
       const existing = applicationStore.get(key)
       if (existing) {
@@ -249,6 +255,53 @@ describe('AuditService', () => {
         })
       )
     ).rejects.toThrow('Applicant is not owner')
+  })
+
+  it('keeps an existing application online while a higher version is under review', async () => {
+    const owner = '0x1111111111111111111111111111111111111111'
+    const key = 'did:app:upgrade:2'
+    applicationStore.set(key, {
+      did: 'did:app:upgrade',
+      version: 2,
+      owner,
+      name: 'Upgrade App',
+      status: 'BUSINESS_STATUS_ONLINE',
+      isOnline: true,
+    })
+    const service = new AuditService()
+
+    await runAs(owner, async () =>
+      service.create({
+        uid: 'audit-upgrade-create-1',
+        auditType: 'application',
+        applicant: `${owner}::owner`,
+        approver: `${owner}::owner`,
+        reason: '上架申请',
+        createdAt: '2026-09-21T00:00:00.000Z',
+        updatedAt: '2026-09-21T00:00:00.000Z',
+        signature: 'sig',
+        appOrServiceMetadata: JSON.stringify({
+          operateType: 'application',
+          did: 'did:app:upgrade',
+          version: 2,
+          name: 'Upgrade App',
+        }),
+      })
+    )
+
+    expect(applicationStore.get(key)).toEqual(
+      expect.objectContaining({
+        status: 'BUSINESS_STATUS_REVIEWING',
+        isOnline: true,
+      })
+    )
+    expect(updateApplicationPublishStateMock).toHaveBeenCalledWith(
+      'did:app:upgrade',
+      2,
+      'BUSINESS_STATUS_REVIEWING',
+      true,
+      'reviewing'
+    )
   })
 
   it('does not update publish state when approving usage requests', async () => {
