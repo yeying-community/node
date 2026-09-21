@@ -8,6 +8,7 @@ import { DataSourceBuilder } from './infrastructure/db';
 import {
     ActionRequestDO,
     ApplicationDO,
+    ApplicationReleaseDO,
     UserDO,
     UserStateDO,
     AuditDO,
@@ -106,6 +107,8 @@ import { AddPusherChannelAcls20260909130000 } from './migrations/20260909130000-
 import { EnforceSingleIdentityAccountOwner20260909150000 } from './migrations/20260909150000-enforce-single-identity-account-owner';
 import { EnforceSingleActiveIdentityUsername20260909160000 } from './migrations/20260909160000-enforce-single-active-identity-username';
 import { AddIdentityAuthorizationSessions20260920100000 } from './migrations/20260920100000-add-identity-authorization-sessions';
+import { AddApplicationVersionReleases20260921100000 } from './migrations/20260921100000-add-application-version-releases';
+import { DeferApplicationAppDid20260921110000 } from './migrations/20260921110000-defer-application-app-did';
 import { AddScopedGrants20260808090000 } from './migrations/20260808090000-add-scoped-grants';
 import { getConfig } from './config/runtime';
 import { startActionRequestCleanupJobs } from './domain/service/actionRequestCleanup';
@@ -292,6 +295,7 @@ builder.entities([
     UserStateDO,
     UserDO,
     ApplicationDO,
+    ApplicationReleaseDO,
     AuditDO,
     CommentDO,
     ApplicationConfigDO,
@@ -373,7 +377,9 @@ builder.migrations([
     AddPusherChannelAcls20260909130000,
     EnforceSingleIdentityAccountOwner20260909150000,
     EnforceSingleActiveIdentityUsername20260909160000,
-    AddIdentityAuthorizationSessions20260920100000
+    AddIdentityAuthorizationSessions20260920100000,
+    AddApplicationVersionReleases20260921100000,
+    DeferApplicationAppDid20260921110000
 ])
 
 builder.build().initialize().then(async (conn) => {

@@ -304,6 +304,14 @@ function mapApplicationWriteError(error: unknown, fallback: string) {
   const status =
     signatureStatus !== undefined
       ? signatureStatus
+      : message === 'APPLICATION_RELEASE_ALREADY_EXISTS'
+      ? 409
+      : message === 'APPLICATION_NOT_FOUND'
+      ? 404
+      : message === 'APPLICATION_OWNER_MISMATCH'
+      ? 403
+      : message === 'APPLICATION_DID_MISMATCH' || message === 'APPLICATION_VERSION_NOT_GREATER'
+      ? 409
       : message === 'USER_BLOCKED' || message === 'USER_ROLE_DENIED'
       ? 403
       : 500;
@@ -366,18 +374,23 @@ export function registerPublicApplicationRoutes(app: Express) {
         actor: user.address,
         payload: signablePayload,
         execute: async () => {
-          if (body.uid) {
-            const existingByUid = await resolveByUid(String(body.uid));
-            if (existingByUid) {
-              return { status: 409, body: fail(409, 'Application uid already exists') };
-            }
+          const requestedUid = body.uid ? String(body.uid).trim() : '';
+          const existingByUid = requestedUid ? await resolveByUid(requestedUid) : null;
+          if (existingByUid && normalizeAddress(existingByUid.owner) !== normalizeAddress(user.address)) {
+            return { status: 403, body: fail(403, 'Owner mismatch') };
+          }
+          if (existingByUid && existingByUid.did !== did) {
+            return { status: 409, body: fail(409, 'Application DID mismatch') };
+          }
+          if (existingByUid && version <= existingByUid.version) {
+            return { status: 409, body: fail(409, 'Application version must be greater than current version') };
           }
           const existingByDid = await resolveByDid(did, version);
           if (existingByDid) {
             return { status: 409, body: fail(409, 'Application already exists') };
           }
           const now = getCurrentUtcString();
-          const uid = body.uid || uuidv4();
+          const uid = requestedUid || uuidv4();
           const policy = await resolveApplicationUcanPolicy({
             uid,
             code: body.code,
@@ -387,9 +400,9 @@ export function registerPublicApplicationRoutes(app: Express) {
           const application: Application = {
             uid,
             owner,
-            ownerName: body.ownerName || owner,
-            network: body.network || '',
-            address: body.address || '',
+            ownerName: body.ownerName || existingByUid?.ownerName || owner,
+            network: body.network || existingByUid?.network || '',
+            address: body.address || existingByUid?.address || '',
             did,
             version,
             name: body.name || '',
@@ -397,19 +410,19 @@ export function registerPublicApplicationRoutes(app: Express) {
             code: body.code || 'APPLICATION_CODE_UNKNOWN',
             location: body.location || '',
             serviceCodes,
-            redirectUris: redirectUrisStorage,
+            redirectUris: redirectUrisStorage || existingByUid?.redirectUris || '',
             ucanAudience: policy.audience,
             ucanCapabilities: serializeApplicationUcanCapabilities(policy.capabilities),
             avatar: body.avatar || '',
-            createdAt: body.createdAt || now,
+            createdAt: existingByUid?.createdAt || body.createdAt || now,
             updatedAt: now,
             signature: body.signature || '',
             codePackagePath: body.codePackagePath || '',
-            status: 'BUSINESS_STATUS_PENDING',
-            isOnline: false,
+            status: existingByUid?.status || 'BUSINESS_STATUS_PENDING',
+            isOnline: existingByUid?.isOnline || false,
           };
           const service = new ApplicationService();
-          await service.save(application);
+          await service.saveVersion(application, existingByUid || undefined);
           await notificationService.notifyApplicationCreated({
             applicationUid: application.uid,
             owner: application.owner,

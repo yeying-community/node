@@ -5,6 +5,7 @@ import { runWithRequestContext } from '../src/common/requestContext'
 import { mockClass } from './support/mockClass'
 
 const applicationStore = new Map<string, any>()
+const applicationReleaseStore = new Map<string, any>()
 const applicationConfigStore = new Map<string, any>()
 const saveApplicationMock = vi.fn()
 const deleteApplicationMock = vi.fn()
@@ -42,6 +43,21 @@ vi.doMock('../src/domain/service/application', () => ({
     query: async (did: string, version: number) => applicationStore.get(`did:${did}:${version}`) || null,
     search: async () => ({ data: Array.from(applicationStore.values()), page: { total: applicationStore.size, page: 1, pageSize: applicationStore.size } }),
     save: async (application: any) => {
+      saveApplicationMock(application)
+      applicationStore.set(`uid:${application.uid}`, application)
+      applicationStore.set(`did:${application.did}:${application.version}`, application)
+      return application
+    },
+    saveVersion: async (application: any, current?: any) => {
+      const releaseKey = `${application.uid}:${application.version}`
+      if (applicationReleaseStore.has(releaseKey)) {
+        throw new Error('APPLICATION_RELEASE_ALREADY_EXISTS')
+      }
+      if (current) {
+        applicationReleaseStore.set(`${current.uid}:${current.version}`, { ...current })
+        applicationStore.delete(`did:${current.did}:${current.version}`)
+      }
+      applicationReleaseStore.set(releaseKey, { ...application })
       saveApplicationMock(application)
       applicationStore.set(`uid:${application.uid}`, application)
       applicationStore.set(`did:${application.did}:${application.version}`, application)
@@ -195,6 +211,7 @@ async function signBody(input: {
 describe('public application routes idempotency', () => {
   beforeEach(() => {
     applicationStore.clear()
+    applicationReleaseStore.clear()
     applicationConfigStore.clear()
     requestReplayStore.clear()
     saveApplicationMock.mockClear()
@@ -315,6 +332,239 @@ describe('public application routes idempotency', () => {
       expect(notifyApplicationCreatedMock).toHaveBeenCalledTimes(1)
       expect(firstJson.data.uid).toBeDefined()
       expect(firstJson.data.did).toBe(rawBody.did)
+    })
+  })
+
+  it('publishes a higher version with the same stable application uid', async () => {
+    const wallet = Wallet.createRandom()
+    const actor = wallet.address.toLowerCase()
+    const app = createTestApp(actor)
+    const did = 'did:app:stable-version'
+    const baseBody = {
+      owner: actor,
+      did,
+      version: 1,
+      name: 'Stable App',
+      description: 'v1',
+      code: 'APPLICATION_CODE_TEST',
+      location: '/v1',
+      serviceCodes: ['svc-a'],
+      redirectUris: ['https://app.example.com/callback'],
+      avatar: 'avatar',
+      codePackagePath: '/pkg-v1',
+    }
+    const signable = {
+      requestedUid: '',
+      owner: actor,
+      ownerName: actor,
+      network: '',
+      address: '',
+      did,
+      version: 1,
+      name: 'Stable App',
+      description: 'v1',
+      code: 'APPLICATION_CODE_TEST',
+      location: '/v1',
+      serviceCodes: 'svc-a',
+      redirectUris: ['https://app.example.com/callback'],
+      avatar: 'avatar',
+      codePackagePath: '/pkg-v1',
+    }
+
+    await withServer(app, async (baseUrl) => {
+      const firstBody = await signBody({
+        wallet,
+        requestId: 'req-stable-app-v1',
+        rawBody: baseBody,
+        signablePayload: signable,
+      })
+      const first = await fetch(`${baseUrl}/api/v1/public/applications`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(firstBody),
+      })
+      const firstJson = await first.json()
+      const appId = firstJson.data.uid
+
+      const secondRaw = {
+        ...baseBody,
+        uid: appId,
+        version: 2,
+        description: 'v2',
+        location: '/v2',
+        codePackagePath: '/pkg-v2',
+      }
+      const secondBody = await signBody({
+        wallet,
+        requestId: 'req-stable-app-v2',
+        rawBody: secondRaw,
+        signablePayload: {
+          ...signable,
+          requestedUid: appId,
+          version: 2,
+          description: 'v2',
+          location: '/v2',
+          codePackagePath: '/pkg-v2',
+        },
+      })
+      const second = await fetch(`${baseUrl}/api/v1/public/applications`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(secondBody),
+      })
+      const secondJson = await second.json()
+
+      expect(first.status).toBe(200)
+      expect(second.status).toBe(200)
+      expect(secondJson.data.uid).toBe(appId)
+      expect(secondJson.data.version).toBe(2)
+      expect(applicationReleaseStore.has(`${appId}:1`)).toBe(true)
+      expect(applicationReleaseStore.has(`${appId}:2`)).toBe(true)
+    })
+  })
+
+  it('rejects reusing an application uid for another application DID', async () => {
+    const wallet = Wallet.createRandom()
+    const actor = wallet.address.toLowerCase()
+    const app = createTestApp(actor)
+    const existing = {
+      uid: 'app-stable-identity',
+      owner: actor,
+      ownerName: actor,
+      network: '',
+      address: '',
+      did: 'did:app:original',
+      version: 1,
+      name: 'Original App',
+      description: 'v1',
+      code: 'APPLICATION_CODE_TEST',
+      location: '/v1',
+      serviceCodes: '',
+      redirectUris: '',
+      avatar: '',
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      signature: '',
+      codePackagePath: '/pkg-v1',
+      status: 'BUSINESS_STATUS_PENDING',
+      isOnline: false,
+    }
+    applicationStore.set(`uid:${existing.uid}`, existing)
+    applicationStore.set(`did:${existing.did}:${existing.version}`, existing)
+    const rawBody = {
+      uid: existing.uid,
+      owner: actor,
+      did: 'did:app:different',
+      version: 2,
+      name: 'Different App',
+    }
+    const signedBody = await signBody({
+      wallet,
+      requestId: 'req-reuse-app-id',
+      rawBody,
+      signablePayload: {
+        requestedUid: existing.uid,
+        owner: actor,
+        ownerName: actor,
+        network: '',
+        address: '',
+        did: 'did:app:different',
+        version: 2,
+        name: 'Different App',
+        description: '',
+        code: 'APPLICATION_CODE_UNKNOWN',
+        location: '',
+        serviceCodes: '',
+        redirectUris: [],
+        avatar: '',
+        codePackagePath: '',
+      },
+    })
+
+    await withServer(app, async (baseUrl) => {
+      const response = await fetch(`${baseUrl}/api/v1/public/applications`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(signedBody),
+      })
+      const responseJson = await response.json()
+
+      expect(response.status).toBe(409)
+      expect(responseJson.message).toBe('Application DID mismatch')
+      expect(saveApplicationMock).not.toHaveBeenCalled()
+    })
+  })
+
+  it('rejects publishing the same application uid and version twice', async () => {
+    const wallet = Wallet.createRandom()
+    const actor = wallet.address.toLowerCase()
+    const app = createTestApp(actor)
+    const existing = {
+      uid: 'app-duplicate-version',
+      owner: actor,
+      ownerName: actor,
+      network: '',
+      address: '',
+      did: 'did:app:duplicate-version',
+      version: 2,
+      name: 'Versioned App',
+      description: 'v2',
+      code: 'APPLICATION_CODE_TEST',
+      location: '/v2',
+      serviceCodes: '',
+      redirectUris: '',
+      avatar: '',
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      signature: '',
+      codePackagePath: '/pkg-v2',
+      status: 'BUSINESS_STATUS_PENDING',
+      isOnline: false,
+    }
+    applicationStore.set(`uid:${existing.uid}`, existing)
+    applicationStore.set(`did:${existing.did}:${existing.version}`, existing)
+    applicationReleaseStore.set(`${existing.uid}:${existing.version}`, { ...existing })
+    const rawBody = {
+      uid: existing.uid,
+      owner: actor,
+      did: existing.did,
+      version: existing.version,
+      name: existing.name,
+    }
+    const signedBody = await signBody({
+      wallet,
+      requestId: 'req-duplicate-app-version',
+      rawBody,
+      signablePayload: {
+        requestedUid: existing.uid,
+        owner: actor,
+        ownerName: actor,
+        network: '',
+        address: '',
+        did: existing.did,
+        version: existing.version,
+        name: existing.name,
+        description: '',
+        code: 'APPLICATION_CODE_UNKNOWN',
+        location: '',
+        serviceCodes: '',
+        redirectUris: [],
+        avatar: '',
+        codePackagePath: '',
+      },
+    })
+
+    await withServer(app, async (baseUrl) => {
+      const response = await fetch(`${baseUrl}/api/v1/public/applications`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(signedBody),
+      })
+      const responseJson = await response.json()
+
+      expect(response.status).toBe(409)
+      expect(responseJson.message).toBe('Application version must be greater than current version')
+      expect(saveApplicationMock).not.toHaveBeenCalled()
     })
   })
 

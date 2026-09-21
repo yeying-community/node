@@ -30,6 +30,8 @@ v1 优先保证发布和接入流程可运行，不包含计费、许可证交�
 - 应用版本：SemVer，例如 `1.2.0`，发布后不可覆盖。
 - 实例 ID：每个 Project 部署生成的 UUID。
 - Release ID：`{app_id}@{version}`。
+
+这里的 `app_id` 是 YAP release 目录中的稳定逻辑应用标识，版本升级必须复用同一个 `app_id`。它与旧应用中心 `applications.uid` 的关系必须由 Registry 显式维护，不能让每个版本的内部记录 UID 直接漂移成新的应用空间。身份授权和应用资产规范见社区公共文档：[应用标识与应用空间规范](../../books/yeying/夜莺社区/产品/公共能力/应用标识与应用空间规范.md)。
 - Task ID、Event ID：UUID。
 
 应用升级兼容性使用 SemVer Range；Project 版本、协议版本和 Agent 版本分别校验，不混为一个版本字段。

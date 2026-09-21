@@ -433,8 +433,19 @@ export class AuditService {
         return false
     }
 
-    private async updateTargetPublishState(target: { operateType: string; did: string; version: number }, status: string, isOnline: boolean) {
-        await this.applicationManager.updatePublishState(target.did, target.version, status, isOnline)
+    private async updateTargetPublishState(
+        target: { operateType: string; did: string; version: number },
+        status: string,
+        isOnline: boolean,
+        releaseStatus?: string
+    ) {
+        await this.applicationManager.updatePublishState(
+            target.did,
+            target.version,
+            status,
+            isOnline,
+            releaseStatus
+        )
     }
 
     async detail(id: string): Promise<AuditDetail> {
@@ -492,7 +503,12 @@ export class AuditService {
         auditDO.uid = auditDO.uid || uuidv4()
         await this.auditManager.save(auditDO)
         if (isPublishRequest) {
-            await this.updateTargetPublishState(target, 'BUSINESS_STATUS_REVIEWING', false)
+            await this.updateTargetPublishState(
+                target,
+                'BUSINESS_STATUS_REVIEWING',
+                Boolean(targetRecord.isOnline),
+                'reviewing'
+            )
         }
         this.notifyAuditCreated({
             audit: auditDO,
@@ -594,7 +610,12 @@ export class AuditService {
                 signature: audit.signature,
             })
             const previousState = this.resolvePreviousTargetState(audit)
-            await this.updateTargetPublishState(target, previousState.status, previousState.isOnline)
+            await this.updateTargetPublishState(
+                target,
+                previousState.status,
+                previousState.isOnline,
+                'draft'
+            )
         }
         for (let i = 0; i < comments.length; i++) {
             await this.commentManager.delete(comments[i].uid)
@@ -646,7 +667,12 @@ export class AuditService {
                     updatedAt: audit.updatedAt.toISOString(),
                     signature: audit.signature,
                 })
-                await this.updateTargetPublishState(target, 'BUSINESS_STATUS_ONLINE', true)
+                await this.updateTargetPublishState(
+                    target,
+                    'BUSINESS_STATUS_ONLINE',
+                    true,
+                    'published'
+                )
                 this.notifyAuditDecision({
                     type: 'approved',
                     audit,
@@ -708,7 +734,13 @@ export class AuditService {
                 updatedAt: audit.updatedAt.toISOString(),
                 signature: audit.signature,
             })
-            await this.updateTargetPublishState(target, 'BUSINESS_STATUS_REJECTED', false)
+            const previousState = this.resolvePreviousTargetState(audit)
+            await this.updateTargetPublishState(
+                target,
+                previousState.isOnline ? previousState.status : 'BUSINESS_STATUS_REJECTED',
+                previousState.isOnline,
+                'rejected'
+            )
         }
         this.notifyAuditDecision({
             type: 'rejected',

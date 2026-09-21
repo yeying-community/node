@@ -940,6 +940,37 @@ export class ApplicationDO {
     isOnline!: boolean
 }
 
+@Entity('application_releases')
+@Index('idx_application_release_application_version', ['applicationUid', 'version'], { unique: true })
+export class ApplicationReleaseDO {
+    @PrimaryGeneratedColumn("uuid")
+    uid!: string
+
+    @Column({ length: 64, name: 'application_uid' })
+    applicationUid!: string
+
+    @Column()
+    version!: number
+
+    @Column('text', { name: 'metadata_json', default: '{}' })
+    metadataJson!: string
+
+    @Column({ length: 128, name: 'release_digest', default: '' })
+    releaseDigest!: string
+
+    @Column('text', { default: '' })
+    signature!: string
+
+    @Column({ length: 64, default: 'draft' })
+    status!: string
+
+    @Column({ length: 64, name: 'created_at', default: '' })
+    createdAt!: string
+
+    @Column({ length: 64, name: 'updated_at', default: '' })
+    updatedAt!: string
+}
+
 @Entity('application_configs')
 @Index('idx_application_config_owner', ['applicationUid', 'applicant'], { unique: true })
 export class ApplicationConfigDO {
