@@ -256,7 +256,7 @@ Node 作为中心化 Issuer 后，签发行为本身就是安全事件。至少�
 撤销分两层：
 
 - session revoke：阻止继续签发新 UCAN。
-- token revoke：对已签发 UCAN 建黑名单或版本号机制。当前规划可先实现 session revoke，生产级能力需要补 token revoke 或短 TTL + key rotation。
+- token revoke：对已签发 UCAN 按 `jti` 建立撤销黑名单。当前实现会在校验 UCAN 时查询撤销状态；session revoke 会批量撤销该 session 已签发的 UCAN。短 TTL 与 key rotation 仍是补充防护。
 
 ## 4. 能力命名规范
 
@@ -524,7 +524,7 @@ type RouteUcanPolicy = {
 - token: `node:application:*` 可以覆盖 required: `node:application:own`
 - token: `node:application:own` 不能覆盖 required: `node:application:*`
 
-当前实现里的 `resourceIntersects` 是“交集语义”，会让 required wildcard 接受 token concrete。规划上应改为“覆盖语义”：
+历史实现里的 `resourceIntersects` 曾是“交集语义”，会让 required wildcard 接受 token concrete；当前实现已改为“覆盖语义”：
 
 ```text
 availableResource covers requiredResource
@@ -612,7 +612,7 @@ ucan: {
 ### 阶段 1：能力规范和测试补强
 
 - 新增 `src/auth/ucanPolicy.ts`，集中定义能力类型、normalize、covers 语义。
-- 把当前 `resourceIntersects` 改为单向覆盖语义。
+- 把历史 `resourceIntersects` 改为单向覆盖语义。
 - 补充 UCAN capability 衰减单元测试。
 - 保持现有默认能力兼容，避免一次性破坏前端。
 
@@ -621,6 +621,8 @@ ucan: {
 - 现有 UCAN 用例通过。
 - 新增越权用例全部失败。
 - `app:all:localhost-* + invoke` 仍可在兼容模式下使用。
+
+当前状态：已完成能力覆盖语义抽取、资源 wildcard 反向放大修复，以及中心化/共享验签路径的回归测试。
 
 ### 阶段 2：路由级能力注册表
 
@@ -635,6 +637,8 @@ ucan: {
 - JWT 调用保持现状，业务权限仍生效。
 - MPC 现有 `mpc.ucanWith/mpc.ucanCan` 配置继续兼容。
 
+当前状态：已完成可开关的统一路由 policy 注册表；默认关闭，MPC/Custody 专项保持原行为。开启后应用、通知、审核和管理员路由使用 `node:*` 能力，`strictRoutePolicy=false` 时 JWT 仍可通过业务权限链路访问。
+
 ### 阶段 3：中心化签发策略收敛
 
 - 扩展 `CentralIssueSession`，记录允许的 audience/capabilities。
@@ -647,6 +651,8 @@ ucan: {
 - 客户端请求更大 capability 会返回 403。
 - 客户端请求不同 audience 会返回 403。
 - 已发布应用按自身策略正常换取 UCAN。
+
+当前状态：已完成 session 级 allowed audience/capability 持久化、Issuer 全局上限、应用登记策略子集校验，以及 session 剩余 TTL 约束。
 
 ### 阶段 4：严格模式
 
@@ -666,17 +672,17 @@ ucan: {
 
 - `src/auth/ucan.ts`：UCAN JWS 验签、aud/cap 校验、钱包 proof chain、中心化 issuer 校验。
 - `src/auth/ucanIssuer.ts`：中心化 issuer、session、签发。
-- `src/middleware/authMiddleware.ts`：JWT/UCAN 统一入口，目前只有 MPC 路由特殊能力。
+- `src/middleware/authMiddleware.ts`：JWT/UCAN 统一入口；可开关的 route policy 覆盖应用、审核、通知、管理员和 MPC 路由，MPC/Custody 仍保留专项兼容。
 - `src/domain/service/applicationUcanPolicy.ts`：应用发布时推导对外服务的 UCAN 策略。
 - `applications.ucan_audience` / `applications.ucan_capabilities`：已存储应用访问下游服务所需策略。
 
-需要新增或调整：
+已新增或调整：
 
 - `src/auth/ucanPolicy.ts`：能力覆盖、动作覆盖、能力 sanitize。
 - `src/auth/routeUcanPolicy.ts`：路由能力矩阵。
-- `src/auth/ucan.ts`：从交集匹配改为覆盖匹配。
-- `src/auth/ucanIssuer.ts`：session 级 allowed audience/capabilities。
-- `src/middleware/authMiddleware.ts`：使用统一 route policy 替代 MPC 特例。
+- `src/auth/ucan.ts`：单向覆盖匹配、`exp` 强制校验和中心化 token `jti` 撤销校验。
+- `src/auth/ucanIssuer.ts`：session 级 allowed audience/capabilities、持久化撤销和 fail-closed 配置校验。
+- `src/middleware/authMiddleware.ts`：使用统一 route policy，同时保留 MPC/Custody 兼容路径。
 
 ## 11. 风险和约束
 

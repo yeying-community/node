@@ -1,5 +1,5 @@
 import crypto from 'crypto'
-import { issueCentralUcan, type UcanCapability } from '../../auth/ucanIssuer'
+import { issueCentralUcan, revokeCentralUcanToken, type UcanCapability } from '../../auth/ucanIssuer'
 import { getCurrentUtcString } from '../../common/date'
 import { ScopedGrantAuditLogDO, ScopedGrantDO, ScopedGrantRevocationDO, ScopedGrantTokenDO } from '../mapper/entity'
 import { ScopedGrantManager } from '../manager/scopedGrant'
@@ -39,15 +39,30 @@ export class ScopedGrantService {
     if (grant.audience !== String(input.audience || '').trim()) throw new ScopedGrantError(403, 'Audience is not allowed by scoped grant')
     const capabilities = normalizeCapabilities(input.capabilities); const approved = normalizeCapabilities(JSON.parse(grant.capabilitiesJson || '[]'))
     if (!capabilities.length || capabilities.some(item => !includesCapability(approved, item))) throw new ScopedGrantError(403, 'Capability is not allowed by scoped grant')
-    const issued = issueCentralUcan({ subject: grant.subjectId, audience: grant.audience, capabilities, expiresInMs: input.expiresInMs })
-    const token = new ScopedGrantTokenDO(); token.tokenId = id('gtk'); token.grantId = grant.grantId; token.tokenHash = crypto.createHash('sha256').update(issued.ucan).digest('hex'); token.audience = issued.audience; token.capabilitiesJson = JSON.stringify(issued.capabilities); token.status = 'active'; token.createdAt = getCurrentUtcString(); token.expiresAt = new Date(issued.expiresAt * 1000).toISOString(); token.revokedAt = ''
+    const issued = await issueCentralUcan({ subject: grant.subjectId, audience: grant.audience, capabilities, expiresInMs: input.expiresInMs })
+    const token = new ScopedGrantTokenDO(); token.tokenId = issued.tokenId || id('gtk'); token.grantId = grant.grantId; token.tokenHash = crypto.createHash('sha256').update(issued.ucan).digest('hex'); token.audience = issued.audience; token.capabilitiesJson = JSON.stringify(issued.capabilities); token.status = 'active'; token.createdAt = getCurrentUtcString(); token.expiresAt = new Date(issued.expiresAt * 1000).toISOString(); token.revokedAt = ''
     await this.manager.saveToken(token); await this.audit({ grantId: grant.grantId, tokenId: token.tokenId, subjectId: grant.subjectId, appId: grant.appId, action: 'token_issued', metadata: { audience: issued.audience, capabilities } }); return { tokenId: token.tokenId, ucan: issued.ucan, expiresAt: token.expiresAt }
   }
 
   async revoke(input: { grantId: string; subjectId: string; tokenId?: string; reason?: string }) {
     const grant = await this.manager.getGrant(String(input.grantId || '').trim()); if (!grant) throw new ScopedGrantError(404, 'Scoped grant not found'); if (grant.subjectId !== input.subjectId) throw new ScopedGrantError(403, 'Scoped grant does not belong to subject')
     const now = getCurrentUtcString(); const tokenId = String(input.tokenId || '').trim(); let token: ScopedGrantTokenDO | null = null
-    if (tokenId) { token = await this.manager.getToken(tokenId); if (!token || token.grantId !== grant.grantId) throw new ScopedGrantError(404, 'Scoped grant token not found'); token.status = 'revoked'; token.revokedAt = now; await this.manager.saveToken(token) } else { grant.status = 'revoked'; grant.revokedAt = now; grant.updatedAt = now; await this.manager.saveGrant(grant) }
+    if (tokenId) {
+      token = await this.manager.getToken(tokenId)
+      if (!token || token.grantId !== grant.grantId) throw new ScopedGrantError(404, 'Scoped grant token not found')
+      token.status = 'revoked'; token.revokedAt = now; await this.manager.saveToken(token)
+      await revokeCentralUcanToken(token.tokenId, input.reason || 'scoped_grant_token_revoked')
+    } else {
+      grant.status = 'revoked'; grant.revokedAt = now; grant.updatedAt = now; await this.manager.saveGrant(grant)
+      const tokens = await this.manager.listTokens(grant.grantId)
+      for (const issuedToken of tokens) {
+        if (issuedToken.status === 'revoked') continue
+        issuedToken.status = 'revoked'
+        issuedToken.revokedAt = now
+        await this.manager.saveToken(issuedToken)
+        await revokeCentralUcanToken(issuedToken.tokenId, input.reason || 'scoped_grant_revoked')
+      }
+    }
     const revocation = new ScopedGrantRevocationDO(); revocation.grantId = grant.grantId; revocation.tokenId = tokenId; revocation.actorSubjectId = input.subjectId; revocation.revokedAt = now; revocation.reason = String(input.reason || '').trim(); await this.manager.saveRevocation(revocation)
     await this.audit({ grantId: grant.grantId, tokenId, subjectId: input.subjectId, appId: grant.appId, action: token ? 'token_revoked' : 'grant_revoked' }); return { revoked: true }
   }

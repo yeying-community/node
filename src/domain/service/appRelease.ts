@@ -3,7 +3,7 @@ import path from 'path'
 import { AppReleaseDO } from '../mapper/entity'
 import { AppReleaseManager } from '../manager/appRelease'
 import { getCurrentUtcString } from '../../common/date'
-import { ReleaseValidationResult } from '../../appstore/release/validator'
+import { computeReleaseDigest, ReleaseValidationResult } from '../../appstore/release/validator'
 import { ProjectAppManifest } from '../../appstore/manifests'
 
 const ALLOWED_TRANSITIONS: Record<string, string[]> = {
@@ -88,13 +88,7 @@ export class AppReleaseService {
   async getPublishedArtifact(input: { appId: string; version: string; artifactDir: string }) {
     const release = await this.findPublishedRelease(input.appId, input.version)
     if (!release) return null
-    const root = path.resolve(input.artifactDir)
-    const artifactPath = path.resolve(root, release.artifactPath)
-    if (!artifactPath.startsWith(`${root}${path.sep}`)) throw new Error('INVALID_ARTIFACT_PATH')
-    const raw = await fs.readFile(artifactPath, 'utf8')
-    const stored = JSON.parse(raw) as { files?: Record<string, string> }
-    if (!stored.files || typeof stored.files !== 'object') throw new Error('INVALID_ARTIFACT')
-    return { release, files: stored.files }
+    return { release, files: await this.readStoredArtifact(release, input.artifactDir) }
   }
 
   async listPublishedManifests(artifactDir: string) {
@@ -111,12 +105,8 @@ export class AppReleaseService {
   }
 
   private async toManifest(release: AppReleaseDO, artifactDir: string): Promise<ProjectAppManifest> {
-    const root = path.resolve(artifactDir)
-    const artifactPath = path.resolve(root, release.artifactPath)
-    if (!artifactPath.startsWith(`${root}${path.sep}`)) throw new Error('INVALID_ARTIFACT_PATH')
-    const raw = await fs.readFile(artifactPath, 'utf8')
-    const stored = JSON.parse(raw) as { files?: Record<string, string> }
-    const application = JSON.parse(String(stored.files?.['application.json'] || '')) as {
+    const files = await this.readStoredArtifact(release, artifactDir)
+    const application = JSON.parse(String(files['application.json'] || '')) as {
       metadata?: { id?: string; name?: Record<string, string> }
       spec?: { version?: string; host?: { project?: string }; entries?: Array<Record<string, unknown>> }
     }
@@ -138,5 +128,28 @@ export class AppReleaseService {
       minimumProjectVersion: String(application.spec?.host?.project || ''),
       menuItems,
     }
+  }
+
+  private async readStoredArtifact(release: AppReleaseDO, artifactDir: string): Promise<Record<string, string>> {
+    const root = path.resolve(artifactDir)
+    const artifactPath = path.resolve(root, release.artifactPath)
+    if (!artifactPath.startsWith(`${root}${path.sep}`)) throw new Error('INVALID_ARTIFACT_PATH')
+    const raw = await fs.readFile(artifactPath, 'utf8')
+    const stored = JSON.parse(raw) as { files?: Record<string, unknown> }
+    if (!stored.files || typeof stored.files !== 'object' || Array.isArray(stored.files)) {
+      throw new Error('INVALID_ARTIFACT')
+    }
+    const files: Record<string, string> = {}
+    for (const [name, content] of Object.entries(stored.files)) {
+      if (typeof content !== 'string') {
+        throw new Error('INVALID_ARTIFACT')
+      }
+      files[name] = content
+    }
+    const actualDigest = computeReleaseDigest(files)
+    if (actualDigest !== release.releaseDigest) {
+      throw new Error('ARTIFACT_DIGEST_MISMATCH')
+    }
+    return files
   }
 }

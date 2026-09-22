@@ -21,7 +21,7 @@ Node 不保存钱包明文密钥。托管接口只接受客户端加密后的 `c
 
 - Node.js 22 或更高版本；生产环境建议固定 LTS 版本。
 - PostgreSQL 作为推荐数据库。PostgreSQL 使用 migration；MySQL 依赖 TypeORM synchronize，功能覆盖需要自行验证。
-- Redis 为可选组件。多实例 MPC、SSE 续传和事件重放建议启用 Redis Streams。
+- Redis 为可选组件。MPC 的多实例事件流和断点续传使用 Redis Streams；Pusher 与通知中心的多实例实时 fanout 使用 Redis Pub/Sub。通知 SSE 的历史补偿始终来自 PostgreSQL 收件箱和 cursor。
 - Passkey 生产环境必须使用 HTTPS，并保证 `identity.webauthn.rpId` 与访问域名一致。Passkey 在新钱包身份流程中只是认证器，不是外部身份主键。
 
 ## 3. 本地启动
@@ -86,11 +86,18 @@ issuer: {
   ucan: {
   enabled: true,
   mode: 'hybrid',
-  defaultAudience: 'did:web:node.example.com'
+  defaultAudience: 'did:web:node.example.com',
+  allowedAudiences: ['did:web:node.example.com'],
+  allowedCapabilitiesByAudience: {
+    'did:web:node.example.com': [
+      { with: 'app:all:node.example.com', can: 'invoke' }
+    ]
+  }
 }
 ```
 
 `aud` 必须与客户端生成 UCAN 时使用的 audience 一致。路由专用 capability 会覆盖全局 capability：
+`allowedAudiences` 与 `allowedCapabilitiesByAudience` 是中心化 issue session 的可选全局硬上限；身份授权应用的登记策略还必须由应用自身的 `ucanAudience/ucanCapabilities` 声明。
 
 ```js
 mpc: { ucanWith: 'mpc', ucanCan: 'coordinate' },
@@ -264,7 +271,7 @@ npm run openapi:check
 
 Project 安装、升级、失败回滚、卸载和健康检查已经迁移到 `agent` 仓库。Node 不再注册 `/api/v1/internal/*` 安装接口，也不再注册 `/api/v1/runtime/*` 任务接口。
 
-Node 在这条链路中的职责是 Registry：接收发布者提交的 release bundle，校验签名、digest、Compose 策略和发布者身份，审核后提供已发布 release artifact。Agent Runtime 根据 Project 请求查询 Node Registry，再在部署机执行受控运行时流程。
+Node 在这条链路中的职责是 Registry：接收发布者提交的 release bundle，校验签名、digest、Compose 策略和发布者身份，审核后提供已发布 release artifact。Node 在提供 artifact 或目录 manifest 前会重新计算并比对已登记的 `release_digest`，因此存储内容被篡改、缺失或新增未被 checksum 覆盖的文件时不会继续下发。Agent Runtime 根据 Project 请求查询 Node Registry，再在部署机执行受控运行时流程。
 
 ## 12. 构建、测试和发布
 
@@ -295,7 +302,7 @@ npm run package:release -- v1.0.0
 - 数据库 migration 是否完成；
 - Passkey、钱包身份 TOTP、UCAN issuer 状态接口是否符合预期；钱包身份 TOTP 随身份服务启用，必须 `ready=true`；
 - Node 日志是否出现 `audience mismatch`、`capability denied` 或数据库连接错误；
-- Redis Streams 长度、消费者延迟和 SSE 重连率；
+- MPC Redis Streams 长度、消费者延迟、Redis Pub/Sub 连接状态和 SSE 重连率；
 - Webhook 失败数、重试数和最终失败数；
 - Agent Runtime 与 Node Registry 的 release 查询、签名校验和下载错误；
 - 托管密文数量、Passkey 撤销和异常下载行为。

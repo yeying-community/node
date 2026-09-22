@@ -2,6 +2,18 @@ import { Application } from '../model/application'
 import { ApplicationReleaseDO } from '../mapper/entity'
 import { ApplicationReleaseManager } from '../manager/applicationRelease'
 
+export type ApplicationReleaseView = {
+  uid: string
+  applicationUid: string
+  version: number
+  releaseDigest: string
+  signature: string
+  status: string
+  createdAt: string
+  updatedAt: string
+  application: Application | null
+}
+
 export class ApplicationReleaseService {
   private readonly manager = new ApplicationReleaseManager()
 
@@ -61,6 +73,35 @@ export class ApplicationReleaseService {
       }
     } catch {
       return null
+    }
+  }
+
+  async listByApplicationUid(applicationUid: string): Promise<ApplicationReleaseView[]> {
+    const releases = await this.manager.findByApplication(applicationUid)
+    return await Promise.all(releases.map((release) => this.toView(release)))
+  }
+
+  async getByApplicationVersion(applicationUid: string, version: number): Promise<ApplicationReleaseView | null> {
+    const release = await this.manager.findByApplicationVersion(applicationUid, version)
+    return release ? await this.toView(release) : null
+  }
+
+  async withdrawVersion(applicationUid: string, version: number): Promise<ApplicationReleaseView> {
+    const release = await this.manager.withdrawVersion(applicationUid, version)
+    return await this.toView(release)
+  }
+
+  private async toView(release: ApplicationReleaseDO): Promise<ApplicationReleaseView> {
+    return {
+      uid: release.uid,
+      applicationUid: release.applicationUid,
+      version: release.version,
+      releaseDigest: release.releaseDigest || '',
+      signature: release.signature || '',
+      status: release.status,
+      createdAt: release.createdAt,
+      updatedAt: release.updatedAt,
+      application: await this.snapshotToApplication(release),
     }
   }
 }

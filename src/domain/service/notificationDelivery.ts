@@ -150,7 +150,7 @@ async function claimDeliveryCandidates(
   const repository = dataSource.getRepository(NotificationDeliveryDO)
   const claimToken = uuidv4()
   const staleLockedBeforeIso = toIso(Date.parse(nowIso) - policy.webhookClaimTimeoutMs)
-  const dbType = dataSource.options.type
+  const dbType = dataSource.options?.type
 
   if (dbType === 'postgres') {
     const schema = (dataSource.options as { schema?: string }).schema || 'public'
@@ -206,18 +206,33 @@ async function claimDeliveryCandidates(
       return String(row.lockedAt || '').trim() !== '' && String(row.lockedAt || '').trim() <= staleLockedBeforeIso
     })
     .slice(0, limit)
+  const claimed: NotificationDeliveryDO[] = []
   for (const row of candidates) {
-    row.status = 'delivering'
-    row.lockToken = claimToken
-    row.lockedAt = nowIso
-    row.attemptCount = Number(row.attemptCount || 0) + 1
-    row.updatedAt = nowIso
-    row.lastError = ''
+    const claimToken = uuidv4()
+    const where: Record<string, string> = {
+      uid: row.uid,
+      channel: 'webhook',
+      status: row.status,
+    }
+    if (row.status === 'delivering') {
+      where.lockedAt = String(row.lockedAt || '')
+    }
+    const result = await repository.update(where, {
+      status: 'delivering',
+      lockToken: claimToken,
+      lockedAt: nowIso,
+      attemptCount: Number(row.attemptCount || 0) + 1,
+      updatedAt: nowIso,
+      lastError: '',
+    })
+    if (Number(result.affected || 0) > 0) {
+      const current = await repository.findOneBy({ uid: row.uid, lockToken: claimToken })
+      if (current) {
+        claimed.push(current)
+      }
+    }
   }
-  if (candidates.length > 0) {
-    await repository.save(candidates)
-  }
-  return candidates
+  return claimed
 }
 
 async function getDeliveryByUid(uidInput: string): Promise<NotificationDeliveryDO | null> {
@@ -243,16 +258,25 @@ async function claimDeliveryRecord(delivery: NotificationDeliveryDO, nowIso: str
   return await repository.save(delivery)
 }
 
-async function markDeliverySuccess(delivery: NotificationDeliveryDO, nowIso: string): Promise<void> {
+async function markDeliverySuccess(delivery: NotificationDeliveryDO, nowIso: string): Promise<boolean> {
   const repository = SingletonDataSource.get().getRepository(NotificationDeliveryDO)
-  delivery.status = 'delivered'
-  delivery.deliveredAt = nowIso
-  delivery.nextRetryAt = ''
-  delivery.lastError = ''
-  delivery.lockToken = ''
-  delivery.lockedAt = ''
-  delivery.updatedAt = nowIso
-  await repository.save(delivery)
+  const result = await repository.update(
+    {
+      uid: delivery.uid,
+      status: 'delivering',
+      lockToken: delivery.lockToken,
+    },
+    {
+      status: 'delivered',
+      deliveredAt: nowIso,
+      nextRetryAt: '',
+      lastError: '',
+      lockToken: '',
+      lockedAt: '',
+      updatedAt: nowIso,
+    }
+  )
+  return Number(result.affected || 0) > 0
 }
 
 async function markDeliveryFailure(
@@ -260,20 +284,30 @@ async function markDeliveryFailure(
   errorMessage: string,
   nowMs: number,
   policy: ReturnType<typeof resolveNotificationPolicy>
-): Promise<void> {
+): Promise<boolean> {
   const repository = SingletonDataSource.get().getRepository(NotificationDeliveryDO)
   const nowIso = new Date(nowMs).toISOString()
   const attemptCount = Math.max(1, Number(delivery.attemptCount || 0))
-  delivery.status = 'failed'
-  delivery.lastError = String(errorMessage || 'Webhook delivery failed').slice(0, 4000)
-  delivery.lockToken = ''
-  delivery.lockedAt = ''
-  delivery.updatedAt = nowIso
-  delivery.nextRetryAt =
+  const nextRetryAt =
     attemptCount >= policy.webhookMaxAttempts
       ? ''
       : computeNextRetryAt(attemptCount, nowMs, policy.webhookRetryBaseDelayMs, policy.webhookRetryMaxDelayMs)
-  await repository.save(delivery)
+  const result = await repository.update(
+    {
+      uid: delivery.uid,
+      status: 'delivering',
+      lockToken: delivery.lockToken,
+    },
+    {
+      status: 'failed',
+      lastError: String(errorMessage || 'Webhook delivery failed').slice(0, 4000),
+      lockToken: '',
+      lockedAt: '',
+      updatedAt: nowIso,
+      nextRetryAt,
+    }
+  )
+  return Number(result.affected || 0) > 0
 }
 
 async function resetDeliveryForManualRetry(delivery: NotificationDeliveryDO, nowIso: string): Promise<NotificationDeliveryDO> {
@@ -428,8 +462,10 @@ async function processSingleDelivery(
       nowIso: attemptStartedAt,
     })
     const successTime = getCurrentUtcString()
-    await markDeliverySuccess(delivery, successTime)
-    await updateWebhookTriggeredAt(webhook, successTime)
+    const markedDelivered = await markDeliverySuccess(delivery, successTime)
+    if (markedDelivered) {
+      await updateWebhookTriggeredAt(webhook, successTime)
+    }
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error)
     await markDeliveryFailure(delivery, message, Date.now(), policy)

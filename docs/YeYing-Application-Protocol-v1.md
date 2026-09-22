@@ -61,8 +61,10 @@ ai-0.1.0/
 - `config.schema.json`：管理员安装表单与 Agent 配置校验。
 - `permissions.json`：应用申请的 Project API 和事件权限。
 - `compose.yaml`：受限 Compose 子集，由 Agent 校验后执行。
-- `checksums.json`：包内文件 SHA-256。
+- `checksums.json`：包内文件 SHA-256，必须覆盖除 `checksums.json` 和 `signature.json` 之外的全部文件，且不能引用包外文件。
 - `signature.json`：发布者对 checksums digest 的 Ed25519 签名。
+
+Node Registry 会在接收 bundle 时校验 checksum 覆盖范围和签名，并把 `release_digest` 与 artifact 一起登记。Agent Runtime 或其它 Registry 读取已发布 artifact 时，Node 会再次计算文件集合对应的 digest；如果 artifact 被篡改、缺失、增加未声明文件或 checksum 表不一致，读取会失败。
 
 Schema 位于 `protocol/yeying-app/v1/`。
 

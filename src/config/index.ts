@@ -50,6 +50,8 @@ export interface UcanRuntimeConfig {
     aud: string
     with?: string
     can?: string
+    routePolicyEnabled?: boolean
+    strictRoutePolicy?: boolean
 }
 
 export type UcanIssuerMode = 'verify' | 'issue' | 'hybrid'
@@ -66,6 +68,8 @@ export interface UcanIssuerRuntimeConfig {
     tokenTtlMs?: number
     defaultAudience?: string
     defaultCapabilities?: UcanIssuerCapabilityConfig[]
+    allowedAudiences?: string[]
+    allowedCapabilitiesByAudience?: Record<string, UcanIssuerCapabilityConfig[]>
 }
 
 export interface IdentityPasskeyRuntimeConfig {
@@ -122,6 +126,7 @@ export interface NotificationRuntimeConfig {
     emailDeliveryEnabled?: boolean
     emailDeliveryIntervalMs?: number
     emailDeliveryBatchSize?: number
+    emailClaimTimeoutMs?: number
     emailMaxAttempts?: number
     emailRetryBaseDelayMs?: number
     emailRetryMaxDelayMs?: number
@@ -136,6 +141,7 @@ export interface RedisRuntimeConfig {
     keyPrefix?: string
     channel?: string
     pusherChannel?: string
+    notificationChannel?: string
     tls?: boolean
     instanceId?: string
     streamEnabled?: boolean

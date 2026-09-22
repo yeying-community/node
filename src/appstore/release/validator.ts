@@ -147,6 +147,11 @@ function validateCompose(compose: string, image: string): void {
 function validateChecksums(files: Record<string, Buffer | string>): string {
   const checksums = parseJson<Record<string, unknown>>(files, 'checksums.json')
   if (!checksums || typeof checksums !== 'object' || Array.isArray(checksums)) fail('checksums.json structure')
+  for (const path of Object.keys(files)) {
+    if (path !== 'checksums.json' && path !== 'signature.json' && !(path in checksums)) {
+      fail(`checksums.json does not cover ${path}`)
+    }
+  }
   for (const [path, expected] of Object.entries(checksums)) {
     if (path.includes('..') || path.startsWith('/') || path === 'checksums.json' || path === 'signature.json') fail('unsafe checksum path')
     if (typeof expected !== 'string' || !/^[a-f0-9]{64}$/.test(expected)) fail(`invalid checksum for ${path}`)
@@ -157,6 +162,13 @@ function validateChecksums(files: Record<string, Buffer | string>): string {
     if (!(required in checksums)) fail(`checksums.json does not cover ${required}`)
   }
   return `sha256:${sha256(stableStringify(checksums))}`
+}
+
+export function computeReleaseDigest(files: Record<string, Buffer | string>): string {
+  for (const required of REQUIRED_FILES) {
+    if (!(required in files)) fail(`missing ${required}`)
+  }
+  return validateChecksums(files)
 }
 
 function validateSignature(files: Record<string, Buffer | string>, options: ReleaseValidationOptions, digest: string): void {
@@ -190,7 +202,7 @@ export function validateReleaseBundle(input: ReleaseBundleInput, options: Releas
   const image = validateRuntime(runtime, appId, version)
   const compose = Buffer.isBuffer(files['compose.yaml']) ? files['compose.yaml'].toString('utf8') : String(files['compose.yaml'])
   validateCompose(compose, image)
-  const releaseDigest = validateChecksums(files)
+  const releaseDigest = computeReleaseDigest(files)
   validateSignature(files, options, releaseDigest)
   return { appId, version, releaseDigest, image }
 }

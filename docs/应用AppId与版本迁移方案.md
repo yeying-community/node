@@ -1,6 +1,6 @@
 # 应用 AppId 与版本迁移方案
 
-> 状态：阶段二、阶段三基础能力已实现；生产数据迁移待执行
+> 状态：阶段二、阶段三基础能力已实现；版本查询与指定版本撤回已落地；生产数据迁移待执行
 >
 > 关联规范：[应用标识与应用空间规范](../../books/yeying/夜莺社区/产品/公共能力/应用标识与应用空间规范.md)
 
@@ -80,12 +80,12 @@ UNIQUE(application_uid, version)
 - 应用发布和下架同步更新 release 状态
 - 已上线应用提交新版本时保持应用级 `isOnline=true`，release 独立进入 `draft/reviewing`，避免审核期间中断登录授权
 
-后续仍需增加：
+当前已增加：
 
-- 查询应用当前发布版本
-- 查询指定 `appId + version` 的 release
-- 撤回指定版本而不删除应用注册
-- 后续再设计应用制品签名身份和 verification methods；当前接口不依赖它们
+- `GET /api/v1/public/applications/:uid/releases` 查询稳定 AppId 下的版本列表
+- `GET /api/v1/public/applications/:uid/releases/:version` 查询指定版本
+- `POST /api/v1/public/applications/:uid/releases/:version/withdraw` 撤回已发布版本，不删除应用注册
+- 应用制品签名身份和 verification methods 仍属于后续扩展；当前接口不依赖它们
 
 旧的按 `did + version` 查询接口保留兼容，但内部应先解析到稳定应用，再查询 release。
 

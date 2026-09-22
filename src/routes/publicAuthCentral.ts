@@ -75,6 +75,14 @@ function mapIssuerError(error: unknown): { status: number; message: string } {
   if (message.includes('disabled') || message.includes('mode does not allow issue')) {
     return { status: 403, message };
   }
+  if (
+    message.includes('not allowed by') ||
+    message.includes('exceed issuer policy') ||
+    message.includes('exceeds session expiry') ||
+    message.includes('expires too soon')
+  ) {
+    return { status: 403, message };
+  }
   if (message.includes('not ready')) {
     return { status: 503, message };
   }
@@ -97,12 +105,13 @@ export function registerPublicAuthCentralRoutes(app: Express) {
         tokenTtlMs: status.tokenTtlMs,
         defaultAudience: status.defaultAudience,
         defaultCapabilities: status.defaultCapabilities,
+        issuerKeys: status.issuerKeys,
         error: status.error,
       })
     );
   });
 
-  app.post(`${BASE_PATH}/session`, (req: Request, res: Response) => {
+  app.post(`${BASE_PATH}/session`, async (req: Request, res: Response) => {
     const accessToken = parseBearerToken(req);
     if (!accessToken) {
       res.status(401).json(fail(401, 'Missing access token'));
@@ -126,7 +135,7 @@ export function registerPublicAuthCentralRoutes(app: Express) {
     }
 
     try {
-      const session = createCentralIssueSession({
+      const session = await createCentralIssueSession({
         subject: requestSubject,
         expiresInMs: parseOptionalPositiveNumber(req.body?.sessionTtlMs),
       });
@@ -137,6 +146,8 @@ export function registerPublicAuthCentralRoutes(app: Express) {
           sessionToken: session.sessionToken,
           issuedAt: session.issuedAt,
           expiresAt: session.expiresAt,
+          allowedAudiences: session.allowedAudiences,
+          allowedCapabilitiesByAudience: session.allowedCapabilitiesByAudience,
         })
       );
     } catch (error) {
@@ -145,7 +156,7 @@ export function registerPublicAuthCentralRoutes(app: Express) {
     }
   });
 
-  app.post(`${BASE_PATH}/issue`, (req: Request, res: Response) => {
+  app.post(`${BASE_PATH}/issue`, async (req: Request, res: Response) => {
     const sessionToken = parseBearerToken(req);
     if (!sessionToken) {
       res.status(401).json(fail(401, 'Missing session token'));
@@ -156,7 +167,7 @@ export function registerPublicAuthCentralRoutes(app: Express) {
       const audience = typeof req.body?.audience === 'string' ? req.body.audience.trim() : undefined;
       const capabilities = parseCapabilities(req.body?.capabilities);
       const expiresInMs = parseOptionalPositiveNumber(req.body?.expiresInMs ?? req.body?.ttlMs);
-      const issued = issueCentralUcanBySession({
+      const issued = await issueCentralUcanBySession({
         sessionToken,
         audience,
         capabilities,
@@ -184,14 +195,14 @@ export function registerPublicAuthCentralRoutes(app: Express) {
     }
   });
 
-  app.post(`${BASE_PATH}/revoke`, (req: Request, res: Response) => {
+  app.post(`${BASE_PATH}/revoke`, async (req: Request, res: Response) => {
     const sessionToken = parseBearerToken(req);
     if (!sessionToken) {
       res.status(401).json(fail(401, 'Missing session token'));
       return;
     }
 
-    const revoked = revokeCentralIssueSession(sessionToken);
+    const revoked = await revokeCentralIssueSession(sessionToken);
     res.json(ok({ revoked }));
   });
 }

@@ -4,6 +4,11 @@ import { SingletonDataSource } from '../src/domain/facade/datasource'
 import { createInMemoryDataSource } from './helpers/inMemoryDataSource'
 import { IdentityAccountLinkDO, IdentityAuditLogDO, IdentityCredentialDO, IdentityPasskeyCredentialDO, IdentityTotpAuthenticatorDO, IdentityUsernameDO, IdentityWebauthnChallengeDO } from '../src/domain/mapper/entity'
 
+const projectUcanPolicy = vi.hoisted(() => ({
+  audience: 'did:web:router.example',
+  capabilities: '[{"with":"app:all:router-*","can":"invoke"}]'
+}))
+
 vi.mock('../src/config/runtime', () => ({
   getConfig: (key: string) => ({
     'identity.publicBaseUrl': 'http://localhost:8100',
@@ -31,12 +36,16 @@ vi.mock('../src/auth/ucanIssuer', () => ({
     issuerDid: 'did:key:zIdentityIssuer',
     error: ''
   })),
-  createCentralIssueSession: vi.fn(({ subject }: { subject: string }) => ({
+  createCentralIssueSession: vi.fn(({ subject, allowedAudiences, allowedCapabilitiesByAudience }: { subject: string; allowedAudiences?: string[]; allowedCapabilitiesByAudience?: Record<string, unknown> }) => ({
     sessionToken: 'identity-ucan-session',
     subject,
     issuer: 'did:key:zIdentityIssuer',
     issuedAt: 1_789_000_000_000,
-    expiresAt: 1_789_000_900_000
+    expiresAt: 1_789_000_900_000,
+    allowedAudiences: allowedAudiences || ['did:web:router.example'],
+    allowedCapabilitiesByAudience: allowedCapabilitiesByAudience || {
+      'did:web:router.example': [{ with: 'app:all:router-*', can: 'invoke' }],
+    },
   }))
 }))
 
@@ -56,7 +65,13 @@ vi.mock('@simplewebauthn/server', () => ({
 vi.mock('../src/domain/service/application', () => ({
   ApplicationService: class {
     async queryByUid(uid: string) {
-      if (uid === 'project') return { uid, name: 'Project', redirectUris: JSON.stringify(['https://project.example/auth/callback', 'http://localhost:3020/central-ucan-callback.html']) }
+      if (uid === 'project') return {
+        uid,
+        name: 'Project',
+        redirectUris: JSON.stringify(['https://project.example/auth/callback', 'http://localhost:3020/central-ucan-callback.html']),
+        ucanAudience: projectUcanPolicy.audience,
+        ucanCapabilities: projectUcanPolicy.capabilities,
+      }
       if (uid === 'desktop') return { uid, name: 'Chat Desktop', redirectUris: 'chat://localhost/central-ucan-callback.html' }
       return null
     }
@@ -92,6 +107,7 @@ function signedIdentityDocument() {
 }
 
 const { IdentityAuthorizationService } = await import('../src/domain/service/identityAuthorization')
+const { createCentralIssueSession: createCentralIssueSessionMock } = await import('../src/auth/ucanIssuer')
 const { IdentityTotpService, getIdentityTotpStatus } = await import('../src/auth/identityTotpAuth')
 const { generateAuthenticationOptions, verifyAuthenticationResponse, verifyRegistrationResponse } = await import('@simplewebauthn/server')
 const { createIdentityActionChallenge } = await import('../src/auth/identityActionAuthorization')
@@ -176,6 +192,7 @@ describe('identity authorization', () => {
 
   it('exchanges a DID presentation once and returns requested credentials', async () => {
     const service = new IdentityAuthorizationService()
+    vi.mocked(createCentralIssueSessionMock).mockClear()
     const verifier = 'a'.repeat(43)
     const challenge = Buffer.from(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(verifier))).toString('base64url')
     const request = await service.create({ appId: 'project', redirectUri: 'https://project.example/auth/callback', codeChallenge: challenge, codeChallengeMethod: 'S256', scopes: ['identity.email', 'identity.avatar'] })
@@ -193,10 +210,23 @@ describe('identity authorization', () => {
       sessionToken: 'identity-ucan-session',
       issuerDid: 'did:key:zIdentityIssuer',
       issuedAt: 1_789_000_000_000,
-      expiresAt: 1_789_000_900_000
+      expiresAt: 1_789_000_900_000,
+      allowedAudiences: ['did:web:router.example'],
+      allowedCapabilitiesByAudience: {
+        'did:web:router.example': [{ with: 'app:all:router-*', can: 'invoke' }],
+      },
+    })
+    expect(createCentralIssueSessionMock).toHaveBeenCalledWith({
+      subject: identity,
+      allowedAudiences: ['did:web:router.example'],
+      allowedCapabilitiesByAudience: {
+        'did:web:router.example': [{ with: 'app:all:router-*', can: 'invoke' }],
+      },
     })
     expect(exchanged.refreshToken).toEqual(expect.any(String))
     expect(exchanged.refreshExpiresAt).toBeGreaterThan(Date.now())
+    projectUcanPolicy.audience = 'did:web:changed-router.example'
+    projectUcanPolicy.capabilities = '[{"with":"app:all:changed-router-*","can":"invoke"}]'
     const refreshed = await service.refreshSession({
       refreshToken: exchanged.refreshToken,
       appId: 'project',
@@ -204,7 +234,21 @@ describe('identity authorization', () => {
     })
     expect(refreshed.did).toBe(identity)
     expect(refreshed.ucanSession.sessionToken).toBe('identity-ucan-session')
+    expect(refreshed.ucanSession.allowedAudiences).toEqual(['did:web:router.example'])
+    expect(refreshed.ucanSession.allowedCapabilitiesByAudience).toEqual({
+      'did:web:router.example': [{ with: 'app:all:router-*', can: 'invoke' }],
+    })
+    expect(createCentralIssueSessionMock).toHaveBeenLastCalledWith({
+      subject: identity,
+      allowedAudiences: ['did:web:router.example'],
+      allowedCapabilitiesByAudience: {
+        'did:web:router.example': [{ with: 'app:all:router-*', can: 'invoke' }],
+      },
+    })
+    expect(createCentralIssueSessionMock).toHaveBeenCalledTimes(2)
     expect(refreshed.refreshToken).not.toBe(exchanged.refreshToken)
+    projectUcanPolicy.audience = 'did:web:router.example'
+    projectUcanPolicy.capabilities = '[{"with":"app:all:router-*","can":"invoke"}]'
     await expect(service.refreshSession({
       refreshToken: exchanged.refreshToken,
       appId: 'project',

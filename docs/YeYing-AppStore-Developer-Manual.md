@@ -31,7 +31,9 @@ signature.json
 - 镜像必须使用不可变 `@sha256:` digest，禁止只使用 tag。
 - Compose 禁止 `privileged`、host network、host PID、设备映射和 Docker Socket。
 - 配置 Schema 必须将密钥声明为 `x-yeying-secret: true`。
-- bundle 的 checksums 必须由已登记发布者的 Ed25519 私钥签名。
+- `checksums.json` 必须覆盖 bundle 中除 `checksums.json` 和 `signature.json` 之外的所有文件；不能遗漏必需文件，也不能包含不存在的文件。
+- bundle 的 checksums digest 必须由已登记发布者的 Ed25519 私钥签名。
+- Node 在提交时校验 bundle，并在后续读取已发布 artifact 时重新计算并比对 `release_digest`；artifact 内容、checksum 表或文件集合发生变化都会被拒绝。
 
 ## 3. 发布流程
 
@@ -45,7 +47,7 @@ POST /api/v1/publisher/releases/submit
 
 请求体包含 `publisher_key_id` 和 `files`。`publisher_key_id` 必须在社区 Node 配置中登记，且 owner 必须与当前登录钱包一致。
 
-4. 服务端校验 Schema、校验和、签名、镜像 digest 和 Compose 策略，成功后创建 `submitted` release。
+4. 服务端校验 Schema、校验和覆盖范围、签名、镜像 digest 和 Compose 策略，成功后创建 `submitted` release。
 5. 社区管理员依次调用 `approve`、`publish`。只有 `published` release 会出现在目录并允许安装。
 
 审核状态：

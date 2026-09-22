@@ -9,9 +9,8 @@ import {
   verifyUcanInvocation,
   verifyUcanInvocationWithCap,
 } from '../auth/ucan';
+import { getRouteUcanPolicy } from '../auth/routeUcanPolicy';
 import { runWithRequestContext } from '../common/requestContext';
-import { getConfig } from '../config/runtime';
-import { MpcRuntimeConfig } from '../config';
 import { SingletonLogger } from '../domain/facade/logger';
 
 const PUBLIC_ROUTES = [
@@ -23,9 +22,6 @@ const PUBLIC_ROUTES = [
   '/public/healthCheck',
   '/public/ready',
 ];
-const DEFAULT_MPC_UCAN_WITH = 'mpc';
-const DEFAULT_MPC_UCAN_CAN = 'coordinate';
-
 type AuthUser = {
   address: string;
   issuer?: string;
@@ -44,12 +40,6 @@ function getRequestIp(req: Request): string {
   return req.socket.remoteAddress || '';
 }
 
-function getMountedRoutePath(req: Pick<Request, 'baseUrl' | 'path'>): string {
-  const baseUrl = String(req.baseUrl || '').replace(/\/$/, '');
-  const requestPath = String(req.path || '');
-  return `${baseUrl}${requestPath.startsWith('/') ? requestPath : `/${requestPath}`}`;
-}
-
 function isPublicAppPublishRoute(req: Request): boolean {
   return (
     req.method === 'POST' &&
@@ -60,40 +50,11 @@ function isPublicAppPublishRoute(req: Request): boolean {
 export function getRouteRequiredUcanCapabilities(
   req: Pick<Request, 'baseUrl' | 'path'> & Partial<Pick<Request, 'query'>>
 ) {
-  const routePath = getMountedRoutePath(req);
-  const notificationSource = String(req.query?.source || '').trim().toLowerCase();
-  if (routePath === '/api/v1/public/notifications' && notificationSource === 'mpc') {
-    const config = (getConfig<MpcRuntimeConfig>('mpc') || {}) as MpcRuntimeConfig;
-    const resource = String(config.ucanWith || DEFAULT_MPC_UCAN_WITH).trim();
-    const action = String(config.ucanCan || DEFAULT_MPC_UCAN_CAN).trim();
-    return [
-      {
-        with: resource || '*',
-        can: action || '*',
-      },
-    ];
-  }
-  if (!routePath.startsWith('/api/v1/public/mpc')) {
-    if (!routePath.startsWith('/api/v1/public/custody')) {
-      return null;
-    }
-    if (routePath.startsWith('/api/v1/public/custody/recovery')) {
-      return [];
-    }
-    return [{ with: 'custody', can: 'write' }];
-  }
-  const config = (getConfig<MpcRuntimeConfig>('mpc') || {}) as MpcRuntimeConfig;
-  const resource = String(config.ucanWith || DEFAULT_MPC_UCAN_WITH).trim();
-  const action = String(config.ucanCan || DEFAULT_MPC_UCAN_CAN).trim();
-  return [
-    {
-      with: resource || '*',
-      can: action || '*',
-    },
-  ];
+  const policy = getRouteUcanPolicy(req);
+  return policy ? policy.anyOf[0] || [] : null;
 }
 
-const authenticateToken = (req: Request, res: Response, next: NextFunction) => {
+const authenticateToken = async (req: Request, res: Response, next: NextFunction) => {
   const logger = SingletonLogger.get();
 
   if (req.method === 'OPTIONS') {
@@ -112,7 +73,13 @@ const authenticateToken = (req: Request, res: Response, next: NextFunction) => {
   // Custody recovery routes authenticate their short-lived recovery token in
   // the route handler. They must not be reinterpreted as a normal SIWE/JWT
   // access token by this global middleware.
-  const routeCaps = getRouteRequiredUcanCapabilities(req);
+  const routePolicy = getRouteUcanPolicy({
+    method: req.method,
+    baseUrl: req.baseUrl,
+    path: req.path,
+    query: req.query as Record<string, unknown>,
+  });
+  const routeCaps = routePolicy ? routePolicy.anyOf[0] || [] : null;
   if (routeCaps && routeCaps.length === 0) {
     return runWithRequestContext(undefined, () => next());
   }
@@ -133,10 +100,23 @@ const authenticateToken = (req: Request, res: Response, next: NextFunction) => {
 
   if (isUcanToken(token)) {
     try {
-      const result =
-        routeCaps && routeCaps.length > 0
-          ? verifyUcanInvocationWithCap(token, routeCaps)
-          : verifyUcanInvocation(token);
+      let result;
+      if (routePolicy && routePolicy.anyOf.length > 0) {
+        let lastError: unknown;
+        for (const required of routePolicy.anyOf) {
+          try {
+            result = await verifyUcanInvocationWithCap(token, required);
+            break;
+          } catch (error) {
+            lastError = error;
+          }
+        }
+        if (!result) {
+          throw lastError || new Error('UCAN capability denied');
+        }
+      } else {
+        result = await verifyUcanInvocation(token);
+      }
       const user: AuthUser = {
         address: result.address,
         issuer: result.issuer,
@@ -148,7 +128,12 @@ const authenticateToken = (req: Request, res: Response, next: NextFunction) => {
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Invalid UCAN token';
       const claims = peekUcanTokenPayload(token);
-      const routeCaps = getRouteRequiredUcanCapabilities(req);
+      const expectedPolicy = getRouteUcanPolicy({
+        method: req.method,
+        baseUrl: req.baseUrl,
+        path: req.path,
+        query: req.query as Record<string, unknown>,
+      });
       logger.warn('ucan verification failed', {
         method: req.method,
         path: req.originalUrl,
@@ -156,8 +141,8 @@ const authenticateToken = (req: Request, res: Response, next: NextFunction) => {
         reason: message,
         expectedAud: getRequiredUcanAudience(),
         expectedCap:
-          routeCaps && routeCaps.length > 0
-            ? routeCaps
+          expectedPolicy && expectedPolicy.anyOf.length > 0
+            ? expectedPolicy.anyOf
             : getRequiredUcanCapability(),
         tokenAud: claims?.aud,
         tokenCap: claims?.cap,
@@ -169,7 +154,7 @@ const authenticateToken = (req: Request, res: Response, next: NextFunction) => {
     }
   }
 
-  if (routeCaps && routeCaps.length > 0) {
+  if (routePolicy && routePolicy.anyOf.length > 0 && routePolicy.strict) {
     logger.warn('ucan required for capability route', {
       method: req.method,
       path: req.originalUrl,
