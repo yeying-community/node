@@ -33,8 +33,6 @@ const MAX_POLICY_SEARCH_SIZE = 1000;
 const DEFAULT_CAN = 'invoke';
 const ROUTER_CODE = 'APPLICATION_CODE_ROUTER';
 const CHAT_CODE = 'APPLICATION_CODE_CHAT';
-const ROUTER_WEB_PORT = '5181';
-const ROUTER_API_PORT = '3011';
 
 function parseServiceCodes(raw: unknown): string[] {
   if (Array.isArray(raw)) {
@@ -155,22 +153,6 @@ function normalizeTargetLocation(targetUrl: URL): string {
   return cloned.toString();
 }
 
-function normalizePolicyTargetUrl(targetUrl: URL, targetCode?: string): URL {
-  const cloned = new URL(targetUrl.toString());
-  if (cloned.hostname === 'localhost') {
-    cloned.hostname = '127.0.0.1';
-  }
-  const code = String(targetCode || '').trim();
-  const isRouter =
-    code === ROUTER_CODE ||
-    code === 'aggregation' ||
-    code.toLowerCase() === 'router';
-  if (isRouter && cloned.port === ROUTER_WEB_PORT) {
-    cloned.port = ROUTER_API_PORT;
-  }
-  return cloned;
-}
-
 export function serializeApplicationUcanCapabilities(
   capabilities: Array<
     | ApplicationUcanCapability
@@ -264,7 +246,7 @@ export async function resolveApplicationUcanPolicy(input: {
   const capabilitiesByAudience: Record<string, ApplicationUcanCapability[]> = {};
   let primaryTarget: { app: Application | null; url: URL; source: ApplicationUcanPolicy['source'] } | undefined;
   for (const target of targets) {
-    const normalizedTargetUrl = normalizePolicyTargetUrl(target.url, target.app?.code || appCode);
+    const normalizedTargetUrl = target.url;
     const audience = buildAudienceFromUrl(normalizedTargetUrl);
     if (audiences.includes(audience)) continue;
     const capabilityWith = buildCapabilityWithFromAppId(input.uid);
