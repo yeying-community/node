@@ -225,6 +225,57 @@ describe('email notification delivery', () => {
     const delivery = await dataSource.getRepository(NotificationDeliveryDO).findOneBy({ uid: 'delivery-1' })
     expect(delivery?.status).toBe('delivered')
     expect(delivery?.lastError).toBe('providerMessageId:provider-message-1')
+    expect(delivery?.lockToken).toBe('')
+    expect(delivery?.lockedAt).toBe('')
+  })
+
+  it('clears the worker lock after a failed delivery', async () => {
+    sendMailMock.mockReset()
+    sendMailMock.mockRejectedValue(new Error('SMTP unavailable'))
+    const dataSource = createInMemoryDataSource()
+    SingletonDataSource.set(dataSource as any)
+    await dataSource.getRepository(NotificationDO).save({
+      uid: 'notification-failure',
+      type: 'security.login',
+      source: 'node',
+      subjectType: 'identity',
+      subjectId: 'did:yeying:wid_1234567890123456789012',
+      actor: '',
+      audienceType: 'user',
+      audienceIds: '[]',
+      level: 'warning',
+      title: '安全提醒',
+      body: '发送失败测试',
+      payload: '{}',
+      status: 'delivered',
+      createdAt: '2026-09-01T00:00:00.000Z',
+      updatedAt: '2026-09-01T00:00:00.000Z',
+      expiresAt: '',
+    })
+    await dataSource.getRepository(NotificationDeliveryDO).save({
+      uid: 'delivery-failure',
+      notificationUid: 'notification-failure',
+      webhookUid: '',
+      channel: 'email',
+      target: 'alice@example.com',
+      status: 'pending',
+      lockToken: '',
+      lockedAt: '',
+      attemptCount: 0,
+      lastError: '',
+      deliveredAt: '',
+      nextRetryAt: '',
+      createdAt: '2026-09-01T00:00:00.000Z',
+      updatedAt: '2026-09-01T00:00:00.000Z',
+    })
+
+    await runEmailNotificationDeliveryOnce()
+
+    const delivery = await dataSource.getRepository(NotificationDeliveryDO).findOneBy({ uid: 'delivery-failure' })
+    expect(delivery?.status).toBe('failed')
+    expect(delivery?.lockToken).toBe('')
+    expect(delivery?.lockedAt).toBe('')
+    expect(delivery?.nextRetryAt).not.toBe('')
   })
 
   it('renders matching database email templates before falling back to the default template', async () => {

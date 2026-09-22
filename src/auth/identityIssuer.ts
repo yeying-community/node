@@ -2,7 +2,7 @@ import * as crypto from 'crypto'
 import { randomBytes, randomUUID } from 'node:crypto'
 import type { EntityManager } from 'typeorm'
 import { getConfig } from '../config/runtime'
-import { getNodeIssuerDid, getNodeIssuerJwk, getNodeIssuerKeyId, signNodeBytes } from '../security/nodeIssuer'
+import { getNodeIssuerDid, getNodeIssuerJwks, getNodeIssuerKeyId, signNodeBytes } from '../security/nodeIssuer'
 import { SingletonDataSource } from '../domain/facade/datasource'
 import { IdentityAccountLinkDO, IdentityAuditLogDO, IdentityCredentialDO, IdentityCredentialReissueChallengeDO, IdentityUsernameDO } from '../domain/mapper/entity'
 import { canonicalizeIdentityValue, verifyIdentityController } from './identityAccountLink'
@@ -139,11 +139,7 @@ export function getIdentityIssuerMetadata() {
 }
 
 export function getIdentityIssuerJwks() {
-  return {
-    keys: [{
-      ...getNodeIssuerJwk()
-    }]
-  }
+  return getNodeIssuerJwks()
 }
 
 export function issueIdentityCredential(input: {

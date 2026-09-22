@@ -10,7 +10,8 @@ import { getConfig } from '../../config/runtime'
 import { issueCustodyRecoveryToken } from '../../auth/custodyRecoveryToken'
 import { consumeIdentityActionAuthorization, type IdentityActionAuthorization } from '../../auth/identityActionAuthorization'
 import { ensureIdentityCredentials, type IdentityCredentialType } from '../../auth/identityIssuer'
-import { createCentralIssueSession, getCentralIssuerStatus } from '../../auth/ucanIssuer'
+import { createCentralIssueSession, getCentralIssuerStatus, type UcanCapability } from '../../auth/ucanIssuer'
+import { resolveApplicationUcanPolicy } from './applicationUcanPolicy'
 
 const REQUEST_TTL_MS = 5 * 60 * 1000
 const CODE_TTL_MS = 60 * 1000
@@ -32,6 +33,55 @@ function refreshSessionTtlMs() {
   return Math.min(Math.max(configured, MIN_REFRESH_SESSION_TTL_MS), MAX_REFRESH_SESSION_TTL_MS)
 }
 function createRefreshToken() { return randomBytes(48).toString('base64url') }
+function applicationUcanCapabilities(value: unknown): UcanCapability[] {
+  let parsed = value
+  if (typeof value === 'string') {
+    try { parsed = JSON.parse(value) } catch { parsed = null }
+  }
+  if (!Array.isArray(parsed)) return []
+  const result: UcanCapability[] = []
+  for (const item of parsed) {
+    const source = item && typeof item === 'object' ? item as Record<string, unknown> : {}
+    const withValue = string(source.with || source.resource)
+    const canValue = string(source.can || source.action)
+    if (withValue && canValue) {
+      result.push({ with: withValue, can: canValue })
+    }
+  }
+  return result
+}
+type IdentityUcanPolicy = {
+  allowedAudiences: string[]
+  allowedCapabilitiesByAudience: Record<string, UcanCapability[]>
+}
+
+function parseStoredIdentityUcanPolicy(row: IdentityAuthorizationSessionDO): IdentityUcanPolicy | undefined {
+  let audiences: unknown
+  let capabilities: unknown
+  try {
+    audiences = JSON.parse(String(row.ucanAllowedAudiencesJson || '[]'))
+    capabilities = JSON.parse(String(row.ucanAllowedCapabilitiesJson || '{}'))
+  } catch {
+    throw new Error('IDENTITY_REFRESH_UCAN_POLICY_INVALID')
+  }
+  if (!Array.isArray(audiences) || !capabilities || typeof capabilities !== 'object' || Array.isArray(capabilities)) {
+    throw new Error('IDENTITY_REFRESH_UCAN_POLICY_INVALID')
+  }
+  const allowedAudiences = [...new Set(audiences.map(string).filter(Boolean))]
+  if (allowedAudiences.length === 0) {
+    return undefined
+  }
+  const allowedCapabilitiesByAudience: Record<string, UcanCapability[]> = {}
+  for (const audience of allowedAudiences) {
+    const entries = (capabilities as Record<string, unknown>)[audience]
+    const parsed = applicationUcanCapabilities(entries)
+    if (parsed.length === 0) {
+      throw new Error('IDENTITY_REFRESH_UCAN_POLICY_INVALID')
+    }
+    allowedCapabilitiesByAudience[audience] = parsed
+  }
+  return { allowedAudiences, allowedCapabilitiesByAudience }
+}
 function scopes(value: unknown): string[] {
   const input = Array.isArray(value) ? value : typeof value === 'string' ? value.split(/\s+/) : []
   const result = [...new Set(input.map(string).filter(Boolean))]
@@ -164,6 +214,61 @@ function credentialTypesForScopes(requested: string[]): IdentityCredentialType[]
 
 export class IdentityAuthorizationService {
   private applications = new ApplicationService()
+
+  private async centralUcanPolicyForApplication(appId: string) {
+    const app = await this.applications.queryByUid(appId)
+    if (!app) throw new Error('IDENTITY_APPLICATION_NOT_FOUND')
+    const rawAudience = string(app.ucanAudience)
+    let audiences: string[] = []
+    try {
+      const parsed = JSON.parse(rawAudience)
+      if (Array.isArray(parsed)) audiences = [...new Set(parsed.map(string).filter(Boolean))]
+    } catch { /* legacy single audience */ }
+    if (audiences.length === 0 && rawAudience) audiences = [rawAudience]
+
+    const rawCapabilities = string(app.ucanCapabilities)
+    let capabilitiesByAudience: Record<string, UcanCapability[]> = {}
+    try {
+      const parsed = JSON.parse(rawCapabilities)
+      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+        for (const audience of audiences) {
+          const capabilities = applicationUcanCapabilities((parsed as Record<string, unknown>)[audience])
+          if (capabilities.length > 0) capabilitiesByAudience[audience] = capabilities
+        }
+      }
+    } catch { /* legacy capability array */ }
+    const legacyCapabilities = applicationUcanCapabilities(rawCapabilities)
+    if (audiences.length === 1 && legacyCapabilities.length > 0) {
+      capabilitiesByAudience[audiences[0]] = legacyCapabilities
+    }
+    audiences = audiences.filter((audience) => (capabilitiesByAudience[audience] || []).length > 0)
+    // Older application rows stored only the first target (usually Warehouse).
+    // Recompute the declared dependency policy during authorization so existing
+    // Chat registrations immediately receive all configured backend audiences.
+    if (audiences.length < 2 && app.serviceCodes) {
+      try {
+        const derived = await resolveApplicationUcanPolicy({
+          uid: app.uid,
+          code: app.code,
+          location: app.location,
+          serviceCodes: app.serviceCodes,
+        })
+        if (derived.audiences.length > audiences.length) {
+          return {
+            allowedAudiences: derived.audiences,
+            allowedCapabilitiesByAudience: derived.capabilitiesByAudience,
+          }
+        }
+      } catch { /* retain the persisted policy when dependencies are unavailable */ }
+    }
+    if (audiences.length === 0) {
+      return undefined
+    }
+    return {
+      allowedAudiences: audiences,
+      allowedCapabilitiesByAudience: capabilitiesByAudience,
+    }
+  }
 
   private async publishedApplicationOrigins() {
     const result = await this.applications.search({}, 1, 1000)
@@ -376,7 +481,10 @@ export class IdentityAuthorizationService {
       custodyRecovery = issueCustodyRecoveryToken({ subjectId: row.identityDid, walletAddress, appId: row.appId, requestId: row.requestId })
     }
     const ucanSession = input.issueUcanSession === true
-      ? createCentralIssueSession({ subject: walletAddress || row.identityDid })
+      ? await createCentralIssueSession({
+          subject: walletAddress || row.identityDid,
+          ...(await this.centralUcanPolicyForApplication(row.appId) || {}),
+        })
       : undefined
     const refreshSession = ucanSession
       ? await this.createRefreshSession({
@@ -385,6 +493,8 @@ export class IdentityAuthorizationService {
           identityDid: row.identityDid,
           subject: walletAddress || row.identityDid,
           scopes: requested,
+          allowedAudiences: ucanSession.allowedAudiences,
+          allowedCapabilitiesByAudience: ucanSession.allowedCapabilitiesByAudience,
         })
       : undefined
     row.used = true
@@ -407,7 +517,9 @@ export class IdentityAuthorizationService {
           sessionToken: ucanSession.sessionToken,
           issuerDid: ucanSession.issuer,
           issuedAt: ucanSession.issuedAt,
-          expiresAt: ucanSession.expiresAt
+          expiresAt: ucanSession.expiresAt,
+          allowedAudiences: ucanSession.allowedAudiences,
+          allowedCapabilitiesByAudience: ucanSession.allowedCapabilitiesByAudience,
         }
       } : {}),
       ...(refreshSession ? {
@@ -435,7 +547,11 @@ export class IdentityAuthorizationService {
     const nextRefreshToken = createRefreshToken()
     const nextTokenHash = hashRefreshToken(nextRefreshToken)
     const nextExpiresAt = Date.now() + refreshSessionTtlMs()
-    const ucanSession = createCentralIssueSession({ subject: row.subject })
+    const storedPolicy = parseStoredIdentityUcanPolicy(row)
+    const ucanSession = await createCentralIssueSession({
+      subject: row.subject,
+      ...(storedPolicy || await this.centralUcanPolicyForApplication(row.appId) || {}),
+    })
     const nextRow = new IdentityAuthorizationSessionDO()
     Object.assign(nextRow, {
       tokenHash: nextTokenHash,
@@ -444,6 +560,8 @@ export class IdentityAuthorizationService {
       identityDid: row.identityDid,
       subject: row.subject,
       scopesJson: row.scopesJson || '[]',
+      ucanAllowedAudiencesJson: JSON.stringify(ucanSession.allowedAudiences),
+      ucanAllowedCapabilitiesJson: JSON.stringify(ucanSession.allowedCapabilitiesByAudience),
       createdAt: issuedAt,
       expiresAt: new Date(nextExpiresAt).toISOString(),
       lastUsedAt: '',
@@ -470,6 +588,8 @@ export class IdentityAuthorizationService {
         issuerDid: ucanSession.issuer,
         issuedAt: ucanSession.issuedAt,
         expiresAt: ucanSession.expiresAt,
+        allowedAudiences: ucanSession.allowedAudiences,
+        allowedCapabilitiesByAudience: ucanSession.allowedCapabilitiesByAudience,
       },
       refreshToken: nextRefreshToken,
       refreshExpiresAt: nextExpiresAt,
@@ -491,7 +611,15 @@ export class IdentityAuthorizationService {
     return { revoked: true }
   }
 
-  private async createRefreshSession(input: { appId: string; redirectUri: string; identityDid: string; subject: string; scopes: string[] }) {
+  private async createRefreshSession(input: {
+    appId: string
+    redirectUri: string
+    identityDid: string
+    subject: string
+    scopes: string[]
+    allowedAudiences: string[]
+    allowedCapabilitiesByAudience: Record<string, UcanCapability[]>
+  }) {
     const refreshToken = createRefreshToken()
     const refreshExpiresAt = Date.now() + refreshSessionTtlMs()
     const row = new IdentityAuthorizationSessionDO()
@@ -502,6 +630,8 @@ export class IdentityAuthorizationService {
       identityDid: input.identityDid,
       subject: input.subject,
       scopesJson: JSON.stringify(input.scopes),
+      ucanAllowedAudiencesJson: JSON.stringify(input.allowedAudiences),
+      ucanAllowedCapabilitiesJson: JSON.stringify(input.allowedCapabilitiesByAudience),
       createdAt: now(),
       expiresAt: new Date(refreshExpiresAt).toISOString(),
       lastUsedAt: '',

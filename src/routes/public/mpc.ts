@@ -45,7 +45,7 @@ function getBearerToken(req: Request): string | undefined {
   return token || undefined
 }
 
-function requireMpcUcan(req: Request) {
+async function requireMpcUcan(req: Request) {
   const user = getRequestUser()
   if (!user?.address) {
     throw new Error('Missing access token')
@@ -60,7 +60,7 @@ function requireMpcUcan(req: Request) {
   const config = (getConfig<MpcRuntimeConfig>('mpc') || {}) as MpcRuntimeConfig
   const resource = (config.ucanWith || DEFAULT_MPC_UCAN_WITH).trim()
   const action = (config.ucanCan || DEFAULT_MPC_UCAN_CAN).trim()
-  verifyUcanInvocationWithCap(token, [
+  await verifyUcanInvocationWithCap(token, [
     {
       with: resource || '*',
       can: action || '*'
@@ -129,6 +129,8 @@ function mapMpcError(error: unknown): { status: number; message: string } {
       return { status: 403, message: 'User role denied' }
     case 'UCAN capability denied':
       return { status: 403, message: 'UCAN capability denied' }
+    case 'UCAN token revoked':
+      return { status: 401, message: 'Invalid UCAN token' }
     case 'UCAN token required':
       return { status: 401, message: 'UCAN token required' }
     case 'UCAN issuer mode denied':
@@ -156,7 +158,7 @@ export function registerPublicMpcRoutes(app: Express) {
         res.status(401).json(fail(401, 'Missing access token'))
         return
       }
-      requireMpcUcan(req)
+      await requireMpcUcan(req)
       await ensureUserActive(user.address)
       const page = parseNumber(req.query.page) || 1
       const pageSize = parseNumber(req.query.pageSize) || 20
@@ -175,7 +177,7 @@ export function registerPublicMpcRoutes(app: Express) {
         res.status(401).json(fail(401, 'Missing access token'))
         return
       }
-      requireMpcUcan(req)
+      await requireMpcUcan(req)
       await ensureUserActive(user.address)
       await ensureUserCanWriteBusinessData(user.address)
       const body = req.body || {}
@@ -239,7 +241,7 @@ export function registerPublicMpcRoutes(app: Express) {
         res.status(401).json(fail(401, 'Missing access token'))
         return
       }
-      requireMpcUcan(req)
+      await requireMpcUcan(req)
       await ensureUserActive(user.address)
       await ensureUserCanWriteBusinessData(user.address)
       const body = req.body || {}
@@ -299,7 +301,7 @@ export function registerPublicMpcRoutes(app: Express) {
         res.status(401).json(fail(401, 'Missing access token'))
         return
       }
-      requireMpcUcan(req)
+      await requireMpcUcan(req)
       await ensureUserActive(user.address)
       await ensureUserCanWriteBusinessData(user.address)
       const sessionId = req.params.sessionId
@@ -334,7 +336,7 @@ export function registerPublicMpcRoutes(app: Express) {
         res.status(401).json(fail(401, 'Missing access token'))
         return
       }
-      requireMpcUcan(req)
+      await requireMpcUcan(req)
       await ensureUserActive(user.address)
       await ensureUserCanWriteBusinessData(user.address)
       const sessionId = req.params.sessionId
@@ -407,7 +409,7 @@ export function registerPublicMpcRoutes(app: Express) {
         res.status(401).json(fail(401, 'Missing access token'))
         return
       }
-      requireMpcUcan(req)
+      await requireMpcUcan(req)
       await ensureUserActive(user.address)
       await ensureUserCanWriteBusinessData(user.address)
       const body = req.body || {}
@@ -465,7 +467,7 @@ export function registerPublicMpcRoutes(app: Express) {
         res.status(401).json(fail(401, 'Missing access token'))
         return
       }
-      requireMpcUcan(req)
+      await requireMpcUcan(req)
       await ensureUserActive(user.address)
       const response = await service.listSignRequests(user.address, {
         sessionId: String(req.query.sessionId || '').trim() || undefined,
@@ -488,7 +490,7 @@ export function registerPublicMpcRoutes(app: Express) {
         res.status(401).json(fail(401, 'Missing access token'))
         return
       }
-      requireMpcUcan(req)
+      await requireMpcUcan(req)
       await ensureUserActive(user.address)
       await ensureUserCanWriteBusinessData(user.address)
       const body = req.body || {}
@@ -537,7 +539,7 @@ export function registerPublicMpcRoutes(app: Express) {
         res.status(401).json(fail(401, 'Missing access token'))
         return
       }
-      requireMpcUcan(req)
+      await requireMpcUcan(req)
       await ensureUserActive(user.address)
       await ensureUserCanWriteBusinessData(user.address)
       const sessionId = req.params.sessionId
@@ -651,7 +653,7 @@ export function registerPublicMpcRoutes(app: Express) {
         res.status(401).json(fail(401, 'Missing access token'))
         return
       }
-      requireMpcUcan(req)
+      await requireMpcUcan(req)
       await ensureUserActive(user.address)
       const sessionId = req.params.sessionId
       const since = parseNumber(req.query.since)
@@ -674,7 +676,7 @@ export function registerPublicMpcRoutes(app: Express) {
         res.status(401).json(fail(401, 'Missing access token'))
         return
       }
-      requireMpcUcan(req)
+      await requireMpcUcan(req)
       await ensureUserActive(user.address)
       const sessionId = req.params.sessionId
       const response = await service.getSession(sessionId, user.address)
@@ -692,7 +694,7 @@ export function registerPublicMpcRoutes(app: Express) {
         res.status(401).json(fail(401, 'Missing access token'))
         return
       }
-      requireMpcUcan(req)
+      await requireMpcUcan(req)
       await ensureUserActive(user.address)
       const sessionId = String(req.query.sessionId || '').trim()
       if (!sessionId) {

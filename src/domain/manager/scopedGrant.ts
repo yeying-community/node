@@ -21,6 +21,7 @@ export class ScopedGrantManager {
   async listGrants(subjectId: string) { return await this.grantRepository.find({ where: { subjectId }, order: { createdAt: 'DESC' } }) }
   async saveToken(token: ScopedGrantTokenDO) { return await this.tokenRepository.save(token) }
   async getToken(tokenId: string) { return await this.tokenRepository.findOneBy({ tokenId }) }
+  async listTokens(grantId: string) { return await this.tokenRepository.find({ where: { grantId }, order: { createdAt: 'DESC' } }) }
   async saveRevocation(revocation: ScopedGrantRevocationDO) { return await this.revocationRepository.save(revocation) }
   async saveAuditLog(log: ScopedGrantAuditLogDO) { return await this.auditRepository.save(log) }
 }

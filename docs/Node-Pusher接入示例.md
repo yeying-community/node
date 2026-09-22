@@ -286,4 +286,4 @@ while (true) {
 - 不支持 Pusher WebSocket。
 - 不支持 presence channel。
 - 不支持 client event。
-- 多实例 fanout 还未接 Redis，当前适合单实例或粘性会话环境。
+- Pusher 已支持通过 `redis.pusherChannel` 做多实例实时 fanout；Redis 关闭时退回当前实例内存 fanout。断线回放仍以数据库 cursor 为准。

@@ -16,6 +16,9 @@ const notifyApplicationDeletedMock = vi.fn()
 const notifyApplicationConfigUpdatedMock = vi.fn()
 const notifyApplicationPublishedMock = vi.fn()
 const notifyApplicationUnpublishedMock = vi.fn()
+const listApplicationReleasesMock = vi.fn()
+const getApplicationReleaseMock = vi.fn()
+const withdrawApplicationReleaseMock = vi.fn()
 const createPusherAppMock = vi.fn()
 const getPusherAppByApplicationUidMock = vi.fn()
 const rotatePusherAppCredentialsMock = vi.fn()
@@ -85,6 +88,14 @@ vi.doMock('../src/domain/service/applicationConfig', () => ({
       applicationConfigStore.set(`${saved.applicationUid}:${saved.applicant}`, saved)
       return saved
     },
+  })),
+}))
+
+vi.doMock('../src/domain/service/applicationRelease', () => ({
+  ApplicationReleaseService: mockClass(() => ({
+    listByApplicationUid: listApplicationReleasesMock,
+    getByApplicationVersion: getApplicationReleaseMock,
+    withdrawVersion: withdrawApplicationReleaseMock,
   })),
 }))
 
@@ -223,6 +234,9 @@ describe('public application routes idempotency', () => {
     notifyApplicationConfigUpdatedMock.mockClear()
     notifyApplicationPublishedMock.mockClear()
     notifyApplicationUnpublishedMock.mockClear()
+    listApplicationReleasesMock.mockReset()
+    getApplicationReleaseMock.mockReset()
+    withdrawApplicationReleaseMock.mockReset()
     createPusherAppMock.mockReset()
     getPusherAppByApplicationUidMock.mockReset()
     rotatePusherAppCredentialsMock.mockReset()
@@ -267,6 +281,9 @@ describe('public application routes idempotency', () => {
       createdAt: '2026-09-02T00:00:00.000Z',
       updatedAt: '2026-09-02T00:01:00.000Z',
     })
+    listApplicationReleasesMock.mockResolvedValue([])
+    getApplicationReleaseMock.mockResolvedValue(null)
+    withdrawApplicationReleaseMock.mockResolvedValue(null)
   })
 
   it('replays the first create response and only saves once', async () => {
@@ -944,6 +961,126 @@ describe('public application routes idempotency', () => {
       expect(response.status).toBe(200)
       expect(responseJson.data.items).toEqual([existing])
       expect(responseJson.data.page).toEqual({ total: 1, page: 1, pageSize: 10 })
+    })
+  })
+
+  it('exposes only published versions to other users', async () => {
+    const owner = Wallet.createRandom()
+    const viewer = Wallet.createRandom()
+    const app = createTestApp(viewer.address.toLowerCase())
+    const existing = {
+      uid: 'app-release-visibility',
+      owner: owner.address.toLowerCase(),
+      ownerName: owner.address.toLowerCase(),
+      network: '',
+      address: '',
+      did: 'did:app:release-visibility',
+      version: 2,
+      name: 'Release visibility app',
+      description: 'desc',
+      code: 'APPLICATION_CODE_TEST',
+      location: '/release-visibility',
+      serviceCodes: 'svc-a',
+      redirectUris: '',
+      avatar: '',
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      signature: '',
+      codePackagePath: '/pkg',
+      status: 'BUSINESS_STATUS_ONLINE',
+      isOnline: true,
+    }
+    const published = {
+      uid: 'release-public-1',
+      applicationUid: existing.uid,
+      version: 1,
+      status: 'published',
+    }
+    const draft = {
+      uid: 'release-private-2',
+      applicationUid: existing.uid,
+      version: 2,
+      status: 'draft',
+    }
+    applicationStore.set(`uid:${existing.uid}`, existing)
+    listApplicationReleasesMock.mockResolvedValue([draft, published])
+    getApplicationReleaseMock.mockImplementation(async (_applicationUid: string, version: number) => (
+      version === 1 ? published : draft
+    ))
+
+    await withServer(app, async (baseUrl) => {
+      const listResponse = await fetch(`${baseUrl}/api/v1/public/applications/${existing.uid}/releases`)
+      const listJson = await listResponse.json()
+      const hiddenResponse = await fetch(`${baseUrl}/api/v1/public/applications/${existing.uid}/releases/2`)
+      const hiddenJson = await hiddenResponse.json()
+
+      expect(listResponse.status).toBe(200)
+      expect(listJson.data.items).toEqual([published])
+      expect(hiddenResponse.status).toBe(404)
+      expect(hiddenJson.message).toBe('Application release not found')
+    })
+  })
+
+  it('withdraws a specified application release with a signed owner action', async () => {
+    const wallet = Wallet.createRandom()
+    const actor = wallet.address.toLowerCase()
+    const app = createTestApp(actor)
+    const existing = {
+      uid: 'app-release-withdraw',
+      owner: actor,
+      ownerName: actor,
+      network: '',
+      address: '',
+      did: 'did:app:release-withdraw',
+      version: 2,
+      name: 'Release withdraw app',
+      description: 'desc',
+      code: 'APPLICATION_CODE_TEST',
+      location: '/release-withdraw',
+      serviceCodes: 'svc-a',
+      redirectUris: '',
+      avatar: '',
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      signature: '',
+      codePackagePath: '/pkg',
+      status: 'BUSINESS_STATUS_ONLINE',
+      isOnline: true,
+    }
+    const withdrawn = {
+      uid: 'release-withdraw-1',
+      applicationUid: existing.uid,
+      version: 1,
+      status: 'withdrawn',
+    }
+    applicationStore.set(`uid:${existing.uid}`, existing)
+    withdrawApplicationReleaseMock.mockResolvedValue(withdrawn)
+    const signedBody = await signBody({
+      wallet,
+      action: 'application_release_withdraw',
+      requestId: 'req-application-release-withdraw',
+      rawBody: {},
+      signablePayload: {
+        applicationUid: existing.uid,
+        version: 1,
+      },
+    })
+
+    await withServer(app, async (baseUrl) => {
+      const response = await fetch(`${baseUrl}/api/v1/public/applications/${existing.uid}/releases/1/withdraw`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(signedBody),
+      })
+      const responseJson = await response.json()
+
+      expect(response.status).toBe(200)
+      expect(responseJson.data).toEqual(withdrawn)
+      expect(withdrawApplicationReleaseMock).toHaveBeenCalledWith(existing.uid, 1)
+      expect(notifyApplicationUnpublishedMock).toHaveBeenCalledWith(expect.objectContaining({
+        applicationUid: existing.uid,
+        version: 1,
+      }))
     })
   })
 

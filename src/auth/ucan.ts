@@ -1,15 +1,11 @@
 import * as crypto from 'crypto';
 import { verifyMessage } from 'ethers';
+import { isCentralUcanTokenRevoked } from './ucanIssuer';
 import { getConfig } from '../config/runtime';
-import { getNodeIssuerDid } from '../security/nodeIssuer';
+import { getNodeUcanIssuerKeys } from '../security/nodeIssuer';
+import { capabilitiesCover, type UcanCapability } from './ucanPolicy';
 
-export type UcanCapability = {
-  with?: string;
-  can?: string;
-  resource?: string;
-  action?: string;
-  nb?: unknown;
-};
+export type { UcanCapability } from './ucanPolicy';
 
 export type UcanRootProof = {
   type: 'siwe';
@@ -33,6 +29,7 @@ type UcanTokenPayload = {
   aud?: string;
   sub?: string;
   cap?: UcanCapability[];
+  jti?: string;
   exp?: number;
   nbf?: number;
   prf?: UcanProof[];
@@ -62,8 +59,6 @@ const UCAN_ISSUER_ENABLED = parseBoolean(
 const UCAN_ISSUER_MODE = parseIssuerMode(
   getConfig<string>('issuer.ucan.mode')
 );
-const nodeIssuerDid = getNodeIssuerDid();
-
 const BASE58_ALPHABET = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz';
 
 function base64UrlDecode(input: string): Buffer {
@@ -152,95 +147,11 @@ function normalizeEpochMillis(value: unknown): number | null {
   return value < 1e12 ? value * 1000 : value;
 }
 
-function normalizeActionExpression(raw: string): string {
-  const normalized = String(raw || '').trim().toLowerCase().replace(/\|/g, ',');
-  if (!normalized) return '';
-  const items = normalized
-    .split(',')
-    .map(item => item.trim())
-    .filter(Boolean);
-  if (!items.length) return '';
-  return Array.from(new Set(items)).join(',');
-}
-
-function normalizeLoopbackAlias(raw: string): string {
-  return String(raw || '')
-    .trim()
-    .replace(/127\.0\.0\.1/g, 'localhost');
-}
-
 function isEquivalentAudience(left: string, right: string): boolean {
   if (!left || !right) return false;
   if (left === right) return true;
-  return normalizeLoopbackAlias(left) === normalizeLoopbackAlias(right);
-}
-
-function getCapabilityResource(cap: UcanCapability | null | undefined): string {
-  if (!cap || typeof cap !== 'object') return '';
-  if (typeof cap.with === 'string' && cap.with.trim()) {
-    return cap.with.trim();
-  }
-  if (typeof cap.resource === 'string' && cap.resource.trim()) {
-    return cap.resource.trim();
-  }
-  return '';
-}
-
-function getCapabilityAction(cap: UcanCapability | null | undefined): string {
-  if (!cap || typeof cap !== 'object') return '';
-  if (typeof cap.can === 'string' && cap.can.trim()) {
-    return normalizeActionExpression(cap.can);
-  }
-  if (typeof cap.action === 'string' && cap.action.trim()) {
-    return normalizeActionExpression(cap.action);
-  }
-  return '';
-}
-
-function actionAllows(availableAction: string, requiredAction: string): boolean {
-  if (requiredAction === '*') return true;
-  if (availableAction === '*') return true;
-  const available = normalizeActionExpression(availableAction);
-  const required = normalizeActionExpression(requiredAction);
-  if (!available || !required) return false;
-  const availableSet = new Set(available.split(',').filter(Boolean));
-  const requiredList = required.split(',').filter(Boolean);
-  return requiredList.every(item => availableSet.has(item));
-}
-
-function matchPattern(pattern: string, value: string): boolean {
-  const normalizedPattern = normalizeLoopbackAlias(pattern);
-  const normalizedValue = normalizeLoopbackAlias(value);
-  if (normalizedPattern === '*') return true;
-  if (normalizedPattern.endsWith('*')) {
-    return normalizedValue.startsWith(normalizedPattern.slice(0, -1));
-  }
-  return normalizedPattern === normalizedValue;
-}
-
-function resourceIntersects(availableResource: string, requiredResource: string): boolean {
-  // Allow intersection semantics:
-  // - token wildcard covers required concrete value
-  // - required wildcard accepts token concrete value
-  return (
-    matchPattern(availableResource, requiredResource) ||
-    matchPattern(requiredResource, availableResource)
-  );
-}
-
-function capsAllow(available: UcanCapability[] | undefined, required: UcanCapability[]): boolean {
-  if (!Array.isArray(available) || available.length === 0) return false;
-  return required.every(req => {
-    const reqResource = getCapabilityResource(req);
-    const reqAction = getCapabilityAction(req);
-    if (!reqResource || !reqAction) return false;
-    return available.some(cap => {
-      const capResource = getCapabilityResource(cap);
-      const capAction = getCapabilityAction(cap);
-      if (!capResource || !capAction) return false;
-      return resourceIntersects(capResource, reqResource) && actionAllows(capAction, reqAction);
-    });
-  });
+  return left.trim().replace(/127\.0\.0\.1/g, 'localhost') ===
+    right.trim().replace(/127\.0\.0\.1/g, 'localhost');
 }
 
 function extractUcanStatement(message: string): { aud?: string; cap?: UcanCapability[]; exp?: number; nbf?: number } | null {
@@ -326,7 +237,9 @@ function decodeUcanToken(token: string): {
   return { header, payload, signature, signingInput: `${parts[0]}.${parts[1]}` };
 }
 
-function verifyUcanJws(token: string): { header: any; payload: UcanTokenPayload; exp?: number; nbf?: number } {
+async function verifyUcanJws(
+  token: string
+): Promise<{ header: any; payload: UcanTokenPayload; exp: number; nbf?: number }> {
   const decoded = decodeUcanToken(token);
   if (decoded.header?.alg !== 'EdDSA') {
     throw new Error('Unsupported UCAN alg');
@@ -337,30 +250,50 @@ function verifyUcanJws(token: string): { header: any; payload: UcanTokenPayload;
   if (!ok) {
     throw new Error('Invalid UCAN signature');
   }
-  const exp = normalizeEpochMillis(decoded.payload.exp ?? undefined) ?? undefined;
+  const exp = normalizeEpochMillis(decoded.payload.exp ?? undefined);
+  if (exp === null || !Number.isFinite(exp) || exp <= 0) {
+    throw new Error('UCAN expiry required');
+  }
   const nbf = normalizeEpochMillis(decoded.payload.nbf ?? undefined) ?? undefined;
   const nowMs = Date.now();
   if (nbf && nowMs < nbf) {
     throw new Error('UCAN not active');
   }
-  if (exp && nowMs > exp) {
+  if (nowMs > exp) {
     throw new Error('UCAN expired');
+  }
+  const issuerDid = typeof decoded.payload?.iss === 'string'
+    ? decoded.payload.iss.trim()
+    : '';
+  const tokenId = typeof decoded.payload?.jti === 'string'
+    ? decoded.payload.jti.trim()
+    : '';
+  const trustedCentralIssuer = isTrustedCentralIssuerDid(issuerDid);
+  if (trustedCentralIssuer && !tokenId) {
+    throw new Error('UCAN token id required');
+  }
+  if (
+    tokenId &&
+    trustedCentralIssuer &&
+    (await isCentralUcanTokenRevoked(tokenId))
+  ) {
+    throw new Error('UCAN token revoked');
   }
   return { header: decoded.header, payload: decoded.payload, exp, nbf };
 }
 
-function verifyProofChain(
+async function verifyProofChain(
   currentDid: string,
   requiredCap: UcanCapability[],
   requiredExp: number | undefined,
   proofs: UcanProof[]
-): { iss: string; aud: string; cap: UcanCapability[]; exp: number; nbf?: number } {
+): Promise<{ iss: string; aud: string; cap: UcanCapability[]; exp: number; nbf?: number }> {
   if (!Array.isArray(proofs) || proofs.length === 0) {
     throw new Error('Missing UCAN proof chain');
   }
   const [first, ...rest] = proofs;
   if (typeof first === 'string') {
-    const { payload, exp } = verifyUcanJws(first);
+    const { payload, exp } = await verifyUcanJws(first);
     if (!payload.iss || !payload.aud) {
       throw new Error('Invalid UCAN proof');
     }
@@ -368,7 +301,7 @@ function verifyProofChain(
       throw new Error('UCAN audience mismatch');
     }
     const proofExp = normalizeEpochMillis(payload.exp ?? undefined) ?? exp;
-    if (!capsAllow(payload.cap || [], requiredCap)) {
+    if (!capabilitiesCover(payload.cap || [], requiredCap)) {
       throw new Error('UCAN capability denied');
     }
     if (proofExp && requiredExp && proofExp < requiredExp) {
@@ -381,7 +314,7 @@ function verifyProofChain(
   if (!isEquivalentAudience(root.aud, currentDid)) {
     throw new Error('Root audience mismatch');
   }
-  if (!capsAllow(root.cap || [], requiredCap)) {
+  if (!capabilitiesCover(root.cap || [], requiredCap)) {
     throw new Error('Root capability denied');
   }
   if (requiredExp && root.exp < requiredExp) {
@@ -405,10 +338,14 @@ function isCentralVerificationEnabled(): boolean {
 }
 
 function isTrustedCentralIssuerDid(did: string): boolean {
-  if (!did || !nodeIssuerDid) {
+  if (!did) {
     return false;
   }
-  return did === nodeIssuerDid;
+  try {
+    return getNodeUcanIssuerKeys().some(key => key.did === did);
+  } catch {
+    return false;
+  }
 }
 
 function normalizeSubject(subject: string): string {
@@ -431,11 +368,11 @@ export function isUcanToken(token: string): boolean {
   }
 }
 
-export function verifyUcanInvocation(token: string): {
+export function verifyUcanInvocation(token: string): Promise<{
   address: string;
   issuer: string;
   source: UcanInvocationSource;
-} {
+}> {
   return verifyUcanInvocationWithRequired(token, [REQUIRED_UCAN_CAP]);
 }
 
@@ -454,6 +391,7 @@ export function peekUcanTokenPayload(
   aud?: string;
   sub?: string;
   cap?: UcanCapability[];
+  jti?: string;
   exp?: number;
   nbf?: number;
 } | null {
@@ -468,7 +406,7 @@ export function peekUcanTokenPayload(
 export function verifyUcanInvocationWithCap(
   token: string,
   requiredCap: UcanCapability[]
-): { address: string; issuer: string; source: UcanInvocationSource } {
+): Promise<{ address: string; issuer: string; source: UcanInvocationSource }> {
   if (!Array.isArray(requiredCap) || requiredCap.length === 0) {
     return verifyUcanInvocation(token);
   }
@@ -478,15 +416,22 @@ export function verifyUcanInvocationWithCap(
 function verifyUcanInvocationWithRequired(
   token: string,
   requiredCap: UcanCapability[]
-): { address: string; issuer: string; source: UcanInvocationSource } {
-  const { payload, exp } = verifyUcanJws(token);
+): Promise<{ address: string; issuer: string; source: UcanInvocationSource }> {
+  return verifyUcanInvocationWithRequiredAsync(token, requiredCap);
+}
+
+async function verifyUcanInvocationWithRequiredAsync(
+  token: string,
+  requiredCap: UcanCapability[]
+): Promise<{ address: string; issuer: string; source: UcanInvocationSource }> {
+  const { payload, exp } = await verifyUcanJws(token);
   if (!payload.iss || !payload.aud) {
     throw new Error('Invalid UCAN token');
   }
   if (!isEquivalentAudience(payload.aud, UCAN_AUD)) {
     throw new Error('UCAN audience mismatch');
   }
-  if (!capsAllow(payload.cap || [], requiredCap)) {
+  if (!capabilitiesCover(payload.cap || [], requiredCap)) {
     throw new Error('UCAN capability denied');
   }
   if (isTrustedCentralIssuerDid(payload.iss)) {
@@ -502,7 +447,7 @@ function verifyUcanInvocationWithRequired(
   if (!isWalletVerificationEnabled()) {
     throw new Error('UCAN wallet mode denied');
   }
-  const root = verifyProofChain(payload.iss, payload.cap || [], exp, payload.prf || []);
+  const root = await verifyProofChain(payload.iss, payload.cap || [], exp, payload.prf || []);
   const address = normalizeSubject(root.iss.replace(/^did:pkh:eth:/, ''));
   return { address, issuer: payload.iss, source: 'wallet' };
 }

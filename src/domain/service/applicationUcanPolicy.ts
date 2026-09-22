@@ -9,6 +9,8 @@ export type ApplicationUcanCapability = {
 export type ApplicationUcanPolicy = {
   audience: string;
   capabilities: ApplicationUcanCapability[];
+  audiences: string[];
+  capabilitiesByAudience: Record<string, ApplicationUcanCapability[]>;
   source: 'dependency' | 'router' | 'self';
   targetUid?: string;
   targetName?: string;
@@ -115,7 +117,11 @@ function findDependencyTargetByName(apps: Application[], name: string): Applicat
 
 function findRouterTarget(apps: Application[]): Application | null {
   const matched = apps
-    .filter((item) => String(item.code || '').trim() === ROUTER_CODE)
+    .filter((item) => {
+      const code = String(item.code || '').trim();
+      const name = String(item.name || '').trim().toLowerCase();
+      return code === ROUTER_CODE || code === 'aggregation' || name === 'router';
+    })
     .filter((item) => Boolean(parseLocationUrl(item.location)))
     .sort(compareApplicationPriority);
   return matched.length > 0 ? matched[0] : null;
@@ -132,19 +138,15 @@ function buildAudienceFromUrl(targetUrl: URL): string {
   return `did:web:${host}`;
 }
 
-function buildCapabilityWithFromUrl(targetUrl: URL): string {
-  const host = String(targetUrl.hostname || '').trim().toLowerCase();
-  if (!host) {
+function buildCapabilityWithFromAppId(appId?: string): string {
+  const normalized = String(appId || '').trim().replace(/[^a-zA-Z0-9._-]/g, '-');
+  if (!normalized) {
     throw new ApplicationUcanPolicyError(
       'APP_UCAN_POLICY_CAPABILITY_INVALID',
-      'Cannot derive UCAN capability resource from target location'
+      'Cannot derive UCAN capability resource from application uid'
     );
   }
-  const port = String(targetUrl.port || '').trim();
-  if (port) {
-    return `app:all:${host}-${port}`;
-  }
-  return `app:all:${host}-*`;
+  return `app:all:${normalized}`;
 }
 
 function normalizeTargetLocation(targetUrl: URL): string {
@@ -155,8 +157,15 @@ function normalizeTargetLocation(targetUrl: URL): string {
 
 function normalizePolicyTargetUrl(targetUrl: URL, targetCode?: string): URL {
   const cloned = new URL(targetUrl.toString());
+  if (cloned.hostname === 'localhost') {
+    cloned.hostname = '127.0.0.1';
+  }
   const code = String(targetCode || '').trim();
-  if (code === ROUTER_CODE && cloned.port === ROUTER_WEB_PORT) {
+  const isRouter =
+    code === ROUTER_CODE ||
+    code === 'aggregation' ||
+    code.toLowerCase() === 'router';
+  if (isRouter && cloned.port === ROUTER_WEB_PORT) {
     cloned.port = ROUTER_API_PORT;
   }
   return cloned;
@@ -213,23 +222,18 @@ export async function resolveApplicationUcanPolicy(input: {
   );
 
   let source: ApplicationUcanPolicy['source'] = 'self';
-  let targetApp: Application | null = null;
-  let targetUrl: URL | null = null;
+  const targets: Array<{ app: Application | null; url: URL; source: ApplicationUcanPolicy['source'] }> = [];
 
-  if (appCode === CHAT_CODE) {
+  if (appCode === CHAT_CODE || dependencyNames.some((name) => name.toLowerCase() === 'router')) {
     const routerTarget = findRouterTarget(apps);
     const routerUrl = routerTarget ? parseLocationUrl(routerTarget.location) : null;
     if (routerTarget && routerUrl) {
-      targetApp = routerTarget;
-      targetUrl = routerUrl;
+      targets.push({ app: routerTarget, url: routerUrl, source: 'router' });
       source = 'router';
     }
   }
 
   for (const dependencyName of dependencyNames) {
-    if (targetUrl) {
-      break;
-    }
     const matched = findDependencyTargetByName(apps, dependencyName);
     if (!matched) {
       continue;
@@ -238,32 +242,51 @@ export async function resolveApplicationUcanPolicy(input: {
     if (!matchedUrl) {
       continue;
     }
-    targetApp = matched;
-    targetUrl = matchedUrl;
-    source = 'dependency';
-    break;
+    if (!targets.some((target) => target.app?.uid === matched.uid)) {
+      targets.push({ app: matched, url: matchedUrl, source: 'dependency' });
+    }
+    if (source === 'self') source = 'dependency';
   }
 
-  if (!targetUrl && selfTargetUrl) {
-    targetUrl = selfTargetUrl;
+  if (targets.length === 0 && selfTargetUrl) {
+    targets.push({ app: null, url: selfTargetUrl, source: 'self' });
     source = 'self';
   }
 
-  if (!targetUrl) {
+  if (targets.length === 0) {
     throw new ApplicationUcanPolicyError(
       'APP_UCAN_POLICY_TARGET_NOT_FOUND',
       '无法自动推导 UCAN 策略：请填写有效访问地址或配置可用依赖应用'
     );
   }
 
-  const normalizedTargetUrl = normalizePolicyTargetUrl(targetUrl, targetApp?.code || appCode);
-  const capabilityWith = buildCapabilityWithFromUrl(normalizedTargetUrl);
+  const audiences: string[] = [];
+  const capabilitiesByAudience: Record<string, ApplicationUcanCapability[]> = {};
+  let primaryTarget: { app: Application | null; url: URL; source: ApplicationUcanPolicy['source'] } | undefined;
+  for (const target of targets) {
+    const normalizedTargetUrl = normalizePolicyTargetUrl(target.url, target.app?.code || appCode);
+    const audience = buildAudienceFromUrl(normalizedTargetUrl);
+    if (audiences.includes(audience)) continue;
+    const capabilityWith = buildCapabilityWithFromAppId(input.uid);
+    const capabilityCan =
+      target.app && (target.app.code === ROUTER_CODE || target.app.code === 'aggregation' || target.app.name.toLowerCase() === 'router')
+        ? 'invoke'
+        : 'write';
+    audiences.push(audience);
+    capabilitiesByAudience[audience] = [{ with: capabilityWith, can: capabilityCan }];
+    primaryTarget ||= { ...target, url: normalizedTargetUrl };
+  }
+  const firstAudience = audiences[0];
+  const firstCapabilities = capabilitiesByAudience[firstAudience] || [];
+  const normalizedTargetUrl = primaryTarget?.url || selfTargetUrl;
   return {
-    audience: buildAudienceFromUrl(normalizedTargetUrl),
-    capabilities: [{ with: capabilityWith, can: DEFAULT_CAN }],
+    audience: firstAudience,
+    capabilities: firstCapabilities,
+    audiences,
+    capabilitiesByAudience,
     source,
-    targetUid: targetApp?.uid,
-    targetName: targetApp?.name,
-    targetLocation: normalizeTargetLocation(normalizedTargetUrl),
+    targetUid: primaryTarget?.app?.uid,
+    targetName: primaryTarget?.app?.name,
+    targetLocation: normalizedTargetUrl ? normalizeTargetLocation(normalizedTargetUrl) : '',
   };
 }

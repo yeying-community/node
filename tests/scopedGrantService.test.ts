@@ -3,10 +3,12 @@ import { describe, expect, it, vi } from 'vitest'
 vi.mock('../src/auth/ucanIssuer', () => ({
   issueCentralUcan: vi.fn(() => ({
     ucan: 'signed-ucan',
+    tokenId: 'central-token-1',
     audience: 'did:web:router.example',
     capabilities: [{ with: 'store:project-a', can: 'read' }],
     expiresAt: Math.floor(Date.now() / 1000) + 60,
   })),
+  revokeCentralUcanToken: vi.fn().mockResolvedValue(true),
 }))
 
 const { ScopedGrantService } = await import('../src/domain/service/scopedGrant')
@@ -20,6 +22,7 @@ function createHarness() {
     listGrants: async (subjectId: string) => Array.from(grants.values()).filter(item => item.subjectId === subjectId),
     saveToken: async (value: any) => (tokens.set(value.tokenId, value), value),
     getToken: async (id: string) => tokens.get(id) || null,
+    listTokens: async (grantId: string) => Array.from(tokens.values()).filter(item => item.grantId === grantId),
     saveRevocation: async (value: any) => value,
     saveAuditLog: async (value: any) => value,
   }

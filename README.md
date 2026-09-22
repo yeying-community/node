@@ -140,6 +140,8 @@ secrets: {
 
 新配置下，JWT、TOTP 存储和 Webhook 加密密钥都从 `NODE_KEY_DERIVATION_SECRET` 按用途派生。`ISSUER_PRIVATE_KEY` 的公钥自动生成 Issuer `kid`，Issuer DID 从 `issuer.baseUrl` 派生。
 
+中心化 UCAN 启用后，`ISSUER_PRIVATE_KEY` 是 active 签发密钥；`ISSUER_PRIVATE_KEY_NEXT` 和 `ISSUER_PRIVATE_KEY_PREVIOUS` 是可选轮换窗口密钥。轮换顺序是先发布 next，再把旧 active 放入 previous 并提升 next 为 active，最后等待旧 token、JWKS 缓存和时钟偏差窗口结束后删除 previous。三类 UCAN session、token 撤销和审计记录由 PostgreSQL migration 持久化，多实例必须共享同一数据库。`issuer.ucan.allowedAudiences` 与 `allowedCapabilitiesByAudience` 可作为中心化 session 的全局硬上限，`/central/issue` 不能超出 session 策略或 session 剩余有效期。
+
 生产更新顺序：备份现有 `secrets.enc.json` 到受保护的主机级备份系统，停止服务或在维护窗口中执行 `./cmd secrets set` / `./cmd secrets remove` / `./cmd secrets passwd`，执行 `./cmd secrets verify`，然后通过 `./cmd service restart` 重启。不得重新执行 `secrets:init --force` 覆盖生产 vault。
 
 ### 3. 启动前端

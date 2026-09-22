@@ -345,11 +345,73 @@ export class IdentityAuthorizationSessionDO {
     @Column({ length: 128, name: 'identity_did' }) identityDid!: string
     @Column({ length: 128, name: 'subject' }) subject!: string
     @Column({ type: 'text', name: 'scopes_json', default: '[]' }) scopesJson!: string
+    @Column({ type: 'text', name: 'ucan_allowed_audiences_json', default: '[]' }) ucanAllowedAudiencesJson!: string
+    @Column({ type: 'text', name: 'ucan_allowed_capabilities_json', default: '{}' }) ucanAllowedCapabilitiesJson!: string
     @Column({ length: 64, name: 'created_at' }) createdAt!: string
     @Column({ length: 64, name: 'expires_at' }) expiresAt!: string
     @Column({ length: 64, name: 'last_used_at', default: '' }) lastUsedAt!: string
     @Column({ length: 64, name: 'revoked_at', default: '' }) revokedAt!: string
     @Column({ length: 128, name: 'replaced_by_hash', default: '' }) replacedByHash!: string
+}
+
+@Entity('ucan_issue_sessions')
+@Index('idx_ucan_issue_session_subject', ['subject'])
+@Index('idx_ucan_issue_session_expires', ['expiresAt'])
+export class UcanIssueSessionDO {
+    @PrimaryColumn({ length: 128, name: 'session_hash' }) sessionHash!: string
+    @Column({ length: 128 }) subject!: string
+    @Column({ length: 128, name: 'issuer_did' }) issuerDid!: string
+    @Column({ type: 'text', name: 'allowed_audiences_json', default: '[]' }) allowedAudiencesJson!: string
+    @Column({ type: 'text', name: 'allowed_capabilities_json', default: '{}' }) allowedCapabilitiesJson!: string
+    @Column({ length: 64, name: 'created_at' }) createdAt!: string
+    @Column({ length: 64, name: 'expires_at' }) expiresAt!: string
+    @Column({ length: 64, name: 'last_used_at', default: '' }) lastUsedAt!: string
+    @Column({ length: 64, name: 'revoked_at', default: '' }) revokedAt!: string
+}
+
+@Entity('ucan_issued_tokens')
+@Index('idx_ucan_issued_token_session', ['sessionHash'])
+@Index('idx_ucan_issued_token_expires', ['expiresAt'])
+export class UcanIssuedTokenDO {
+    @PrimaryColumn({ length: 128, name: 'token_id' }) tokenId!: string
+    @Column({ length: 128, name: 'session_hash', default: '' }) sessionHash!: string
+    @Column({ length: 128 }) subject!: string
+    @Column({ length: 128, name: 'issuer_did' }) issuerDid!: string
+    @Column({ length: 512 }) audience!: string
+    @Column({ type: 'text', name: 'capabilities_json', default: '[]' }) capabilitiesJson!: string
+    @Column({ length: 128, name: 'token_hash' }) tokenHash!: string
+    @Column({ length: 64, name: 'created_at' }) createdAt!: string
+    @Column({ length: 64, name: 'not_before' }) notBefore!: string
+    @Column({ length: 64, name: 'expires_at' }) expiresAt!: string
+}
+
+@Entity('ucan_token_revocations')
+@Index('idx_ucan_token_revocation_session', ['sessionHash'])
+@Index('idx_ucan_token_revocation_revoked', ['revokedAt'])
+export class UcanTokenRevocationDO {
+    @PrimaryColumn({ length: 128, name: 'token_id' }) tokenId!: string
+    @Column({ length: 128, name: 'session_hash', default: '' }) sessionHash!: string
+    @Column({ length: 128, default: '' }) subject!: string
+    @Column({ length: 128, name: 'issuer_did', default: '' }) issuerDid!: string
+    @Column({ length: 64, name: 'revoked_at' }) revokedAt!: string
+    @Column({ length: 128, default: '' }) reason!: string
+}
+
+@Entity('ucan_audit_logs')
+@Index('idx_ucan_audit_subject_created', ['subject', 'createdAt'])
+@Index('idx_ucan_audit_action_created', ['action', 'createdAt'])
+export class UcanAuditLogDO {
+    @PrimaryGeneratedColumn('uuid') uid!: string
+    @Column({ length: 64 }) action!: string
+    @Column({ length: 32, default: 'success' }) outcome!: string
+    @Column({ length: 128, name: 'session_hash', default: '' }) sessionHash!: string
+    @Column({ length: 128, name: 'token_id', default: '' }) tokenId!: string
+    @Column({ length: 128, default: '' }) subject!: string
+    @Column({ length: 128, name: 'issuer_did', default: '' }) issuerDid!: string
+    @Column({ length: 512, default: '' }) audience!: string
+    @Column({ type: 'text', name: 'capabilities_json', default: '[]' }) capabilitiesJson!: string
+    @Column({ type: 'text', name: 'metadata_json', default: '{}' }) metadataJson!: string
+    @Column({ length: 64, name: 'created_at' }) createdAt!: string
 }
 
 @Entity('scoped_grants')

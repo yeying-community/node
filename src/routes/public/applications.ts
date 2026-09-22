@@ -15,6 +15,7 @@ import { AuditManager } from '../../domain/manager/audit';
 import { CommentManager } from '../../domain/manager/comments';
 import { ApplicationManager } from '../../domain/manager/application';
 import { ApplicationConfigService } from '../../domain/service/applicationConfig';
+import { ApplicationReleaseService } from '../../domain/service/applicationRelease';
 import { NotificationService } from '../../domain/service/notification';
 import { PusherService } from '../../domain/service/pusher';
 import {
@@ -86,6 +87,25 @@ function toRedirectUrisStorage(value: unknown): string {
   return uris.length === 1 ? uris[0] : JSON.stringify(uris);
 }
 
+function storeApplicationUcanPolicy(policy: {
+  audience: string;
+  capabilities: Array<{ with: string; can: string }>;
+  audiences?: string[];
+  capabilitiesByAudience?: Record<string, Array<{ with: string; can: string }>>;
+}) {
+  const audiences = policy.audiences?.length ? policy.audiences : [policy.audience];
+  const capabilitiesByAudience = policy.capabilitiesByAudience || {
+    [policy.audience]: policy.capabilities,
+  };
+  return {
+    ucanAudience: audiences.length === 1 ? audiences[0] : JSON.stringify(audiences),
+    ucanCapabilities:
+      audiences.length === 1
+        ? serializeApplicationUcanCapabilities(capabilitiesByAudience[audiences[0]] || policy.capabilities)
+        : JSON.stringify(capabilitiesByAudience),
+  };
+}
+
 function normalizeApplicationConfig(input: unknown): Array<{ code: string; instance: string }> {
   const items = Array.isArray(input) ? input : [];
   const normalized: Array<{ code: string; instance: string }> = [];
@@ -107,6 +127,11 @@ function parsePage(input: any) {
     page: Number.isFinite(page) && page > 0 ? page : 1,
     pageSize: Number.isFinite(pageSize) && pageSize > 0 ? pageSize : 10,
   };
+}
+
+function parseReleaseVersion(input: unknown): number | null {
+  const version = Number(input);
+  return Number.isInteger(version) && version > 0 ? version : null;
 }
 
 function parseOptionalBoolean(value: unknown): boolean | undefined {
@@ -312,6 +337,10 @@ function mapApplicationWriteError(error: unknown, fallback: string) {
       ? 403
       : message === 'APPLICATION_DID_MISMATCH' || message === 'APPLICATION_VERSION_NOT_GREATER'
       ? 409
+      : message === 'APPLICATION_NOT_FOUND' || message === 'RELEASE_NOT_FOUND'
+      ? 404
+      : message === 'RELEASE_NOT_PUBLISHED'
+      ? 409
       : message === 'USER_BLOCKED' || message === 'USER_ROLE_DENIED'
       ? 403
       : 500;
@@ -411,8 +440,7 @@ export function registerPublicApplicationRoutes(app: Express) {
             location: body.location || '',
             serviceCodes,
             redirectUris: redirectUrisStorage || existingByUid?.redirectUris || '',
-            ucanAudience: policy.audience,
-            ucanCapabilities: serializeApplicationUcanCapabilities(policy.capabilities),
+            ...storeApplicationUcanPolicy(policy),
             avatar: body.avatar || '',
             createdAt: existingByUid?.createdAt || body.createdAt || now,
             updatedAt: now,
@@ -547,8 +575,7 @@ export function registerPublicApplicationRoutes(app: Express) {
             serviceCodes,
             redirectUris:
               redirectUrisStorage !== undefined ? redirectUrisStorage : existing.redirectUris || '',
-            ucanAudience: policy.audience,
-            ucanCapabilities: serializeApplicationUcanCapabilities(policy.capabilities),
+            ...storeApplicationUcanPolicy(policy),
             avatar: body.avatar ?? existing.avatar,
             codePackagePath: body.codePackagePath ?? existing.codePackagePath,
             updatedAt: now,
@@ -599,6 +626,125 @@ export function registerPublicApplicationRoutes(app: Express) {
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Fetch application failed';
       res.status(500).json(fail(500, message));
+    }
+  });
+
+  app.get('/api/v1/public/applications/:uid/releases', async (req: Request, res: Response) => {
+    try {
+      const user = getRequestUser();
+      if (!user?.address) {
+        res.status(401).json(fail(401, 'Missing access token'));
+        return;
+      }
+      await ensureUserActive(user.address);
+      const applicationUid = String(req.params.uid || '').trim();
+      const appRecord = await resolveByUid(applicationUid);
+      if (!appRecord || !(await canViewApplication(appRecord, user.address))) {
+        res.status(404).json(fail(404, 'Application not found'));
+        return;
+      }
+      const privileged = await isAdminUser(user.address)
+        || normalizeAddress(appRecord.owner) === normalizeAddress(user.address);
+      const releases = await new ApplicationReleaseService().listByApplicationUid(applicationUid);
+      res.json(ok({
+        items: privileged ? releases : releases.filter((release) => release.status === 'published'),
+      }));
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Fetch application releases failed';
+      res.status(500).json(fail(500, message));
+    }
+  });
+
+  app.get('/api/v1/public/applications/:uid/releases/:version', async (req: Request, res: Response) => {
+    try {
+      const user = getRequestUser();
+      if (!user?.address) {
+        res.status(401).json(fail(401, 'Missing access token'));
+        return;
+      }
+      await ensureUserActive(user.address);
+      const version = parseReleaseVersion(req.params.version);
+      if (version === null) {
+        res.status(400).json(fail(400, 'Invalid application release version'));
+        return;
+      }
+      const applicationUid = String(req.params.uid || '').trim();
+      const appRecord = await resolveByUid(applicationUid);
+      if (!appRecord || !(await canViewApplication(appRecord, user.address))) {
+        res.status(404).json(fail(404, 'Application not found'));
+        return;
+      }
+      const release = await new ApplicationReleaseService().getByApplicationVersion(applicationUid, version);
+      if (!release) {
+        res.status(404).json(fail(404, 'Application release not found'));
+        return;
+      }
+      const privileged = await isAdminUser(user.address)
+        || normalizeAddress(appRecord.owner) === normalizeAddress(user.address);
+      if (!privileged && release.status !== 'published') {
+        res.status(404).json(fail(404, 'Application release not found'));
+        return;
+      }
+      res.json(ok(release));
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Fetch application release failed';
+      res.status(500).json(fail(500, message));
+    }
+  });
+
+  app.post('/api/v1/public/applications/:uid/releases/:version/withdraw', async (req: Request, res: Response) => {
+    try {
+      const user = getRequestUser();
+      if (!user?.address) {
+        res.status(401).json(fail(401, 'Missing access token'));
+        return;
+      }
+      await ensureUserActive(user.address);
+      await ensureUserCanWriteBusinessData(user.address);
+      const applicationUid = String(req.params.uid || '').trim();
+      const version = parseReleaseVersion(req.params.version);
+      if (version === null) {
+        res.status(400).json(fail(400, 'Invalid application release version'));
+        return;
+      }
+      const body = req.body || {};
+      const result = await executeSignedAction({
+        raw: body,
+        action: 'application_release_withdraw',
+        actor: user.address,
+        payload: {
+          applicationUid,
+          version,
+        },
+        execute: async () => {
+          const appRecord = await resolveByUid(applicationUid);
+          if (!appRecord) {
+            return { status: 404, body: fail(404, 'Application not found') };
+          }
+          const isAdmin = await isAdminUser(user.address);
+          if (!isAdmin && normalizeAddress(appRecord.owner) !== normalizeAddress(user.address)) {
+            return { status: 403, body: fail(403, 'Owner mismatch') };
+          }
+          const release = await new ApplicationReleaseService().withdrawVersion(applicationUid, version);
+          await notificationService.notifyApplicationUnpublished({
+            applicationUid: appRecord.uid,
+            owner: appRecord.owner,
+            actor: user.address,
+            name: appRecord.name,
+            did: appRecord.did,
+            version,
+          });
+          return { status: 200, body: ok(release) };
+        },
+        onError: (error) => {
+          const { status, message } = mapApplicationWriteError(error, 'Withdraw application release failed');
+          return { status, body: fail(status, message) };
+        },
+      });
+      res.status(result.status).json(result.body);
+    } catch (error) {
+      const { status, message } = mapApplicationWriteError(error, 'Withdraw application release failed');
+      res.status(status).json(fail(status, message));
     }
   });
 

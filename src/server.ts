@@ -37,7 +37,7 @@ import {
     ProjectAppInstallationDO,
     AppReleaseDO,
     AppRuntimeTaskDO,
-    IdentityAccountLinkDO, IdentityAccountLinkChallengeDO, IdentityVerificationTransactionDO, IdentityUsernameDO, IdentityCredentialDO, IdentityCredentialReissueChallengeDO, IdentityAuditLogDO, IdentityPasskeyCredentialDO, IdentityTotpAuthenticatorDO, IdentityWebauthnChallengeDO, IdentityActionChallengeDO, IdentityAuthorizationRequestDO, IdentityAuthorizationCodeDO, IdentityAuthorizationSessionDO
+    IdentityAccountLinkDO, IdentityAccountLinkChallengeDO, IdentityVerificationTransactionDO, IdentityUsernameDO, IdentityCredentialDO, IdentityCredentialReissueChallengeDO, IdentityAuditLogDO, IdentityPasskeyCredentialDO, IdentityTotpAuthenticatorDO, IdentityWebauthnChallengeDO, IdentityActionChallengeDO, IdentityAuthorizationRequestDO, IdentityAuthorizationCodeDO, IdentityAuthorizationSessionDO, UcanIssueSessionDO, UcanIssuedTokenDO, UcanTokenRevocationDO, UcanAuditLogDO
 } from './domain/mapper/entity'
 import { SingletonDataSource } from './domain/facade/datasource';
 import { LoggerConfig, LoggerService } from './infrastructure/logger';
@@ -107,6 +107,11 @@ import { AddPusherChannelAcls20260909130000 } from './migrations/20260909130000-
 import { EnforceSingleIdentityAccountOwner20260909150000 } from './migrations/20260909150000-enforce-single-identity-account-owner';
 import { EnforceSingleActiveIdentityUsername20260909160000 } from './migrations/20260909160000-enforce-single-active-identity-username';
 import { AddIdentityAuthorizationSessions20260920100000 } from './migrations/20260920100000-add-identity-authorization-sessions';
+import { AddIdentitySessionUcanPolicy20260921160000 } from './migrations/20260921160000-add-identity-session-ucan-policy';
+import { AddUcanIssueSessions20260921120000 } from './migrations/20260921120000-add-ucan-issue-sessions';
+import { AddUcanTokenRecords20260921130000 } from './migrations/20260921130000-add-ucan-token-records';
+import { AddUcanAuditLogs20260921140000 } from './migrations/20260921140000-add-ucan-audit-logs';
+import { AddUcanSessionPolicies20260921150000 } from './migrations/20260921150000-add-ucan-session-policies';
 import { AddApplicationVersionReleases20260921100000 } from './migrations/20260921100000-add-application-version-releases';
 import { DeferApplicationAppDid20260921110000 } from './migrations/20260921110000-defer-application-app-did';
 import { AddScopedGrants20260808090000 } from './migrations/20260808090000-add-scoped-grants';
@@ -115,6 +120,7 @@ import { startActionRequestCleanupJobs } from './domain/service/actionRequestCle
 import { startMpcCleanupJobs } from './domain/service/mpcCleanup';
 import { initMpcEventBus } from './domain/service/mpcEvents';
 import { initPusherEventBus } from './domain/service/pusherEvents';
+import { initNotificationEventBus } from './domain/service/notificationEvents';
 import { startNotificationDeliveryJobs } from './domain/service/notificationDelivery';
 import { startEmailNotificationDeliveryJobs } from './domain/service/emailNotificationDelivery';
 import { SingletonLogger } from './domain/facade/logger';
@@ -335,7 +341,11 @@ builder.entities([
     IdentityActionChallengeDO,
     IdentityAuthorizationRequestDO,
     IdentityAuthorizationCodeDO,
-    IdentityAuthorizationSessionDO
+    IdentityAuthorizationSessionDO,
+    UcanIssueSessionDO,
+    UcanIssuedTokenDO,
+    UcanTokenRevocationDO,
+    UcanAuditLogDO
 ])
 builder.migrations([
     InitSchema20260126120000,
@@ -378,8 +388,13 @@ builder.migrations([
     EnforceSingleIdentityAccountOwner20260909150000,
     EnforceSingleActiveIdentityUsername20260909160000,
     AddIdentityAuthorizationSessions20260920100000,
+    AddIdentitySessionUcanPolicy20260921160000,
     AddApplicationVersionReleases20260921100000,
-    DeferApplicationAppDid20260921110000
+    DeferApplicationAppDid20260921110000,
+    AddUcanIssueSessions20260921120000,
+    AddUcanSessionPolicies20260921150000,
+    AddUcanTokenRecords20260921130000,
+    AddUcanAuditLogs20260921140000
 ])
 
 builder.build().initialize().then(async (conn) => {
@@ -396,6 +411,7 @@ builder.build().initialize().then(async (conn) => {
     logger.info('database initialized')
     initMpcEventBus()
     initPusherEventBus()
+    initNotificationEventBus()
     startActionRequestCleanupJobs()
     startMpcCleanupJobs()
     startNotificationDeliveryJobs()

@@ -1,3 +1,4 @@
+import { v4 as uuidv4 } from 'uuid'
 import { getCurrentUtcString } from '../../common/date'
 import { NotificationRuntimeConfig } from '../../config'
 import { getConfig } from '../../config/runtime'
@@ -10,6 +11,7 @@ type EmailPolicy = {
   enabled: boolean
   intervalMs: number
   batchSize: number
+  claimTimeoutMs: number
   maxAttempts: number
   retryBaseDelayMs: number
   retryMaxDelayMs: number
@@ -26,6 +28,7 @@ function resolveEmailPolicy(): EmailPolicy {
     enabled: config.emailDeliveryEnabled !== false,
     intervalMs: parsePositiveNumber(config.emailDeliveryIntervalMs, 30 * 1000),
     batchSize: parsePositiveNumber(config.emailDeliveryBatchSize, 20),
+    claimTimeoutMs: parsePositiveNumber(config.emailClaimTimeoutMs, 60 * 1000),
     maxAttempts: parsePositiveNumber(config.emailMaxAttempts, 5),
     retryBaseDelayMs: parsePositiveNumber(config.emailRetryBaseDelayMs, 30 * 1000),
     retryMaxDelayMs: parsePositiveNumber(config.emailRetryMaxDelayMs, 15 * 60 * 1000),
@@ -117,30 +120,92 @@ async function findEmailTemplate(notification: NotificationDO): Promise<EmailTem
 }
 
 async function claimEmailDeliveries(limit: number, nowIso: string): Promise<NotificationDeliveryDO[]> {
-  const repository = SingletonDataSource.get().getRepository(NotificationDeliveryDO)
+  const dataSource = SingletonDataSource.get()
+  const repository = dataSource.getRepository(NotificationDeliveryDO)
+  const policy = resolveEmailPolicy()
+  const staleLockedBeforeIso = new Date(Date.parse(nowIso) - policy.claimTimeoutMs).toISOString()
+  const dbType = dataSource.options?.type
+
+  if (dbType === 'postgres') {
+    const schema = (dataSource.options as { schema?: string }).schema || 'public'
+    const schemaRef = `"${String(schema).replace(/"/g, '""')}"`
+    const claimToken = uuidv4()
+    await dataSource.query(
+      `
+      WITH candidates AS (
+        SELECT uid
+        FROM ${schemaRef}."notification_deliveries"
+        WHERE channel = $1
+          AND (
+            status = $2
+            OR (status = $3 AND (next_retry_at = '' OR next_retry_at <= $4))
+            OR (status = $5 AND locked_at <> '' AND locked_at <= $6)
+          )
+        ORDER BY created_at ASC
+        LIMIT $7
+        FOR UPDATE SKIP LOCKED
+      )
+      UPDATE ${schemaRef}."notification_deliveries" AS delivery
+      SET status = $5,
+          lock_token = $8,
+          locked_at = $4,
+          attempt_count = delivery.attempt_count + 1,
+          updated_at = $4,
+          last_error = ''
+      FROM candidates
+      WHERE delivery.uid = candidates.uid
+      `,
+      ['email', 'pending', 'failed', nowIso, 'delivering', staleLockedBeforeIso, limit, claimToken]
+    )
+    return await repository.find({
+      where: { lockToken: claimToken },
+      order: { createdAt: 'ASC' },
+    })
+  }
+
   const rows = await repository.find({
     where: [
       { channel: 'email', status: 'pending' },
       { channel: 'email', status: 'failed' },
+      { channel: 'email', status: 'delivering' },
     ],
     order: { createdAt: 'ASC' },
-    take: limit * 2,
+    take: limit * 3,
   })
   const candidates = rows
     .filter((row) => row.channel === 'email')
-    .filter((row) => row.status === 'pending' || isRetryDue(row.nextRetryAt, nowIso))
+    .filter((row) => {
+      if (row.status === 'pending') return true
+      if (row.status === 'failed') return isRetryDue(row.nextRetryAt, nowIso)
+      return String(row.lockedAt || '').trim() !== '' && String(row.lockedAt || '').trim() <= staleLockedBeforeIso
+    })
     .slice(0, limit)
+  const claimed: NotificationDeliveryDO[] = []
   for (const row of candidates) {
-    row.status = 'delivering'
-    row.lockedAt = nowIso
-    row.attemptCount = Number(row.attemptCount || 0) + 1
-    row.lastError = ''
-    row.updatedAt = nowIso
+    const claimToken = uuidv4()
+    const where: Record<string, string> = {
+      uid: row.uid,
+      status: row.status,
+    }
+    if (row.status === 'delivering') {
+      where.lockedAt = String(row.lockedAt || '')
+    }
+    const result = await repository.update(where, {
+      status: 'delivering',
+      lockToken: claimToken,
+      lockedAt: nowIso,
+      attemptCount: Number(row.attemptCount || 0) + 1,
+      lastError: '',
+      updatedAt: nowIso,
+    })
+    if (Number(result.affected || 0) > 0) {
+      const current = await repository.findOneBy({ uid: row.uid, lockToken: claimToken })
+      if (current) {
+        claimed.push(current)
+      }
+    }
   }
-  if (candidates.length > 0) {
-    await repository.save(candidates)
-  }
-  return candidates
+  return claimed
 }
 
 function getPathValue(input: Record<string, unknown>, path: string): unknown {
@@ -218,24 +283,50 @@ async function buildNotificationEmail(notification: NotificationDO) {
   return { subject, text, html }
 }
 
-async function markSuccess(delivery: NotificationDeliveryDO, providerMessageId: string): Promise<void> {
+async function markSuccess(delivery: NotificationDeliveryDO, providerMessageId: string): Promise<boolean> {
   const now = getCurrentUtcString()
-  delivery.status = 'delivered'
-  delivery.lastError = providerMessageId ? `providerMessageId:${providerMessageId}` : ''
-  delivery.deliveredAt = now
-  delivery.nextRetryAt = ''
-  delivery.updatedAt = now
-  await SingletonDataSource.get().getRepository(NotificationDeliveryDO).save(delivery)
+  const result = await SingletonDataSource.get().getRepository(NotificationDeliveryDO).update(
+    {
+      uid: delivery.uid,
+      status: 'delivering',
+      lockToken: delivery.lockToken,
+    },
+    {
+      status: 'delivered',
+      lastError: providerMessageId ? `providerMessageId:${providerMessageId}` : '',
+      deliveredAt: now,
+      nextRetryAt: '',
+      lockToken: '',
+      lockedAt: '',
+      updatedAt: now,
+    }
+  )
+  return Number(result.affected || 0) > 0
 }
 
-async function markFailure(delivery: NotificationDeliveryDO, message: string, policy: EmailPolicy): Promise<void> {
+async function markFailure(delivery: NotificationDeliveryDO, message: string, policy: EmailPolicy): Promise<boolean> {
   const nowMs = Date.now()
   const now = new Date(nowMs).toISOString()
-  delivery.status = Number(delivery.attemptCount || 0) >= policy.maxAttempts ? 'failed' : 'failed'
-  delivery.lastError = message.slice(0, 2000)
-  delivery.nextRetryAt = Number(delivery.attemptCount || 0) >= policy.maxAttempts ? '' : computeNextRetryAt(delivery.attemptCount, nowMs, policy)
-  delivery.updatedAt = now
-  await SingletonDataSource.get().getRepository(NotificationDeliveryDO).save(delivery)
+  const nextRetryAt =
+    Number(delivery.attemptCount || 0) >= policy.maxAttempts
+      ? ''
+      : computeNextRetryAt(delivery.attemptCount, nowMs, policy)
+  const result = await SingletonDataSource.get().getRepository(NotificationDeliveryDO).update(
+    {
+      uid: delivery.uid,
+      status: 'delivering',
+      lockToken: delivery.lockToken,
+    },
+    {
+      status: 'failed',
+      lastError: message.slice(0, 2000),
+      nextRetryAt,
+      lockToken: '',
+      lockedAt: '',
+      updatedAt: now,
+    }
+  )
+  return Number(result.affected || 0) > 0
 }
 
 async function processEmailDelivery(delivery: NotificationDeliveryDO, policy: EmailPolicy): Promise<void> {
