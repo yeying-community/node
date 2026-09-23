@@ -163,7 +163,7 @@ if [[ -z "$BASE_URL" ]]; then
   fi
   APP_PORT_VALUE="${APP_PORT_VALUE:-8100}"
   [[ "$APP_PORT_VALUE" =~ ^[1-9][0-9]*$ ]] || usage_error "configured app port is invalid"
-  BASE_URL="http://127.0.0.1:$APP_PORT_VALUE"
+  BASE_URL="http://localhost:$APP_PORT_VALUE"
 fi
 BASE_URL="${BASE_URL%/}"
 

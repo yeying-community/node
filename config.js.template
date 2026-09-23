@@ -135,7 +135,7 @@ module.exports = {
   },
   identity: {
     // Public base URL used to build wallet identity verifyUrl in authorize request response.
-    publicBaseUrl: 'http://127.0.0.1:8100',
+    publicBaseUrl: 'http://localhost:8100',
     session: {
       // Long-lived identity refresh session. The UCAN issue session remains short-lived.
       refreshTtlMs: 30 * 24 * 60 * 60 * 1000
