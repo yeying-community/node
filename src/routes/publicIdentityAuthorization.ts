@@ -109,12 +109,24 @@ function bufToB64(value){if(!value)return '';const bytes=new Uint8Array(value);l
 function isDesktopRedirect(value){try{return new URL(value).protocol==='chat:'}catch{return false}}
 function tryClosePage(){try{window.open('','_self');window.close()}catch{} }
 function returnToApp(value){
-  if(!isDesktopRedirect(value)){location.href=value;return}
-  location.href=value;
+  if(!isDesktopRedirect(value)){location.assign(value);return}
+  // Use a real user-agent navigation for custom schemes. Chromium-based
+  // browsers are more reliable with an anchor click than with assigning
+  // location.href after an async WebAuthn callback.
+  $('status').textContent='正在打开 Chat...';
+  const link=document.createElement('a');
+  link.href=value;
+  link.rel='noreferrer';
+  link.style.display='none';
+  document.body.appendChild(link);
+  try{link.click()}catch{}
+  window.setTimeout(()=>{
+    try{location.assign(value)}catch{}
+  },120);
   window.setTimeout(()=>{
     tryClosePage();
     $('status').textContent='已返回 Chat；如果此页仍打开，可以手动关闭。';
-  },600);
+  },1200);
 }
 async function parse(res){const json=await res.json().catch(()=>({}));if(!res.ok||json.code!==0)throw new Error(json.message||res.statusText);return json.data}
 async function load(){if(!requestId)throw new Error('缺少授权请求 ID');const data=await parse(await fetch('/api/v1/public/identity/authorize/request/'+encodeURIComponent(requestId)));$('appName').textContent=data.appName||data.appId||'-';$('scopes').textContent=(data.scopes||[]).join(', ');$('requestStatus').textContent=data.status||'-';$('approve').disabled=data.status!=='pending'}
