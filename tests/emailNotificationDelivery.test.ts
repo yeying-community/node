@@ -4,17 +4,22 @@ import { EmailTemplateDO, IdentityAccountLinkDO, IdentityCredentialDO, Notificat
 import { NotificationService } from '../src/domain/service/notification'
 import { createInMemoryDataSource } from './helpers/inMemoryDataSource'
 
-const sendMailMock = vi.fn()
+// Use hoisted vi.mock (not doMock) so the mock applies to transitive/static
+// imports too. Otherwise the static imports above bind the real config/runtime
+// before doMock runs, which throws in CI where no config.js exists.
+const { sendMailMock } = vi.hoisted(() => ({ sendMailMock: vi.fn() }))
 
-vi.doMock('../src/config/runtime', () => ({
-  getConfig: () => ({
-    emailDeliveryEnabled: true,
-    emailDeliveryBatchSize: 10,
-    emailMaxAttempts: 3,
-  }),
+vi.mock('../src/config/runtime', () => ({
+  getConfig: (key: string) => key === 'notification'
+    ? {
+        emailDeliveryEnabled: true,
+        emailDeliveryBatchSize: 10,
+        emailMaxAttempts: 3,
+      }
+    : undefined,
 }))
 
-vi.doMock('../src/domain/service/mailProvider', () => ({
+vi.mock('../src/domain/service/mailProvider', () => ({
   sendMail: sendMailMock,
 }))
 
