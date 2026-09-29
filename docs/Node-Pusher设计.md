@@ -1236,6 +1236,7 @@ P0/P1 已按推荐方案确认。下面事项可以后置到实现推进或规�
 
 ## 21. 参考
 
+- 站内文档：[Node-Pusher接入示例.md](./Node-Pusher接入示例.md)、[Project-实时SSE集成研究.md](./Project-实时SSE集成研究.md)（Project 视角的接入判据与边界）、[通知中心.md](./通知中心.md)
 - WebSocket：RFC 6455，https://www.rfc-editor.org/rfc/rfc6455
 - Server-Sent Events：HTML Living Standard，https://html.spec.whatwg.org/multipage/server-sent-events.html
 - Pusher Channels Protocol：Pusher socket protocol v7，https://github.com/pusher/pusher-socket-protocol/blob/master/protocol.adoc
