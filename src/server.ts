@@ -115,6 +115,7 @@ import { AddUcanSessionPolicies20260921150000 } from './migrations/2026092115000
 import { AddApplicationVersionReleases20260921100000 } from './migrations/20260921100000-add-application-version-releases';
 import { DeferApplicationAppDid20260921110000 } from './migrations/20260921110000-defer-application-app-did';
 import { AddScopedGrants20260808090000 } from './migrations/20260808090000-add-scoped-grants';
+import { AddNotificationWebhookFormat20260929100000 } from './migrations/20260929100000-add-notification-webhook-format';
 import { getConfig } from './config/runtime';
 import { startActionRequestCleanupJobs } from './domain/service/actionRequestCleanup';
 import { startMpcCleanupJobs } from './domain/service/mpcCleanup';
@@ -394,7 +395,8 @@ builder.migrations([
     AddUcanIssueSessions20260921120000,
     AddUcanSessionPolicies20260921150000,
     AddUcanTokenRecords20260921130000,
-    AddUcanAuditLogs20260921140000
+    AddUcanAuditLogs20260921140000,
+    AddNotificationWebhookFormat20260929100000
 ])
 
 builder.build().initialize().then(async (conn) => {
