@@ -72,6 +72,7 @@ export type NotificationWebhookItem = {
   applicationUid: string
   events: string[]
   targetUrl: string
+  format: string
   secretMasked: string
   enabled: boolean
   lastTriggeredAt: string
@@ -299,6 +300,7 @@ class NotificationClient {
     applicationUid?: string
     events: string[]
     targetUrl: string
+    format?: string
     secret?: string
     enabled?: boolean
   }) {
@@ -317,6 +319,7 @@ class NotificationClient {
     applicationUid?: string
     events?: string[]
     targetUrl?: string
+    format?: string
     secret?: string
     enabled?: boolean
   }) {

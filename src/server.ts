@@ -121,8 +121,8 @@ import { startMpcCleanupJobs } from './domain/service/mpcCleanup';
 import { initMpcEventBus } from './domain/service/mpcEvents';
 import { initPusherEventBus } from './domain/service/pusherEvents';
 import { initNotificationEventBus } from './domain/service/notificationEvents';
-import { startNotificationDeliveryJobs } from './domain/service/notificationDelivery';
-import { startEmailNotificationDeliveryJobs } from './domain/service/emailNotificationDelivery';
+import { registerBuiltinDeliveryProviders } from './domain/service/delivery/providers';
+import { startAllDeliveryJobs } from './domain/service/delivery/registry';
 import { SingletonLogger } from './domain/facade/logger';
 import { getCentralIssuerStatus } from './auth/ucanIssuer';
 import { getPasskeyAuthStatus } from './auth/identityPasskeyAuth';
@@ -414,8 +414,8 @@ builder.build().initialize().then(async (conn) => {
     initNotificationEventBus()
     startActionRequestCleanupJobs()
     startMpcCleanupJobs()
-    startNotificationDeliveryJobs()
-    startEmailNotificationDeliveryJobs()
+    registerBuiltinDeliveryProviders()
+    startAllDeliveryJobs()
     // 创建 Express 应用
     const app = express();
     const webDistDir = resolveWebDistDir()

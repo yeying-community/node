@@ -181,8 +181,16 @@
             <el-select v-model="webhookForm.events" multiple clearable :placeholder="$t('notification_webhook_events')">
               <el-option v-for="item in webhookEventOptions" :key="item.value" :label="item.label" :value="item.value" />
             </el-select>
+            <el-select v-model="webhookForm.format" :placeholder="$t('notification_webhook_format')">
+              <el-option :label="$t('notification_webhook_format_generic')" value="generic" />
+              <el-option :label="$t('notification_webhook_format_dingtalk')" value="dingtalk" />
+              <el-option :label="$t('notification_webhook_format_feishu')" value="feishu" />
+            </el-select>
             <el-input v-model="webhookForm.targetUrl" :placeholder="$t('notification_webhook_target')" />
             <el-input v-model="webhookForm.secret" :placeholder="$t('notification_webhook_secret')" />
+            <p v-if="webhookForm.format !== 'generic'" class="webhook-form-hint">
+              {{ $t('notification_webhook_format_hint') }}
+            </p>
             <el-switch v-model="webhookForm.enabled" />
             <el-button type="primary" @click="submitWebhook">{{ $t('notification_webhook_submit') }}</el-button>
           </div>
@@ -198,6 +206,7 @@
                 <div>
                   <div class="webhook-url">{{ item.targetUrl }}</div>
                   <div class="webhook-meta">
+                    <span>{{ $t('notification_webhook_format') }}：{{ webhookFormatLabel(item.format) }}</span>
                     <span>{{ $t('notification_webhook_app_id') }}：{{ item.applicationUid || '-' }}</span>
                     <span>{{ $t('notification_webhook_secret_masked') }}：{{ item.secretMasked || '-' }}</span>
                   </div>
@@ -513,6 +522,7 @@ const filters = reactive({
 const webhookForm = reactive({
   applicationUid: '',
   events: [] as string[],
+  format: 'generic',
   targetUrl: '',
   secret: '',
   enabled: true,
@@ -1011,17 +1021,26 @@ async function removeEmailTemplate(item: EmailTemplateItem) {
   }
 }
 
+function webhookFormatLabel(format: string): string {
+  const normalized = String(format || 'generic')
+  const key = `notification_webhook_format_${normalized}`
+  const label = $t(key)
+  return label === key ? normalized : label
+}
+
 async function submitWebhook() {
   try {
     await $notification.createWebhook({
       applicationUid: webhookForm.applicationUid || undefined,
       events: webhookForm.events,
+      format: webhookForm.format || undefined,
       targetUrl: webhookForm.targetUrl,
       secret: webhookForm.secret || undefined,
       enabled: webhookForm.enabled,
     })
     webhookForm.applicationUid = ''
     webhookForm.events = []
+    webhookForm.format = 'generic'
     webhookForm.targetUrl = ''
     webhookForm.secret = ''
     webhookForm.enabled = true

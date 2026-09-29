@@ -37,6 +37,15 @@ function resolveCurrentAddress(): string {
   return normalizeRecipient(user?.address)
 }
 
+function isWebhookValidationError(message: string): boolean {
+  return (
+    message === 'Invalid webhook input' ||
+    message === 'Invalid webhook target URL' ||
+    message.includes('webhook must target one of') ||
+    message.endsWith('webhook requires a signing secret')
+  )
+}
+
 function mapNotificationError(error: unknown): { status: number; message: string } {
   const message = error instanceof Error ? error.message : 'Notification request failed'
   switch (message) {
@@ -285,13 +294,14 @@ export function registerPublicNotificationRoutes(app: Express) {
         applicationUid: String(req.body?.applicationUid || '').trim(),
         events: parseWebhookEvents(req.body?.events),
         targetUrl: String(req.body?.targetUrl || '').trim(),
+        format: String(req.body?.format || '').trim() || undefined,
         secret: String(req.body?.secret || '').trim(),
         enabled: req.body?.enabled !== false,
       })
       res.json(ok(item))
     } catch (error) {
       const mapped = mapNotificationError(error)
-      const status = mapped.message === 'Invalid webhook input' ? 400 : mapped.status
+      const status = isWebhookValidationError(mapped.message) ? 400 : mapped.status
       res.status(status).json(fail(status, mapped.message))
     }
   })
@@ -308,6 +318,7 @@ export function registerPublicNotificationRoutes(app: Express) {
         applicationUid: req.body?.applicationUid,
         events: Array.isArray(req.body?.events) ? parseWebhookEvents(req.body.events) : undefined,
         targetUrl: req.body?.targetUrl,
+        format: req.body?.format,
         secret: req.body?.secret,
         enabled: req.body?.enabled,
       })
@@ -318,7 +329,8 @@ export function registerPublicNotificationRoutes(app: Express) {
       res.json(ok(item))
     } catch (error) {
       const mapped = mapNotificationError(error)
-      res.status(mapped.status).json(fail(mapped.status, mapped.message))
+      const status = isWebhookValidationError(mapped.message) ? 400 : mapped.status
+      res.status(status).json(fail(status, mapped.message))
     }
   })
 
