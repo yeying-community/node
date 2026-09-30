@@ -115,14 +115,15 @@ import { AddUcanSessionPolicies20260921150000 } from './migrations/2026092115000
 import { AddApplicationVersionReleases20260921100000 } from './migrations/20260921100000-add-application-version-releases';
 import { DeferApplicationAppDid20260921110000 } from './migrations/20260921110000-defer-application-app-did';
 import { AddScopedGrants20260808090000 } from './migrations/20260808090000-add-scoped-grants';
+import { AddNotificationWebhookFormat20260929100000 } from './migrations/20260929100000-add-notification-webhook-format';
 import { getConfig } from './config/runtime';
 import { startActionRequestCleanupJobs } from './domain/service/actionRequestCleanup';
 import { startMpcCleanupJobs } from './domain/service/mpcCleanup';
 import { initMpcEventBus } from './domain/service/mpcEvents';
 import { initPusherEventBus } from './domain/service/pusherEvents';
 import { initNotificationEventBus } from './domain/service/notificationEvents';
-import { startNotificationDeliveryJobs } from './domain/service/notificationDelivery';
-import { startEmailNotificationDeliveryJobs } from './domain/service/emailNotificationDelivery';
+import { registerBuiltinDeliveryProviders } from './domain/service/delivery/providers';
+import { startAllDeliveryJobs } from './domain/service/delivery/registry';
 import { SingletonLogger } from './domain/facade/logger';
 import { getCentralIssuerStatus } from './auth/ucanIssuer';
 import { getPasskeyAuthStatus } from './auth/identityPasskeyAuth';
@@ -394,7 +395,8 @@ builder.migrations([
     AddUcanIssueSessions20260921120000,
     AddUcanSessionPolicies20260921150000,
     AddUcanTokenRecords20260921130000,
-    AddUcanAuditLogs20260921140000
+    AddUcanAuditLogs20260921140000,
+    AddNotificationWebhookFormat20260929100000
 ])
 
 builder.build().initialize().then(async (conn) => {
@@ -414,8 +416,8 @@ builder.build().initialize().then(async (conn) => {
     initNotificationEventBus()
     startActionRequestCleanupJobs()
     startMpcCleanupJobs()
-    startNotificationDeliveryJobs()
-    startEmailNotificationDeliveryJobs()
+    registerBuiltinDeliveryProviders()
+    startAllDeliveryJobs()
     // 创建 Express 应用
     const app = express();
     const webDistDir = resolveWebDistDir()

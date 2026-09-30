@@ -637,6 +637,9 @@ export class NotificationWebhookDO {
     @Column({ type: 'text', name: 'target_url' })
     targetUrl!: string
 
+    @Column({ length: 32, name: 'format', default: 'generic' })
+    format!: string
+
     @Column({ length: 128, name: 'secret_masked', default: '' })
     secretMasked!: string
 

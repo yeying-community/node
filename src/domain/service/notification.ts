@@ -69,12 +69,57 @@ export type NotificationWebhookRecord = {
   applicationUid: string
   events: string[]
   targetUrl: string
+  format: string
   secretMasked: string
   enabled: boolean
   lastTriggeredAt: string
   createdAt: string
   updatedAt: string
 }
+
+/** Webhook payload formats. generic = raw JSON webhook; the rest are bots. */
+const WEBHOOK_FORMATS = new Set(['generic', 'dingtalk', 'feishu'])
+
+/** Bot formats may only target their platform's incoming-webhook host. */
+const WEBHOOK_FORMAT_HOST_ALLOWLIST: Record<string, string[]> = {
+  dingtalk: ['oapi.dingtalk.com'],
+  feishu: ['open.feishu.cn', 'www.feishu.cn'],
+}
+
+function normalizeWebhookFormat(input: unknown): string {
+  const value = String(input || 'generic').trim().toLowerCase()
+  return WEBHOOK_FORMATS.has(value) ? value : 'generic'
+}
+
+/** Map a webhook format to the notification_deliveries.channel that routes it. */
+export function webhookFormatToChannel(format: string): string {
+  const normalized = normalizeWebhookFormat(format)
+  return normalized === 'generic' ? 'webhook' : normalized
+}
+
+/**
+ * Enforce platform constraints for bot formats: the target host must be on the
+ * platform allowlist and a signing secret is mandatory (bots require signing).
+ */
+function validateWebhookFormatTarget(format: string, targetUrl: string, hasSecret: boolean): void {
+  const allowlist = WEBHOOK_FORMAT_HOST_ALLOWLIST[format]
+  if (!allowlist) {
+    return
+  }
+  let host = ''
+  try {
+    host = new URL(targetUrl).hostname.toLowerCase()
+  } catch {
+    throw new Error('Invalid webhook target URL')
+  }
+  if (!allowlist.includes(host)) {
+    throw new Error(`${format} webhook must target one of: ${allowlist.join(', ')}`)
+  }
+  if (!hasSecret) {
+    throw new Error(`${format} webhook requires a signing secret`)
+  }
+}
+
 
 export type NotificationDeliveryRecord = {
   uid: string
@@ -876,6 +921,7 @@ export class NotificationService {
     applicationUid?: string
     events?: string[]
     targetUrl: string
+    format?: string
     secret?: string
     enabled?: boolean
   }): Promise<NotificationWebhookRecord> {
@@ -886,11 +932,14 @@ export class NotificationService {
     }
     const now = getCurrentUtcString()
     const secret = String(input.secret || '').trim()
+    const format = normalizeWebhookFormat(input.format)
+    validateWebhookFormatTarget(format, targetUrl, Boolean(secret))
     const entity = this.webhookRepository.create({
       owner,
       applicationUid: String(input.applicationUid || '').trim(),
       eventsJson: JSON.stringify(this.normalizeEventList(input.events)),
       targetUrl,
+      format,
       secretMasked: this.maskSecret(secret),
       secretCiphertext: secret ? encryptNotificationWebhookSecret(secret) : '',
       enabled: input.enabled !== false,
@@ -909,6 +958,7 @@ export class NotificationService {
       applicationUid?: string
       events?: string[]
       targetUrl?: string
+      format?: string
       secret?: string
       enabled?: boolean
     }
@@ -931,11 +981,20 @@ export class NotificationService {
     if (input.targetUrl !== undefined) {
       existing.targetUrl = String(input.targetUrl || '').trim()
     }
+    if (input.format !== undefined) {
+      existing.format = normalizeWebhookFormat(input.format)
+    }
     if (input.secret !== undefined) {
       const secret = String(input.secret || '').trim()
       existing.secretCiphertext = secret ? encryptNotificationWebhookSecret(secret) : ''
       existing.secretMasked = this.maskSecret(secret)
     }
+    // Re-validate against the resulting format/target/secret combination.
+    validateWebhookFormatTarget(
+      normalizeWebhookFormat(existing.format),
+      existing.targetUrl,
+      Boolean(String(existing.secretCiphertext || '').trim())
+    )
     if (input.enabled !== undefined) {
       existing.enabled = Boolean(input.enabled)
     }
@@ -1073,6 +1132,7 @@ export class NotificationService {
       webhookUid: uid,
       notificationUid,
       target: webhook.targetUrl,
+      channel: webhookFormatToChannel(webhook.format),
       sourceStatus: latestDelivery?.status,
     })
     return {
@@ -1435,6 +1495,7 @@ export class NotificationService {
       applicationUid: row.applicationUid,
       events: parseJsonArray(row.eventsJson),
       targetUrl: row.targetUrl,
+      format: normalizeWebhookFormat(row.format),
       secretMasked: row.secretMasked,
       enabled: Boolean(row.enabled),
       lastTriggeredAt: row.lastTriggeredAt,
@@ -1469,7 +1530,7 @@ export class NotificationService {
         this.deliveryRepository.create({
           notificationUid: notification.uid,
           webhookUid: row.uid,
-          channel: 'webhook',
+          channel: webhookFormatToChannel(row.format),
           target: row.targetUrl,
           status: 'pending',
           lockToken: '',

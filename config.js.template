@@ -135,7 +135,7 @@ module.exports = {
   },
   identity: {
     // Public base URL used to build wallet identity verifyUrl in authorize request response.
-    publicBaseUrl: 'http://127.0.0.1:8100',
+    publicBaseUrl: 'http://localhost:8100',
     session: {
       // Long-lived identity refresh session. The UCAN issue session remains short-lived.
       refreshTtlMs: 30 * 24 * 60 * 60 * 1000
@@ -213,6 +213,27 @@ module.exports = {
     emailRetryBaseDelayMs: 30 * 1000,
     // Email retry delay ceiling.
     emailRetryMaxDelayMs: 15 * 60 * 1000,
+    // DingTalk bot delivery (webhook family). Bot URL + signing secret are
+    // submitted per-user at registration and stored encrypted in the database;
+    // they are NOT configured here.
+    dingtalkDeliveryEnabled: true,
+    dingtalkDeliveryIntervalMs: 15 * 1000,
+    dingtalkDeliveryBatchSize: 20,
+    dingtalkDeliveryTimeoutMs: 10 * 1000,
+    dingtalkClaimTimeoutMs: 60 * 1000,
+    dingtalkMaxAttempts: 5,
+    dingtalkRetryBaseDelayMs: 15 * 1000,
+    dingtalkRetryMaxDelayMs: 10 * 60 * 1000,
+    // Feishu (Lark) bot delivery (webhook family). Bot URL + signing secret are
+    // submitted per-user at registration and stored encrypted in the database.
+    feishuDeliveryEnabled: true,
+    feishuDeliveryIntervalMs: 15 * 1000,
+    feishuDeliveryBatchSize: 20,
+    feishuDeliveryTimeoutMs: 10 * 1000,
+    feishuClaimTimeoutMs: 60 * 1000,
+    feishuMaxAttempts: 5,
+    feishuRetryBaseDelayMs: 15 * 1000,
+    feishuRetryMaxDelayMs: 10 * 60 * 1000,
   },
   redis: {
     // Optional secrets loaded from secrets.enc.json: REDIS_USERNAME, REDIS_PASSWORD.

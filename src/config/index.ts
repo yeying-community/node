@@ -130,6 +130,22 @@ export interface NotificationRuntimeConfig {
     emailMaxAttempts?: number
     emailRetryBaseDelayMs?: number
     emailRetryMaxDelayMs?: number
+    dingtalkDeliveryEnabled?: boolean
+    dingtalkDeliveryIntervalMs?: number
+    dingtalkDeliveryBatchSize?: number
+    dingtalkDeliveryTimeoutMs?: number
+    dingtalkClaimTimeoutMs?: number
+    dingtalkMaxAttempts?: number
+    dingtalkRetryBaseDelayMs?: number
+    dingtalkRetryMaxDelayMs?: number
+    feishuDeliveryEnabled?: boolean
+    feishuDeliveryIntervalMs?: number
+    feishuDeliveryBatchSize?: number
+    feishuDeliveryTimeoutMs?: number
+    feishuClaimTimeoutMs?: number
+    feishuMaxAttempts?: number
+    feishuRetryBaseDelayMs?: number
+    feishuRetryMaxDelayMs?: number
 }
 
 export interface RedisRuntimeConfig {
