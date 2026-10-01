@@ -65,6 +65,31 @@ const document = {
         in: 'header',
         name: 'x-pusher-signature',
       },
+      pusherStandardKey: {
+        type: 'apiKey',
+        in: 'query',
+        name: 'auth_key',
+      },
+      pusherStandardTimestamp: {
+        type: 'apiKey',
+        in: 'query',
+        name: 'auth_timestamp',
+      },
+      pusherStandardVersion: {
+        type: 'apiKey',
+        in: 'query',
+        name: 'auth_version',
+      },
+      pusherStandardBodyMd5: {
+        type: 'apiKey',
+        in: 'query',
+        name: 'body_md5',
+      },
+      pusherStandardSignature: {
+        type: 'apiKey',
+        in: 'query',
+        name: 'auth_signature',
+      },
     },
     schemas: {
       JsonObject: { type: 'object', additionalProperties: true },
@@ -513,6 +538,7 @@ const operations = [
   ['post', '/api/v1/public/notifications/webhooks/{uid}/replay/{notificationUid}', 'Notifications', '重放通知到 Webhook', 'bearer'],
   ['get', '/api/v1/admin/notifications/{uid}/deliveries', 'Admin', '管理员查询通知投递', 'bearer'],
   ['post', '/api/v1/public/pusher/apps/{appId}/events', 'Pusher', '发布 Node Pusher 事件', 'pusher'],
+  ['post', '/apps/{appId}/events', 'Pusher', '兼容 Pusher Channels 的事件发布', 'pusher-standard'],
   ['get', '/api/v1/public/pusher/apps/{appId}/stream', 'Pusher', '订阅 Node Pusher SSE', 'bearer', null, true],
   ['get', '/api/v1/public/pusher/notification-preferences', 'Pusher', '查询通知偏好', 'bearer'],
   ['patch', '/api/v1/public/pusher/notification-preferences', 'Pusher', '更新通知偏好', 'bearer'],
@@ -546,6 +572,15 @@ function securityFor(auth) {
   if (auth === 'none') return []
   if (auth === 'cookie') return [{ refreshCookie: [] }]
   if (auth === 'pusher') return [{ pusherKey: [], pusherTimestamp: [], pusherSignature: [] }]
+  if (auth === 'pusher-standard') {
+    return [{
+      pusherStandardKey: [],
+      pusherStandardTimestamp: [],
+      pusherStandardVersion: [],
+      pusherStandardBodyMd5: [],
+      pusherStandardSignature: [],
+    }]
+  }
   return [{ bearerAuth: [] }]
 }
 

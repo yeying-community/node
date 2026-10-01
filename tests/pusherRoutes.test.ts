@@ -5,6 +5,7 @@ import { mockClass } from './support/mockClass'
 
 const serviceMocks = {
   publish: vi.fn(),
+  publishStandard: vi.fn(),
   assertCanSubscribe: vi.fn(),
   listBacklog: vi.fn(),
   createApp: vi.fn(),
@@ -109,6 +110,13 @@ describe('pusher routes', () => {
       channels: ['private-user.0x1111111111111111111111111111111111111111'],
       persisted: true,
     })
+    serviceMocks.publishStandard.mockResolvedValue({
+      eventId: 'pusher-evt-1',
+      accepted: true,
+      idempotent: false,
+      channels: ['private-workspace.project-main'],
+      persisted: false,
+    })
     serviceMocks.assertCanSubscribe.mockResolvedValue(undefined)
     serviceMocks.listBacklog.mockResolvedValue([])
     serviceMocks.listApps.mockResolvedValue([])
@@ -205,6 +213,37 @@ describe('pusher routes', () => {
       signature: 'sha256=abc',
       body,
     })
+  })
+
+  it('publishes a standard Pusher HTTP event', async () => {
+    const app = createTestApp()
+    const body = {
+      name: 'task.updated',
+      channels: ['private-workspace.project-main'],
+      data: JSON.stringify({ taskId: 123 }),
+      socket_id: '123.456',
+    }
+
+    await withServer(app, async (baseUrl) => {
+      const response = await fetch(`${baseUrl}/apps/project/events?auth_key=pk_test&auth_timestamp=1760000000&auth_version=1.0&body_md5=body-md5&auth_signature=signature`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(body),
+      })
+      const json = await response.json()
+      expect(response.status).toBe(200)
+      expect(json.ok).toBe(true)
+    })
+
+    expect(serviceMocks.publishStandard).toHaveBeenCalledWith(expect.objectContaining({
+      appId: 'project',
+      authKey: 'pk_test',
+      authTimestamp: '1760000000',
+      authVersion: '1.0',
+      bodyMd5: 'body-md5',
+      authSignature: 'signature',
+      body,
+    }))
   })
 
   it('replays pusher events from an SSE cursor', async () => {

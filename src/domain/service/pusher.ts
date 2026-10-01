@@ -48,6 +48,19 @@ export type PusherPublishResult = {
   persisted: boolean
 }
 
+export type PusherStandardPublishInput = {
+  appId: string
+  authKey: string
+  authTimestamp: string
+  authVersion: string
+  bodyMd5: string
+  authSignature: string
+  body: Record<string, unknown>
+  rawBody: string
+  method?: string
+  path?: string
+}
+
 export type PusherBacklogItem = PusherStreamEvent
 
 export type PusherChannelAclRecord = {
@@ -207,6 +220,55 @@ export function buildPusherPublishSignature(input: {
   return `${SIGNATURE_PREFIX}${crypto.createHmac('sha256', input.secret).update(payload).digest('hex')}`
 }
 
+function buildPusherStandardQuery(input: {
+  authKey: string
+  authTimestamp: string
+  authVersion: string
+  bodyMd5: string
+}): string {
+  return Object.entries({
+    auth_key: input.authKey,
+    auth_timestamp: input.authTimestamp,
+    auth_version: input.authVersion,
+    body_md5: input.bodyMd5,
+  })
+    .sort(([left], [right]) => left.localeCompare(right))
+    // pusher-http-php signs this sorted string before the HTTP client applies
+    // URL encoding to the actual query parameters.
+    .map(([key, value]) => `${key}=${value}`)
+    .join('&')
+}
+
+export function buildPusherStandardSignature(input: {
+  method?: string
+  path: string
+  authKey: string
+  authTimestamp: string
+  authVersion: string
+  bodyMd5: string
+  secret: string
+}): string {
+  const query = buildPusherStandardQuery(input)
+  const payload = `${String(input.method || 'POST').toUpperCase()}\n${input.path}\n${query}`
+  return crypto.createHmac('sha256', input.secret).update(payload).digest('hex')
+}
+
+function parseStandardEventData(input: unknown): Record<string, unknown> {
+  if (typeof input !== 'string') {
+    return input && typeof input === 'object' && !Array.isArray(input)
+      ? input as Record<string, unknown>
+      : {}
+  }
+  try {
+    const parsed = JSON.parse(input)
+    return parsed && typeof parsed === 'object' && !Array.isArray(parsed)
+      ? parsed as Record<string, unknown>
+      : {}
+  } catch {
+    throw new Error('Invalid pusher event data')
+  }
+}
+
 function timingSafeEqualString(left: string, right: string): boolean {
   const leftBuffer = Buffer.from(left)
   const rightBuffer = Buffer.from(right)
@@ -231,6 +293,13 @@ function normalizeStringArray(input: unknown): string[] {
     return []
   }
   return Array.from(new Set(input.map((item) => String(item || '').trim()).filter(Boolean)))
+}
+
+function normalizePusherEventChannels(body: Record<string, unknown>): string[] {
+  const channels = normalizeStringArray(body.channels)
+  if (channels.length > 0) return channels
+  const channel = String(body.channel || '').trim()
+  return channel ? [channel] : []
 }
 
 function maskSecret(secret: string): string {
@@ -696,7 +765,7 @@ export class PusherService {
     if (channels.length === 0) {
       throw new Error('Pusher channels are required')
     }
-    if (channels.length > 20) {
+    if (channels.length > 100) {
       throw new Error('Too many pusher channels')
     }
     const patterns = parseJsonArray(app.channelPatternsJson)
@@ -774,6 +843,78 @@ export class PusherService {
       channels,
       persisted: persist,
     }
+  }
+
+  async publishStandard(input: PusherStandardPublishInput): Promise<PusherPublishResult> {
+    const app = await this.requireActiveApp(input.appId)
+    const authKey = String(input.authKey || '').trim()
+    const authTimestamp = String(input.authTimestamp || '').trim()
+    const authVersion = String(input.authVersion || '').trim()
+    const bodyMd5 = String(input.bodyMd5 || '').trim().toLowerCase()
+    const path = input.path || `/apps/${input.appId}/events`
+
+    if (authKey !== app.key) {
+      throw new Error('Invalid pusher key')
+    }
+    if (authVersion !== '1.0') {
+      throw new Error('Invalid pusher version')
+    }
+
+    const timestamp = Number(authTimestamp)
+    if (!Number.isInteger(timestamp) || Math.abs(Date.now() - timestamp * 1000) > DEFAULT_SIGNATURE_SKEW_MS) {
+      throw new Error('Invalid pusher timestamp')
+    }
+
+    const expectedBodyMd5 = crypto.createHash('md5').update(input.rawBody, 'utf8').digest('hex')
+    if (!timingSafeEqualString(bodyMd5, expectedBodyMd5)) {
+      throw new Error('Invalid pusher body')
+    }
+
+    const secret = decryptPusherAppSecret(app.secretCiphertext)
+    const expectedSignature = buildPusherStandardSignature({
+      method: input.method || 'POST',
+      path,
+      authKey,
+      authTimestamp,
+      authVersion,
+      bodyMd5,
+      secret,
+    })
+    if (!timingSafeEqualString(String(input.authSignature || '').trim(), expectedSignature)) {
+      throw new Error('Invalid pusher signature')
+    }
+
+    const name = String(input.body.name || '').trim()
+    if (!name) {
+      throw new Error('Pusher event name is required')
+    }
+    const channels = normalizePusherEventChannels(input.body)
+    if (channels.length === 0) {
+      throw new Error('Pusher channels are required')
+    }
+    if (channels.length > 100) {
+      throw new Error('Too many pusher channels')
+    }
+
+    const body = {
+      eventId: `pusher-${crypto.createHash('sha256').update(`${authTimestamp}.${input.rawBody}`, 'utf8').digest('hex')}`,
+      type: name,
+      channels,
+      data: parseStandardEventData(input.body.data),
+      source: app.appId,
+      persist: false,
+    }
+    return this.publish({
+      appId: input.appId,
+      key: authKey,
+      timestamp: new Date(timestamp * 1000).toISOString(),
+      signature: buildPusherPublishSignature({
+        timestamp: new Date(timestamp * 1000).toISOString(),
+        body,
+        secret,
+      }),
+      body,
+    })
   }
 
   async listBacklog(input: {

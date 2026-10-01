@@ -54,6 +54,29 @@ async function signedAdminAction(req: Request, action: string, payload: unknown,
 export function registerPublicPusherRoutes(app: Express) {
   const service = new PusherService()
 
+  app.post('/apps/:appId/events', async (req: Request, res: Response) => {
+    try {
+      const rawBody = (req as Request & { rawBody?: Buffer }).rawBody?.toString('utf8')
+        || JSON.stringify(req.body || {})
+      const result = await service.publishStandard({
+        appId: req.params.appId,
+        authKey: String(req.query.auth_key || '').trim(),
+        authTimestamp: String(req.query.auth_timestamp || '').trim(),
+        authVersion: String(req.query.auth_version || '').trim(),
+        bodyMd5: String(req.query.body_md5 || '').trim(),
+        authSignature: String(req.query.auth_signature || '').trim(),
+        body: req.body && typeof req.body === 'object' && !Array.isArray(req.body) ? req.body : {},
+        rawBody,
+        method: req.method,
+        path: `/apps/${req.params.appId}/events`,
+      })
+      res.json({ ok: true })
+    } catch (error) {
+      const mapped = mapPusherError(error)
+      res.status(mapped.status).json({ error: mapped.message })
+    }
+  })
+
   app.post('/api/v1/public/pusher/apps/:appId/events', async (req: Request, res: Response) => {
     try {
       const result = await service.publish({

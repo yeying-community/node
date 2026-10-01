@@ -111,7 +111,33 @@ php artisan pusher:smoke \
 
 通过标准：Node 返回 HTTP 200，响应中 `code=0` 且 `data.accepted=true`。这只证明 Project 服务端凭据、签名和 Node publish API 可用；业务是否生效，还需要确认真实业务动作已经调用 Project publish client，并且订阅方正在监听对应 channel。
 
-一期原生 HTTP publish 不依赖 Laravel `BROADCAST_DRIVER=pusher`，Project 可以继续保持 `BROADCAST_DRIVER=log`。只有后续启用 Pusher-compatible HTTP / WebSocket 时，才需要评估 Laravel Broadcasting 配置。
+这个 smoke 命令验证的是 Node 原生 publish 接口和签名，不依赖 Laravel `BROADCAST_DRIVER=pusher`。
+
+## Laravel Pusher 标准 HTTP 接入
+
+Project 使用 Laravel `pusher/pusher-php-server` 时，将 Pusher driver 的 host 指向 Node：
+
+```env
+BROADCAST_DRIVER=pusher
+PUSHER_APP_ID=project
+PUSHER_APP_KEY=pk_...
+PUSHER_APP_SECRET=ps_...
+PUSHER_APP_HOST=node.example.com
+PUSHER_APP_SCHEME=https
+PUSHER_APP_PORT=443
+```
+
+Node 提供标准入口 `POST /apps/{appId}/events`，校验 `auth_key`、`auth_timestamp`、
+`auth_version`、`body_md5` 和 `auth_signature`。Project 不需要改动原有 Laravel 广播事件。
+当前只兼容服务端 HTTP publish；`pusher-js` / Laravel Echo 所需的 Pusher WebSocket 仍需后续实现。
+
+`PUSHER_APP_HOST` 只填写主机名，不要填写 `/api/v1` 路径。Node 的标准兼容入口位于根路径。
+
+这只启用 Laravel Pusher broadcaster 的服务端 HTTP 发布能力，不会自动把 Project 的
+Swoole `PushTask` 改道到 Node。Project 当前仍使用 `BROADCAST_DRIVER=log`，代码中没有
+`ShouldBroadcast` 广播事件；要实际产生 Laravel 广播流量，仍需由业务代码显式使用
+Laravel Broadcasting。现有 `pusher:smoke` 命令走的是 Project 原生 Node Pusher API，
+不验证 Laravel SDK 的标准协议链路。
 
 ## 写入 Channel ACL
 
