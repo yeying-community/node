@@ -351,6 +351,49 @@ const document = {
           redirectUri: { type: 'string', format: 'uri' },
         },
       },
+      IdentityCredentialPresentation: {
+        type: 'object',
+        required: ['type', 'credentialId', 'credential'],
+        properties: {
+          type: { type: 'string', examples: ['EmailCredential'], description: '凭证类型。' },
+          credentialId: { type: 'string', examples: ['urn:yeying:credential:email:...'] },
+          credential: { type: 'string', description: 'compact JWT-VC。' },
+        },
+      },
+      IdentityUcanSession: {
+        type: 'object',
+        required: ['sessionToken', 'issuerDid', 'issuedAt', 'expiresAt'],
+        properties: {
+          sessionToken: { type: 'string', description: '不透明的短期资源授权会话令牌，不是身份凭证或 JWT。' },
+          issuerDid: { type: 'string', examples: ['did:key:...'] },
+          issuedAt: { type: 'integer', format: 'int64' },
+          expiresAt: { type: 'integer', format: 'int64' },
+        },
+      },
+      IdentityAuthorizeExchangeResult: {
+        type: 'object',
+        required: ['did', 'walletAddress', 'scopes', 'credentials'],
+        description:
+          '钱包身份授权码兑换结果。不包含 subjectId、sub_xxx 或 Passport assertion。',
+        properties: {
+          did: ref('IdentityDid'),
+          walletAddress: { type: 'string', pattern: '^0x[0-9a-fA-F]{40}$' },
+          scopes: { type: 'array', items: { type: 'string' } },
+          credentials: { type: 'array', items: ref('IdentityCredentialPresentation') },
+          ucanSession: {
+            allOf: [ref('IdentityUcanSession')],
+            description: '仅当 exchange 请求显式传入 issueUcanSession: true 时返回，供应用按目标后端调用 /api/v1/public/auth/central/issue。',
+          },
+          refreshToken: { type: 'string', description: '轮换式刷新令牌，服务端只保存 SHA-256 哈希；不是 UCAN，不能直接访问 Router 或 WebDAV。' },
+          refreshExpiresAt: { type: 'integer', format: 'int64', description: '刷新令牌过期时间，默认 30 天（identity.session.refreshTtlMs，最大 180 天）。' },
+        },
+      },
+      IdentityAuthorizeExchangeResultEnvelope: {
+        allOf: [
+          ref('Envelope'),
+          { type: 'object', properties: { data: ref('IdentityAuthorizeExchangeResult') } },
+        ],
+      },
       CustodyStatus: {
         type: 'object',
         properties: {
@@ -623,6 +666,11 @@ for (const [method, route, tag, summary, auth, bodySchema, sse] of operations) {
 document.paths['/api/v1/public/custody/status'].get.responses[200] = {
   description: '身份 Passkey 和托管记录状态',
   content: jsonContent(ref('CustodyStatusEnvelope')),
+}
+
+document.paths['/api/v1/public/identity/authorize/exchange'].post.responses[200] = {
+  description: '钱包身份授权码兑换结果',
+  content: jsonContent(ref('IdentityAuthorizeExchangeResultEnvelope')),
 }
 
 const rendered = YAML.stringify(document, { lineWidth: 0 })
