@@ -49,6 +49,8 @@ Node Pusher 的价值在于社区级事件和通知控制面，而不是把 Proj
 
 不建议一开始把 Project 所有高频任务字段变更双发到 Node Pusher。应先选择少量跨应用有价值、幂等清晰、不会造成重复通知的事件，例如 `project.task.assigned`、`project.task.due_changed`、`project.mention.created`、`project.file.shared`。
 
+不适合接入的场景包括同一应用内部页面刷新、输入状态/光标等高频临时数据，以及要求顺序消费、失败重试和业务确认的后台任务。前两者继续使用应用已有 WebSocket；后台任务使用队列或 transactional outbox，Pusher 只承接事件广播，不能作为可靠任务队列。
+
 ## 3. 名词边界
 
 ### 3.1 Pusher SaaS
@@ -396,6 +398,7 @@ auth_signature
 当前已实现 `POST /apps/:appId/events`。它使用 Pusher Channels 的查询参数签名和
 `body_md5` 校验，并将 `name`、`channel`/`channels`、JSON 字符串 `data` 转换到 Node 内部事件模型。
 Laravel 只需要把 Pusher driver 的 `host` 指向 Node；Project 原有业务广播代码无需改动。
+该兼容入口当前用于普通实时广播，不接受 Node 原生协议的 `eventId`、`persist`、`notification`、`recipients` 扩展字段；需要通知中心、Webhook/Email 投递或调用方幂等键时，使用 Node 原生 publish API。
 
 ### 8.4 Pusher-compatible WebSocket
 
@@ -465,6 +468,8 @@ Node Pusher 会长期保留两套接入形态，但它们解决的问题不同�
 #### 8.5.2 Pusher-compatible WebSocket
 
 Pusher-compatible 方案是为了兼容 Laravel / pusher-js / Laravel Echo 生态：
+
+当前 Node 只实现了 Laravel broadcaster 所需的 Pusher HTTP publish。下列 WebSocket 连接、浏览器 `pusher-js` / Laravel Echo 订阅和 presence 能力仍是后续目标，当前不可按已支持能力部署。
 
 ```text
 Laravel broadcast -> Pusher-compatible HTTP API -> Node Pusher
