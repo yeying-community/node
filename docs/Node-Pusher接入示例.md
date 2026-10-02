@@ -2,13 +2,43 @@
 
 本文给 Project、Router、Warehouse 等社区项目提供 Node Pusher 一期接入示例。
 
-一期推荐使用 Node 原生协议：
+服务端发布按应用现状选择协议：
 
-- 服务端发布：`POST /api/v1/public/pusher/apps/:appId/events`
-- 前端订阅：`GET /api/v1/public/pusher/apps/:appId/stream`
-- 签名方式：`x-pusher-key` + `x-pusher-timestamp` + `x-pusher-signature`
-- 私有用户频道：`private-user.<wallet-address-or-node-subject>`
-- 应用私有频道：`private-<application-defined-resource>`，例如 `private-workspace.<workspaceId>`
+- Laravel 已使用 Laravel Broadcasting：使用 Pusher-compatible HTTP `POST /apps/{appId}/events`，无需改造已有广播事件的发布实现。
+- 其它服务端或需要 Node 专有通知字段：使用 Node 原生 `POST /api/v1/public/pusher/apps/:appId/events`，由 `x-pusher-key`、`x-pusher-timestamp`、`x-pusher-signature` 签名。
+- 当前客户端订阅优先使用 SSE：`GET /api/v1/public/pusher/apps/:appId/stream`。
+- 私有用户频道：`private-user.<wallet-address-or-node-subject>`；应用私有频道：`private-<application-defined-resource>`，例如 `private-workspace.<workspaceId>`。
+
+## 什么时候接入
+
+Node Pusher 用于把业务事件从一个应用发布给多个订阅者。它适合跨应用扇出、统一通知或需要在线订阅与断线回放的事件；它不是业务 API、任务队列或数据库事务的替代品。
+
+| 场景 | 建议 |
+| --- | --- |
+| 同一应用页面内的任务、看板、讨论即时刷新 | 继续使用该应用已有 WebSocket；无需仅为刷新页面接入 Node Pusher |
+| Router、Warehouse、移动应用或 Node 通知中心需要订阅某应用的业务变化 | 接入 Node Pusher，按业务事件发布，不暴露内部模型变更 |
+| 事件需要统一收件箱、Webhook 或 Email | 接入 Node Pusher；当前使用 Node 原生发布 API 传递 `eventId`、`persist`、`notification` 等 Node 专有字段 |
+| 事件需要通过 SSE 在线订阅和游标回放 | 接入 Node Pusher；按用户/资源权限配置 private channel 和 ACL |
+| 输入状态、光标、presence 等高频临时状态 | 保留现有 WebSocket；当前 Node 不支持 Pusher WebSocket、presence 或 client event |
+| 要求可靠执行、顺序处理或明确消费确认的后台任务 | 使用队列或 transactional outbox；Pusher 负责通知/扇出，消费者仍须幂等，不能把它当任务队列 |
+| 浏览器必须直接使用 `pusher-js` / Laravel Echo 连接 Node | 暂不接入该订阅方式；Node 尚未实现 Pusher WebSocket，可先使用 Node SSE |
+
+### 选择接入协议
+
+| 应用或客户端 | 发布 / 订阅方式 |
+| --- | --- |
+| Laravel 服务端已有 Laravel Broadcasting 事件，且只需发布普通实时事件 | 官方 `pusher/pusher-php-server` 发布到标准 `POST /apps/{appId}/events`；浏览器暂用 Node SSE 订阅 |
+| 需要 Node 专有的稳定 `eventId`、通知中心、Webhook/Email 投递，或非 Laravel 服务端 | Node 原生 `POST /api/v1/public/pusher/apps/:appId/events`，使用 Node 原生签名 |
+| 浏览器或服务端订阅 Node 事件 | Node SSE；私有频道使用 Node 登录令牌和 channel ACL |
+| 已有 Project 内部 Swoole `PushTask` 流程 | 原样保留；只有跨应用事件另行发布到 Node |
+
+## 应用接入步骤
+
+1. 先定义业务事件名、发布时机、channel、接收方及事件是否需要通知中心投递。推送只提示状态变化，客户端仍应通过业务 API 查询权威数据。
+2. 为每个应用创建独立 Pusher App 凭据，并把 `channelPatterns` 限制到该应用实际需要的范围。`secret` 只保存在服务端密钥或部署配置中。
+3. 根据上表选 Node 原生 API 或标准 Pusher HTTP API，不要把两种签名格式混用。
+4. 明确订阅侧身份与私有频道 ACL；浏览器不得持有 app secret。通知中心、Email 或 Webhook 只对明确需要离线投递的事件启用。
+5. 先用一个低频、可幂等的事件联调发布、订阅和权限，再逐步扩大事件范围；避免同一用户可见通知由旧 WebSocket 和 Node 各生成一份。
 
 ## Project 接入判断
 
@@ -102,7 +132,7 @@ Content-Type: application/json
 Project 服务端配置好 Node Pusher 凭据后，先验证服务端能发布到 Node：
 
 ```bash
-php artisan pusher:smoke \
+./cmd artisan pusher:smoke \
   --channel=public-project-smoke \
   --type=project.smoke \
   --persist=1 \
@@ -111,7 +141,59 @@ php artisan pusher:smoke \
 
 通过标准：Node 返回 HTTP 200，响应中 `code=0` 且 `data.accepted=true`。这只证明 Project 服务端凭据、签名和 Node publish API 可用；业务是否生效，还需要确认真实业务动作已经调用 Project publish client，并且订阅方正在监听对应 channel。
 
-一期原生 HTTP publish 不依赖 Laravel `BROADCAST_DRIVER=pusher`，Project 可以继续保持 `BROADCAST_DRIVER=log`。只有后续启用 Pusher-compatible HTTP / WebSocket 时，才需要评估 Laravel Broadcasting 配置。
+这个 smoke 命令验证的是 Node 原生 publish 接口和签名，不依赖 Laravel `BROADCAST_DRIVER=pusher`。
+
+## Laravel Pusher 标准 HTTP 接入
+
+Project 使用 Laravel `pusher/pusher-php-server` 时，将 Pusher driver 的 host 指向 Node：
+
+当前 Project 分支已在 `composer.json` / `composer.lock` 声明该 SDK。同步依赖后，在 Project 仓库根目录执行：
+
+```bash
+./cmd composer install
+```
+
+生产发布环境安装锁定依赖时使用：
+
+```bash
+./cmd composer install --no-dev --optimize-autoloader
+```
+
+只有在其它分支或项目尚未声明此依赖时，才需要添加依赖并更新锁文件：
+
+```bash
+./cmd composer require pusher/pusher-php-server:^7.0
+```
+
+已有 `composer.lock` 时不要重复执行 `require`，用 `install` 安装已锁定版本。
+
+```env
+BROADCAST_DRIVER=pusher
+PUSHER_APP_ID=project
+PUSHER_APP_KEY=pk_...
+PUSHER_APP_SECRET=ps_...
+PUSHER_APP_HOST=node.example.com
+PUSHER_APP_SCHEME=https
+PUSHER_APP_PORT=443
+```
+
+Node 提供标准入口 `POST /apps/{appId}/events`，校验 `auth_key`、`auth_timestamp`、
+`auth_version`、`body_md5` 和 `auth_signature`，支持单频道 `channel` 和多频道 `channels` 发布。
+当前不支持 `/batch_events`、Pusher WebSocket、presence channel 或 client event；
+`pusher-js` / Laravel Echo 所需的 WebSocket 仍需后续实现。
+
+`PUSHER_APP_HOST` 只填写主机名，不要填写 `/api/v1` 路径。Node 的标准兼容入口位于根路径。
+Node 前的反向代理也必须把 `/apps/` 转发到 Node 服务。
+
+这只启用 Laravel Pusher broadcaster 的服务端 HTTP 发布能力，不会自动把 Project 的
+Swoole `PushTask` 改道到 Node。Project 当前仍使用 `BROADCAST_DRIVER=log`，代码中没有
+`ShouldBroadcast` 广播事件；要实际产生 Laravel 广播流量，仍需由业务代码显式使用
+Laravel Broadcasting。标准端点当前不会读取 Node 原生协议的 `eventId`、`persist`、
+`notification`、`recipients` 扩展字段，也不会创建通知中心投递；需要这些能力时应调用
+Node 原生 API。现有 `pusher:smoke` 命令走的是 Project 原生 Node Pusher API，
+不验证 Laravel SDK 的标准协议链路。
+
+Project 不使用 Laravel Queue。标准协议联调应使用 `ShouldBroadcastNow`，并在业务事务提交后触发；不要为实时推送引入 queued `ShouldBroadcast` job。Project 当前 `.env` 仍是 `BROADCAST_DRIVER=log`。启用 Laravel driver 前，需准备 Node 中该 app 的 `appId`、`key`、`secret`，配置上面的 host/scheme/port，再通过同步广播事件完成标准协议联调。修改配置后执行 `./cmd php restart`。不要把 `BROADCAST_DRIVER=pusher` 当作把 `PushTask` 自动迁移到 Node 的开关。
 
 ## 写入 Channel ACL
 

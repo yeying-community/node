@@ -424,7 +424,11 @@ builder.build().initialize().then(async (conn) => {
     app.use(cors(buildCorsOptions(getConfig<AppRuntimeConfig>('app'))));
 
     // 设置 JSON 解析中间件
-    app.use(express.json());
+    app.use(express.json({
+        verify: (req, _res, buffer) => {
+            (req as Request & { rawBody?: Buffer }).rawBody = Buffer.from(buffer)
+        },
+    }));
     registerApiRequestLogger(app);
 
     // Agent Runtime owns Project install/upgrade/uninstall and runtime task APIs.

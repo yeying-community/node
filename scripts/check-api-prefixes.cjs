@@ -11,6 +11,7 @@ const ROOT_PROTOCOL_ROUTES = new Set([
   '/.well-known/openid-credential-issuer',
   '/identity/authorize',
 ]);
+const ROOT_PROTOCOL_PREFIXES = ['/apps/'];
 const HTTP_METHOD_PATTERN = /(?:^|\s)app\.(get|post|put|patch|delete|all)\s*\(\s*([^,\n]+)/g;
 const CONST_STRING_PATTERN = /const\s+([A-Za-z0-9_]+)\s*=\s*['"]([^'"]+)['"]/g;
 
@@ -76,7 +77,9 @@ function main() {
       if (!resolvedPath) {
         continue;
       }
-      if (!resolvedPath.startsWith(EXPECTED_PREFIX) && !ROOT_PROTOCOL_ROUTES.has(resolvedPath)) {
+      const isRootProtocolRoute = ROOT_PROTOCOL_ROUTES.has(resolvedPath)
+        || ROOT_PROTOCOL_PREFIXES.some((prefix) => resolvedPath.startsWith(prefix));
+      if (!resolvedPath.startsWith(EXPECTED_PREFIX) && !isRootProtocolRoute) {
         violations.push({
           filePath,
           method,

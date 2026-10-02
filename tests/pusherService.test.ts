@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
+import crypto from 'crypto'
 
 vi.mock('../src/security/secretVault', () => ({
   getDerivedRuntimeSecret: () => 'pusher-app-master-key-for-test',
@@ -11,6 +12,7 @@ vi.mock('../src/domain/service/pusherEvents', () => ({
 
 import {
   buildPusherPublishSignature,
+  buildPusherStandardSignature,
   decryptPusherAppSecret,
   encryptPusherAppSecret,
   PusherService,
@@ -41,6 +43,90 @@ describe('pusher service helpers', () => {
       secret: 'ps_secret-value-123',
     })
     expect(signature).toBe('sha256=d76205d19074f16bb3177375908afbfa4d8f5f7401266fd66a71e3d03ac944e2')
+  })
+
+  it('accepts standard Pusher HTTP publish signatures and converts the payload', async () => {
+    const dataSource = createInMemoryDataSource()
+    SingletonDataSource.set(dataSource as any)
+    const service = new PusherService()
+    const created = await service.createApp({
+      appId: 'project-standard',
+      channelPatterns: ['public-*'],
+    })
+    const body = {
+      name: 'task.updated',
+      channels: ['public-project'],
+      data: JSON.stringify({ taskId: 123, status: 'done' }),
+      socket_id: '123.456',
+    }
+    const rawBody = JSON.stringify(body)
+    const authTimestamp = Math.floor(Date.now() / 1000).toString()
+    const bodyMd5 = crypto.createHash('md5').update(rawBody).digest('hex')
+    const authSignature = buildPusherStandardSignature({
+      path: '/apps/project-standard/events',
+      authKey: created.key,
+      authTimestamp,
+      authVersion: '1.0',
+      bodyMd5,
+      secret: created.secret,
+    })
+
+    await expect(service.publishStandard({
+      appId: 'project-standard',
+      authKey: created.key,
+      authTimestamp,
+      authVersion: '1.0',
+      bodyMd5,
+      authSignature,
+      body,
+      rawBody,
+      path: '/apps/project-standard/events',
+    })).resolves.toMatchObject({
+      accepted: true,
+      channels: ['public-project'],
+      persisted: false,
+    })
+  })
+
+  it('accepts the singular channel field used by the Laravel Pusher SDK', async () => {
+    const dataSource = createInMemoryDataSource()
+    SingletonDataSource.set(dataSource as any)
+    const service = new PusherService()
+    const created = await service.createApp({
+      appId: 'project-single-channel',
+      channelPatterns: ['public-*'],
+    })
+    const body = {
+      name: 'task.updated',
+      channel: 'public-project',
+      data: JSON.stringify({ taskId: 456 }),
+    }
+    const rawBody = JSON.stringify(body)
+    const authTimestamp = Math.floor(Date.now() / 1000).toString()
+    const bodyMd5 = crypto.createHash('md5').update(rawBody).digest('hex')
+    const authSignature = buildPusherStandardSignature({
+      path: '/apps/project-single-channel/events',
+      authKey: created.key,
+      authTimestamp,
+      authVersion: '1.0',
+      bodyMd5,
+      secret: created.secret,
+    })
+
+    await expect(service.publishStandard({
+      appId: 'project-single-channel',
+      authKey: created.key,
+      authTimestamp,
+      authVersion: '1.0',
+      bodyMd5,
+      authSignature,
+      body,
+      rawBody,
+      path: '/apps/project-single-channel/events',
+    })).resolves.toMatchObject({
+      accepted: true,
+      channels: ['public-project'],
+    })
   })
 
   it('creates one pusher app per application uid', async () => {
