@@ -72,7 +72,7 @@ vi.mock('../src/domain/service/application', () => ({
         ucanAudience: projectUcanPolicy.audience,
         ucanCapabilities: projectUcanPolicy.capabilities,
       }
-      if (uid === 'desktop') return { uid, name: 'Chat Desktop', redirectUris: 'chat://localhost/central-ucan-callback.html' }
+      if (uid === 'desktop') return { uid, name: 'Chat Desktop', redirectUris: 'https://chat.yeying.pub/central-ucan-desktop-callback.html' }
       return null
     }
     async search() {
@@ -80,7 +80,7 @@ vi.mock('../src/domain/service/application', () => ({
         data: [
           { uid: 'wallet', name: 'Wallet', redirectUris: 'chrome-extension://lklhmjkaigpbnfchejbkmkfpkibmnjgf' },
           { uid: 'project', name: 'Project', redirectUris: JSON.stringify(['https://project.example/auth/callback', 'http://localhost:3020/central-ucan-callback.html']) },
-          { uid: 'desktop', name: 'Chat Desktop', redirectUris: 'chat://localhost/central-ucan-callback.html' }
+          { uid: 'desktop', name: 'Chat Desktop', redirectUris: 'https://chat.yeying.pub/central-ucan-desktop-callback.html' }
         ],
         page: { page: 1, pageSize: 1000, total: 3 }
       }
@@ -166,9 +166,9 @@ describe('identity authorization', () => {
     await expect(service.validateClient({ appId: 'project', redirectUri: 'https://other.example/callback' })).rejects.toThrow('IDENTITY_REDIRECT_URI_UNAUTHORIZED')
   })
 
-  it('uses the chat deep-link origin as the desktop presentation audience', async () => {
+  it('uses the registered HTTPS origin as the desktop presentation audience', async () => {
     const service = new IdentityAuthorizationService()
-    const redirectUri = 'chat://localhost/central-ucan-callback.html'
+    const redirectUri = 'https://chat.yeying.pub/central-ucan-desktop-callback.html'
     await expect(service.validateClient({ appId: 'desktop', redirectUri })).resolves.toMatchObject({
       appId: 'desktop',
       redirectUri,
@@ -177,14 +177,16 @@ describe('identity authorization', () => {
     const request = await service.create({
       appId: 'desktop',
       redirectUri,
+      clientType: 'desktop',
       codeChallenge: 'd'.repeat(43),
       codeChallengeMethod: 'S256',
       scopes: ['identity.basic'],
     })
-    expect(request.audience).toBe('chat://localhost')
+    expect(request.clientType).toBe('desktop')
+    expect(request.audience).toBe('https://chat.yeying.pub')
     await expect(service.create({
       appId: 'desktop',
-      redirectUri: 'chat://attacker/central-ucan-callback.html',
+      redirectUri: 'https://attacker.example/central-ucan-callback.html',
       codeChallenge: 'e'.repeat(43),
       codeChallengeMethod: 'S256',
     })).rejects.toThrow('IDENTITY_REDIRECT_URI_UNAUTHORIZED')

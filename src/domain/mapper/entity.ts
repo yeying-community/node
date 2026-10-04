@@ -305,6 +305,7 @@ export class IdentityAuthorizationRequestDO {
     @PrimaryColumn({ length: 128, name: 'request_id' }) requestId!: string
     @Column({ length: 128, name: 'app_id' }) appId!: string
     @Column({ type: 'text', name: 'redirect_uri' }) redirectUri!: string
+    @Column({ length: 16, name: 'client_type', default: 'web' }) clientType!: string
     @Column({ length: 256, default: '' }) state!: string
     @Column({ length: 256, name: 'code_challenge' }) codeChallenge!: string
     @Column({ length: 16, name: 'code_challenge_method', default: 'S256' }) codeChallengeMethod!: string
