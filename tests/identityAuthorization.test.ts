@@ -200,6 +200,7 @@ describe('identity authorization', () => {
     await SingletonDataSource.get()!.getRepository(IdentityCredentialDO).save(Object.assign(new IdentityCredentialDO(), { credentialId: 'avatar-1', identityDid: identity, credentialType: 'AvatarCredential', token: 'avatar-credential', status: 'active', issuedAt: new Date().toISOString(), expiresAt: new Date(Date.now() + 60_000).toISOString(), revokedAt: '' }))
     const approved = await service.approve({ requestId: request.requestId, presentation: presentation(request) })
     const exchanged = await service.exchange({ code: approved.authorizationCode, appId: 'project', redirectUri: 'https://project.example/auth/callback', codeVerifier: verifier, issueUcanSession: true })
+    await expect(service.get(request.requestId)).resolves.toMatchObject({ status: 'completed' })
     expect(exchanged.did).toBe(identity)
     expect(exchanged.credentials).toEqual(expect.arrayContaining([
       { type: 'EmailCredential', credentialId: 'email-1', credential: 'credential' },

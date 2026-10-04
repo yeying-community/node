@@ -190,9 +190,17 @@ function clearRedirectTimers() {
   redirectCountdown.value = 0
 }
 
+function clearCompletionTimer() {
+  if (completionTimer !== null) {
+    window.clearTimeout(completionTimer)
+    completionTimer = null
+  }
+}
+
 function startRedirect(redirectTo: string) {
   if (!redirectTo) return
   clearRedirectTimers()
+  clearCompletionTimer()
   redirectCountdown.value = 2
   countdownTimer = window.setInterval(() => {
     if (redirectCountdown.value <= 1) {
@@ -208,6 +216,7 @@ function startRedirect(redirectTo: string) {
   redirectTimer = window.setTimeout(() => {
     window.location.href = redirectTo
   }, 2000)
+  if (isDesktopRedirect(redirectTo)) watchCompletion()
 }
 
 function isDesktopRedirect(value: string) {
@@ -216,6 +225,34 @@ function isDesktopRedirect(value: string) {
   } catch {
     return false
   }
+}
+
+let completionTimer: number | null = null
+function watchCompletion() {
+  let attempts = 0
+  const poll = async () => {
+    try {
+      const response = await fetch(
+        apiUrl(`/api/v1/public/identity/authorize/request/${encodeURIComponent(requestId.value)}`),
+        { credentials: 'include' }
+      )
+      const data = await parseEnvelope<IdentityAuthorizeRequestInfo>(response, t('identity_auth_read_failed'))
+      if (data.status === 'completed') {
+        try {
+          window.open('', '_self')?.close()
+          window.close()
+        } catch {
+          // The browser may require the user to close externally opened tabs.
+        }
+        setHint('success', t('identity_auth_success_redirect'))
+        return
+      }
+    } catch {
+      // Keep polling while the desktop app completes the exchange.
+    }
+    if (++attempts < 120) completionTimer = window.setTimeout(poll, 500)
+  }
+  completionTimer = window.setTimeout(poll, 500)
 }
 
 function buildRedirectUrl(baseUrl: string, params: Record<string, string>) {
@@ -409,6 +446,7 @@ onMounted(async () => {
 
 onBeforeUnmount(() => {
   clearRedirectTimers()
+  clearCompletionTimer()
   if (clockTimer !== null) {
     window.clearInterval(clockTimer)
   }

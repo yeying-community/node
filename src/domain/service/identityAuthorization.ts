@@ -499,6 +499,13 @@ export class IdentityAuthorizationService {
       : undefined
     row.used = true
     row.usedAt = now()
+    const requestRepo = dataSource().getRepository(IdentityAuthorizationRequestDO)
+    const request = await requestRepo.findOneBy({ requestId: row.requestId })
+    if (request) {
+      request.status = 'completed'
+      request.updatedAt = row.usedAt
+      await requestRepo.save(request)
+    }
     await repo.save(row)
     return {
       requestId: row.requestId,
