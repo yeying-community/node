@@ -603,6 +603,15 @@ export class IdentityAuthorizationService {
     }
   }
 
+  async exchangeByRequest(input: { requestId: unknown; appId: unknown; redirectUri: unknown; codeVerifier: unknown; issueUcanSession?: unknown }) {
+    const request = await dataSource().getRepository(IdentityAuthorizationRequestDO).findOneBy({ requestId: string(input.requestId) })
+    if (!request || request.appId !== string(input.appId) || request.redirectUri !== string(input.redirectUri)) throw new Error('IDENTITY_AUTHORIZATION_REQUEST_NOT_FOUND')
+    if (request.status !== 'approved') throw new Error('IDENTITY_AUTHORIZATION_REQUEST_PENDING')
+    const code = await dataSource().getRepository(IdentityAuthorizationCodeDO).findOneBy({ requestId: request.requestId, used: false })
+    if (!code) throw new Error('IDENTITY_AUTHORIZATION_REQUEST_PENDING')
+    return this.exchange({ ...input, code: code.code })
+  }
+
   async revokeSession(input: { refreshToken: unknown; appId: unknown; redirectUri: unknown }) {
     const refreshToken = string(input.refreshToken)
     const appId = string(input.appId)
