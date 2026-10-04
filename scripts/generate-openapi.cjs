@@ -302,6 +302,7 @@ const document = {
         properties: {
           appId: { type: 'string' },
           redirectUri: { type: 'string', format: 'uri' },
+          clientType: { type: 'string', enum: ['web', 'desktop'] },
           state: { type: 'string' },
           scopes: { type: 'array', items: { type: 'string', enum: ['identity.basic', 'identity.wallet', 'identity.username', 'identity.email', 'identity.avatar'] } },
           scope: { type: 'array', items: { type: 'string', enum: ['identity.basic', 'identity.wallet', 'identity.username', 'identity.email', 'identity.avatar'] } },
