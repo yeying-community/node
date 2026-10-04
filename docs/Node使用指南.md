@@ -134,10 +134,10 @@ Node 自身的应用中心登录是钱包签名 / UCAN 自举登录，不依赖�
 
 ```text
 https://chat.example.com/central-ucan-callback.html
-chat://localhost/central-ucan-callback.html
+https://chat.yeying.pub/central-ucan-desktop-callback.html
 ```
 
-本地 Web 开发可将第一项替换为 `http://localhost:3020/central-ucan-callback.html`。桌面 Chat 固定使用 `chat://localhost/central-ucan-callback.html`；`https://tauri.localhost/...` 是 Tauri WebView 内部 origin，不应登记为外部授权回调。授权请求中的 `redirectUri` 必须与已登记的一项逐字符一致，不支持通配符。
+本地 Web 开发可将第一项替换为 `http://localhost:3020/central-ucan-callback.html`。桌面 Chat 使用 `clientType=desktop`，不会通过 redirectUri 回跳；`https://tauri.localhost/...` 是 Tauri WebView 内部 origin，不应登记为外部授权地址。授权请求中的 `redirectUri` 仍必须与已登记的一项逐字符一致，不支持通配符。
 
 钱包身份相关公共接口：
 

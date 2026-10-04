@@ -24,7 +24,7 @@ export function registerPublicIdentityAuthorizationRoutes(app: Express) {
     try { res.json(ok(await service.validateClient({ appId: req.body?.appId, redirectUri: req.body?.redirectUri }))) } catch (error) { handle(error, res) }
   })
   app.post('/api/v1/public/identity/authorize/request', async (req: Request, res: Response) => {
-    try { res.json(ok(await service.create({ appId: req.body?.appId, redirectUri: req.body?.redirectUri, state: req.body?.state, codeChallenge: req.body?.codeChallenge ?? req.body?.code_challenge, codeChallengeMethod: req.body?.codeChallengeMethod ?? req.body?.code_challenge_method, scopes: req.body?.scopes ?? req.body?.scope }))) } catch (error) { handle(error, res) }
+    try { res.json(ok(await service.create({ appId: req.body?.appId, redirectUri: req.body?.redirectUri, clientType: req.body?.clientType ?? req.body?.client_type, state: req.body?.state, codeChallenge: req.body?.codeChallenge ?? req.body?.code_challenge, codeChallengeMethod: req.body?.codeChallengeMethod ?? req.body?.code_challenge_method, scopes: req.body?.scopes ?? req.body?.scope }))) } catch (error) { handle(error, res) }
   })
   app.post('/api/v1/public/identity/actions/challenge', async (req: Request, res: Response) => {
     try { res.json(ok(await createIdentityActionChallenge({ identity: req.body?.identity, action: req.body?.action, audience: req.body?.audience, payload: req.body?.payload }))) } catch (error) { handle(error, res) }
@@ -111,29 +111,8 @@ let passkeyChallenge;
 let challengeRefreshTimer;
 function b64ToBuf(value){const s=String(value||'').replace(/-/g,'+').replace(/_/g,'/');const bin=atob(s.padEnd(s.length+((4-s.length%4)%4),'='));const out=new Uint8Array(bin.length);for(let i=0;i<bin.length;i++)out[i]=bin.charCodeAt(i);return out.buffer}
 function bufToB64(value){if(!value)return '';const bytes=new Uint8Array(value);let bin='';for(const b of bytes)bin+=String.fromCharCode(b);return btoa(bin).replace(/\\+/g,'-').replace(/\\//g,'_').replace(/=+$/,'')}
-function isDesktopRedirect(value){try{return new URL(value).protocol==='chat:'}catch{return false}}
-let completionTimer;
-function closeAfterCompletion(){
-  try{window.open('','_self');window.close()}catch{}
-  $('status').textContent='登录已完成；如果此页仍打开，可以手动关闭。';
-}
-function watchCompletion(){
-  let attempts=0;
-  const poll=async()=>{
-    try{
-      const data=await parse(await fetch('/api/v1/public/identity/authorize/request/'+encodeURIComponent(requestId)));
-      if(data.status==='completed'){closeAfterCompletion();return}
-    }catch{}
-    if(++attempts<120) completionTimer=window.setTimeout(poll,500)
-  };
-  completionTimer=window.setTimeout(poll,500);
-}
 function returnToApp(value){
-  if(!isDesktopRedirect(value)){location.assign(value);return}
-  // Desktop Chat polls the authorization request and exchanges the code.
-  // Do not navigate to chat:// here, otherwise macOS asks for confirmation.
-  $('status').textContent='已确认，正在返回 Chat...';
-  watchCompletion();
+  if(value) location.assign(value);
 }
 async function parse(res){const json=await res.json().catch(()=>({}));if(!res.ok||json.code!==0)throw new Error(json.message||res.statusText);return json.data}
 async function loadChallenge(){if(!requestId)return;const challenge=await parse(await fetch('/api/v1/public/identity/authorize/challenge',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({requestId})}));passkeyChallenge=challenge;if(challengeRefreshTimer)clearTimeout(challengeRefreshTimer);challengeRefreshTimer=setTimeout(()=>loadChallenge().catch(()=>{}),60000)}
@@ -150,7 +129,7 @@ async function approve(){
     const r=credential.response;
     const payload={id:credential.id,rawId:bufToB64(credential.rawId),type:credential.type,response:{authenticatorData:bufToB64(r.authenticatorData),clientDataJSON:bufToB64(r.clientDataJSON),signature:bufToB64(r.signature),userHandle:bufToB64(r.userHandle)},clientExtensionResults:credential.getClientExtensionResults()};
     const approved=await parse(await fetch('/api/v1/public/identity/authorize/approve',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({requestId,passkeyRequestId:req.requestId,credential:payload})}));
-    $('status').className='status ok';$('status').textContent='已确认，正在返回应用...';
+    $('status').className='status ok';$('status').textContent=approved.clientType==='desktop'?'已确认，请返回桌面 Chat。':'已确认，正在返回应用...';
     returnToApp(approved.redirectTo);
   }catch(error){$('status').textContent=error.message||'授权失败';$('approve').disabled=false}
 }

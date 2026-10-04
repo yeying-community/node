@@ -59,7 +59,7 @@ Chat 同时支持 Web 和桌面端时，可以登记：
 
 ```text
 https://chat.example.com/central-ucan-callback.html
-chat://localhost/central-ucan-callback.html
+https://chat.yeying.pub/central-ucan-desktop-callback.html
 ```
 
 ## 常见问题

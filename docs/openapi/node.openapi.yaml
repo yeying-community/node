@@ -3253,6 +3253,9 @@ components:
         redirectUri:
           type: string
           format: uri
+        clientType:
+          type: string
+          enum: [web, desktop]
         state:
           type: string
         scopes:

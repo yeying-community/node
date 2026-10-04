@@ -99,10 +99,6 @@ function appRedirects(value: unknown): string[] {
 function origin(uri: string) {
   try {
     const parsed = new URL(uri)
-    if (parsed.protocol === 'chat:') {
-      if (parsed.hostname !== 'localhost' || parsed.port || parsed.username || parsed.password) throw new Error('IDENTITY_REDIRECT_URI_INVALID')
-      return 'chat://localhost'
-    }
     if (parsed.protocol === 'chrome-extension:') {
       if (!parsed.host || parsed.username || parsed.password || parsed.port) throw new Error('IDENTITY_REDIRECT_URI_INVALID')
       return `chrome-extension://${parsed.host}`
@@ -118,9 +114,6 @@ function normalizedOrigin(uri: unknown): string {
   if (!raw) return ''
   try {
     const parsed = new URL(raw)
-    if (parsed.protocol === 'chat:') {
-      return parsed.hostname === 'localhost' && !parsed.port && !parsed.username && !parsed.password ? 'chat://localhost' : ''
-    }
     if (parsed.protocol === 'chrome-extension:') return `chrome-extension://${parsed.host}`
     if (parsed.origin && parsed.origin !== 'null') return parsed.origin
   } catch {
@@ -302,13 +295,14 @@ export class IdentityAuthorizationService {
     }
   }
 
-  async create(input: { appId: unknown; redirectUri: unknown; state?: unknown; codeChallenge: unknown; codeChallengeMethod?: unknown; scopes?: unknown }) {
+  async create(input: { appId: unknown; redirectUri: unknown; clientType?: unknown; state?: unknown; codeChallenge: unknown; codeChallengeMethod?: unknown; scopes?: unknown }) {
     const appId = string(input.appId); const redirectUri = string(input.redirectUri); const challenge = string(input.codeChallenge)
-    if (!appId || !redirectUri || !/^[A-Za-z0-9_-]{43,256}$/.test(challenge) || string(input.codeChallengeMethod || 'S256') !== 'S256') throw new Error('IDENTITY_AUTHORIZATION_REQUEST_INVALID')
+    const clientType = string(input.clientType) || 'web'
+    if (!appId || !redirectUri || !['web', 'desktop'].includes(clientType) || !/^[A-Za-z0-9_-]{43,256}$/.test(challenge) || string(input.codeChallengeMethod || 'S256') !== 'S256') throw new Error('IDENTITY_AUTHORIZATION_REQUEST_INVALID')
     const app = await this.applications.queryByUid(appId)
     if (!app || !appRedirects(app.redirectUris).includes(redirectUri)) throw new Error('IDENTITY_REDIRECT_URI_UNAUTHORIZED')
     const entity = new IdentityAuthorizationRequestDO(); const createdAt = now()
-    Object.assign(entity, { requestId: id('iar'), appId, redirectUri, state: string(input.state), codeChallenge: challenge, codeChallengeMethod: 'S256', scopesJson: JSON.stringify(scopes(input.scopes)), nonce: id('nonce'), identityDid: '', status: 'pending', createdAt, updatedAt: createdAt, expiresAt: new Date(Date.now() + REQUEST_TTL_MS).toISOString(), approvedAt: '' })
+    Object.assign(entity, { requestId: id('iar'), appId, redirectUri, clientType, state: string(input.state), codeChallenge: challenge, codeChallengeMethod: 'S256', scopesJson: JSON.stringify(scopes(input.scopes)), nonce: id('nonce'), identityDid: '', status: 'pending', createdAt, updatedAt: createdAt, expiresAt: new Date(Date.now() + REQUEST_TTL_MS).toISOString(), approvedAt: '' })
     await dataSource().getRepository(IdentityAuthorizationRequestDO).save(entity)
     return this.view(entity, app.name || appId)
   }
@@ -695,8 +689,9 @@ export class IdentityAuthorizationService {
     const codeRow = new IdentityAuthorizationCodeDO(); Object.assign(codeRow, { code, requestId: row.requestId, appId: row.appId, redirectUri: row.redirectUri, state: row.state, codeChallenge: row.codeChallenge, scopesJson: row.scopesJson, identityDid, issuedAt, expiresAt: new Date(Date.now() + CODE_TTL_MS).toISOString(), used: false, usedAt: '' })
     row.status = 'approved'; row.identityDid = identityDid; row.approvedAt = issuedAt; row.updatedAt = issuedAt
     await dataSource().transaction(async manager => { await manager.getRepository(IdentityAuthorizationRequestDO).save(row); await manager.getRepository(IdentityAuthorizationCodeDO).save(codeRow) })
-    return { requestId: row.requestId, did: identityDid, authorizationCode: code, authorizationCodeExpiresAt: codeRow.expiresAt, redirectTo: `${row.redirectUri}${row.redirectUri.includes('?') ? '&' : '?'}code=${encodeURIComponent(code)}${row.state ? `&state=${encodeURIComponent(row.state)}` : ''}` }
+    const redirectTo = row.clientType === 'desktop' ? '' : `${row.redirectUri}${row.redirectUri.includes('?') ? '&' : '?'}code=${encodeURIComponent(code)}${row.state ? `&state=${encodeURIComponent(row.state)}` : ''}`
+    return { requestId: row.requestId, did: identityDid, authorizationCode: code, authorizationCodeExpiresAt: codeRow.expiresAt, clientType: row.clientType || 'web', redirectTo }
   }
 
-  private view(row: IdentityAuthorizationRequestDO, appName: string) { return { requestId: row.requestId, status: row.status, appId: row.appId, appName, redirectUri: row.redirectUri, state: row.state, audience: origin(row.redirectUri), nonce: row.nonce, scopes: scopes(JSON.parse(row.scopesJson)), expiresAt: row.expiresAt, verifyUrl: verifyUrl(row.requestId), codeChallengeMethod: row.codeChallengeMethod || 'S256' } }
+  private view(row: IdentityAuthorizationRequestDO, appName: string) { return { requestId: row.requestId, status: row.status, appId: row.appId, appName, clientType: row.clientType || 'web', redirectUri: row.redirectUri, state: row.state, audience: origin(row.redirectUri), nonce: row.nonce, scopes: scopes(JSON.parse(row.scopesJson)), expiresAt: row.expiresAt, verifyUrl: verifyUrl(row.requestId), codeChallengeMethod: row.codeChallengeMethod || 'S256' } }
 }
