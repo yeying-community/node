@@ -109,6 +109,12 @@ function origin(uri: string) {
     throw new Error('IDENTITY_REDIRECT_URI_INVALID')
   }
 }
+function desktopAudience(appId: string) {
+  return `urn:yeying:app:${appId}`
+}
+function authorizationAudience(row: Pick<IdentityAuthorizationRequestDO, 'appId' | 'clientType' | 'redirectUri'>) {
+  return row.clientType === 'desktop' ? desktopAudience(row.appId) : origin(row.redirectUri)
+}
 function normalizedOrigin(uri: unknown): string {
   const raw = string(uri).replace(/\/+$/, '')
   if (!raw) return ''
@@ -278,29 +284,34 @@ export class IdentityAuthorizationService {
     return credentialOrigin
   }
 
-  async validateClient(input: { appId: unknown; redirectUri: unknown }) {
+  async validateClient(input: { appId: unknown; redirectUri?: unknown; clientType?: unknown }) {
     const appId = string(input.appId)
     const redirectUri = string(input.redirectUri)
-    if (!appId || !redirectUri) throw new Error('IDENTITY_AUTHORIZATION_REQUEST_INVALID')
+    const clientType = string(input.clientType) || 'web'
+    if (!appId || !['web', 'desktop'].includes(clientType)) throw new Error('IDENTITY_AUTHORIZATION_REQUEST_INVALID')
     const app = await this.applications.queryByUid(appId)
-    if (!app || !appRedirects(app.redirectUris).includes(redirectUri)) throw new Error('IDENTITY_REDIRECT_URI_UNAUTHORIZED')
+    const registered = app ? appRedirects(app.redirectUris) : []
+    if (!app || (clientType === 'web' && (!redirectUri || !registered.includes(redirectUri))) || (clientType === 'desktop' && redirectUri && !registered.includes(redirectUri))) throw new Error('IDENTITY_REDIRECT_URI_UNAUTHORIZED')
     const passkey = getPasskeyAuthStatus()
     const issuer = getCentralIssuerStatus()
     return {
       appId,
       appName: app.name || appId,
+      clientType,
       redirectUri,
+      audience: clientType === 'desktop' ? desktopAudience(appId) : origin(redirectUri),
       passkey: { enabled: passkey.enabled, ready: passkey.ready, rpId: passkey.rpId, origin: passkey.origin, error: passkey.error },
       ucanIssuer: { enabled: issuer.enabled, ready: issuer.ready, mode: issuer.mode, issuerDid: issuer.issuerDid, error: issuer.error }
     }
   }
 
-  async create(input: { appId: unknown; redirectUri: unknown; clientType?: unknown; state?: unknown; codeChallenge: unknown; codeChallengeMethod?: unknown; scopes?: unknown }) {
+  async create(input: { appId: unknown; redirectUri?: unknown; clientType?: unknown; state?: unknown; codeChallenge: unknown; codeChallengeMethod?: unknown; scopes?: unknown }) {
     const appId = string(input.appId); const redirectUri = string(input.redirectUri); const challenge = string(input.codeChallenge)
     const clientType = string(input.clientType) || 'web'
-    if (!appId || !redirectUri || !['web', 'desktop'].includes(clientType) || !/^[A-Za-z0-9_-]{43,256}$/.test(challenge) || string(input.codeChallengeMethod || 'S256') !== 'S256') throw new Error('IDENTITY_AUTHORIZATION_REQUEST_INVALID')
+    if (!appId || !['web', 'desktop'].includes(clientType) || !/^[A-Za-z0-9_-]{43,256}$/.test(challenge) || string(input.codeChallengeMethod || 'S256') !== 'S256') throw new Error('IDENTITY_AUTHORIZATION_REQUEST_INVALID')
     const app = await this.applications.queryByUid(appId)
-    if (!app || !appRedirects(app.redirectUris).includes(redirectUri)) throw new Error('IDENTITY_REDIRECT_URI_UNAUTHORIZED')
+    const registered = app ? appRedirects(app.redirectUris) : []
+    if (!app || (clientType === 'web' && (!redirectUri || !registered.includes(redirectUri))) || (clientType === 'desktop' && redirectUri && !registered.includes(redirectUri))) throw new Error('IDENTITY_REDIRECT_URI_UNAUTHORIZED')
     const entity = new IdentityAuthorizationRequestDO(); const createdAt = now()
     Object.assign(entity, { requestId: id('iar'), appId, redirectUri, clientType, state: string(input.state), codeChallenge: challenge, codeChallengeMethod: 'S256', scopesJson: JSON.stringify(scopes(input.scopes)), nonce: id('nonce'), identityDid: '', status: 'pending', createdAt, updatedAt: createdAt, expiresAt: new Date(Date.now() + REQUEST_TTL_MS).toISOString(), approvedAt: '' })
     await dataSource().getRepository(IdentityAuthorizationRequestDO).save(entity)
@@ -312,7 +323,7 @@ export class IdentityAuthorizationService {
   async approve(input: { requestId: unknown; presentation: unknown }) {
     const repo = dataSource().getRepository(IdentityAuthorizationRequestDO); const row = await repo.findOneBy({ requestId: string(input.requestId) })
     if (!row || row.status !== 'pending' || Date.parse(row.expiresAt) <= Date.now()) throw new Error('IDENTITY_AUTHORIZATION_REQUEST_EXPIRED')
-    const identityDid = verifyPresentation(input.presentation, origin(row.redirectUri), row.nonce)
+    const identityDid = verifyPresentation(input.presentation, authorizationAudience(row), row.nonce)
     const presentationScopes = scopes((input.presentation as any)?.scopes)
     const requested = scopes(JSON.parse(row.scopesJson))
     if (requested.some(scope => !presentationScopes.includes(scope))) throw new Error('IDENTITY_PRESENTATION_SCOPE_INVALID')
@@ -460,10 +471,12 @@ export class IdentityAuthorizationService {
     return this.issueCode(row, credential.identityDid)
   }
 
-  async exchange(input: { code: unknown; appId: unknown; redirectUri: unknown; codeVerifier: unknown; issueUcanSession?: unknown }) {
+  async exchange(input: { code: unknown; appId: unknown; redirectUri?: unknown; codeVerifier: unknown; issueUcanSession?: unknown }) {
     const repo = dataSource().getRepository(IdentityAuthorizationCodeDO); const row = await repo.findOneBy({ code: string(input.code) })
     if (!row || row.used || Date.parse(row.expiresAt) <= Date.now()) throw new Error('IDENTITY_AUTHORIZATION_CODE_INVALID')
-    if (row.appId !== string(input.appId) || row.redirectUri !== string(input.redirectUri)) throw new Error('IDENTITY_AUTHORIZATION_CODE_APP_MISMATCH')
+    const request = await dataSource().getRepository(IdentityAuthorizationRequestDO).findOneBy({ requestId: row.requestId })
+    const desktop = request?.clientType === 'desktop' && !row.redirectUri
+    if (row.appId !== string(input.appId) || (!desktop && row.redirectUri !== string(input.redirectUri)) || (desktop && string(input.redirectUri))) throw new Error('IDENTITY_AUTHORIZATION_CODE_APP_MISMATCH')
     pkce(input.codeVerifier, row.codeChallenge)
     const requested = scopes(JSON.parse(row.scopesJson)); const credentials = await dataSource().getRepository(IdentityCredentialDO).findBy({ identityDid: row.identityDid, status: 'active' })
     const wanted = new Set(requested.includes('identity.email') ? ['EmailCredential'] : []); if (requested.includes('identity.username')) wanted.add('UsernameCredential'); if (requested.includes('identity.avatar')) wanted.add('AvatarCredential'); if (requested.includes('identity.wallet')) wanted.add('WalletAccountCredential')
@@ -494,7 +507,6 @@ export class IdentityAuthorizationService {
     row.used = true
     row.usedAt = now()
     const requestRepo = dataSource().getRepository(IdentityAuthorizationRequestDO)
-    const request = await requestRepo.findOneBy({ requestId: row.requestId })
     if (request) {
       request.status = 'completed'
       request.updatedAt = row.usedAt
@@ -531,16 +543,16 @@ export class IdentityAuthorizationService {
     }
   }
 
-  async refreshSession(input: { refreshToken: unknown; appId: unknown; redirectUri: unknown }) {
+  async refreshSession(input: { refreshToken: unknown; appId: unknown; redirectUri?: unknown }) {
     const refreshToken = string(input.refreshToken)
     const appId = string(input.appId)
     const redirectUri = string(input.redirectUri)
-    if (!refreshToken || !appId || !redirectUri) throw new Error('IDENTITY_REFRESH_SESSION_INVALID')
+    if (!refreshToken || !appId) throw new Error('IDENTITY_REFRESH_SESSION_INVALID')
 
     const repo = dataSource().getRepository(IdentityAuthorizationSessionDO)
     const tokenHash = hashRefreshToken(refreshToken)
     const row = await repo.findOneBy({ tokenHash })
-    if (!row || row.appId !== appId || row.redirectUri !== redirectUri || string(row.revokedAt) || Date.parse(row.expiresAt) <= Date.now()) {
+    if (!row || row.appId !== appId || (row.redirectUri ? row.redirectUri !== redirectUri : Boolean(redirectUri)) || string(row.revokedAt) || Date.parse(row.expiresAt) <= Date.now()) {
       throw new Error('IDENTITY_REFRESH_SESSION_INVALID')
     }
 
@@ -597,24 +609,24 @@ export class IdentityAuthorizationService {
     }
   }
 
-  async exchangeByRequest(input: { requestId: unknown; appId: unknown; redirectUri: unknown; codeVerifier: unknown; issueUcanSession?: unknown }) {
+  async exchangeByRequest(input: { requestId: unknown; appId: unknown; redirectUri?: unknown; codeVerifier: unknown; issueUcanSession?: unknown }) {
     const request = await dataSource().getRepository(IdentityAuthorizationRequestDO).findOneBy({ requestId: string(input.requestId) })
-    if (!request || request.appId !== string(input.appId) || request.redirectUri !== string(input.redirectUri)) throw new Error('IDENTITY_AUTHORIZATION_REQUEST_NOT_FOUND')
+    if (!request || request.appId !== string(input.appId) || (request.clientType !== 'desktop' && request.redirectUri !== string(input.redirectUri)) || (request.clientType === 'desktop' && string(input.redirectUri))) throw new Error('IDENTITY_AUTHORIZATION_REQUEST_NOT_FOUND')
     if (request.status !== 'approved') throw new Error('IDENTITY_AUTHORIZATION_REQUEST_PENDING')
     const code = await dataSource().getRepository(IdentityAuthorizationCodeDO).findOneBy({ requestId: request.requestId, used: false })
     if (!code) throw new Error('IDENTITY_AUTHORIZATION_REQUEST_PENDING')
     return this.exchange({ ...input, code: code.code })
   }
 
-  async revokeSession(input: { refreshToken: unknown; appId: unknown; redirectUri: unknown }) {
+  async revokeSession(input: { refreshToken: unknown; appId: unknown; redirectUri?: unknown }) {
     const refreshToken = string(input.refreshToken)
     const appId = string(input.appId)
     const redirectUri = string(input.redirectUri)
-    if (!refreshToken || !appId || !redirectUri) throw new Error('IDENTITY_REFRESH_SESSION_INVALID')
+    if (!refreshToken || !appId) throw new Error('IDENTITY_REFRESH_SESSION_INVALID')
     const repo = dataSource().getRepository(IdentityAuthorizationSessionDO)
     const tokenHash = hashRefreshToken(refreshToken)
     const row = await repo.findOneBy({ tokenHash })
-    if (!row || row.appId !== appId || row.redirectUri !== redirectUri || string(row.revokedAt)) {
+    if (!row || row.appId !== appId || (row.redirectUri ? row.redirectUri !== redirectUri : Boolean(redirectUri)) || string(row.revokedAt)) {
       throw new Error('IDENTITY_REFRESH_SESSION_INVALID')
     }
     await repo.update({ tokenHash }, { revokedAt: now() })
@@ -693,5 +705,5 @@ export class IdentityAuthorizationService {
     return { requestId: row.requestId, did: identityDid, authorizationCode: code, authorizationCodeExpiresAt: codeRow.expiresAt, clientType: row.clientType || 'web', redirectTo }
   }
 
-  private view(row: IdentityAuthorizationRequestDO, appName: string) { return { requestId: row.requestId, status: row.status, appId: row.appId, appName, clientType: row.clientType || 'web', redirectUri: row.redirectUri, state: row.state, audience: origin(row.redirectUri), nonce: row.nonce, scopes: scopes(JSON.parse(row.scopesJson)), expiresAt: row.expiresAt, verifyUrl: verifyUrl(row.requestId), codeChallengeMethod: row.codeChallengeMethod || 'S256' } }
+  private view(row: IdentityAuthorizationRequestDO, appName: string) { return { requestId: row.requestId, status: row.status, appId: row.appId, appName, clientType: row.clientType || 'web', redirectUri: row.redirectUri, state: row.state, audience: authorizationAudience(row), nonce: row.nonce, scopes: scopes(JSON.parse(row.scopesJson)), expiresAt: row.expiresAt, verifyUrl: verifyUrl(row.requestId), codeChallengeMethod: row.codeChallengeMethod || 'S256' } }
 }

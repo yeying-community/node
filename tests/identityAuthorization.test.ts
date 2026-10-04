@@ -166,24 +166,27 @@ describe('identity authorization', () => {
     await expect(service.validateClient({ appId: 'project', redirectUri: 'https://other.example/callback' })).rejects.toThrow('IDENTITY_REDIRECT_URI_UNAUTHORIZED')
   })
 
-  it('uses the registered HTTPS origin as the desktop presentation audience', async () => {
+  it('uses a stable app audience for desktop authorization without a redirect URI', async () => {
     const service = new IdentityAuthorizationService()
-    const redirectUri = 'https://chat.yeying.pub/central-ucan-desktop-callback.html'
-    await expect(service.validateClient({ appId: 'desktop', redirectUri })).resolves.toMatchObject({
+    await expect(service.validateClient({ appId: 'desktop', clientType: 'desktop' })).resolves.toMatchObject({
       appId: 'desktop',
-      redirectUri,
+      clientType: 'desktop',
+      redirectUri: '',
+      audience: 'urn:yeying:app:desktop',
     })
 
     const request = await service.create({
       appId: 'desktop',
-      redirectUri,
       clientType: 'desktop',
       codeChallenge: 'd'.repeat(43),
       codeChallengeMethod: 'S256',
       scopes: ['identity.basic'],
     })
     expect(request.clientType).toBe('desktop')
-    expect(request.audience).toBe('https://chat.yeying.pub')
+    expect(request.redirectUri).toBe('')
+    expect(request.audience).toBe('urn:yeying:app:desktop')
+    const approved = await service.approve({ requestId: request.requestId, presentation: presentation(request) })
+    expect(approved).toMatchObject({ clientType: 'desktop', redirectTo: '' })
     await expect(service.create({
       appId: 'desktop',
       redirectUri: 'https://attacker.example/central-ucan-callback.html',

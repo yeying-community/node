@@ -3234,18 +3234,21 @@ components:
       type: object
       required:
         - appId
-        - redirectUri
       properties:
         appId:
           type: string
         redirectUri:
           type: string
           format: uri
+        clientType:
+          type: string
+          enum:
+            - web
+            - desktop
     IdentityAuthorizeRequest:
       type: object
       required:
         - appId
-        - redirectUri
         - codeChallenge
       properties:
         appId:
@@ -3328,7 +3331,6 @@ components:
       required:
         - code
         - appId
-        - redirectUri
         - codeVerifier
       properties:
         code:
@@ -3354,7 +3356,6 @@ components:
       required:
         - refreshToken
         - appId
-        - redirectUri
       properties:
         refreshToken:
           type: string

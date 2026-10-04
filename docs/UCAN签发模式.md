@@ -119,7 +119,7 @@
 - `issuer.ucan.allowedAudiences`
 - `issuer.ucan.allowedCapabilitiesByAudience`
 - 应用发布字段：`redirectUris`
-  - `appId` 必须为应用市场 `AppId`（`applications.uid`），`redirectUri` 必须精确命中该字段中的一项；可同时登记 Web、浏览器扩展和桌面 HTTPS 回调
+  - `appId` 必须为应用市场 `AppId`（`applications.uid`）；Web/扩展请求的 `redirectUri` 必须精确命中该字段中的一项，桌面请求使用 `clientType=desktop`，不需要回调地址
 
 说明：
 - `mode=issue|hybrid` 时，必须配置 `ISSUER_PRIVATE_KEY`；Issuer DID 从 `issuer.baseUrl` 派生。

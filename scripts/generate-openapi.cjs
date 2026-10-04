@@ -290,15 +290,16 @@ const document = {
       },
       IdentityAuthorizeClientRequest: {
         type: 'object',
-        required: ['appId', 'redirectUri'],
+        required: ['appId'],
         properties: {
           appId: { type: 'string' },
           redirectUri: { type: 'string', format: 'uri' },
+          clientType: { type: 'string', enum: ['web', 'desktop'] },
         },
       },
       IdentityAuthorizeRequest: {
         type: 'object',
-        required: ['appId', 'redirectUri', 'codeChallenge'],
+        required: ['appId', 'codeChallenge'],
         properties: {
           appId: { type: 'string' },
           redirectUri: { type: 'string', format: 'uri' },
@@ -332,7 +333,7 @@ const document = {
       },
       IdentityAuthorizeExchangeRequest: {
         type: 'object',
-        required: ['code', 'appId', 'redirectUri', 'codeVerifier'],
+        required: ['code', 'appId', 'codeVerifier'],
         properties: {
           code: { type: 'string' },
           appId: { type: 'string' },
@@ -344,7 +345,7 @@ const document = {
       },
       IdentitySessionRefreshRequest: {
         type: 'object',
-        required: ['refreshToken', 'appId', 'redirectUri'],
+        required: ['refreshToken', 'appId'],
         properties: {
           refreshToken: { type: 'string' },
           refresh_token: { type: 'string' },
