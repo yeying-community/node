@@ -3255,7 +3255,9 @@ components:
           format: uri
         clientType:
           type: string
-          enum: [web, desktop]
+          enum:
+            - web
+            - desktop
         state:
           type: string
         scopes:
