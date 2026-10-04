@@ -65,6 +65,31 @@ const document = {
         in: 'header',
         name: 'x-pusher-signature',
       },
+      pusherStandardKey: {
+        type: 'apiKey',
+        in: 'query',
+        name: 'auth_key',
+      },
+      pusherStandardTimestamp: {
+        type: 'apiKey',
+        in: 'query',
+        name: 'auth_timestamp',
+      },
+      pusherStandardVersion: {
+        type: 'apiKey',
+        in: 'query',
+        name: 'auth_version',
+      },
+      pusherStandardBodyMd5: {
+        type: 'apiKey',
+        in: 'query',
+        name: 'body_md5',
+      },
+      pusherStandardSignature: {
+        type: 'apiKey',
+        in: 'query',
+        name: 'auth_signature',
+      },
     },
     schemas: {
       JsonObject: { type: 'object', additionalProperties: true },
@@ -326,6 +351,49 @@ const document = {
           redirectUri: { type: 'string', format: 'uri' },
         },
       },
+      IdentityCredentialPresentation: {
+        type: 'object',
+        required: ['type', 'credentialId', 'credential'],
+        properties: {
+          type: { type: 'string', examples: ['EmailCredential'], description: '凭证类型。' },
+          credentialId: { type: 'string', examples: ['urn:yeying:credential:email:...'] },
+          credential: { type: 'string', description: 'compact JWT-VC。' },
+        },
+      },
+      IdentityUcanSession: {
+        type: 'object',
+        required: ['sessionToken', 'issuerDid', 'issuedAt', 'expiresAt'],
+        properties: {
+          sessionToken: { type: 'string', description: '不透明的短期资源授权会话令牌，不是身份凭证或 JWT。' },
+          issuerDid: { type: 'string', examples: ['did:key:...'] },
+          issuedAt: { type: 'integer', format: 'int64' },
+          expiresAt: { type: 'integer', format: 'int64' },
+        },
+      },
+      IdentityAuthorizeExchangeResult: {
+        type: 'object',
+        required: ['did', 'walletAddress', 'scopes', 'credentials'],
+        description:
+          '钱包身份授权码兑换结果。不包含 subjectId、sub_xxx 或 Passport assertion。',
+        properties: {
+          did: ref('IdentityDid'),
+          walletAddress: { type: 'string', pattern: '^0x[0-9a-fA-F]{40}$' },
+          scopes: { type: 'array', items: { type: 'string' } },
+          credentials: { type: 'array', items: ref('IdentityCredentialPresentation') },
+          ucanSession: {
+            allOf: [ref('IdentityUcanSession')],
+            description: '仅当 exchange 请求显式传入 issueUcanSession: true 时返回，供应用按目标后端调用 /api/v1/public/auth/central/issue。',
+          },
+          refreshToken: { type: 'string', description: '轮换式刷新令牌，服务端只保存 SHA-256 哈希；不是 UCAN，不能直接访问 Router 或 WebDAV。' },
+          refreshExpiresAt: { type: 'integer', format: 'int64', description: '刷新令牌过期时间，默认 30 天（identity.session.refreshTtlMs，最大 180 天）。' },
+        },
+      },
+      IdentityAuthorizeExchangeResultEnvelope: {
+        allOf: [
+          ref('Envelope'),
+          { type: 'object', properties: { data: ref('IdentityAuthorizeExchangeResult') } },
+        ],
+      },
       CustodyStatus: {
         type: 'object',
         properties: {
@@ -513,6 +581,7 @@ const operations = [
   ['post', '/api/v1/public/notifications/webhooks/{uid}/replay/{notificationUid}', 'Notifications', '重放通知到 Webhook', 'bearer'],
   ['get', '/api/v1/admin/notifications/{uid}/deliveries', 'Admin', '管理员查询通知投递', 'bearer'],
   ['post', '/api/v1/public/pusher/apps/{appId}/events', 'Pusher', '发布 Node Pusher 事件', 'pusher'],
+  ['post', '/apps/{appId}/events', 'Pusher', '兼容 Pusher Channels 的事件发布', 'pusher-standard'],
   ['get', '/api/v1/public/pusher/apps/{appId}/stream', 'Pusher', '订阅 Node Pusher SSE', 'bearer', null, true],
   ['get', '/api/v1/public/pusher/notification-preferences', 'Pusher', '查询通知偏好', 'bearer'],
   ['patch', '/api/v1/public/pusher/notification-preferences', 'Pusher', '更新通知偏好', 'bearer'],
@@ -546,6 +615,15 @@ function securityFor(auth) {
   if (auth === 'none') return []
   if (auth === 'cookie') return [{ refreshCookie: [] }]
   if (auth === 'pusher') return [{ pusherKey: [], pusherTimestamp: [], pusherSignature: [] }]
+  if (auth === 'pusher-standard') {
+    return [{
+      pusherStandardKey: [],
+      pusherStandardTimestamp: [],
+      pusherStandardVersion: [],
+      pusherStandardBodyMd5: [],
+      pusherStandardSignature: [],
+    }]
+  }
   return [{ bearerAuth: [] }]
 }
 
@@ -588,6 +666,11 @@ for (const [method, route, tag, summary, auth, bodySchema, sse] of operations) {
 document.paths['/api/v1/public/custody/status'].get.responses[200] = {
   description: '身份 Passkey 和托管记录状态',
   content: jsonContent(ref('CustodyStatusEnvelope')),
+}
+
+document.paths['/api/v1/public/identity/authorize/exchange'].post.responses[200] = {
+  description: '钱包身份授权码兑换结果',
+  content: jsonContent(ref('IdentityAuthorizeExchangeResultEnvelope')),
 }
 
 const rendered = YAML.stringify(document, { lineWidth: 0 })

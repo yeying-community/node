@@ -49,6 +49,8 @@ Node Pusher 的价值在于社区级事件和通知控制面，而不是把 Proj
 
 不建议一开始把 Project 所有高频任务字段变更双发到 Node Pusher。应先选择少量跨应用有价值、幂等清晰、不会造成重复通知的事件，例如 `project.task.assigned`、`project.task.due_changed`、`project.mention.created`、`project.file.shared`。
 
+不适合接入的场景包括同一应用内部页面刷新、输入状态/光标等高频临时数据，以及要求顺序消费、失败重试和业务确认的后台任务。前两者继续使用应用已有 WebSocket；后台任务使用队列或 transactional outbox，Pusher 只承接事件广播，不能作为可靠任务队列。
+
 ## 3. 名词边界
 
 ### 3.1 Pusher SaaS
@@ -95,13 +97,13 @@ Node Pusher 不把这些投递通道混为一个协议。它在控制面统一�
 | Webhook 签名 | HMAC-SHA256 | 复用通知中心 webhook 投递安全模型 |
 | Email 投递 | SMTP / Submission / MIME | 统一社区项目邮件通知出口 |
 
-### 5.2 二期兼容
+### 5.2 已实现与后续兼容
 
 | 范围 | 协议或事实标准 | 用途 |
 | --- | --- | --- |
-| Pusher Channels HTTP API | `/apps/{app_id}/events`、`/batch_events` | 兼容 Laravel Pusher broadcaster |
-| Pusher Channels Socket Protocol | protocol 7 子集 | 兼容 pusher-js / Laravel Echo |
-| Private Channel Auth | `socket_id:channel_name` HMAC | 私有频道订阅授权 |
+| Pusher Channels HTTP API | `/apps/{app_id}/events` | 已支持 Laravel Pusher broadcaster 的服务端事件发布 |
+| Pusher Channels Socket Protocol | protocol 7 子集 | 后续兼容 pusher-js / Laravel Echo |
+| Private Channel Auth | `socket_id:channel_name` HMAC | 随 Pusher WebSocket 兼容层实现 |
 | Presence Channel | `presence-*` | 在线成员列表，二期后置 |
 
 ### 5.3 三期扩展
@@ -393,6 +395,11 @@ auth_signature
 
 一期只需要支持 server event publish，不支持 client event publish。
 
+当前已实现 `POST /apps/:appId/events`。它使用 Pusher Channels 的查询参数签名和
+`body_md5` 校验，并将 `name`、`channel`/`channels`、JSON 字符串 `data` 转换到 Node 内部事件模型。
+Laravel 只需要把 Pusher driver 的 `host` 指向 Node；Project 原有业务广播代码无需改动。
+该兼容入口当前用于普通实时广播，不接受 Node 原生协议的 `eventId`、`persist`、`notification`、`recipients` 扩展字段；需要通知中心、Webhook/Email 投递或调用方幂等键时，使用 Node 原生 publish API。
+
 ### 8.4 Pusher-compatible WebSocket
 
 后续增加：
@@ -462,6 +469,8 @@ Node Pusher 会长期保留两套接入形态，但它们解决的问题不同�
 
 Pusher-compatible 方案是为了兼容 Laravel / pusher-js / Laravel Echo 生态：
 
+当前 Node 只实现了 Laravel broadcaster 所需的 Pusher HTTP publish。下列 WebSocket 连接、浏览器 `pusher-js` / Laravel Echo 订阅和 presence 能力仍是后续目标，当前不可按已支持能力部署。
+
 ```text
 Laravel broadcast -> Pusher-compatible HTTP API -> Node Pusher
 前端 pusher-js -> Pusher-compatible WebSocket -> Node Pusher
@@ -475,7 +484,7 @@ Laravel broadcast -> Pusher-compatible HTTP API -> Node Pusher
 - 后续可以支持 private channel、presence channel、client event。
 - 对 Laravel 项目迁移友好，能把 `PUSHER_APP_*` 指向 Node。
 
-适合二期：
+适合需要前端 Pusher Channels 实时订阅的后续阶段：
 
 - Project 想复用 Laravel Broadcasting。
 - 已有前端或社区应用已经用 pusher-js / Laravel Echo。
@@ -494,7 +503,7 @@ Laravel broadcast -> Pusher-compatible HTTP API -> Node Pusher
 | 维度 | 原生 HTTP + SSE | Pusher-compatible WebSocket |
 | --- | --- | --- |
 | 目标 | Node 标准化最小协议 | 兼容 Laravel/Pusher 生态 |
-| 发布时间 | 一期 | 二期 |
+| 发布时间 | 一期 | 后续阶段 |
 | 发布接口 | `/api/v1/public/pusher/apps/:appId/events` | `/apps/:appId/events` |
 | 订阅接口 | `/api/v1/public/pusher/apps/:appId/stream` | `/app/:key?protocol=7...` |
 | 客户端依赖 | 浏览器原生能力或轻量封装 | pusher-js / Laravel Echo |
@@ -510,10 +519,9 @@ Laravel broadcast -> Pusher-compatible HTTP API -> Node Pusher
 
 推荐决策：
 
-- 一期实现原生 HTTP publish + SSE subscribe，作为 Node 长期稳定协议。
-- 一期同时预留 Pusher-compatible 数据模型和签名字段，避免后续重构。
-- 二期实现 Pusher-compatible HTTP publish + private auth。
-- Pusher-compatible WebSocket 放到二期后半或三期，确认 Project 确实需要 Laravel Echo / pusher-js 后再做。
+- 原生 HTTP publish + SSE subscribe 作为 Node 长期稳定协议。
+- Pusher-compatible HTTP publish 已实现，用于兼容 Laravel Pusher broadcaster。
+- Pusher-compatible WebSocket 放到后续阶段，确认 Project 确实需要 Laravel Echo / pusher-js 后再做。
 
 ### 8.6 Channel Auth
 
@@ -896,11 +904,11 @@ GET /api/v1/public/notifications/:uid/deliveries
 Project 可分阶段接入：
 
 1. 保留现有 Swoole WebSocket 和 PushTask，继续服务 Project 网页内任务、看板和讨论的在线同步。
-2. 在 Project 服务端增加 Node Pusher publish client，并提供 smoke 命令验证凭据和签名。
+2. Project 已有 Node Pusher publish client 和 `pusher:smoke` 命令，可验证 Node 原生 publish API；这不等同于 Laravel Pusher broadcaster 联调。
 3. 只把跨应用有价值的关键事件发布到 Node Pusher，例如 `project.task.assigned`、`project.task.due_changed`、`project.mention.created`、`project.file.shared`。
 4. 需要进入统一通知中心、Email、Webhook 或审计视图的事件，携带 `persist=true` 或 `notification` 字段。
 5. 新前端模块如果需要订阅 Node 统一事件流，优先使用 Node SSE；旧 Project 页面不因接入 Node Pusher 而改造。
-6. 如果后续确实需要复用 Laravel Broadcasting / pusher-js / Laravel Echo，再启用 Pusher-compatible API。
+6. Laravel Broadcasting 服务端事件可以直接使用 Pusher-compatible HTTP publish；`pusher-js` / Laravel Echo 仍需等待 WebSocket 兼容层。
 7. 稳定运行后再评估哪些旧 PushTask 可以迁移，默认不做一次性替换。
 
 Project 不应把 Node Pusher 配置为现有任务变更同步的前置条件。`PUSHER_APP_*` 填入后，只表示 Project 具备向 Node Pusher 发布事件的服务端凭据；是否对用户可见，取决于是否有业务事件调用 publish、是否持久化通知、以及前端或外部订阅方是否订阅对应 channel。
@@ -917,7 +925,8 @@ PUSHER_APP_CLUSTER=mt1
 BROADCAST_DRIVER=log
 ```
 
-一期原生 HTTP publish 不依赖 Laravel `BROADCAST_DRIVER=pusher`。只有实现 Pusher-compatible HTTP / WebSocket 后，才应评估将 Laravel Broadcasting 指向 Node。
+Laravel Pusher-compatible HTTP publish 已实现，可以将 `BROADCAST_DRIVER=pusher` 指向 Node；
+但 `pusher-js` / Laravel Echo 所需的 WebSocket 兼容层仍未实现，前端订阅暂时不能直接切换到 Node。
 
 ### 11.2 Router
 
@@ -1143,13 +1152,14 @@ GET /api/v1/admin/pusher/apps/:appId/deliveries
 - 安全类邮件、事务类邮件、摘要类邮件的默认策略。
 - Project 新增一个业务事件试点。
 
-### 阶段二：Pusher Channels 兼容子集
+### 阶段二：Pusher Channels HTTP 兼容子集
 
-- `/apps/:appId/events`。
-- Pusher HMAC 签名校验。
-- `/apps/:appId/batch_events`。
-- private channel auth 接口契约。
-- Laravel Broadcasting 后端发布最小联调。
+- `/apps/:appId/events`，支持单频道 `channel` 和多频道 `channels`。（已实现）
+- Pusher HMAC 签名与 `body_md5` 校验。（已实现）
+- `/apps/:appId/batch_events`。（未实现）
+- Pusher WebSocket private channel auth。（依赖后续 WebSocket 阶段）
+- Laravel `pusher/pusher-php-server` 依赖和 Project driver 配置。（已加入；真实 SDK 联调待完成）
+- Project 当前没有 `ShouldBroadcast` 业务事件；业务事件试点尚未完成。
 
 ### 阶段三：WebSocket Gateway
 
@@ -1185,11 +1195,11 @@ Project 当前的任务、看板、讨论和文件在线同步由 Swoole WebSock
 
 1. 先不删除 Swoole PushTask，也不把 Project 内部 UI 立即改到 Node SSE。
 2. 在 Node 创建 `project` pusher app，生成 key/secret。
-3. Project 增加 Node Pusher publish client 和 smoke 命令，先验证 `accepted=true`。
+3. Project 已有 Node Pusher publish client 和 smoke 命令，可先验证原生 publish API 返回 `accepted=true`。
 4. 选择一个低风险、低频、跨应用有价值的事件试点，例如任务负责人变更、截止时间变更、@ 提及或文件共享。
 5. 对需要通知中心/邮件/Webhook 的事件携带 `notification` 或 `persist=true`，其他在线 UI 刷新继续走 Project WebSocket。
 6. 前端新增 Node SSE 订阅只服务新模块或跨应用事件，不替换旧 WebSocket。
-7. 稳定后再评估 Laravel Broadcasting / Pusher-compatible API。
+7. Laravel Pusher broadcaster 的 HTTP 发布配置已具备；选定明确的业务事件后再做 SDK 端到端联调，保持 Swoole `PushTask` 原样。
 8. 最后决定哪些旧 PushTask 可以逐步迁移，哪些应长期保留为 Project 内部实时通道。
 
 避免双发重复的规则：同一个用户可见通知不要同时由 Project WebSocket、Node 通知中心、Email 和移动推送各自生成独立未读。Project WebSocket 只负责在线状态同步；Node Pusher 负责跨应用事件和统一通知投递；进入通知中心的事件必须有稳定 `eventId` 和明确幂等策略。
@@ -1203,7 +1213,7 @@ Project 当前的任务、看板、讨论和文件在线同步由 Swoole WebSock
 | Email 定位 | 通知中心的离线/异步投递出口 | 不把 Email 混入实时连接 runtime，统一由通知中心和 delivery worker 调度 |
 | 收件邮箱来源 | Node 已验证邮箱 | 安全类邮件使用可信邮箱，应用只传 DID/account，不传项目内邮箱 |
 | 安全类邮件退订 | 不允许完全关闭，只允许限频或异常抑制 | 防止用户错过登录、TOTP、Passkey、钱包关联和凭证变更等安全事件 |
-| Pusher-compatible 范围 | 先 HTTP publish + private auth，WebSocket 后置 | Laravel 后端可以先接入发布能力，前端继续优先用 SSE |
+| Pusher-compatible 范围 | HTTP publish 已实现；private auth 与 WebSocket 后置 | Laravel 后端可以发布服务端事件，前端继续优先用 SSE |
 | Email 默认策略 | `security` 即时；重要 `transactional` 即时；`digest` 一期默认关闭聚合发送，只预留模型 | 控制打扰和成本，避免高频事件默认发邮件 |
 | 模板治理 | Node 管理模板，应用引用已审核模板 | 降低钓鱼、HTML 注入、品牌混乱和多语言不一致风险 |
 | 多语言模板 | 可以纳入设计 | 一期至少 `zh-CN`，公共模板补 `en-US` |
@@ -1211,7 +1221,7 @@ Project 当前的任务、看板、讨论和文件在线同步由 Swoole WebSock
 | 发件人显示 | `YeYing Notifications <no-reply@notify.yeying.com>` | 用户在邮箱客户端看到稳定可信的统一身份 |
 | `Reply-To` | 一期统一支持邮箱，项目级回复地址后置审核 | 避免用户回复无人处理，同时不放开项目任意配置 |
 | Channel ACL | appId + channel + DID/account 授权 | 决定应用私有频道订阅权限，不引入 Project user id 等应用专用映射 |
-| Project 接入路径 | 保留现有 WebSocket，先接原生 publish client，后评估 Pusher-compatible | 不把 Node Pusher 作为 Project 当前任务同步的前置条件，避免双发重复通知 |
+| Project 接入路径 | 保留现有 WebSocket；Node 原生 publish client 与 Laravel 标准 Pusher HTTP publish 并存，业务事件试点后续确定 | 不把 Node Pusher 作为 Project 当前任务同步的前置条件，避免双发重复通知 |
 | Digest 策略 | 一期先不做聚合发送，只预留模型 | 降低一期 worker、模板和偏好复杂度 |
 | 邮件偏好入口 | 用户设置页提供统一邮件偏好和退订管理 | 提供用户可控性和合规入口 |
 
