@@ -107,6 +107,8 @@ function identityAuthorizePage() {
 <script>
 const requestId = new URLSearchParams(location.search).get('requestId') || new URLSearchParams(location.search).get('request_id') || '';
 const $ = (id) => document.getElementById(id);
+let passkeyChallenge;
+let challengeRefreshTimer;
 function b64ToBuf(value){const s=String(value||'').replace(/-/g,'+').replace(/_/g,'/');const bin=atob(s.padEnd(s.length+((4-s.length%4)%4),'='));const out=new Uint8Array(bin.length);for(let i=0;i<bin.length;i++)out[i]=bin.charCodeAt(i);return out.buffer}
 function bufToB64(value){if(!value)return '';const bytes=new Uint8Array(value);let bin='';for(const b of bytes)bin+=String.fromCharCode(b);return btoa(bin).replace(/\\+/g,'-').replace(/\\//g,'_').replace(/=+$/,'')}
 function isDesktopRedirect(value){try{return new URL(value).protocol==='chat:'}catch{return false}}
@@ -145,12 +147,14 @@ function returnToApp(value){
   watchCompletion();
 }
 async function parse(res){const json=await res.json().catch(()=>({}));if(!res.ok||json.code!==0)throw new Error(json.message||res.statusText);return json.data}
-async function load(){if(!requestId)throw new Error('缺少授权请求 ID');const data=await parse(await fetch('/api/v1/public/identity/authorize/request/'+encodeURIComponent(requestId)));$('appName').textContent=data.appName||data.appId||'-';$('scopes').textContent=(data.scopes||[]).join(', ');$('requestStatus').textContent=data.status||'-';$('approve').disabled=data.status!=='pending'}
+async function loadChallenge(){if(!requestId)return;const challenge=await parse(await fetch('/api/v1/public/identity/authorize/challenge',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({requestId})}));passkeyChallenge=challenge;if(challengeRefreshTimer)clearTimeout(challengeRefreshTimer);challengeRefreshTimer=setTimeout(()=>loadChallenge().catch(()=>{}),60000)}
+async function load(){if(!requestId)throw new Error('缺少授权请求 ID');const data=await parse(await fetch('/api/v1/public/identity/authorize/request/'+encodeURIComponent(requestId)));$('appName').textContent=data.appName||data.appId||'-';$('scopes').textContent=(data.scopes||[]).join(', ');$('requestStatus').textContent=data.status||'-';$('approve').disabled=data.status!=='pending';if(data.status==='pending')await loadChallenge();}
 async function approve(){
   $('approve').disabled=true;$('status').className='status';$('status').textContent='正在打开通行证确认...';
   try{
     if(!window.PublicKeyCredential||!navigator.credentials)throw new Error('当前浏览器或设备不支持通行证');
-    const challenge=await parse(await fetch('/api/v1/public/identity/authorize/challenge',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({requestId})}));
+    const challenge=passkeyChallenge;
+    if(!challenge)throw new Error('通行证授权准备失败，请刷新页面重试');
     const req=challenge.passkeyRequest;
     const credential=await navigator.credentials.get({publicKey:{challenge:b64ToBuf(req.challenge),rpId:req.rpId,timeout:req.timeout,allowCredentials:(req.allowCredentials||[]).map(x=>({id:b64ToBuf(x.id),type:'public-key',transports:x.transports})),userVerification:req.userVerification}});
     if(!credential)throw new Error('通行证未返回凭证');
