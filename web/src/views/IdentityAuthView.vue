@@ -110,10 +110,13 @@ const hintType = ref<'info' | 'error' | 'success'>('info')
 const hintMessage = ref(translate('identity_auth_ready'))
 const nowMs = ref(Date.now())
 const redirectCountdown = ref(0)
+const passkeyChallenge = ref<IdentityChallengeResult | null>(null)
+const loadingPasskeyChallenge = ref(false)
 
 let redirectTimer: number | null = null
 let countdownTimer: number | null = null
 let clockTimer: number | null = null
+let challengeRefreshTimer: number | null = null
 
 function t(key: string, params?: Record<string, unknown>) {
   return translate(key, params)
@@ -168,6 +171,8 @@ async function loadRequestInfo() {
       response,
       t('identity_auth_query_failed')
     )
+    passkeyChallenge.value = null
+    if (requestInfo.value.status === 'pending') void loadPasskeyChallenge()
     setHint(requestInfo.value.status === 'pending' ? 'info' : 'error', requestInfo.value.status === 'pending' ? t('identity_auth_ready') : t('identity_auth_expired_hint'))
   } catch (error) {
     const hint = normalizeErrorMessage(error, t('identity_auth_read_failed'))
@@ -175,6 +180,30 @@ async function loadRequestInfo() {
     notifyInfo(hint)
   } finally {
     loadingRequest.value = false
+  }
+}
+
+async function loadPasskeyChallenge() {
+  if (!requestId.value || requestInfo.value?.status !== 'pending' || loadingPasskeyChallenge.value) return
+  loadingPasskeyChallenge.value = true
+  try {
+    const response = await fetch(apiUrl('/api/v1/public/identity/authorize/challenge'), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({ requestId: requestId.value }),
+    })
+    passkeyChallenge.value = await parseEnvelope<IdentityChallengeResult>(response, t('identity_auth_challenge_failed'))
+    if (challengeRefreshTimer !== null) window.clearTimeout(challengeRefreshTimer)
+    challengeRefreshTimer = window.setTimeout(() => {
+      challengeRefreshTimer = null
+      void loadPasskeyChallenge()
+    }, 60_000)
+  } catch (error) {
+    passkeyChallenge.value = null
+    setHint('error', normalizeErrorMessage(error, t('identity_auth_challenge_failed')))
+  } finally {
+    loadingPasskeyChallenge.value = false
   }
 }
 
@@ -322,16 +351,8 @@ async function approveWithPasskey() {
 
   approving.value = true
   try {
-    const challengeResponse = await fetch(apiUrl('/api/v1/public/identity/authorize/challenge'), {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      credentials: 'include',
-      body: JSON.stringify({ requestId: requestId.value }),
-    })
-    const challenge = await parseEnvelope<IdentityChallengeResult>(
-      challengeResponse,
-      t('identity_auth_challenge_failed')
-    )
+    const challenge = passkeyChallenge.value
+    if (!challenge) throw new Error(t('identity_auth_challenge_failed'))
     const credential = await startAuthentication(challenge.passkeyRequest)
     const approveResponse = await fetch(apiUrl('/api/v1/public/identity/authorize/approve'), {
       method: 'POST',
@@ -391,7 +412,9 @@ const canApprove = computed(() => {
     requestInfo.value?.status === 'pending' &&
       !requestExpired.value &&
       !approving.value &&
-      !redirecting.value
+      !redirecting.value &&
+      !loadingPasskeyChallenge.value &&
+      passkeyChallenge.value
   )
 })
 
@@ -432,6 +455,11 @@ watch(
   async (value) => {
     requestId.value = resolveRequestId(value)
     requestInfo.value = null
+    passkeyChallenge.value = null
+    if (challengeRefreshTimer !== null) {
+      window.clearTimeout(challengeRefreshTimer)
+      challengeRefreshTimer = null
+    }
     clearRedirectTimers()
     setHint('info', t('identity_auth_ready'))
     await loadRequestInfo()
@@ -447,6 +475,9 @@ onMounted(async () => {
 onBeforeUnmount(() => {
   clearRedirectTimers()
   clearCompletionTimer()
+  if (challengeRefreshTimer !== null) {
+    window.clearTimeout(challengeRefreshTimer)
+  }
   if (clockTimer !== null) {
     window.clearInterval(clockTimer)
   }

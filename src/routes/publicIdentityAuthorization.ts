@@ -45,7 +45,10 @@ export function registerPublicIdentityAuthorizationRoutes(app: Express) {
     try { res.json(ok(await service.createPasskeyAuthorizationChallenge({ requestId: req.body?.requestId }))) } catch (error) { handle(error, res) }
   })
   app.post('/api/v1/public/identity/authorize/exchange', async (req: Request, res: Response) => {
-    try { res.json(ok(await service.exchange({ code: req.body?.code, appId: req.body?.appId, redirectUri: req.body?.redirectUri, codeVerifier: req.body?.codeVerifier ?? req.body?.code_verifier, issueUcanSession: req.body?.issueUcanSession === true }))) } catch (error) { handle(error, res) }
+    try {
+      const input = { requestId: req.body?.requestId, appId: req.body?.appId, redirectUri: req.body?.redirectUri, codeVerifier: req.body?.codeVerifier ?? req.body?.code_verifier, issueUcanSession: req.body?.issueUcanSession === true }
+      res.json(ok(req.body?.requestId ? await service.exchangeByRequest(input) : await service.exchange({ code: req.body?.code, ...input })))
+    } catch (error) { handle(error, res) }
   })
   app.post('/api/v1/public/identity/session/refresh', async (req: Request, res: Response) => {
     try { res.json(ok(await service.refreshSession({ refreshToken: req.body?.refreshToken ?? req.body?.refresh_token, appId: req.body?.appId, redirectUri: req.body?.redirectUri }))) } catch (error) { handle(error, res) }
