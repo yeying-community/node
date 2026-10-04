@@ -130,20 +130,9 @@ function watchCompletion(){
 }
 function returnToApp(value){
   if(!isDesktopRedirect(value)){location.assign(value);return}
-  // Use a real user-agent navigation for custom schemes. Chromium-based
-  // browsers are more reliable with an anchor click than with assigning
-  // location.href after an async WebAuthn callback.
-  $('status').textContent='正在打开 Chat...';
-  const link=document.createElement('a');
-  link.href=value;
-  link.rel='noreferrer';
-  link.style.display='none';
-  document.body.appendChild(link);
-  try{link.click()}catch{}
-  window.setTimeout(()=>{
-    try{location.assign(value)}catch{}
-  },120);
-  $('status').textContent='已请求打开 Chat；请在系统弹窗中点击“打开 Chat”。';
+  // Desktop Chat polls the authorization request and exchanges the code.
+  // Do not navigate to chat:// here, otherwise macOS asks for confirmation.
+  $('status').textContent='已确认，正在返回 Chat...';
   watchCompletion();
 }
 async function parse(res){const json=await res.json().catch(()=>({}));if(!res.ok||json.code!==0)throw new Error(json.message||res.statusText);return json.data}

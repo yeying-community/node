@@ -228,6 +228,12 @@ function clearCompletionTimer() {
 
 function startRedirect(redirectTo: string) {
   if (!redirectTo) return
+  if (isDesktopRedirect(redirectTo)) {
+    clearRedirectTimers()
+    setHint('success', t('identity_auth_success_redirect'))
+    watchCompletion()
+    return
+  }
   clearRedirectTimers()
   clearCompletionTimer()
   redirectCountdown.value = 2
@@ -245,7 +251,6 @@ function startRedirect(redirectTo: string) {
   redirectTimer = window.setTimeout(() => {
     window.location.href = redirectTo
   }, 2000)
-  if (isDesktopRedirect(redirectTo)) watchCompletion()
 }
 
 function isDesktopRedirect(value: string) {
