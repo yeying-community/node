@@ -107,7 +107,6 @@ const $ = (id) => document.getElementById(id);
 function b64ToBuf(value){const s=String(value||'').replace(/-/g,'+').replace(/_/g,'/');const bin=atob(s.padEnd(s.length+((4-s.length%4)%4),'='));const out=new Uint8Array(bin.length);for(let i=0;i<bin.length;i++)out[i]=bin.charCodeAt(i);return out.buffer}
 function bufToB64(value){if(!value)return '';const bytes=new Uint8Array(value);let bin='';for(const b of bytes)bin+=String.fromCharCode(b);return btoa(bin).replace(/\\+/g,'-').replace(/\\//g,'_').replace(/=+$/,'')}
 function isDesktopRedirect(value){try{return new URL(value).protocol==='chat:'}catch{return false}}
-function tryClosePage(){try{window.open('','_self');window.close()}catch{} }
 function returnToApp(value){
   if(!isDesktopRedirect(value)){location.assign(value);return}
   // Use a real user-agent navigation for custom schemes. Chromium-based
@@ -123,10 +122,7 @@ function returnToApp(value){
   window.setTimeout(()=>{
     try{location.assign(value)}catch{}
   },120);
-  window.setTimeout(()=>{
-    tryClosePage();
-    $('status').textContent='已返回 Chat；如果此页仍打开，可以手动关闭。';
-  },1200);
+  $('status').textContent='已请求打开 Chat；请在系统弹窗中点击“打开 Chat”。完成后可以手动关闭此页。';
 }
 async function parse(res){const json=await res.json().catch(()=>({}));if(!res.ok||json.code!==0)throw new Error(json.message||res.statusText);return json.data}
 async function load(){if(!requestId)throw new Error('缺少授权请求 ID');const data=await parse(await fetch('/api/v1/public/identity/authorize/request/'+encodeURIComponent(requestId)));$('appName').textContent=data.appName||data.appId||'-';$('scopes').textContent=(data.scopes||[]).join(', ');$('requestStatus').textContent=data.status||'-';$('approve').disabled=data.status!=='pending'}
