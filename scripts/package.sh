@@ -201,8 +201,9 @@ resolve_target_tag() {
   if [[ -n "$latest_tag" ]]; then
     latest_tag_commit="$(tag_commit "$latest_tag")"
     if [[ "$latest_tag_commit" = "$current_main_commit" ]]; then
-      info "main 最新提交已经存在发布 TAG($latest_tag)，不再重复打包。"
-      exit 0
+      info "main 最新提交已经存在发布 TAG($latest_tag)，复用该 TAG 继续打包。"
+      printf '%s\n' "$latest_tag"
+      return 0
     fi
   fi
 
