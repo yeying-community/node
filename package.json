@@ -41,7 +41,7 @@
     "pg": "^8.13.1",
     "reflect-metadata": "^0.2.2",
     "siwe": "^3.0.0",
-    "typeorm": "^0.3.28",
+    "typeorm": "1.1.1",
     "uuid": "^11.0.3",
     "winston": "^3.17.0",
     "winston-daily-rotate-file": "^5.0.0"
