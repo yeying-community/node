@@ -2,7 +2,7 @@ import { createHmac, generateKeyPairSync, sign } from 'node:crypto'
 import { vi } from 'vitest'
 import { SingletonDataSource } from '../src/domain/facade/datasource'
 import { createInMemoryDataSource } from './helpers/inMemoryDataSource'
-import { IdentityAccountLinkDO, IdentityAuditLogDO, IdentityCredentialDO, IdentityPasskeyCredentialDO, IdentityTotpAuthenticatorDO, IdentityUsernameDO, IdentityWebauthnChallengeDO } from '../src/domain/mapper/entity'
+import { IdentityAccountLinkDO, IdentityAuditLogDO, IdentityAuthorizationCodeDO, IdentityAuthorizationRequestDO, IdentityCredentialDO, IdentityPasskeyCredentialDO, IdentityTotpAuthenticatorDO, IdentityUsernameDO, IdentityWebauthnChallengeDO } from '../src/domain/mapper/entity'
 
 const projectUcanPolicy = vi.hoisted(() => ({
   audience: 'did:web:router.example',
@@ -72,7 +72,7 @@ vi.mock('../src/domain/service/application', () => ({
         ucanAudience: projectUcanPolicy.audience,
         ucanCapabilities: projectUcanPolicy.capabilities,
       }
-      if (uid === 'desktop') return { uid, name: 'Chat Desktop', redirectUris: 'https://chat.yeying.pub/central-ucan-desktop-callback.html' }
+      if (uid === 'desktop') return { uid, name: 'Chat Desktop', redirectUris: 'https://chat.yeying.pub/central-ucan-callback.html' }
       return null
     }
     async search() {
@@ -80,7 +80,7 @@ vi.mock('../src/domain/service/application', () => ({
         data: [
           { uid: 'wallet', name: 'Wallet', redirectUris: 'chrome-extension://lklhmjkaigpbnfchejbkmkfpkibmnjgf' },
           { uid: 'project', name: 'Project', redirectUris: JSON.stringify(['https://project.example/auth/callback', 'http://localhost:3020/central-ucan-callback.html']) },
-          { uid: 'desktop', name: 'Chat Desktop', redirectUris: 'https://chat.yeying.pub/central-ucan-desktop-callback.html' }
+          { uid: 'desktop', name: 'Chat Desktop', redirectUris: 'https://chat.yeying.pub/central-ucan-callback.html' }
         ],
         page: { page: 1, pageSize: 1000, total: 3 }
       }
@@ -187,12 +187,56 @@ describe('identity authorization', () => {
     expect(request.audience).toBe('urn:yeying:app:desktop')
     const approved = await service.approve({ requestId: request.requestId, presentation: presentation(request) })
     expect(approved).toMatchObject({ clientType: 'desktop', redirectTo: '' })
+    await expect(service.validateClient({
+      appId: 'desktop',
+      clientType: 'desktop',
+      redirectUri: 'https://chat.yeying.pub/central-ucan-callback.html',
+    })).rejects.toThrow('IDENTITY_REDIRECT_URI_UNAUTHORIZED')
     await expect(service.create({
       appId: 'desktop',
-      redirectUri: 'https://attacker.example/central-ucan-callback.html',
+      redirectUri: 'https://chat.yeying.pub/central-ucan-callback.html',
+      clientType: 'desktop',
       codeChallenge: 'e'.repeat(43),
       codeChallengeMethod: 'S256',
     })).rejects.toThrow('IDENTITY_REDIRECT_URI_UNAUTHORIZED')
+
+    const legacyRequest = Object.assign(new IdentityAuthorizationRequestDO(), {
+      requestId: 'iar_legacy_desktop_redirect',
+      appId: 'desktop',
+      redirectUri: 'https://chat.yeying.pub/central-ucan-callback.html',
+      clientType: 'desktop',
+      state: '',
+      codeChallenge: 'f'.repeat(43),
+      codeChallengeMethod: 'S256',
+      scopesJson: JSON.stringify(['identity.basic']),
+      nonce: 'nonce_legacy_desktop_redirect',
+      identityDid: identity,
+      status: 'approved',
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      expiresAt: new Date(Date.now() + 60_000).toISOString(),
+      approvedAt: new Date().toISOString(),
+    })
+    await SingletonDataSource.get()!.getRepository(IdentityAuthorizationRequestDO).save(legacyRequest)
+    await SingletonDataSource.get()!.getRepository(IdentityAuthorizationCodeDO).save(Object.assign(new IdentityAuthorizationCodeDO(), {
+      code: 'iac_legacy_desktop_redirect',
+      requestId: legacyRequest.requestId,
+      appId: legacyRequest.appId,
+      redirectUri: legacyRequest.redirectUri,
+      state: '',
+      codeChallenge: legacyRequest.codeChallenge,
+      scopesJson: legacyRequest.scopesJson,
+      identityDid: identity,
+      issuedAt: new Date().toISOString(),
+      expiresAt: new Date(Date.now() + 60_000).toISOString(),
+      used: false,
+      usedAt: '',
+    }))
+    await expect(service.exchangeByRequest({
+      requestId: legacyRequest.requestId,
+      appId: 'desktop',
+      codeVerifier: 'g'.repeat(43),
+    })).rejects.toThrow('IDENTITY_AUTHORIZATION_REQUEST_NOT_FOUND')
   })
 
   it('exchanges a DID presentation once and returns requested credentials', async () => {

@@ -83,4 +83,5 @@ describe('starter script environment handling', () => {
       stopAndRemoveFixture(fixture)
     }
   })
+
 })

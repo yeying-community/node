@@ -134,7 +134,6 @@ Web 应用需要在应用编辑页的回调地址框中登记完整地址，每�
 
 ```text
 https://chat.example.com/central-ucan-callback.html
-https://chat.yeying.pub/central-ucan-desktop-callback.html
 ```
 
 本地 Web 开发可将第一项替换为 `http://localhost:3020/central-ucan-callback.html`。桌面 Chat 使用 `clientType=desktop`，不提交 `redirectUri`，由 Node 使用 `urn:yeying:app:<applications.uid>` 作为稳定授权 audience，并通过授权状态轮询完成 PKCE exchange。桌面不依赖 Web 域名、HTTPS 回调或 `https://tauri.localhost`；Web 授权请求的 `redirectUri` 仍必须与已登记的一项逐字符一致，不支持通配符。

@@ -100,7 +100,7 @@ prepare_secrets_password_file() {
   fi
 
   if [[ ! -t 0 ]]; then
-    fail "缺少密钥文件密码。请通过交互输入提供密码。"
+    fail "缺少密钥文件密码。请配置 secrets.passwordFile，或在交互终端中启动服务。"
   fi
 
   mkdir -p "$RUN_DIR"
@@ -135,18 +135,18 @@ install_runtime_dependencies() {
   if [[ -f "$ROOT_DIR/package-lock.json" ]]; then
     if ! (
       cd "$ROOT_DIR"
-      npm ci --omit=dev --no-audit --no-fund
+      npm ci --omit=dev --no-audit --no-fund --loglevel=error
     ); then
       info "npm ci 失败，回退到 npm install --omit=dev"
       (
         cd "$ROOT_DIR"
-        npm install --omit=dev --no-audit --no-fund
+        npm install --omit=dev --no-audit --no-fund --loglevel=error
       )
     fi
   else
     (
       cd "$ROOT_DIR"
-      npm install --omit=dev --no-audit --no-fund
+      npm install --omit=dev --no-audit --no-fund --loglevel=error
     )
   fi
 }
