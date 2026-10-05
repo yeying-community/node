@@ -55,11 +55,10 @@ flowchart TD
 `redirectUri` 必须和你在应用中心配置的某一项完全一致。
 如果不一致，登录完成后不会通过校验。
 
-Chat 同时支持 Web 和桌面端时，可以登记：
+Web 版本或浏览器扩展需要回跳时，可以登记：
 
 ```text
 https://chat.example.com/central-ucan-callback.html
-https://chat.yeying.pub/central-ucan-desktop-callback.html
 ```
 
 ## 常见问题

@@ -291,7 +291,7 @@ export class IdentityAuthorizationService {
     if (!appId || !['web', 'desktop'].includes(clientType)) throw new Error('IDENTITY_AUTHORIZATION_REQUEST_INVALID')
     const app = await this.applications.queryByUid(appId)
     const registered = app ? appRedirects(app.redirectUris) : []
-    if (!app || (clientType === 'web' && (!redirectUri || !registered.includes(redirectUri))) || (clientType === 'desktop' && redirectUri && !registered.includes(redirectUri))) throw new Error('IDENTITY_REDIRECT_URI_UNAUTHORIZED')
+    if (!app || (clientType === 'web' && (!redirectUri || !registered.includes(redirectUri))) || (clientType === 'desktop' && redirectUri)) throw new Error('IDENTITY_REDIRECT_URI_UNAUTHORIZED')
     const passkey = getPasskeyAuthStatus()
     const issuer = getCentralIssuerStatus()
     return {
@@ -311,7 +311,7 @@ export class IdentityAuthorizationService {
     if (!appId || !['web', 'desktop'].includes(clientType) || !/^[A-Za-z0-9_-]{43,256}$/.test(challenge) || string(input.codeChallengeMethod || 'S256') !== 'S256') throw new Error('IDENTITY_AUTHORIZATION_REQUEST_INVALID')
     const app = await this.applications.queryByUid(appId)
     const registered = app ? appRedirects(app.redirectUris) : []
-    if (!app || (clientType === 'web' && (!redirectUri || !registered.includes(redirectUri))) || (clientType === 'desktop' && redirectUri && !registered.includes(redirectUri))) throw new Error('IDENTITY_REDIRECT_URI_UNAUTHORIZED')
+    if (!app || (clientType === 'web' && (!redirectUri || !registered.includes(redirectUri))) || (clientType === 'desktop' && redirectUri)) throw new Error('IDENTITY_REDIRECT_URI_UNAUTHORIZED')
     const entity = new IdentityAuthorizationRequestDO(); const createdAt = now()
     Object.assign(entity, { requestId: id('iar'), appId, redirectUri, clientType, state: string(input.state), codeChallenge: challenge, codeChallengeMethod: 'S256', scopesJson: JSON.stringify(scopes(input.scopes)), nonce: id('nonce'), identityDid: '', status: 'pending', createdAt, updatedAt: createdAt, expiresAt: new Date(Date.now() + REQUEST_TTL_MS).toISOString(), approvedAt: '' })
     await dataSource().getRepository(IdentityAuthorizationRequestDO).save(entity)
@@ -475,8 +475,11 @@ export class IdentityAuthorizationService {
     const repo = dataSource().getRepository(IdentityAuthorizationCodeDO); const row = await repo.findOneBy({ code: string(input.code) })
     if (!row || row.used || Date.parse(row.expiresAt) <= Date.now()) throw new Error('IDENTITY_AUTHORIZATION_CODE_INVALID')
     const request = await dataSource().getRepository(IdentityAuthorizationRequestDO).findOneBy({ requestId: row.requestId })
-    const desktop = request?.clientType === 'desktop' && !row.redirectUri
-    if (row.appId !== string(input.appId) || (!desktop && row.redirectUri !== string(input.redirectUri)) || (desktop && string(input.redirectUri))) throw new Error('IDENTITY_AUTHORIZATION_CODE_APP_MISMATCH')
+    const desktop = request?.clientType === 'desktop'
+    const redirectMatches = desktop
+      ? !request?.redirectUri && !string(input.redirectUri)
+      : row.redirectUri === string(input.redirectUri)
+    if (!request || row.appId !== string(input.appId) || !redirectMatches) throw new Error('IDENTITY_AUTHORIZATION_CODE_APP_MISMATCH')
     pkce(input.codeVerifier, row.codeChallenge)
     const requested = scopes(JSON.parse(row.scopesJson)); const credentials = await dataSource().getRepository(IdentityCredentialDO).findBy({ identityDid: row.identityDid, status: 'active' })
     const wanted = new Set(requested.includes('identity.email') ? ['EmailCredential'] : []); if (requested.includes('identity.username')) wanted.add('UsernameCredential'); if (requested.includes('identity.avatar')) wanted.add('AvatarCredential'); if (requested.includes('identity.wallet')) wanted.add('WalletAccountCredential')
@@ -611,7 +614,11 @@ export class IdentityAuthorizationService {
 
   async exchangeByRequest(input: { requestId: unknown; appId: unknown; redirectUri?: unknown; codeVerifier: unknown; issueUcanSession?: unknown }) {
     const request = await dataSource().getRepository(IdentityAuthorizationRequestDO).findOneBy({ requestId: string(input.requestId) })
-    if (!request || request.appId !== string(input.appId) || (request.clientType !== 'desktop' && request.redirectUri !== string(input.redirectUri)) || (request.clientType === 'desktop' && string(input.redirectUri))) throw new Error('IDENTITY_AUTHORIZATION_REQUEST_NOT_FOUND')
+    const desktop = request?.clientType === 'desktop'
+    const redirectMatches = desktop
+      ? !request?.redirectUri && !string(input.redirectUri)
+      : request?.redirectUri === string(input.redirectUri)
+    if (!request || request.appId !== string(input.appId) || !redirectMatches) throw new Error('IDENTITY_AUTHORIZATION_REQUEST_NOT_FOUND')
     if (request.status !== 'approved') throw new Error('IDENTITY_AUTHORIZATION_REQUEST_PENDING')
     const code = await dataSource().getRepository(IdentityAuthorizationCodeDO).findOneBy({ requestId: request.requestId, used: false })
     if (!code) throw new Error('IDENTITY_AUTHORIZATION_REQUEST_PENDING')

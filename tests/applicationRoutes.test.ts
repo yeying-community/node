@@ -894,7 +894,7 @@ describe('public application routes idempotency', () => {
     applicationStore.set(`did:${existing.did}:${existing.version}`, existing)
     const redirectUris = [
       'https://chat.example.com/central-ucan-callback.html',
-      'https://chat.yeying.pub/central-ucan-desktop-callback.html',
+      'https://chat.yeying.pub/central-ucan-mobile-callback.html',
     ]
     const signedBody = await signBody({
       wallet,
