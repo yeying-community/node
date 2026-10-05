@@ -130,14 +130,14 @@ Wallet 插件设置页注册身份 Passkey 时，WebAuthn 响应 origin 是 `chr
 
 Node 自身的应用中心登录是钱包签名 / UCAN 自举登录，不依赖在应用中心先发布一个 Node 应用；`identity.webauthn` 只负责钱包身份 WebAuthn 认证器注册和无插件授权页。Router 等外部 Web3 应用才需要在 Node 应用中心发布应用并配置 `redirectUris`。
 
-应用若同时提供 Web 和桌面版本，可在应用编辑页的回调地址框中每行填写一个完整地址，例如：
+Web 应用需要在应用编辑页的回调地址框中登记完整地址，每行一项，例如：
 
 ```text
 https://chat.example.com/central-ucan-callback.html
 https://chat.yeying.pub/central-ucan-desktop-callback.html
 ```
 
-本地 Web 开发可将第一项替换为 `http://localhost:3020/central-ucan-callback.html`。桌面 Chat 使用 `clientType=desktop`，不会通过 redirectUri 回跳；`https://tauri.localhost/...` 是 Tauri WebView 内部 origin，不应登记为外部授权地址。授权请求中的 `redirectUri` 仍必须与已登记的一项逐字符一致，不支持通配符。
+本地 Web 开发可将第一项替换为 `http://localhost:3020/central-ucan-callback.html`。桌面 Chat 使用 `clientType=desktop`，不提交 `redirectUri`，由 Node 使用 `urn:yeying:app:<applications.uid>` 作为稳定授权 audience，并通过授权状态轮询完成 PKCE exchange。桌面不依赖 Web 域名、HTTPS 回调或 `https://tauri.localhost`；Web 授权请求的 `redirectUri` 仍必须与已登记的一项逐字符一致，不支持通配符。
 
 钱包身份相关公共接口：
 

@@ -21,7 +21,7 @@ export function registerPublicIdentityAuthorizationRoutes(app: Express) {
     res.json(ok({ passkey: getPasskeyAuthStatus(), totp: getIdentityTotpStatus() }))
   })
   app.post('/api/v1/public/identity/authorize/validate', async (req: Request, res: Response) => {
-    try { res.json(ok(await service.validateClient({ appId: req.body?.appId, redirectUri: req.body?.redirectUri }))) } catch (error) { handle(error, res) }
+    try { res.json(ok(await service.validateClient({ appId: req.body?.appId, redirectUri: req.body?.redirectUri, clientType: req.body?.clientType ?? req.body?.client_type }))) } catch (error) { handle(error, res) }
   })
   app.post('/api/v1/public/identity/authorize/request', async (req: Request, res: Response) => {
     try { res.json(ok(await service.create({ appId: req.body?.appId, redirectUri: req.body?.redirectUri, clientType: req.body?.clientType ?? req.body?.client_type, state: req.body?.state, codeChallenge: req.body?.codeChallenge ?? req.body?.code_challenge, codeChallengeMethod: req.body?.codeChallengeMethod ?? req.body?.code_challenge_method, scopes: req.body?.scopes ?? req.body?.scope }))) } catch (error) { handle(error, res) }

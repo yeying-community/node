@@ -144,7 +144,7 @@ UNIQUE(application_uid, version)
 - 旧版本仍可按 `appId + version` 查询和回滚。
 - 应用升级不改变 WebDAV `/apps/<appId>` 路径。
 - 刷新会话不会因为应用版本升级失效。
-- Web、桌面、扩展登记的回调都能精确命中。
+- Web、扩展登记的回调都能精确命中；桌面授权使用独立的 `clientType=desktop` audience，不依赖回调地址。
 - Node Registry 签名（如启用）和 UCAN 用户授权边界彼此独立且可审计；应用级签名身份属于后续扩展。
 
 ## 8. 当前明确不做的内容
