@@ -157,7 +157,8 @@ module.exports = {
       // Relying Party display name.
       rpName: 'YeYing Node',
       // Browser origin that serves the identity authorization page.
-      origin: 'http://localhost:8100',
+      // The local Vite frontend serves the WebAuthn ceremony on port 8991.
+      origin: 'http://localhost:8991',
       // WebAuthn operation timeout.
       timeoutMs: 60 * 1000,
       // Registration challenge TTL.

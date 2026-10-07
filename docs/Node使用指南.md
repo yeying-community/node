@@ -124,7 +124,7 @@ identity: {
 }
 ```
 
-`rpId` 只能是当前域名或其可注册父域。`origin` 是 Node 自己承载钱包身份授权页的浏览器来源，必须包含协议且与实际来源完全一致，例如生产环境 `https://node.example.com` 或本地 `http://localhost:8100`。
+`rpId` 只能是当前域名或其可注册父域。`origin` 是承载钱包身份注册/授权页面的浏览器来源，必须包含协议且与实际来源完全一致，例如生产环境 `https://node.example.com`。本地开发时前端由 Vite 运行在 `http://localhost:8991`，因此应配置为该地址；后端 API 仍运行在 `http://localhost:8100`，由 Vite 代理请求。
 
 Wallet 插件设置页注册身份 Passkey 时，WebAuthn 响应 origin 是 `chrome-extension://<wallet-extension-id>`。这个 origin 不写入 Node 运行时配置；应把钱包插件作为应用发布到 Node 应用中心，并把插件 origin 加入该应用的 `redirectUris`。Node 在确认 Passkey 注册时只接受两类来源：`identity.webauthn.origin` 表示的 Node 授权页，以及已发布应用 `redirectUris` 解析出的来源。
 
