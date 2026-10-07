@@ -120,6 +120,7 @@ import { AddNotificationWebhookFormat20260929100000 } from './migrations/2026092
 import { AddIdentityAuthorizationClientType20261004100000 } from './migrations/20261004100000-add-identity-authorization-client-type';
 import { AddIdentityRegistrations20261007100000 } from './migrations/20261007100000-add-identity-registrations';
 import { AddIdentityEmailAuth20261007140000 } from './migrations/20261007140000-add-identity-email-auth';
+import { RepairIdentityEmailAuth20261007150000 } from './migrations/20261007150000-repair-identity-email-auth';
 import { getConfig } from './config/runtime';
 import { startActionRequestCleanupJobs } from './domain/service/actionRequestCleanup';
 import { startMpcCleanupJobs } from './domain/service/mpcCleanup';
@@ -406,7 +407,8 @@ builder.migrations([
     AddNotificationWebhookFormat20260929100000,
     AddIdentityAuthorizationClientType20261004100000,
     AddIdentityRegistrations20261007100000,
-    AddIdentityEmailAuth20261007140000
+    AddIdentityEmailAuth20261007140000,
+    RepairIdentityEmailAuth20261007150000
 ])
 
 builder.build().initialize().then(async (conn) => {
