@@ -17,10 +17,17 @@ vi.doMock('../src/domain/service/user', () => ({
       userState = nextState
       return nextState
     }
+
+    async insertStateIfAbsent(nextState: typeof userState) {
+      if (!userState) {
+        userState = nextState
+      }
+      return userState
+    }
   },
 }))
 
-const { getAdminDidAllowList, isAdminUser } = await import('../src/common/permission')
+const { getAdminDidAllowList, isAdminUser, provisionUserState } = await import('../src/common/permission')
 
 describe('admin permission bootstrap', () => {
   beforeEach(() => {
@@ -55,5 +62,16 @@ describe('admin permission bootstrap', () => {
     }
 
     await expect(isAdminUser(actor)).resolves.toBe(true)
+  })
+
+  it('provisions a missing state through an insert-if-absent operation', async () => {
+    const state = await provisionUserState(actor)
+
+    expect(state).toMatchObject({
+      did: actor,
+      role: 'USER_ROLE_NORMAL',
+      status: 'USER_STATUS_ACTIVE',
+    })
+    expect(userState).toEqual(state)
   })
 })

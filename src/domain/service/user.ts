@@ -67,6 +67,15 @@ export class UserService {
         return this.userManager.saveState(convertUserStateTo(state))
     }
 
+    async insertStateIfAbsent(state: UserState) {
+        this.logger.info('provisioning user state', {
+            did: this.maskDid(state.did),
+            role: state.role,
+            status: state.status,
+        })
+        return convertUserStateFrom(await this.userManager.insertStateIfAbsent(convertUserStateTo(state)))
+    }
+
     async listUsers(pageIndex: number, pageSize: number) {
         const result = await this.userManager.listUsers(pageIndex, pageSize)
         return {

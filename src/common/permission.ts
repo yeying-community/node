@@ -124,8 +124,11 @@ export async function provisionUserState(did: string) {
   const now = getCurrentUtcString();
   const created = buildDefaultUserState(did, now);
   const service = new UserService();
-  await service.saveState(created);
-  return created;
+  const provisioned = await service.insertStateIfAbsent(created);
+  if (!provisioned) {
+    throw new Error('USER_STATE_PROVISION_FAILED');
+  }
+  return provisioned;
 }
 
 export async function getEffectiveUserState(did: string) {
