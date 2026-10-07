@@ -185,11 +185,39 @@ export class IdentityAuditLogDO {
 export class IdentityRegistrationDO {
     @PrimaryColumn({ length: 128, name: 'registration_id' }) registrationId!: string
     @Column({ length: 128, name: 'identity_did' }) identityDid!: string
+    @Column({ length: 128, name: 'email_challenge_id', default: '' }) emailChallengeId!: string
     @Column({ type: 'text', name: 'identity_document_hash' }) identityDocumentHash!: string
     @Column({ length: 32, default: 'pending' }) status!: string
     @Column({ length: 64, name: 'created_at' }) createdAt!: string
     @Column({ length: 64, name: 'expires_at' }) expiresAt!: string
     @Column({ length: 64, name: 'activated_at', default: '' }) activatedAt!: string
+}
+
+@Entity('identity_email_accounts')
+@Index('uidx_identity_email_account_identity', ['identityDid'], { unique: true })
+export class IdentityEmailAccountDO {
+    @PrimaryColumn({ length: 320 }) email!: string
+    @Column({ length: 128, name: 'identity_did' }) identityDid!: string
+    @Column({ length: 32, default: 'active' }) status!: string
+    @Column({ length: 64, name: 'created_at' }) createdAt!: string
+    @Column({ length: 64, name: 'verified_at' }) verifiedAt!: string
+}
+
+@Entity('identity_email_auth_challenges')
+@Index('idx_identity_email_auth_challenge_lookup', ['email', 'purpose', 'status'])
+export class IdentityEmailAuthChallengeDO {
+    @PrimaryColumn({ length: 128, name: 'challenge_id' }) challengeId!: string
+    @Column({ length: 320 }) email!: string
+    @Column({ length: 128, name: 'identity_did', default: '' }) identityDid!: string
+    @Column({ length: 128, name: 'registration_id', default: '' }) registrationId!: string
+    @Column({ length: 32 }) purpose!: string
+    @Column({ length: 128, name: 'code_hash' }) codeHash!: string
+    @Column({ type: 'text', name: 'passkey_request_json', default: '{}' }) passkeyRequestJson!: string
+    @Column({ type: 'integer', default: 0 }) attempts!: number
+    @Column({ length: 32, default: 'pending' }) status!: string
+    @Column({ length: 64, name: 'created_at' }) createdAt!: string
+    @Column({ length: 64, name: 'expires_at' }) expiresAt!: string
+    @Column({ length: 64, name: 'consumed_at', default: '' }) consumedAt!: string
 }
 
 @Entity('identity_passkey_credentials')

@@ -11,6 +11,7 @@ import {
 } from '../auth/siwe';
 import { provisionUserState } from '../common/permission';
 import { getConfig } from '../config/runtime';
+import { IdentityEmailAuthService } from '../domain/service/identityEmailAuth';
 
 const BASE_PATH = '/api/v1/public/auth';
 const REFRESH_COOKIE_NAME =
@@ -66,7 +67,51 @@ function getCookie(req: Request, name: string): string | undefined {
   return cookies[name];
 }
 
-export function registerPublicAuthRoutes(app: Express) {
+function emailErrorStatus(message: string) {
+  if (message.includes('NOT_FOUND') || message.includes('ACCOUNT_NOT_FOUND')) return 404
+  if (message.includes('ALREADY_REGISTERED') || message.includes('ALREADY_ACTIVE')) return 409
+  if (message.includes('EXPIRED')) return 410
+  if (message.includes('INVALID') || message.includes('REQUIRED') || message.includes('NOT_ACTIVE')) return 400
+  return 503
+}
+
+export function registerPublicAuthRoutes(app: Express, emailAuth?: IdentityEmailAuthService) {
+  const requireEmailAuth = () => {
+    if (!emailAuth) throw new Error('IDENTITY_EMAIL_AUTH_UNAVAILABLE')
+    return emailAuth
+  }
+
+  app.post(`${BASE_PATH}/email/register/request`, async (req: Request, res: Response) => {
+    try { res.json(ok(await requireEmailAuth().requestRegister({ email: req.body?.email, identityDocument: req.body?.identityDocument, deviceName: req.body?.deviceName }))) }
+    catch (error) { const message = error instanceof Error ? error.message : 'Email registration request failed'; res.status(emailErrorStatus(message)).json(fail(emailErrorStatus(message), message)) }
+  })
+  app.post(`${BASE_PATH}/email/register/confirm`, async (req: Request, res: Response) => {
+    try { res.json(ok(await requireEmailAuth().confirmRegister({ verificationId: req.body?.verificationId, code: req.body?.code }))) }
+    catch (error) { const message = error instanceof Error ? error.message : 'Email registration verification failed'; res.status(emailErrorStatus(message)).json(fail(emailErrorStatus(message), message)) }
+  })
+  app.post(`${BASE_PATH}/email/register/complete`, async (req: Request, res: Response) => {
+    try {
+      const result = await requireEmailAuth().completeRegister({ verificationId: req.body?.verificationId, registrationId: req.body?.registrationId })
+      await provisionUserState(result.identity)
+      const tokens = issueTokens(result.identity)
+      setRefreshCookie(res, tokens.refreshToken, tokens.refreshExpiresAt - Date.now())
+      res.json(ok({ identity: result.identity, address: result.identity, token: tokens.accessToken, expiresAt: tokens.accessExpiresAt, refreshExpiresAt: tokens.refreshExpiresAt }))
+    } catch (error) { const message = error instanceof Error ? error.message : 'Email registration completion failed'; res.status(emailErrorStatus(message)).json(fail(emailErrorStatus(message), message)) }
+  })
+  app.post(`${BASE_PATH}/email/login/request`, async (req: Request, res: Response) => {
+    try { res.json(ok(await requireEmailAuth().requestLogin({ email: req.body?.email }))) }
+    catch (error) { const message = error instanceof Error ? error.message : 'Email login request failed'; res.status(emailErrorStatus(message)).json(fail(emailErrorStatus(message), message)) }
+  })
+  app.post(`${BASE_PATH}/email/login/confirm`, async (req: Request, res: Response) => {
+    try {
+      const result = await requireEmailAuth().confirmLogin({ verificationId: req.body?.verificationId, code: req.body?.code })
+      await provisionUserState(result.identity)
+      const tokens = issueTokens(result.identity)
+      setRefreshCookie(res, tokens.refreshToken, tokens.refreshExpiresAt - Date.now())
+      res.json(ok({ identity: result.identity, address: result.identity, token: tokens.accessToken, expiresAt: tokens.accessExpiresAt, refreshExpiresAt: tokens.refreshExpiresAt }))
+    } catch (error) { const message = error instanceof Error ? error.message : 'Email login verification failed'; res.status(emailErrorStatus(message)).json(fail(emailErrorStatus(message), message)) }
+  })
+
   app.post(`${BASE_PATH}/challenge`, (req: Request, res: Response) => {
     const address = req.body?.address;
     if (!address || typeof address !== 'string') {

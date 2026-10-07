@@ -1,4 +1,6 @@
 import { notifyError } from '@/utils/message';
+import { createBrowserIdentity } from '@/utils/identity';
+import { startRegistration } from '@/utils/webauthn';
 import { getWalletDataStore } from '@/stores/auth';
 import { apiUrl } from '@/plugins/api';
 import {
@@ -66,6 +68,9 @@ type SiweVerifyResult = {
   expiresAt: number;
   refreshExpiresAt: number;
 };
+
+type EmailAuthRequest = { verificationId: string; email: string; expiresAt: string };
+type EmailRegisterRequest = EmailAuthRequest & { identity: string; registrationId: string; identityDocument: Record<string, unknown> };
 
 const UCAN_API_TOKEN_KEY = 'ucanToken';
 const UCAN_WEBDAV_TOKEN_KEY = 'webdavToken';
@@ -1132,6 +1137,54 @@ export async function connectWallet(router: any, route: any) {
   } catch (error) {
     notifyError(`连接失败：${error}`);
   }
+}
+
+export async function requestEmailLogin(email: string): Promise<EmailAuthRequest> {
+  return await postAuthJson<EmailAuthRequest>('/api/v1/public/auth/email/login/request', { email }, '发送邮箱验证码失败');
+}
+
+export async function confirmEmailLogin(verificationId: string, code: string): Promise<boolean> {
+  const result = await postAuthJson<{ identity: string; address: string; token: string; expiresAt: number }>(
+    '/api/v1/public/auth/email/login/confirm', { verificationId, code }, '邮箱登录失败'
+  );
+  clearManualLogoutMark();
+  handleAccountChange(result.identity || result.address);
+  persistAuthToken(result.token, result.expiresAt);
+  emitAccountChange(result.identity || result.address);
+  return true;
+}
+
+export async function requestEmailRegistration(email: string, deviceName = 'Browser Passkey'): Promise<EmailRegisterRequest> {
+  const identity = await createBrowserIdentity();
+  const result = await postAuthJson<Omit<EmailRegisterRequest, 'identityDocument'>>('/api/v1/public/auth/email/register/request', {
+    email,
+    identityDocument: identity.document,
+    deviceName,
+  }, '创建邮箱注册请求失败');
+  return { ...result, identityDocument: identity.document };
+}
+
+export async function confirmEmailRegistration(request: EmailRegisterRequest, code: string): Promise<boolean> {
+  const verified = await postAuthJson<{
+    verificationId: string;
+    registrationId: string;
+    identity: string;
+    passkeyRequest: Record<string, any>;
+  }>('/api/v1/public/auth/email/register/confirm', { verificationId: request.verificationId, code }, '邮箱验证码无效');
+  const credential = await startRegistration(verified.passkeyRequest as any);
+  await postAuthJson('/api/v1/public/identity/register/confirm', {
+    registrationId: verified.registrationId,
+    identityDocument: request.identityDocument,
+    credential,
+  }, 'Passkey 注册失败');
+  const result = await postAuthJson<{ identity: string; address: string; token: string; expiresAt: number }>(
+    '/api/v1/public/auth/email/register/complete', { verificationId: request.verificationId, registrationId: verified.registrationId }, '完成邮箱注册失败'
+  );
+  clearManualLogoutMark();
+  handleAccountChange(result.identity || result.address);
+  persistAuthToken(result.token, result.expiresAt);
+  emitAccountChange(result.identity || result.address);
+  return true;
 }
 
 export function getCurrentAccount() {

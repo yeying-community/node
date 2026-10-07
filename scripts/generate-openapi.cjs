@@ -138,6 +138,26 @@ const document = {
           signature: { type: 'string' },
         },
       },
+      EmailAuthRegisterRequest: {
+        type: 'object', required: ['email', 'identityDocument'],
+        properties: {
+          email: { type: 'string', format: 'email' },
+          identityDocument: { type: 'object', additionalProperties: true, description: '客户端生成并签名的公开 DID Document，不得包含私钥。' },
+          deviceName: { type: 'string' },
+        },
+      },
+      EmailAuthCodeRequest: {
+        type: 'object', required: ['verificationId', 'code'],
+        properties: { verificationId: { type: 'string' }, code: { type: 'string', minLength: 6, maxLength: 6 } },
+      },
+      EmailAuthLoginRequest: {
+        type: 'object', required: ['email'],
+        properties: { email: { type: 'string', format: 'email' } },
+      },
+      EmailAuthRegisterCompleteRequest: {
+        type: 'object', required: ['verificationId', 'registrationId'],
+        properties: { verificationId: { type: 'string' }, registrationId: { type: 'string' } },
+      },
       IdentityDid: {
         type: 'string',
         pattern: '^did:yeying:wid_[A-Za-z0-9_-]{22,}$',
@@ -516,6 +536,11 @@ const operations = [
   ['get', '/api/v1/public/ready', 'Health', '数据库就绪检查', 'none'],
   ['post', '/api/v1/public/auth/challenge', 'Auth', '创建 SIWE 登录挑战', 'none', 'AuthChallengeRequest'],
   ['post', '/api/v1/public/auth/verify', 'Auth', '验证钱包签名并签发 JWT', 'none', 'AuthVerifyRequest'],
+  ['post', '/api/v1/public/auth/email/register/request', 'Auth', '请求无插件邮箱注册验证码', 'none', 'EmailAuthRegisterRequest'],
+  ['post', '/api/v1/public/auth/email/register/confirm', 'Auth', '确认邮箱注册验证码并取得 Passkey 注册参数', 'none', 'EmailAuthCodeRequest'],
+  ['post', '/api/v1/public/auth/email/register/complete', 'Auth', '完成邮箱注册并签发 DID JWT', 'none', 'EmailAuthRegisterCompleteRequest'],
+  ['post', '/api/v1/public/auth/email/login/request', 'Auth', '请求邮箱登录验证码', 'none', 'EmailAuthLoginRequest'],
+  ['post', '/api/v1/public/auth/email/login/confirm', 'Auth', '确认邮箱登录验证码并签发 DID JWT', 'none', 'EmailAuthCodeRequest'],
   ['post', '/api/v1/public/auth/refresh', 'Auth', '刷新访问令牌', 'cookie'],
   ['post', '/api/v1/public/auth/logout', 'Auth', '注销刷新会话', 'cookie'],
   ['get', '/api/v1/public/auth/central/issuer', 'Auth', '查询中心化 UCAN issuer', 'none'],

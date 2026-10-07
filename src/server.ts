@@ -37,7 +37,7 @@ import {
     ProjectAppInstallationDO,
     AppReleaseDO,
     AppRuntimeTaskDO,
-    IdentityAccountLinkDO, IdentityAccountLinkChallengeDO, IdentityVerificationTransactionDO, IdentityUsernameDO, IdentityCredentialDO, IdentityCredentialReissueChallengeDO, IdentityAuditLogDO, IdentityRegistrationDO, IdentityPasskeyCredentialDO, IdentityTotpAuthenticatorDO, IdentityWebauthnChallengeDO, IdentityActionChallengeDO, IdentityAuthorizationRequestDO, IdentityAuthorizationCodeDO, IdentityAuthorizationSessionDO, UcanIssueSessionDO, UcanIssuedTokenDO, UcanTokenRevocationDO, UcanAuditLogDO
+    IdentityAccountLinkDO, IdentityAccountLinkChallengeDO, IdentityVerificationTransactionDO, IdentityUsernameDO, IdentityCredentialDO, IdentityCredentialReissueChallengeDO, IdentityAuditLogDO, IdentityRegistrationDO, IdentityEmailAccountDO, IdentityEmailAuthChallengeDO, IdentityPasskeyCredentialDO, IdentityTotpAuthenticatorDO, IdentityWebauthnChallengeDO, IdentityActionChallengeDO, IdentityAuthorizationRequestDO, IdentityAuthorizationCodeDO, IdentityAuthorizationSessionDO, UcanIssueSessionDO, UcanIssuedTokenDO, UcanTokenRevocationDO, UcanAuditLogDO
 } from './domain/mapper/entity'
 import { SingletonDataSource } from './domain/facade/datasource';
 import { LoggerConfig, LoggerService } from './infrastructure/logger';
@@ -59,6 +59,7 @@ import { registerAdminPusherRoutes, registerPublicPusherRoutes } from './routes/
 import { registerPublicIdentityRoutes } from './routes/publicIdentity';
 import { registerPublicIdentityAccountLinkRoutes } from './routes/publicIdentityAccountLinks';
 import { IdentityEmailService } from './domain/service/identityEmail';
+import { IdentityEmailAuthService } from './domain/service/identityEmailAuth';
 import { registerPublicIdentityEmailRoutes } from './routes/publicIdentityEmail';
 import { registerPublicIdentityAuthorizationRoutes } from './routes/publicIdentityAuthorization';
 import { registerPublicIdentityTotpRoutes } from './routes/publicIdentityTotp';
@@ -118,6 +119,7 @@ import { AddScopedGrants20260808090000 } from './migrations/20260808090000-add-s
 import { AddNotificationWebhookFormat20260929100000 } from './migrations/20260929100000-add-notification-webhook-format';
 import { AddIdentityAuthorizationClientType20261004100000 } from './migrations/20261004100000-add-identity-authorization-client-type';
 import { AddIdentityRegistrations20261007100000 } from './migrations/20261007100000-add-identity-registrations';
+import { AddIdentityEmailAuth20261007140000 } from './migrations/20261007140000-add-identity-email-auth';
 import { getConfig } from './config/runtime';
 import { startActionRequestCleanupJobs } from './domain/service/actionRequestCleanup';
 import { startMpcCleanupJobs } from './domain/service/mpcCleanup';
@@ -339,6 +341,8 @@ builder.entities([
     IdentityCredentialReissueChallengeDO,
     IdentityAuditLogDO,
     IdentityRegistrationDO,
+    IdentityEmailAccountDO,
+    IdentityEmailAuthChallengeDO,
     IdentityPasskeyCredentialDO,
     IdentityTotpAuthenticatorDO,
     IdentityWebauthnChallengeDO,
@@ -401,7 +405,8 @@ builder.migrations([
     AddUcanAuditLogs20260921140000,
     AddNotificationWebhookFormat20260929100000,
     AddIdentityAuthorizationClientType20261004100000,
-    AddIdentityRegistrations20261007100000
+    AddIdentityRegistrations20261007100000,
+    AddIdentityEmailAuth20261007140000
 ])
 
 builder.build().initialize().then(async (conn) => {
@@ -446,7 +451,10 @@ builder.build().initialize().then(async (conn) => {
     app.use('/api/v1/admin', requireAdmin);
 
 
-    registerPublicAuthRoutes(app);
+    const identityEmailAuth = new IdentityEmailAuthService(async ({ email, code, expiresAt }) => {
+        await deliverIdentityEmailVerification({ email, code, verificationId: `identity-auth-${Date.now()}`, expiresAt });
+    });
+    registerPublicAuthRoutes(app, identityEmailAuth);
     registerPublicIdentityRoutes(app);
     registerPublicIdentityAccountLinkRoutes(app);
     registerPublicIdentityEmailRoutes(app, new IdentityEmailService(async ({ email, code, expiresAt }) => {

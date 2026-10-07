@@ -98,7 +98,8 @@ function now(): number {
 }
 
 function normalizeAddress(address: string): string {
-  return address.trim().toLowerCase();
+  const value = address.trim();
+  return /^did:yeying:/.test(value) ? value : value.toLowerCase();
 }
 
 function createChallengeMessage(input: {

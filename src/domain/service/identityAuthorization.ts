@@ -1,7 +1,7 @@
 import { createHash, randomBytes } from 'node:crypto'
 import { ApplicationService } from './application'
 import { SingletonDataSource } from '../facade/datasource'
-import { IdentityAuthorizationCodeDO, IdentityAuthorizationRequestDO, IdentityAuthorizationSessionDO, IdentityCredentialDO, IdentityAccountLinkDO, IdentityAuditLogDO, IdentityPasskeyCredentialDO, IdentityRegistrationDO, IdentityUsernameDO, IdentityWebauthnChallengeDO } from '../mapper/entity'
+import { IdentityAuthorizationCodeDO, IdentityAuthorizationRequestDO, IdentityAuthorizationSessionDO, IdentityCredentialDO, IdentityAccountLinkDO, IdentityAuditLogDO, IdentityPasskeyCredentialDO, IdentityRegistrationDO, IdentityEmailAuthChallengeDO, IdentityUsernameDO, IdentityWebauthnChallengeDO } from '../mapper/entity'
 import { canonicalizeIdentityValue, verifyIdentityController } from '../../auth/identityAccountLink'
 import * as crypto from 'node:crypto'
 import { generateAuthenticationOptions, generateRegistrationOptions, verifyAuthenticationResponse, verifyRegistrationResponse } from '@simplewebauthn/server'
@@ -356,7 +356,7 @@ export class IdentityAuthorizationService {
     return Boolean(existingUsername)
   }
 
-  async createInitialIdentityRegistration(input: { identityDocument: any; deviceName?: unknown }) {
+  async createInitialIdentityRegistration(input: { identityDocument: any; deviceName?: unknown; emailChallengeId?: unknown }) {
     const status = assertPasskeyAuthReady()
     const identityDid = assertIdentityDid(input.identityDocument?.id)
     verifyIdentityController(input.identityDocument, identityDid)
@@ -385,6 +385,7 @@ export class IdentityAuthorizationService {
     Object.assign(registration, {
       registrationId,
       identityDid,
+      emailChallengeId: string(input.emailChallengeId),
       identityDocumentHash: identityDocumentHash(input.identityDocument),
       status: 'pending',
       createdAt,
@@ -422,6 +423,10 @@ export class IdentityAuthorizationService {
     const registration = await registrationRepo.findOneBy({ registrationId })
     if (!registration || registration.status !== 'pending') throw new Error('IDENTITY_REGISTRATION_NOT_FOUND')
     if (Date.parse(registration.expiresAt) <= Date.now()) throw new Error('IDENTITY_REGISTRATION_EXPIRED')
+    if (registration.emailChallengeId) {
+      const emailChallenge = await dataSource().getRepository(IdentityEmailAuthChallengeDO).findOneBy({ challengeId: registration.emailChallengeId, purpose: 'register' })
+      if (!emailChallenge || emailChallenge.status !== 'verified' || emailChallenge.identityDid !== registration.identityDid) throw new Error('IDENTITY_EMAIL_VERIFICATION_REQUIRED')
+    }
 
     const identityDid = assertIdentityDid(input.identityDocument?.id)
     if (identityDid !== registration.identityDid) throw new Error('IDENTITY_REGISTRATION_DOCUMENT_MISMATCH')
