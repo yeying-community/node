@@ -1,7 +1,7 @@
 import { createHash, randomBytes } from 'node:crypto'
 import { ApplicationService } from './application'
 import { SingletonDataSource } from '../facade/datasource'
-import { IdentityAuthorizationCodeDO, IdentityAuthorizationRequestDO, IdentityAuthorizationSessionDO, IdentityCredentialDO, IdentityAccountLinkDO, IdentityPasskeyCredentialDO, IdentityWebauthnChallengeDO } from '../mapper/entity'
+import { IdentityAuthorizationCodeDO, IdentityAuthorizationRequestDO, IdentityAuthorizationSessionDO, IdentityCredentialDO, IdentityAccountLinkDO, IdentityAuditLogDO, IdentityPasskeyCredentialDO, IdentityRegistrationDO, IdentityUsernameDO, IdentityWebauthnChallengeDO } from '../mapper/entity'
 import { canonicalizeIdentityValue, verifyIdentityController } from '../../auth/identityAccountLink'
 import * as crypto from 'node:crypto'
 import { generateAuthenticationOptions, generateRegistrationOptions, verifyAuthenticationResponse, verifyRegistrationResponse } from '@simplewebauthn/server'
@@ -27,6 +27,11 @@ function now() { return new Date().toISOString() }
 function dataSource() { const ds = SingletonDataSource.get(); if (!ds?.isInitialized) throw new Error('IDENTITY_STORAGE_UNAVAILABLE'); return ds }
 function string(value: unknown) { return String(value || '').trim() }
 function hashRefreshToken(value: string) { return createHash('sha256').update(value).digest('hex') }
+function identityDocumentHash(document: any) {
+  if (!document || typeof document !== 'object' || Array.isArray(document)) throw new Error('IDENTITY_DOCUMENT_INVALID')
+  const { proof: _proof, ...unsigned } = document
+  return createHash('sha256').update(canonicalizeIdentityValue(unsigned)).digest('hex')
+}
 function refreshSessionTtlMs() {
   const configured = Number(getConfig<number>('identity.session.refreshTtlMs') || DEFAULT_REFRESH_SESSION_TTL_MS)
   if (!Number.isFinite(configured) || configured <= 0) return DEFAULT_REFRESH_SESSION_TTL_MS
@@ -200,6 +205,14 @@ function assertIdentityDid(value: unknown) {
   if (!/^did:yeying:wid_[A-Za-z0-9_-]{22,}$/.test(did)) throw new Error('IDENTITY_INVALID_DID')
   return did
 }
+function assertAuthenticationController(document: any) {
+  const controller = Array.isArray(document?.controllers)
+    ? document.controllers.find((item: any) => item?.controllerId && item.status === 'active' && item.purposes?.includes('authentication'))
+    : undefined
+  const publicKey = Buffer.from(string(controller?.publicKey), 'base64url')
+  if (!controller || publicKey.length !== 32) throw new Error('IDENTITY_AUTHENTICATION_CONTROLLER_NOT_AUTHORIZED')
+  return controller
+}
 function credentialTypeForScope(scope: string): IdentityCredentialType | null {
   if (scope === 'identity.wallet') return 'WalletAccountCredential'
   if (scope === 'identity.email') return 'EmailCredential'
@@ -330,6 +343,152 @@ export class IdentityAuthorizationService {
     await this.ensureCredentialsForScopes(identityDid, requested)
     await this.assertIdentityCanSatisfyScopes(identityDid, requested)
     return this.issueCode(row, identityDid)
+  }
+
+  private async identityHasExistingState(identityDid: string) {
+    const existingPasskey = await dataSource().getRepository(IdentityPasskeyCredentialDO).findOneBy({ identityDid })
+    if (existingPasskey) return true
+    const existingLink = await dataSource().getRepository(IdentityAccountLinkDO).findOneBy({ identityDid })
+    if (existingLink) return true
+    const existingCredential = await dataSource().getRepository(IdentityCredentialDO).findOneBy({ identityDid })
+    if (existingCredential) return true
+    const existingUsername = await dataSource().getRepository(IdentityUsernameDO).findOneBy({ identityDid })
+    return Boolean(existingUsername)
+  }
+
+  async createInitialIdentityRegistration(input: { identityDocument: any; deviceName?: unknown }) {
+    const status = assertPasskeyAuthReady()
+    const identityDid = assertIdentityDid(input.identityDocument?.id)
+    verifyIdentityController(input.identityDocument, identityDid)
+    assertAuthenticationController(input.identityDocument)
+    if (await this.identityHasExistingState(identityDid)) throw new Error('IDENTITY_REGISTRATION_ALREADY_ACTIVE')
+
+    const registrationRepo = dataSource().getRepository(IdentityRegistrationDO)
+    const pending = await registrationRepo.findOneBy({ identityDid, status: 'pending' })
+    if (pending && Date.parse(pending.expiresAt) > Date.now()) throw new Error('IDENTITY_REGISTRATION_ALREADY_PENDING')
+
+    const deviceName = string(input.deviceName) || 'Browser Passkey'
+    const generated = await generateRegistrationOptions({
+      rpID: status.rpId,
+      rpName: status.rpName,
+      userID: Buffer.from(identityDid, 'utf8'),
+      userName: identityDid,
+      userDisplayName: `YeYing · ${identityDid.slice('did:yeying:'.length)}`,
+      timeout: status.timeoutMs,
+      attestationType: 'none',
+      authenticatorSelection: { residentKey: 'preferred', userVerification: 'required' },
+      excludeCredentials: []
+    } as any)
+    const createdAt = now()
+    const registration = new IdentityRegistrationDO()
+    const registrationId = id('idr')
+    Object.assign(registration, {
+      registrationId,
+      identityDid,
+      identityDocumentHash: identityDocumentHash(input.identityDocument),
+      status: 'pending',
+      createdAt,
+      expiresAt: new Date(Date.now() + status.challengeTtlMs).toISOString(),
+      activatedAt: ''
+    })
+    const challenge = new IdentityWebauthnChallengeDO()
+    Object.assign(challenge, {
+      challengeId: id('iwc'),
+      challengeType: 'identity-bootstrap-register',
+      identityDid,
+      requestId: registrationId,
+      challenge: string((generated as any).challenge),
+      allowedCredentialIds: '[]',
+      createdAt,
+      expiresAt: registration.expiresAt,
+      used: false
+    })
+    await dataSource().transaction(async manager => {
+      await manager.getRepository(IdentityRegistrationDO).save(registration)
+      await manager.getRepository(IdentityWebauthnChallengeDO).save(challenge)
+    })
+    return {
+      registrationId,
+      identity: identityDid,
+      deviceName,
+      passkeyRequest: { ...(generated as any), requestId: challenge.challengeId }
+    }
+  }
+
+  async confirmInitialIdentityRegistration(input: { registrationId: unknown; identityDocument: any; credential: any; deviceName?: unknown }) {
+    const status = assertPasskeyAuthReady()
+    const registrationId = string(input.registrationId)
+    const registrationRepo = dataSource().getRepository(IdentityRegistrationDO)
+    const registration = await registrationRepo.findOneBy({ registrationId })
+    if (!registration || registration.status !== 'pending') throw new Error('IDENTITY_REGISTRATION_NOT_FOUND')
+    if (Date.parse(registration.expiresAt) <= Date.now()) throw new Error('IDENTITY_REGISTRATION_EXPIRED')
+
+    const identityDid = assertIdentityDid(input.identityDocument?.id)
+    if (identityDid !== registration.identityDid) throw new Error('IDENTITY_REGISTRATION_DOCUMENT_MISMATCH')
+    verifyIdentityController(input.identityDocument, identityDid)
+    assertAuthenticationController(input.identityDocument)
+    if (identityDocumentHash(input.identityDocument) !== registration.identityDocumentHash) throw new Error('IDENTITY_REGISTRATION_DOCUMENT_MISMATCH')
+
+    const challengeRepo = dataSource().getRepository(IdentityWebauthnChallengeDO)
+    const challenge = await challengeRepo.findOneBy({ challengeType: 'identity-bootstrap-register', requestId: registrationId, identityDid })
+    if (!challenge) throw new Error('IDENTITY_PASSKEY_CHALLENGE_NOT_FOUND')
+    if (challenge.used) throw new Error('IDENTITY_PASSKEY_CHALLENGE_USED')
+    if (Date.parse(challenge.expiresAt) <= Date.now()) throw new Error('IDENTITY_PASSKEY_CHALLENGE_EXPIRED')
+    const expectedOrigin = normalizedOrigin(status.origin)
+    const actualOrigin = credentialClientDataOrigin(input.credential)
+    if (!expectedOrigin || actualOrigin !== expectedOrigin) throw new Error(`IDENTITY_PASSKEY_ORIGIN_UNAUTHORIZED:${actualOrigin}`)
+    const verification = await verifyRegistrationResponse({
+      response: input.credential,
+      expectedChallenge: challenge.challenge,
+      expectedOrigin,
+      expectedRPID: status.rpId,
+      requireUserVerification: true
+    } as any)
+    const info = (verification as any).registrationInfo
+    if (!(verification as any).verified || !info) throw new Error('IDENTITY_PASSKEY_REGISTER_VERIFY_FAILED')
+    const credentialId = credentialIdValue(input.credential?.id || input.credential?.rawId || info.credentialID || info.credential?.id)
+    if (!credentialId) throw new Error('IDENTITY_PASSKEY_CREDENTIAL_ID_REQUIRED')
+    const publicKey = Buffer.from(info.credential?.publicKey || info.credentialPublicKey || new Uint8Array())
+    if (publicKey.length === 0) throw new Error('IDENTITY_PASSKEY_PUBLIC_KEY_REQUIRED')
+    const createdAt = now()
+    const deviceName = string(input.deviceName) || 'Browser Passkey'
+    const result = await dataSource().transaction(async manager => {
+      const current = await manager.getRepository(IdentityRegistrationDO).findOneBy({ registrationId, status: 'pending' })
+      if (!current) throw new Error('IDENTITY_REGISTRATION_ALREADY_ACTIVE')
+      const existing = await manager.getRepository(IdentityPasskeyCredentialDO).findOneBy({ credentialId })
+      if (existing) throw new Error('IDENTITY_PASSKEY_DUPLICATE_CREDENTIAL')
+      const row = new IdentityPasskeyCredentialDO()
+      Object.assign(row, {
+        identityDid,
+        credentialId,
+        publicKey: publicKey.toString('base64url'),
+        signCount: String(info.credential?.counter ?? info.counter ?? 0),
+        aaguid: string(info.aaguid),
+        transports: JSON.stringify(input.credential?.response?.transports || input.credential?.transports || []),
+        deviceName,
+        rpId: status.rpId,
+        userHandle: identityDid,
+        createdAt,
+        lastUsedAt: '',
+        revokedAt: ''
+      })
+      challenge.used = true
+      const audit = new IdentityAuditLogDO()
+      Object.assign(audit, {
+        identityDid,
+        action: 'identity_bootstrap_registered',
+        outcome: 'success',
+        metadataJson: JSON.stringify({ registrationId, credentialId, rpId: status.rpId }),
+        createdAt
+      })
+      await manager.getRepository(IdentityPasskeyCredentialDO).save(row)
+      const transition = await manager.getRepository(IdentityRegistrationDO).update({ registrationId, status: 'pending' }, { status: 'active', activatedAt: createdAt })
+      if (transition.affected !== 1) throw new Error('IDENTITY_REGISTRATION_ALREADY_ACTIVE')
+      await manager.getRepository(IdentityWebauthnChallengeDO).save(challenge)
+      await manager.getRepository(IdentityAuditLogDO).save(audit)
+      return { identity: identityDid, credentialId, deviceName, createdAt }
+    })
+    return result
   }
 
   async createPasskeyRegisterRequest(input: { identity: unknown; identityDocument: unknown; deviceName?: unknown; audience: unknown; authorization: IdentityActionAuthorization }) {

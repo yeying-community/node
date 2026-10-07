@@ -37,7 +37,7 @@ import {
     ProjectAppInstallationDO,
     AppReleaseDO,
     AppRuntimeTaskDO,
-    IdentityAccountLinkDO, IdentityAccountLinkChallengeDO, IdentityVerificationTransactionDO, IdentityUsernameDO, IdentityCredentialDO, IdentityCredentialReissueChallengeDO, IdentityAuditLogDO, IdentityPasskeyCredentialDO, IdentityTotpAuthenticatorDO, IdentityWebauthnChallengeDO, IdentityActionChallengeDO, IdentityAuthorizationRequestDO, IdentityAuthorizationCodeDO, IdentityAuthorizationSessionDO, UcanIssueSessionDO, UcanIssuedTokenDO, UcanTokenRevocationDO, UcanAuditLogDO
+    IdentityAccountLinkDO, IdentityAccountLinkChallengeDO, IdentityVerificationTransactionDO, IdentityUsernameDO, IdentityCredentialDO, IdentityCredentialReissueChallengeDO, IdentityAuditLogDO, IdentityRegistrationDO, IdentityPasskeyCredentialDO, IdentityTotpAuthenticatorDO, IdentityWebauthnChallengeDO, IdentityActionChallengeDO, IdentityAuthorizationRequestDO, IdentityAuthorizationCodeDO, IdentityAuthorizationSessionDO, UcanIssueSessionDO, UcanIssuedTokenDO, UcanTokenRevocationDO, UcanAuditLogDO
 } from './domain/mapper/entity'
 import { SingletonDataSource } from './domain/facade/datasource';
 import { LoggerConfig, LoggerService } from './infrastructure/logger';
@@ -117,6 +117,7 @@ import { DeferApplicationAppDid20260921110000 } from './migrations/2026092111000
 import { AddScopedGrants20260808090000 } from './migrations/20260808090000-add-scoped-grants';
 import { AddNotificationWebhookFormat20260929100000 } from './migrations/20260929100000-add-notification-webhook-format';
 import { AddIdentityAuthorizationClientType20261004100000 } from './migrations/20261004100000-add-identity-authorization-client-type';
+import { AddIdentityRegistrations20261007100000 } from './migrations/20261007100000-add-identity-registrations';
 import { getConfig } from './config/runtime';
 import { startActionRequestCleanupJobs } from './domain/service/actionRequestCleanup';
 import { startMpcCleanupJobs } from './domain/service/mpcCleanup';
@@ -337,6 +338,7 @@ builder.entities([
     IdentityCredentialDO,
     IdentityCredentialReissueChallengeDO,
     IdentityAuditLogDO,
+    IdentityRegistrationDO,
     IdentityPasskeyCredentialDO,
     IdentityTotpAuthenticatorDO,
     IdentityWebauthnChallengeDO,
@@ -398,7 +400,8 @@ builder.migrations([
     AddUcanTokenRecords20260921130000,
     AddUcanAuditLogs20260921140000,
     AddNotificationWebhookFormat20260929100000,
-    AddIdentityAuthorizationClientType20261004100000
+    AddIdentityAuthorizationClientType20261004100000,
+    AddIdentityRegistrations20261007100000
 ])
 
 builder.build().initialize().then(async (conn) => {

@@ -142,6 +142,25 @@ const document = {
         type: 'string',
         pattern: '^did:yeying:wid_[A-Za-z0-9_-]{22,}$',
       },
+      IdentityBootstrapRegisterRequest: {
+        type: 'object',
+        required: ['identityDocument'],
+        properties: {
+          identityDocument: { type: 'object', additionalProperties: true, description: '客户端生成并使用 manage controller 签名的公开 DID Document，不得包含私钥。' },
+          deviceName: { type: 'string' },
+        },
+      },
+      IdentityBootstrapRegisterConfirmRequest: {
+        type: 'object',
+        required: ['registrationId', 'identityDocument', 'credential'],
+        properties: {
+          registrationId: { type: 'string' },
+          requestId: { type: 'string', description: 'registrationId 的兼容别名。' },
+          identityDocument: { type: 'object', additionalProperties: true },
+          deviceName: { type: 'string' },
+          credential: { type: 'object', additionalProperties: true, description: '浏览器 WebAuthn navigator.credentials.create() 结果。' },
+        },
+      },
       IdentityAccount: {
         type: 'object',
         required: ['chainKey', 'address'],
@@ -513,6 +532,8 @@ const operations = [
   ['post', '/api/v1/public/identity/account-links/verify', 'Identity', '校验钱包身份账户关联证明', 'none', 'IdentityAccountLinkVerifyRequest'],
   ['post', '/api/v1/public/identity/verifications/request', 'Identity', '请求用户名和邮箱验证', 'none', 'IdentityVerificationRequest'],
   ['post', '/api/v1/public/identity/verifications/confirm', 'Identity', '确认验证码并签发钱包身份凭证', 'none', 'IdentityVerificationConfirmRequest'],
+  ['post', '/api/v1/public/identity/register/request', 'Identity', '创建首次钱包身份注册请求', 'none', 'IdentityBootstrapRegisterRequest'],
+  ['post', '/api/v1/public/identity/register/confirm', 'Identity', '确认首次钱包身份注册并激活 Passkey', 'none', 'IdentityBootstrapRegisterConfirmRequest'],
   ['post', '/api/v1/public/identity/passkeys/register/request', 'Identity', '创建身份级 Passkey 注册请求', 'none', 'IdentityPasskeyRegisterRequest'],
   ['post', '/api/v1/public/identity/passkeys/register/confirm', 'Identity', '保存身份级 Passkey credential', 'none', 'IdentityPasskeyRegisterConfirmRequest'],
   ['post', '/api/v1/public/identity/passkeys/list', 'Identity', '查询钱包身份 Passkey credential 列表', 'none', 'IdentityPasskeyListRequest'],

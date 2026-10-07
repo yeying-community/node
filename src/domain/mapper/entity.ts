@@ -180,6 +180,18 @@ export class IdentityAuditLogDO {
     @Column({ length: 64, name: 'created_at' }) createdAt!: string
 }
 
+@Entity('identity_registrations')
+@Index('idx_identity_registration_identity_status', ['identityDid', 'status'])
+export class IdentityRegistrationDO {
+    @PrimaryColumn({ length: 128, name: 'registration_id' }) registrationId!: string
+    @Column({ length: 128, name: 'identity_did' }) identityDid!: string
+    @Column({ type: 'text', name: 'identity_document_hash' }) identityDocumentHash!: string
+    @Column({ length: 32, default: 'pending' }) status!: string
+    @Column({ length: 64, name: 'created_at' }) createdAt!: string
+    @Column({ length: 64, name: 'expires_at' }) expiresAt!: string
+    @Column({ length: 64, name: 'activated_at', default: '' }) activatedAt!: string
+}
+
 @Entity('identity_passkey_credentials')
 @Index('idx_identity_passkey_credentials_identity', ['identityDid'])
 export class IdentityPasskeyCredentialDO {

@@ -130,6 +130,8 @@ Wallet 插件设置页注册身份 Passkey 时，WebAuthn 响应 origin 是 `chr
 
 Node 自身的应用中心登录是钱包签名 / UCAN 自举登录，不依赖在应用中心先发布一个 Node 应用；`identity.webauthn` 只负责钱包身份 WebAuthn 认证器注册和无插件授权页。Router 等外部 Web3 应用才需要在 Node 应用中心发布应用并配置 `redirectUris`。
 
+无钱包插件的浏览器首次注册使用两步接口：客户端先在本地生成 DID、controller/recovery 密钥和钱包密钥，并使用钱包密码加密后保存或上传托管；然后提交公开 DID Document 到 `/identity/register/request`，再用返回的 WebAuthn creation options 调用 `/identity/register/confirm`。Node 只保存 DID Document 的哈希、Passkey 公钥和注册审计，不生成、接收、解密或返回任何私钥。未来 Wallet 插件可通过现有 `custody.recovery` 读取客户端密文，在本地解密后恢复同一 DID 和钱包控制材料。
+
 Web 应用需要在应用编辑页的回调地址框中登记完整地址，每行一项，例如：
 
 ```text
@@ -148,6 +150,8 @@ https://chat.example.com/central-ucan-callback.html
 | POST | `/api/v1/public/identity/verifications/confirm` | 确认验证码并签发 `EmailCredential` / `UsernameCredential` / `AvatarCredential` |
 | POST | `/api/v1/public/identity/credentials/reissue/challenge` | 为已验证邮箱/用户名/头像凭证创建自动续签 challenge |
 | POST | `/api/v1/public/identity/credentials/reissue/confirm` | 校验 identity controller proof 并重签短期 JWT-VC |
+| POST | `/api/v1/public/identity/register/request` | 校验客户端签名 DID Document，创建短期 pending identity registration 和 WebAuthn creation challenge |
+| POST | `/api/v1/public/identity/register/confirm` | 校验同一 DID Document、challenge、RP ID、Node origin、用户验证和 credential，并原子激活身份 Passkey |
 | POST | `/api/v1/public/identity/passkeys/register/request` | 使用签名身份文档创建身份级 Passkey 注册请求 |
 | POST | `/api/v1/public/identity/passkeys/register/confirm` | 确认 WebAuthn registration 并保存到该钱包身份 |
 | GET | `/api/v1/public/identity/totp/status` | 查询钱包身份 TOTP 服务状态 |

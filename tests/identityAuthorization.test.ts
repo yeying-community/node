@@ -2,7 +2,7 @@ import { createHmac, generateKeyPairSync, sign } from 'node:crypto'
 import { vi } from 'vitest'
 import { SingletonDataSource } from '../src/domain/facade/datasource'
 import { createInMemoryDataSource } from './helpers/inMemoryDataSource'
-import { IdentityAccountLinkDO, IdentityAuditLogDO, IdentityAuthorizationCodeDO, IdentityAuthorizationRequestDO, IdentityCredentialDO, IdentityPasskeyCredentialDO, IdentityTotpAuthenticatorDO, IdentityUsernameDO, IdentityWebauthnChallengeDO } from '../src/domain/mapper/entity'
+import { IdentityAccountLinkDO, IdentityAuditLogDO, IdentityAuthorizationCodeDO, IdentityAuthorizationRequestDO, IdentityCredentialDO, IdentityPasskeyCredentialDO, IdentityRegistrationDO, IdentityTotpAuthenticatorDO, IdentityUsernameDO, IdentityWebauthnChallengeDO } from '../src/domain/mapper/entity'
 
 const projectUcanPolicy = vi.hoisted(() => ({
   audience: 'did:web:router.example',
@@ -105,11 +105,26 @@ function presentation(request: any, overrides: Record<string, unknown> = {}) {
 function signedIdentityDocument() {
   return { ...document, proof: { type: 'YeyingIdentityDocumentProofV1', verificationMethod: `${identity}#controller-1`, purpose: 'manage', proofValue: sign(null, Buffer.from(canonicalize(document)), privateKey).toString('base64url') } }
 }
+function bootstrapIdentityDocument(identityDid: string, bootstrapPrivateKey: any, bootstrapPublicKey: any, updatedAt = '2026-10-07T00:00:00.000Z') {
+  const unsigned = {
+    version: 1,
+    id: identityDid,
+    walletIdentityId: identityDid.slice('did:yeying:'.length),
+    createdAt: '2026-10-07T00:00:00.000Z',
+    updatedAt,
+    revision: 1,
+    controllers: [{ controllerId: 'controller-1', kind: 'wallet_key', publicKey: (bootstrapPublicKey.export({ format: 'der', type: 'spki' }) as Buffer).subarray(-32).toString('base64url'), algorithm: 'Ed25519', purposes: ['authentication', 'assertion', 'manage'], status: 'active' }],
+    accounts: [],
+    issuers: [],
+    recovery: { version: 1, manageThreshold: 1, controllerChangeDelaySeconds: 86400 }
+  }
+  return { ...unsigned, proof: { type: 'YeyingIdentityDocumentProofV1', verificationMethod: `${identityDid}#controller-1`, purpose: 'manage', proofValue: sign(null, Buffer.from(canonicalize(unsigned)), bootstrapPrivateKey).toString('base64url') } }
+}
 
 const { IdentityAuthorizationService } = await import('../src/domain/service/identityAuthorization')
 const { createCentralIssueSession: createCentralIssueSessionMock } = await import('../src/auth/ucanIssuer')
 const { IdentityTotpService, getIdentityTotpStatus } = await import('../src/auth/identityTotpAuth')
-const { generateAuthenticationOptions, verifyAuthenticationResponse, verifyRegistrationResponse } = await import('@simplewebauthn/server')
+const { generateAuthenticationOptions, generateRegistrationOptions, verifyAuthenticationResponse, verifyRegistrationResponse } = await import('@simplewebauthn/server')
 const { createIdentityActionChallenge } = await import('../src/auth/identityActionAuthorization')
 const { issueIdentityCredential } = await import('../src/auth/identityIssuer')
 
@@ -461,6 +476,71 @@ describe('identity authorization', () => {
     expect(exchanged.did).toBe(passkeyIdentity)
     expect(exchanged.credentials.map(item => item.type).sort()).toEqual(['AvatarCredential', 'EmailCredential', 'UsernameCredential', 'WalletAccountCredential'])
     expect(exchanged.credentials.every(item => item.credentialId.includes(':reissue:'))).toBe(true)
+  })
+
+  it('bootstraps a browser identity with a pending registration and activates one passkey atomically', async () => {
+    const service = new IdentityAuthorizationService()
+    const bootstrapIdentity = 'did:yeying:wid_bootstrap123456789012345678'
+    const { publicKey: bootstrapPublicKey, privateKey: bootstrapPrivateKey } = generateKeyPairSync('ed25519')
+    const bootstrapDocument = bootstrapIdentityDocument(bootstrapIdentity, bootstrapPrivateKey, bootstrapPublicKey)
+    vi.mocked(generateRegistrationOptions).mockResolvedValueOnce({ challenge: 'challenge-bootstrap', timeout: 60_000, user: { id: bootstrapIdentity } } as any)
+    vi.mocked(verifyRegistrationResponse).mockResolvedValueOnce({
+      verified: true,
+      registrationInfo: { credential: { id: 'bootstrap-credential', publicKey: Buffer.from('bootstrap-public-key'), counter: 0 }, aaguid: '' }
+    } as any)
+
+    const requested = await service.createInitialIdentityRegistration({ identityDocument: bootstrapDocument, deviceName: 'Browser Touch ID' })
+    expect(requested).toMatchObject({ identity: bootstrapIdentity, deviceName: 'Browser Touch ID' })
+    expect(requested).not.toHaveProperty('privateKey')
+    const clientDataJSON = Buffer.from(JSON.stringify({ type: 'webauthn.create', challenge: 'challenge-bootstrap', origin: 'http://localhost:8100' })).toString('base64url')
+    const confirmed = await service.confirmInitialIdentityRegistration({
+      registrationId: requested.registrationId,
+      identityDocument: bootstrapDocument,
+      deviceName: 'Browser Touch ID',
+      credential: { id: 'bootstrap-credential', rawId: 'bootstrap-credential', type: 'public-key', response: { clientDataJSON, transports: ['internal'] } }
+    })
+    expect(confirmed).toEqual(expect.objectContaining({ identity: bootstrapIdentity, credentialId: 'bootstrap-credential', deviceName: 'Browser Touch ID' }))
+    expect(confirmed).not.toHaveProperty('privateKey')
+
+    const registration = await SingletonDataSource.get()!.getRepository(IdentityRegistrationDO).findOneBy({ registrationId: requested.registrationId })
+    const credential = await SingletonDataSource.get()!.getRepository(IdentityPasskeyCredentialDO).findOneBy({ credentialId: 'bootstrap-credential' })
+    const audit = await SingletonDataSource.get()!.getRepository(IdentityAuditLogDO).findBy({ identityDid: bootstrapIdentity })
+    expect(registration).toMatchObject({ identityDid: bootstrapIdentity, status: 'active' })
+    expect(credential).toMatchObject({ identityDid: bootstrapIdentity, rpId: 'localhost' })
+    expect(audit).toEqual([expect.objectContaining({ action: 'identity_bootstrap_registered', outcome: 'success' })])
+    expect(JSON.stringify(audit)).not.toContain('privateKey')
+    await expect(service.confirmInitialIdentityRegistration({ registrationId: requested.registrationId, identityDocument: bootstrapDocument, credential: { id: 'bootstrap-credential', response: { clientDataJSON } } })).rejects.toThrow('IDENTITY_REGISTRATION_NOT_FOUND')
+  })
+
+  it('rejects bootstrap document changes, cross-origin ceremony, and duplicate credentials', async () => {
+    const service = new IdentityAuthorizationService()
+    const bootstrapIdentity = 'did:yeying:wid_bootstrap234567890123456789'
+    const { publicKey: bootstrapPublicKey, privateKey: bootstrapPrivateKey } = generateKeyPairSync('ed25519')
+    const bootstrapDocument = bootstrapIdentityDocument(bootstrapIdentity, bootstrapPrivateKey, bootstrapPublicKey)
+    vi.mocked(generateRegistrationOptions).mockResolvedValueOnce({ challenge: 'challenge-bootstrap-mismatch', timeout: 60_000 } as any)
+    const requested = await service.createInitialIdentityRegistration({ identityDocument: bootstrapDocument })
+    const changedDocument = bootstrapIdentityDocument(bootstrapIdentity, bootstrapPrivateKey, bootstrapPublicKey, '2026-10-07T00:01:00.000Z')
+    await expect(service.confirmInitialIdentityRegistration({ registrationId: requested.registrationId, identityDocument: changedDocument, credential: {} })).rejects.toThrow('IDENTITY_REGISTRATION_DOCUMENT_MISMATCH')
+
+    const originIdentity = 'did:yeying:wid_bootstrap345678901234567890'
+    const { publicKey: originPublicKey, privateKey: originPrivateKey } = generateKeyPairSync('ed25519')
+    const originDocument = bootstrapIdentityDocument(originIdentity, originPrivateKey, originPublicKey)
+    vi.mocked(generateRegistrationOptions).mockResolvedValueOnce({ challenge: 'challenge-bootstrap-origin', timeout: 60_000 } as any)
+    const originRequest = await service.createInitialIdentityRegistration({ identityDocument: originDocument })
+    const badOriginData = Buffer.from(JSON.stringify({ type: 'webauthn.create', challenge: 'challenge-bootstrap-origin', origin: 'https://attacker.example' })).toString('base64url')
+    await expect(service.confirmInitialIdentityRegistration({ registrationId: originRequest.registrationId, identityDocument: originDocument, credential: { id: 'origin-credential', response: { clientDataJSON: badOriginData } } })).rejects.toThrow('IDENTITY_PASSKEY_ORIGIN_UNAUTHORIZED')
+
+    const duplicateIdentity = 'did:yeying:wid_bootstrap456789012345678901'
+    const { publicKey: duplicatePublicKey, privateKey: duplicatePrivateKey } = generateKeyPairSync('ed25519')
+    const duplicateDocument = bootstrapIdentityDocument(duplicateIdentity, duplicatePrivateKey, duplicatePublicKey)
+    vi.mocked(generateRegistrationOptions).mockResolvedValueOnce({ challenge: 'challenge-bootstrap-duplicate', timeout: 60_000 } as any)
+    const duplicateRequest = await service.createInitialIdentityRegistration({ identityDocument: duplicateDocument })
+    const duplicateData = Buffer.from(JSON.stringify({ type: 'webauthn.create', challenge: 'challenge-bootstrap-duplicate', origin: 'http://localhost:8100' })).toString('base64url')
+    vi.mocked(verifyRegistrationResponse).mockResolvedValueOnce({
+      verified: true,
+      registrationInfo: { credential: { id: 'bootstrap-credential', publicKey: Buffer.from('duplicate-public-key'), counter: 0 }, aaguid: '' }
+    } as any)
+    await expect(service.confirmInitialIdentityRegistration({ registrationId: duplicateRequest.registrationId, identityDocument: duplicateDocument, credential: { id: 'bootstrap-credential', response: { clientDataJSON: duplicateData } } })).rejects.toThrow('IDENTITY_PASSKEY_DUPLICATE_CREDENTIAL')
   })
 
   it('accepts a published wallet extension origin for passkey registration', async () => {
