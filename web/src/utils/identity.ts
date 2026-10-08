@@ -1,12 +1,23 @@
-type Ed25519KeyPair = { publicKey: CryptoKey; privateKey: CryptoKey }
-const IDENTITY_DB = 'yeying-node-identity'
-const IDENTITY_STORE = 'materials'
+export type BrowserIdentity = {
+  identity: string
+  document: Record<string, any>
+  controllerId: string
+  publicJwk: JsonWebKey
+  privateJwk: JsonWebKey
+  recoveryPublicJwk: JsonWebKey
+  recoveryPrivateJwk: JsonWebKey
+  encryptedKeyMaterial: string
+}
 
-function base64Url(bytes: ArrayBuffer | Uint8Array) {
+function base64(bytes: ArrayBuffer | Uint8Array) {
   const value = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes)
   let binary = ''
   for (const byte of value) binary += String.fromCharCode(byte)
-  return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '')
+  return btoa(binary)
+}
+
+function base64Url(bytes: ArrayBuffer | Uint8Array) {
+  return base64(bytes).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '')
 }
 
 function canonicalize(value: unknown): string {
@@ -14,86 +25,58 @@ function canonicalize(value: unknown): string {
   if (typeof value === 'string' || typeof value === 'boolean') return JSON.stringify(value)
   if (typeof value === 'number') return JSON.stringify(Object.is(value, -0) ? 0 : value)
   if (Array.isArray(value)) return `[${value.map(canonicalize).join(',')}]`
-  if (value && typeof value === 'object') {
-    return `{${Object.keys(value).sort().map(key => `${JSON.stringify(key)}:${canonicalize((value as Record<string, unknown>)[key])}`).join(',')}}`
-  }
+  if (value && typeof value === 'object') return `{${Object.keys(value).sort().map(key => `${JSON.stringify(key)}:${canonicalize((value as Record<string, unknown>)[key])}`).join(',')}}`
   throw new Error('IDENTITY_CANONICAL_VALUE_INVALID')
 }
 
-async function generateEd25519(): Promise<Ed25519KeyPair> {
-  if (!crypto?.subtle) throw new Error('IDENTITY_WEBCRYPTO_UNAVAILABLE')
-  return await crypto.subtle.generateKey({ name: 'Ed25519' } as any, true, ['sign', 'verify']) as Ed25519KeyPair
+async function importPrivateJwk(jwk: JsonWebKey) {
+  return await crypto.subtle.importKey('jwk', jwk, { name: 'Ed25519' } as any, true, ['sign'])
 }
 
-async function exportPublicKey(key: CryptoKey) {
-  return base64Url(await crypto.subtle.exportKey('raw', key))
-}
-
-function openIdentityDb(): Promise<IDBDatabase> {
-  if (typeof indexedDB === 'undefined') throw new Error('IDENTITY_LOCAL_STORAGE_UNAVAILABLE')
-  return new Promise((resolve, reject) => {
-    const request = indexedDB.open(IDENTITY_DB, 1)
-    request.onupgradeneeded = () => request.result.createObjectStore(IDENTITY_STORE, { keyPath: 'identity' })
-    request.onsuccess = () => resolve(request.result)
-    request.onerror = () => reject(request.error || new Error('IDENTITY_LOCAL_STORAGE_UNAVAILABLE'))
-  })
-}
-
-async function persistIdentityMaterial(identity: string, controller: Ed25519KeyPair, recovery: Ed25519KeyPair) {
-  const db = await openIdentityDb()
-  const [controllerPrivateJwk, recoveryPrivateJwk] = await Promise.all([
-    crypto.subtle.exportKey('jwk', controller.privateKey),
-    crypto.subtle.exportKey('jwk', recovery.privateKey),
-  ])
-  const wrappingKey = await crypto.subtle.generateKey({ name: 'AES-GCM', length: 256 }, false, ['encrypt', 'decrypt'])
+export async function encryptObjectWithPassword(value: unknown, password: string) {
+  if (typeof password !== 'string' || password.length < 8) throw new Error('密码至少需要 8 位')
+  const salt = crypto.getRandomValues(new Uint8Array(16))
   const iv = crypto.getRandomValues(new Uint8Array(12))
-  const plaintext = new TextEncoder().encode(JSON.stringify({ controllerPrivateJwk, recoveryPrivateJwk }))
-  const ciphertext = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, wrappingKey, plaintext)
-  await new Promise<void>((resolve, reject) => {
-    const transaction = db.transaction(IDENTITY_STORE, 'readwrite')
-    transaction.objectStore(IDENTITY_STORE).put({ identity, wrappingKey, iv: Array.from(iv), ciphertext: Array.from(new Uint8Array(ciphertext)), createdAt: new Date().toISOString() })
-    transaction.oncomplete = () => resolve()
-    transaction.onerror = () => reject(transaction.error || new Error('IDENTITY_LOCAL_STORAGE_UNAVAILABLE'))
-  })
-  db.close()
+  const passwordKey = await crypto.subtle.importKey('raw', new TextEncoder().encode(password), 'PBKDF2', false, ['deriveKey'])
+  const key = await crypto.subtle.deriveKey({ name: 'PBKDF2', salt, iterations: 100000, hash: 'SHA-256' }, passwordKey, { name: 'AES-GCM', length: 256 }, false, ['encrypt'])
+  const encrypted = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key, new TextEncoder().encode(JSON.stringify(value)))
+  const payload = new Uint8Array(salt.length + iv.length + encrypted.byteLength)
+  payload.set(salt, 0)
+  payload.set(iv, salt.length)
+  payload.set(new Uint8Array(encrypted), salt.length + iv.length)
+  return base64(payload)
 }
 
-async function signDocument(document: Record<string, unknown>, key: CryptoKey, verificationMethod: string) {
+async function signDocument(document: Record<string, any>, privateKey: CryptoKey, verificationMethod: string) {
   const { proof: _proof, ...unsigned } = document
-  const signature = await crypto.subtle.sign({ name: 'Ed25519' } as any, key, new TextEncoder().encode(canonicalize(unsigned)))
-  return {
-    ...unsigned,
-    proof: {
-      type: 'YeyingIdentityDocumentProofV1',
-      created: new Date().toISOString(),
-      verificationMethod,
-      purpose: 'assertionMethod',
-      proofValue: base64Url(signature),
-    },
-  }
+  const signature = await crypto.subtle.sign({ name: 'Ed25519' } as any, privateKey, new TextEncoder().encode(canonicalize(unsigned)))
+  return { ...unsigned, proof: { type: 'YeyingIdentityDocumentProofV1', created: new Date().toISOString(), verificationMethod, purpose: 'assertionMethod', proofValue: base64Url(signature) } }
 }
 
-export async function createBrowserIdentity() {
+async function exportKeyPair(pair: CryptoKeyPair) {
+  const [publicJwk, privateJwk, rawPublic] = await Promise.all([crypto.subtle.exportKey('jwk', pair.publicKey), crypto.subtle.exportKey('jwk', pair.privateKey), crypto.subtle.exportKey('raw', pair.publicKey)])
+  return { publicJwk, privateJwk, publicKey: base64Url(rawPublic) }
+}
+
+export async function createBrowserIdentity(password: string): Promise<BrowserIdentity> {
+  if (typeof password !== 'string' || password.length < 8) throw new Error('密码至少需要 8 位')
   const identityBytes = crypto.getRandomValues(new Uint8Array(16))
   const walletIdentityId = `wid_${base64Url(identityBytes)}`
   const identity = `did:yeying:${walletIdentityId}`
   const controllerId = 'controller-1'
-  const controller = await generateEd25519()
-  const recovery = await generateEd25519()
+  const [controller, recovery] = await Promise.all([crypto.subtle.generateKey({ name: 'Ed25519' } as any, true, ['sign', 'verify']) as Promise<CryptoKeyPair>, crypto.subtle.generateKey({ name: 'Ed25519' } as any, true, ['sign', 'verify']) as Promise<CryptoKeyPair>])
+  const [controllerKeys, recoveryKeys] = await Promise.all([exportKeyPair(controller), exportKeyPair(recovery)])
   const createdAt = new Date().toISOString()
-  const document = {
-    version: 1,
-    id: identity,
-    walletIdentityId,
-    createdAt,
-    updatedAt: createdAt,
-    revision: 1,
-    controllers: [{ controllerId, kind: 'wallet_key', publicKey: await exportPublicKey(controller.publicKey), algorithm: 'Ed25519', purposes: ['authentication', 'assertion', 'manage'], status: 'active', addedAt: createdAt }],
-    accounts: [],
-    issuers: [],
-    recovery: { version: 1, manageThreshold: 1, controllerChangeDelaySeconds: 86400, publicKey: await exportPublicKey(recovery.publicKey), algorithm: 'Ed25519' },
-  }
-  const signedDocument = await signDocument(document, controller.privateKey, `${identity}#${controllerId}`)
-  await persistIdentityMaterial(identity, controller, recovery)
-  return { identity, document: signedDocument }
+  const unsigned = { version: 1, id: identity, walletIdentityId, createdAt, updatedAt: createdAt, revision: 1, controllers: [{ controllerId, kind: 'wallet_key', publicKey: controllerKeys.publicKey, algorithm: 'Ed25519', purposes: ['authentication', 'assertion', 'manage'], status: 'active', addedAt: createdAt }], accounts: [], issuers: [], recovery: { version: 1, manageThreshold: 1, controllerChangeDelaySeconds: 86400, publicKey: recoveryKeys.publicKey, algorithm: 'Ed25519' } }
+  const document = await signDocument(unsigned, controller.privateKey, `${identity}#${controllerId}`)
+  const encryptedKeyMaterial = await encryptObjectWithPassword({ privateJwk: controllerKeys.privateJwk, recoveryPrivateJwk: recoveryKeys.privateJwk }, password)
+  return { identity, document, controllerId, publicJwk: controllerKeys.publicJwk, privateJwk: controllerKeys.privateJwk, recoveryPublicJwk: recoveryKeys.publicJwk, recoveryPrivateJwk: recoveryKeys.privateJwk, encryptedKeyMaterial }
+}
+
+export async function addBrowserIdentityAccount(identity: BrowserIdentity, account: { accountId: string; chainKey: string; address: string; publicKey?: string }) {
+  const controller = await importPrivateJwk(identity.privateJwk)
+  const accounts = Array.isArray(identity.document.accounts) ? identity.document.accounts.filter((item: any) => item.accountId !== account.accountId) : []
+  const createdAt = new Date().toISOString()
+  const document = await signDocument({ ...identity.document, updatedAt: createdAt, revision: Number(identity.document.revision || 1) + 1, accounts: [...accounts, { ...account, family: 'evm', controllerId: identity.controllerId, status: 'active', createdAt }] }, controller, `${identity.identity}#${identity.controllerId}`)
+  return { ...identity, document }
 }

@@ -3150,11 +3150,20 @@ components:
       type: object
       required:
         - email
+        - username
+        - avatar
         - identityDocument
       properties:
         email:
           type: string
           format: email
+        username:
+          type: string
+          pattern: ^[a-zA-Z0-9][a-zA-Z0-9._-]{2,31}$
+        avatar:
+          type: string
+          format: uri
+          description: 头像 URL 或 ipfs:// URI。
         identityDocument:
           type: object
           additionalProperties: true
@@ -3186,11 +3195,34 @@ components:
       required:
         - verificationId
         - registrationId
+        - accountLink
+        - custody
       properties:
         verificationId:
           type: string
         registrationId:
           type: string
+        accountLink:
+          $ref: "#/components/schemas/IdentityAccountLinkVerifyRequest"
+          description: 客户端完成 Ethereum 主网账户签名验证后的证明。
+        custody:
+          type: object
+          required:
+            - walletId
+            - accountId
+            - ciphertext
+          properties:
+            walletId:
+              type: string
+            accountId:
+              type: string
+            address:
+              type: string
+            ciphertext:
+              type: string
+              description: Wallet v2 兼容的 PBKDF2-SHA256/AES-GCM 密文，不含明文私钥。
+            metadata:
+              $ref: "#/components/schemas/JsonObject"
     IdentityDid:
       type: string
       pattern: ^did:yeying:wid_[A-Za-z0-9_-]{22,}$

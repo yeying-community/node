@@ -34,6 +34,12 @@
       <el-radio-button label="register">注册</el-radio-button>
     </el-radio-group>
     <el-input v-model="email" type="email" placeholder="邮箱" :disabled="emailStep === 'code' || emailBusy" @keyup.enter="sendEmailCode" />
+    <template v-if="emailMode === 'register' && emailStep === 'email'">
+      <el-input v-model="username" class="mt-3" placeholder="用户名（3-32 位字母、数字、下划线或短横线）" :disabled="emailBusy" />
+      <el-input v-model="avatar" class="mt-3" placeholder="头像 URL" :disabled="emailBusy" />
+      <el-input v-model="password" class="mt-3" type="password" show-password placeholder="钱包密码（至少 8 位）" :disabled="emailBusy" />
+      <el-input v-model="confirmPassword" class="mt-3" type="password" show-password placeholder="确认钱包密码" :disabled="emailBusy" @keyup.enter="sendEmailCode" />
+    </template>
     <div v-if="emailStep === 'code'" class="mt-3 flex gap-2">
       <el-input v-model="emailCode" inputmode="numeric" maxlength="6" placeholder="邮箱验证码" @keyup.enter="confirmEmailCode" />
       <el-button type="primary" :loading="emailBusy" @click="confirmEmailCode">确认</el-button>
@@ -61,6 +67,10 @@ const emailMode = ref<'login' | 'register'>('login');
 const emailStep = ref<'email' | 'code'>('email');
 const email = ref('');
 const emailCode = ref('');
+const username = ref('');
+const avatar = ref('');
+const password = ref('');
+const confirmPassword = ref('');
 const emailRequest = ref<Awaited<ReturnType<typeof requestEmailRegistration>> | null>(null);
 const emailLoginRequest = ref<Awaited<ReturnType<typeof requestEmailLogin>> | null>(null);
 
@@ -79,12 +89,17 @@ const connectToWallet = async () => {
 };
 
 const openEmailDialog = () => {
+  if (!avatar.value) avatar.value = `https://api.dicebear.com/9.x/identicon/svg?seed=${encodeURIComponent(email.value || 'yeying')}`;
   emailDialogOpen.value = true;
 };
 
 const resetEmailDialog = () => {
   emailStep.value = 'email';
   emailCode.value = '';
+  username.value = '';
+  avatar.value = '';
+  password.value = '';
+  confirmPassword.value = '';
   emailRequest.value = null;
   emailLoginRequest.value = null;
 };
@@ -95,10 +110,24 @@ const sendEmailCode = async () => {
     notifyError('请输入邮箱');
     return;
   }
+  if (emailMode.value === 'register') {
+    if (!/^[a-zA-Z0-9][a-zA-Z0-9._-]{2,31}$/.test(username.value.trim())) {
+      notifyError('用户名需要 3-32 位字母、数字、下划线或短横线');
+      return;
+    }
+    if (password.value.length < 8) {
+      notifyError('钱包密码至少需要 8 位');
+      return;
+    }
+    if (password.value !== confirmPassword.value) {
+      notifyError('两次输入的密码不一致');
+      return;
+    }
+  }
   emailBusy.value = true;
   try {
     if (emailMode.value === 'register') {
-      emailRequest.value = await requestEmailRegistration(value);
+      emailRequest.value = await requestEmailRegistration({ email: value, username: username.value.trim(), avatar: avatar.value.trim(), password: password.value });
     } else {
       emailLoginRequest.value = await requestEmailLogin(value);
     }

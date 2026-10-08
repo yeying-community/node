@@ -130,7 +130,7 @@ Wallet 插件设置页注册身份 Passkey 时，WebAuthn 响应 origin 是 `chr
 
 Node 自身的应用中心登录是钱包签名 / UCAN 自举登录，不依赖在应用中心先发布一个 Node 应用；`identity.webauthn` 只负责钱包身份 WebAuthn 认证器注册和无插件授权页。Router 等外部 Web3 应用才需要在 Node 应用中心发布应用并配置 `redirectUris`。
 
-无钱包插件的浏览器首次注册使用两步接口：客户端先在本地生成 DID、controller/recovery 密钥和钱包密钥，并使用钱包密码加密后保存或上传托管；然后提交公开 DID Document 到 `/identity/register/request`，再用返回的 WebAuthn creation options 调用 `/identity/register/confirm`。Node 只保存 DID Document 的哈希、Passkey 公钥和注册审计，不生成、接收、解密或返回任何私钥。未来 Wallet 插件可通过现有 `custody.recovery` 读取客户端密文，在本地解密后恢复同一 DID 和钱包控制材料。
+无钱包插件的浏览器注册要求提交 username、email、avatar 和本地钱包密码。客户端生成 DID、controller/recovery 密钥和 Ethereum 主网账户，使用 Wallet v2 兼容的 PBKDF2-SHA256 + AES-GCM 格式加密密钥材料，并在邮箱验证码、Passkey 和 EIP-191 账户验证完成后，将外层密文提交到注册完成接口。Node 只保存 DID、凭证、账户关联、Passkey 公钥和密文，不生成、接收、解密或返回任何私钥。Wallet 插件可通过 custody recovery 读取密文，在本地解密后恢复同一 DID 和 Ethereum 地址；密码丢失时密文不可恢复。
 
 Web 应用需要在应用编辑页的回调地址框中登记完整地址，每行一项，例如：
 

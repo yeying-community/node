@@ -208,6 +208,8 @@ export class IdentityEmailAccountDO {
 export class IdentityEmailAuthChallengeDO {
     @PrimaryColumn({ length: 128, name: 'challenge_id' }) challengeId!: string
     @Column({ length: 320 }) email!: string
+    @Column({ length: 32, default: '' }) username!: string
+    @Column({ length: 2048, name: 'avatar_uri', default: '' }) avatarUri!: string
     @Column({ length: 128, name: 'identity_did', default: '' }) identityDid!: string
     @Column({ length: 128, name: 'registration_id', default: '' }) registrationId!: string
     @Column({ length: 32 }) purpose!: string

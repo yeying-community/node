@@ -139,9 +139,11 @@ const document = {
         },
       },
       EmailAuthRegisterRequest: {
-        type: 'object', required: ['email', 'identityDocument'],
+        type: 'object', required: ['email', 'username', 'avatar', 'identityDocument'],
         properties: {
           email: { type: 'string', format: 'email' },
+          username: { type: 'string', pattern: '^[a-zA-Z0-9][a-zA-Z0-9._-]{2,31}$' },
+          avatar: { type: 'string', format: 'uri', description: '头像 URL 或 ipfs:// URI。' },
           identityDocument: { type: 'object', additionalProperties: true, description: '客户端生成并签名的公开 DID Document，不得包含私钥。' },
           deviceName: { type: 'string' },
         },
@@ -155,8 +157,20 @@ const document = {
         properties: { email: { type: 'string', format: 'email' } },
       },
       EmailAuthRegisterCompleteRequest: {
-        type: 'object', required: ['verificationId', 'registrationId'],
-        properties: { verificationId: { type: 'string' }, registrationId: { type: 'string' } },
+        type: 'object', required: ['verificationId', 'registrationId', 'accountLink', 'custody'],
+        properties: {
+          verificationId: { type: 'string' },
+          registrationId: { type: 'string' },
+          accountLink: { ...ref('IdentityAccountLinkVerifyRequest'), description: '客户端完成 Ethereum 主网账户签名验证后的证明。' },
+          custody: {
+            type: 'object', required: ['walletId', 'accountId', 'ciphertext'],
+            properties: {
+              walletId: { type: 'string' }, accountId: { type: 'string' }, address: { type: 'string' },
+              ciphertext: { type: 'string', description: 'Wallet v2 兼容的 PBKDF2-SHA256/AES-GCM 密文，不含明文私钥。' },
+              metadata: ref('JsonObject'),
+            },
+          },
+        },
       },
       IdentityDid: {
         type: 'string',

@@ -1,6 +1,6 @@
 import { vi, describe, it, expect } from 'vitest'
 import { SingletonDataSource } from '../src/domain/facade/datasource'
-import { IdentityEmailAccountDO, IdentityEmailAuthChallengeDO, IdentityRegistrationDO } from '../src/domain/mapper/entity'
+import { CustodyKeyRecordDO, IdentityAccountLinkDO, IdentityEmailAccountDO, IdentityEmailAuthChallengeDO, IdentityPasskeyCredentialDO, IdentityRegistrationDO } from '../src/domain/mapper/entity'
 import { createInMemoryDataSource } from './helpers/inMemoryDataSource'
 
 const identity = 'did:yeying:wid_email_auth_123456789012345678'
@@ -31,13 +31,16 @@ describe('identity email authentication', () => {
   it('normalizes email and completes a registration with a DID-bound account', async () => {
     let code = ''
     const service = new IdentityEmailAuthService(async input => { code = input.code })
-    const requested = await service.requestRegister({ email: ' Alice@Example.com ', identityDocument: { id: identity } })
+    const requested = await service.requestRegister({ email: ' Alice@Example.com ', username: 'Alice', avatar: 'https://example.com/alice.png', identityDocument: { id: identity } })
     expect(requested.email).toBe('alice@example.com')
     const verified = await service.confirmRegister({ verificationId: requested.verificationId, code })
     expect(verified.identity).toBe(identity)
     await SingletonDataSource.get().getRepository(IdentityRegistrationDO).update({ registrationId: requested.registrationId }, { status: 'active' })
-    await expect(service.completeRegister({ verificationId: requested.verificationId, registrationId: requested.registrationId })).resolves.toMatchObject({ identity })
-    await expect(service.completeRegister({ verificationId: requested.verificationId, registrationId: requested.registrationId })).rejects.toThrow('IDENTITY_EMAIL_REGISTRATION_INVALID')
+    await SingletonDataSource.get().getRepository(IdentityPasskeyCredentialDO).save(Object.assign(new IdentityPasskeyCredentialDO(), { identityDid: identity, credentialId: 'passkey_test', revokedAt: '' }))
+    const account = '0x1111111111111111111111111111111111111111'
+    await SingletonDataSource.get().getRepository(IdentityAccountLinkDO).save(Object.assign(new IdentityAccountLinkDO(), { identityDid: identity, chainKey: 'eip155:1', accountId: account, status: 'active', revokedAt: '', verifiedAt: new Date().toISOString() }))
+    await expect(service.completeRegister({ verificationId: requested.verificationId, registrationId: requested.registrationId, accountLink: { account: { chainKey: 'eip155:1', address: account } }, custody: { walletId: 'wallet_test', accountId: 'wallet_test_0', ciphertext: 'encrypted-wallet-material' } })).resolves.toMatchObject({ identity })
+    await expect(service.completeRegister({ verificationId: requested.verificationId, registrationId: requested.registrationId, accountLink: { account: { chainKey: 'eip155:1', address: account } }, custody: { walletId: 'wallet_test', accountId: 'wallet_test_0', ciphertext: 'encrypted-wallet-material' } })).rejects.toThrow('IDENTITY_EMAIL_REGISTRATION_INVALID')
     expect(await SingletonDataSource.get().getRepository(IdentityEmailAccountDO).findOneBy({ email: 'alice@example.com' })).toMatchObject({ identityDid: identity, status: 'active' })
   })
 

@@ -69,9 +69,9 @@ function getCookie(req: Request, name: string): string | undefined {
 
 function emailErrorStatus(message: string) {
   if (message.includes('NOT_FOUND') || message.includes('ACCOUNT_NOT_FOUND')) return 404
-  if (message.includes('ALREADY_REGISTERED') || message.includes('ALREADY_ACTIVE')) return 409
+  if (message.includes('ALREADY_REGISTERED') || message.includes('ALREADY_ACTIVE') || message.includes('USERNAME_TAKEN')) return 409
   if (message.includes('EXPIRED')) return 410
-  if (message.includes('INVALID') || message.includes('REQUIRED') || message.includes('NOT_ACTIVE')) return 400
+  if (message.includes('INVALID') || message.includes('REQUIRED') || message.includes('NOT_ACTIVE') || message.includes('RESERVATION')) return 400
   return 503
 }
 
@@ -82,7 +82,7 @@ export function registerPublicAuthRoutes(app: Express, emailAuth?: IdentityEmail
   }
 
   app.post(`${BASE_PATH}/email/register/request`, async (req: Request, res: Response) => {
-    try { res.json(ok(await requireEmailAuth().requestRegister({ email: req.body?.email, identityDocument: req.body?.identityDocument, deviceName: req.body?.deviceName }))) }
+    try { res.json(ok(await requireEmailAuth().requestRegister({ email: req.body?.email, username: req.body?.username, avatar: req.body?.avatar ?? req.body?.avatarUri, identityDocument: req.body?.identityDocument, deviceName: req.body?.deviceName }))) }
     catch (error) { const message = error instanceof Error ? error.message : 'Email registration request failed'; res.status(emailErrorStatus(message)).json(fail(emailErrorStatus(message), message)) }
   })
   app.post(`${BASE_PATH}/email/register/confirm`, async (req: Request, res: Response) => {
@@ -91,7 +91,7 @@ export function registerPublicAuthRoutes(app: Express, emailAuth?: IdentityEmail
   })
   app.post(`${BASE_PATH}/email/register/complete`, async (req: Request, res: Response) => {
     try {
-      const result = await requireEmailAuth().completeRegister({ verificationId: req.body?.verificationId, registrationId: req.body?.registrationId })
+      const result = await requireEmailAuth().completeRegister({ verificationId: req.body?.verificationId, registrationId: req.body?.registrationId, accountLink: req.body?.accountLink, custody: req.body?.custody })
       await provisionUserState(result.identity)
       const tokens = issueTokens(result.identity)
       setRefreshCookie(res, tokens.refreshToken, tokens.refreshExpiresAt - Date.now())
