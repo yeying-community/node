@@ -158,7 +158,7 @@ export class IdentityEmailAuthService {
       const walletId = String(custody.walletId || '').trim()
       const accountId = String(custody.accountId || '').trim()
       const ciphertext = String(custody.ciphertext || '').trim()
-      if (!walletId || !accountId || !ciphertext) throw new Error('IDENTITY_CUSTODY_REQUIRED')
+      if (!walletId || !accountId) throw new Error('IDENTITY_CUSTODY_REQUIRED')
       if (walletId.length > 128 || accountId.length > 128 || ciphertext.length > 8 * 1024 * 1024) throw new Error('IDENTITY_CUSTODY_INVALID')
       const verifiedAt = now()
       const credentialId = `urn:yeying:credential:email:${challenge.challengeId}`
