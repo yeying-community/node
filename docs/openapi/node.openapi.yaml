@@ -142,6 +142,131 @@ paths:
           application/json:
             schema:
               $ref: "#/components/schemas/AuthVerifyRequest"
+  /api/v1/public/auth/email/register/request:
+    post:
+      tags:
+        - Auth
+      summary: 请求无插件邮箱注册验证码
+      operationId: post_api_v1_public_auth_email_register_request
+      security: []
+      parameters: []
+      responses:
+        "200":
+          $ref: "#/components/responses/Success"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EmailAuthRegisterRequest"
+  /api/v1/public/auth/email/register/confirm:
+    post:
+      tags:
+        - Auth
+      summary: 确认邮箱注册验证码并取得 Passkey 注册参数
+      operationId: post_api_v1_public_auth_email_register_confirm
+      security: []
+      parameters: []
+      responses:
+        "200":
+          $ref: "#/components/responses/Success"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EmailAuthCodeRequest"
+  /api/v1/public/auth/email/register/complete:
+    post:
+      tags:
+        - Auth
+      summary: 完成邮箱注册并签发 DID JWT
+      operationId: post_api_v1_public_auth_email_register_complete
+      security: []
+      parameters: []
+      responses:
+        "200":
+          $ref: "#/components/responses/Success"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EmailAuthRegisterCompleteRequest"
+  /api/v1/public/auth/email/login/request:
+    post:
+      tags:
+        - Auth
+      summary: 请求邮箱登录验证码
+      operationId: post_api_v1_public_auth_email_login_request
+      security: []
+      parameters: []
+      responses:
+        "200":
+          $ref: "#/components/responses/Success"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EmailAuthLoginRequest"
+  /api/v1/public/auth/email/login/confirm:
+    post:
+      tags:
+        - Auth
+      summary: 确认邮箱登录验证码并签发 DID JWT
+      operationId: post_api_v1_public_auth_email_login_confirm
+      security: []
+      parameters: []
+      responses:
+        "200":
+          $ref: "#/components/responses/Success"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EmailAuthCodeRequest"
   /api/v1/public/auth/refresh:
     post:
       tags:
@@ -523,6 +648,56 @@ paths:
           application/json:
             schema:
               $ref: "#/components/schemas/IdentityVerificationConfirmRequest"
+  /api/v1/public/identity/register/request:
+    post:
+      tags:
+        - Identity
+      summary: 创建首次钱包身份注册请求
+      operationId: post_api_v1_public_identity_register_request
+      security: []
+      parameters: []
+      responses:
+        "200":
+          $ref: "#/components/responses/Success"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/IdentityBootstrapRegisterRequest"
+  /api/v1/public/identity/register/confirm:
+    post:
+      tags:
+        - Identity
+      summary: 确认首次钱包身份注册并激活 Passkey
+      operationId: post_api_v1_public_identity_register_confirm
+      security: []
+      parameters: []
+      responses:
+        "200":
+          $ref: "#/components/responses/Success"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/IdentityBootstrapRegisterConfirmRequest"
   /api/v1/public/identity/passkeys/register/request:
     post:
       tags:
@@ -2971,9 +3146,118 @@ components:
           pattern: ^0x[0-9a-fA-F]{40}$
         signature:
           type: string
+    EmailAuthRegisterRequest:
+      type: object
+      required:
+        - email
+        - username
+        - avatar
+        - identityDocument
+      properties:
+        email:
+          type: string
+          format: email
+        username:
+          type: string
+          pattern: ^[a-zA-Z0-9][a-zA-Z0-9._-]{2,31}$
+        avatar:
+          type: string
+          format: uri
+          description: 头像 URL 或 ipfs:// URI。
+        identityDocument:
+          type: object
+          additionalProperties: true
+          description: 客户端生成并签名的公开 DID Document，不得包含私钥。
+        deviceName:
+          type: string
+    EmailAuthCodeRequest:
+      type: object
+      required:
+        - verificationId
+        - code
+      properties:
+        verificationId:
+          type: string
+        code:
+          type: string
+          minLength: 6
+          maxLength: 6
+    EmailAuthLoginRequest:
+      type: object
+      required:
+        - email
+      properties:
+        email:
+          type: string
+          format: email
+    EmailAuthRegisterCompleteRequest:
+      type: object
+      required:
+        - verificationId
+        - registrationId
+        - accountLink
+        - custody
+      properties:
+        verificationId:
+          type: string
+        registrationId:
+          type: string
+        accountLink:
+          $ref: "#/components/schemas/IdentityAccountLinkVerifyRequest"
+          description: 客户端完成 Ethereum 主网账户签名验证后的证明。
+        custody:
+          type: object
+          required:
+            - walletId
+            - accountId
+            - ciphertext
+          properties:
+            walletId:
+              type: string
+            accountId:
+              type: string
+            address:
+              type: string
+            ciphertext:
+              type: string
+              description: Wallet v2 兼容的 PBKDF2-SHA256/AES-GCM 密文，不含明文私钥。
+            metadata:
+              $ref: "#/components/schemas/JsonObject"
     IdentityDid:
       type: string
       pattern: ^did:yeying:wid_[A-Za-z0-9_-]{22,}$
+    IdentityBootstrapRegisterRequest:
+      type: object
+      required:
+        - identityDocument
+      properties:
+        identityDocument:
+          type: object
+          additionalProperties: true
+          description: 客户端生成并使用 manage controller 签名的公开 DID Document，不得包含私钥。
+        deviceName:
+          type: string
+    IdentityBootstrapRegisterConfirmRequest:
+      type: object
+      required:
+        - registrationId
+        - identityDocument
+        - credential
+      properties:
+        registrationId:
+          type: string
+        requestId:
+          type: string
+          description: registrationId 的兼容别名。
+        identityDocument:
+          type: object
+          additionalProperties: true
+        deviceName:
+          type: string
+        credential:
+          type: object
+          additionalProperties: true
+          description: 浏览器 WebAuthn navigator.credentials.create() 结果。
     IdentityAccount:
       type: object
       required:

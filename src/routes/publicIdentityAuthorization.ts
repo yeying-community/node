@@ -8,7 +8,7 @@ import { createIdentityActionChallenge } from '../auth/identityActionAuthorizati
 function handle(error: unknown, res: Response) {
   const message = error instanceof Error ? error.message : 'Identity authorization failed'
   const explicit = Number((error as { status?: unknown })?.status)
-  const status = Number.isInteger(explicit) && explicit >= 400 && explicit <= 599 ? explicit : message.includes('REFRESH_SESSION_INVALID') ? 401 : message.includes('NOT_FOUND') ? 404 : message.includes('EXPIRED') ? 410 : message.includes('UNAUTHORIZED') || message.includes('MISMATCH') || message.includes('INVALID') || message.includes('CONTEXT') || message.includes('REQUIRED') || message.includes('PASSKEY') || message.includes('WebAuthn') || message.includes('origin') || message.includes('RPID') || message.includes('challenge') ? 400 : 503
+  const status = Number.isInteger(explicit) && explicit >= 400 && explicit <= 599 ? explicit : message.includes('REFRESH_SESSION_INVALID') ? 401 : message.includes('NOT_FOUND') ? 404 : message.includes('EXPIRED') ? 410 : message.includes('ALREADY') || message.includes('DUPLICATE') ? 409 : message.includes('UNAUTHORIZED') || message.includes('MISMATCH') || message.includes('INVALID') || message.includes('CONTEXT') || message.includes('REQUIRED') || message.includes('PASSKEY') || message.includes('WebAuthn') || message.includes('origin') || message.includes('RPID') || message.includes('challenge') ? 400 : 503
   res.status(status).json(fail(status, message))
 }
 
@@ -28,6 +28,14 @@ export function registerPublicIdentityAuthorizationRoutes(app: Express) {
   })
   app.post('/api/v1/public/identity/actions/challenge', async (req: Request, res: Response) => {
     try { res.json(ok(await createIdentityActionChallenge({ identity: req.body?.identity, action: req.body?.action, audience: req.body?.audience, payload: req.body?.payload }))) } catch (error) { handle(error, res) }
+  })
+  app.post('/api/v1/public/identity/register/request', async (req: Request, res: Response) => {
+    try { res.json(ok(await service.createInitialIdentityRegistration({ identityDocument: req.body?.identityDocument, deviceName: req.body?.deviceName }))) } catch (error) { handle(error, res) }
+  })
+  app.post('/api/v1/public/identity/register/confirm', async (req: Request, res: Response) => {
+    try {
+      res.json(ok(await service.confirmInitialIdentityRegistration({ registrationId: req.body?.registrationId ?? req.body?.requestId, identityDocument: req.body?.identityDocument, credential: req.body?.credential, deviceName: req.body?.deviceName })))
+    } catch (error) { handle(error, res) }
   })
   app.get('/api/v1/public/identity/authorize/request/:requestId', async (req: Request, res: Response) => {
     try { res.json(ok(await service.get(req.params.requestId))) } catch (error) { handle(error, res) }

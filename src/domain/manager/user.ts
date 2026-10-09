@@ -22,6 +22,17 @@ export class UserManager {
         return await this.stateRepository.save(userStateDO)
     }
 
+    async insertStateIfAbsent(userStateDO: UserStateDO) {
+        await this.stateRepository
+            .createQueryBuilder()
+            .insert()
+            .into(UserStateDO)
+            .values(userStateDO)
+            .orIgnore()
+            .execute()
+        return await this.stateRepository.findOneBy({ did: userStateDO.did })
+    }
+
     async queryUser(did: string) {
         return await this.userRepository.findOneBy({ did: did })
     }

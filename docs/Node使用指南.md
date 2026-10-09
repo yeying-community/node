@@ -124,11 +124,13 @@ identity: {
 }
 ```
 
-`rpId` 只能是当前域名或其可注册父域。`origin` 是 Node 自己承载钱包身份授权页的浏览器来源，必须包含协议且与实际来源完全一致，例如生产环境 `https://node.example.com` 或本地 `http://localhost:8100`。
+`rpId` 只能是当前域名或其可注册父域。`origin` 是承载钱包身份注册/授权页面的浏览器来源，必须包含协议且与实际来源完全一致，例如生产环境 `https://node.example.com`。本地开发时前端由 Vite 运行在 `http://localhost:8991`，因此应配置为该地址；后端 API 仍运行在 `http://localhost:8100`，由 Vite 代理请求。
 
-Wallet 插件设置页注册身份 Passkey 时，WebAuthn 响应 origin 是 `chrome-extension://<wallet-extension-id>`。这个 origin 不写入 Node 运行时配置；应把钱包插件作为应用发布到 Node 应用中心，并把插件 origin 加入该应用的 `redirectUris`。Node 在确认 Passkey 注册时只接受两类来源：`identity.webauthn.origin` 表示的 Node 授权页，以及已发布应用 `redirectUris` 解析出的来源。
+Wallet 插件设置页注册身份 Passkey 时，WebAuthn 响应 origin 是 `chrome-extension://<wallet-extension-id>`。这个 origin 不写入 Node 运行时配置；应把钱包插件作为应用发布到 Node 应用中心，并把插件 origin 加入该应用的 `redirectUris`。Node 在确认 Passkey 注册时接受 `identity.webauthn.origin`、`identity.publicBaseUrl` 以及已发布应用 `redirectUris` 解析出的来源。
 
-Node 自身的应用中心登录是钱包签名 / UCAN 自举登录，不依赖在应用中心先发布一个 Node 应用；`identity.webauthn` 只负责钱包身份 WebAuthn 认证器注册和无插件授权页。Router 等外部 Web3 应用才需要在 Node 应用中心发布应用并配置 `redirectUris`。
+Node 自身的应用中心登录是钱包签名 / UCAN 自举登录，不依赖在应用中心先发布一个 Node 应用；`identity.webauthn` 只负责钱包身份 WebAuthn 认证器注册和无插件授权页。Node 会同时允许 `identity.webauthn.origin`、`identity.publicBaseUrl` 以及已发布应用 `redirectUris` 的 origin，并把凭证实际产生的 origin 传给 WebAuthn 验证器。Router 等外部 Web3 应用才需要在 Node 应用中心发布应用并配置 `redirectUris`。
+
+无钱包插件的浏览器注册要求提交 username、email、avatar 和本地钱包密码。客户端生成 DID、controller/recovery 密钥和 Ethereum 主网账户，使用 Wallet v2 兼容的 PBKDF2-SHA256 + AES-GCM 格式加密密钥材料，并在邮箱验证码、Passkey 和 EIP-191 账户验证完成后，将外层密文提交到注册完成接口。Node 只保存 DID、凭证、账户关联、Passkey 公钥和密文，不生成、接收、解密或返回任何私钥。Wallet 插件可通过 custody recovery 读取密文，在本地解密后恢复同一 DID 和 Ethereum 地址；密码丢失时密文不可恢复。
 
 Web 应用需要在应用编辑页的回调地址框中登记完整地址，每行一项，例如：
 
@@ -148,6 +150,8 @@ https://chat.example.com/central-ucan-callback.html
 | POST | `/api/v1/public/identity/verifications/confirm` | 确认验证码并签发 `EmailCredential` / `UsernameCredential` / `AvatarCredential` |
 | POST | `/api/v1/public/identity/credentials/reissue/challenge` | 为已验证邮箱/用户名/头像凭证创建自动续签 challenge |
 | POST | `/api/v1/public/identity/credentials/reissue/confirm` | 校验 identity controller proof 并重签短期 JWT-VC |
+| POST | `/api/v1/public/identity/register/request` | 校验客户端签名 DID Document，创建短期 pending identity registration 和 WebAuthn creation challenge |
+| POST | `/api/v1/public/identity/register/confirm` | 校验同一 DID Document、challenge、RP ID、Node origin、用户验证和 credential，并原子激活身份 Passkey |
 | POST | `/api/v1/public/identity/passkeys/register/request` | 使用签名身份文档创建身份级 Passkey 注册请求 |
 | POST | `/api/v1/public/identity/passkeys/register/confirm` | 确认 WebAuthn registration 并保存到该钱包身份 |
 | GET | `/api/v1/public/identity/totp/status` | 查询钱包身份 TOTP 服务状态 |

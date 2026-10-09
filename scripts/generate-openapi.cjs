@@ -138,9 +138,62 @@ const document = {
           signature: { type: 'string' },
         },
       },
+      EmailAuthRegisterRequest: {
+        type: 'object', required: ['email', 'username', 'avatar', 'identityDocument'],
+        properties: {
+          email: { type: 'string', format: 'email' },
+          username: { type: 'string', pattern: '^[a-zA-Z0-9][a-zA-Z0-9._-]{2,31}$' },
+          avatar: { type: 'string', format: 'uri', description: '头像 URL 或 ipfs:// URI。' },
+          identityDocument: { type: 'object', additionalProperties: true, description: '客户端生成并签名的公开 DID Document，不得包含私钥。' },
+          deviceName: { type: 'string' },
+        },
+      },
+      EmailAuthCodeRequest: {
+        type: 'object', required: ['verificationId', 'code'],
+        properties: { verificationId: { type: 'string' }, code: { type: 'string', minLength: 6, maxLength: 6 } },
+      },
+      EmailAuthLoginRequest: {
+        type: 'object', required: ['email'],
+        properties: { email: { type: 'string', format: 'email' } },
+      },
+      EmailAuthRegisterCompleteRequest: {
+        type: 'object', required: ['verificationId', 'registrationId', 'accountLink', 'custody'],
+        properties: {
+          verificationId: { type: 'string' },
+          registrationId: { type: 'string' },
+          accountLink: { ...ref('IdentityAccountLinkVerifyRequest'), description: '客户端完成 Ethereum 主网账户签名验证后的证明。' },
+          custody: {
+            type: 'object', required: ['walletId', 'accountId', 'ciphertext'],
+            properties: {
+              walletId: { type: 'string' }, accountId: { type: 'string' }, address: { type: 'string' },
+              ciphertext: { type: 'string', description: 'Wallet v2 兼容的 PBKDF2-SHA256/AES-GCM 密文，不含明文私钥。' },
+              metadata: ref('JsonObject'),
+            },
+          },
+        },
+      },
       IdentityDid: {
         type: 'string',
         pattern: '^did:yeying:wid_[A-Za-z0-9_-]{22,}$',
+      },
+      IdentityBootstrapRegisterRequest: {
+        type: 'object',
+        required: ['identityDocument'],
+        properties: {
+          identityDocument: { type: 'object', additionalProperties: true, description: '客户端生成并使用 manage controller 签名的公开 DID Document，不得包含私钥。' },
+          deviceName: { type: 'string' },
+        },
+      },
+      IdentityBootstrapRegisterConfirmRequest: {
+        type: 'object',
+        required: ['registrationId', 'identityDocument', 'credential'],
+        properties: {
+          registrationId: { type: 'string' },
+          requestId: { type: 'string', description: 'registrationId 的兼容别名。' },
+          identityDocument: { type: 'object', additionalProperties: true },
+          deviceName: { type: 'string' },
+          credential: { type: 'object', additionalProperties: true, description: '浏览器 WebAuthn navigator.credentials.create() 结果。' },
+        },
       },
       IdentityAccount: {
         type: 'object',
@@ -497,6 +550,11 @@ const operations = [
   ['get', '/api/v1/public/ready', 'Health', '数据库就绪检查', 'none'],
   ['post', '/api/v1/public/auth/challenge', 'Auth', '创建 SIWE 登录挑战', 'none', 'AuthChallengeRequest'],
   ['post', '/api/v1/public/auth/verify', 'Auth', '验证钱包签名并签发 JWT', 'none', 'AuthVerifyRequest'],
+  ['post', '/api/v1/public/auth/email/register/request', 'Auth', '请求无插件邮箱注册验证码', 'none', 'EmailAuthRegisterRequest'],
+  ['post', '/api/v1/public/auth/email/register/confirm', 'Auth', '确认邮箱注册验证码并取得 Passkey 注册参数', 'none', 'EmailAuthCodeRequest'],
+  ['post', '/api/v1/public/auth/email/register/complete', 'Auth', '完成邮箱注册并签发 DID JWT', 'none', 'EmailAuthRegisterCompleteRequest'],
+  ['post', '/api/v1/public/auth/email/login/request', 'Auth', '请求邮箱登录验证码', 'none', 'EmailAuthLoginRequest'],
+  ['post', '/api/v1/public/auth/email/login/confirm', 'Auth', '确认邮箱登录验证码并签发 DID JWT', 'none', 'EmailAuthCodeRequest'],
   ['post', '/api/v1/public/auth/refresh', 'Auth', '刷新访问令牌', 'cookie'],
   ['post', '/api/v1/public/auth/logout', 'Auth', '注销刷新会话', 'cookie'],
   ['get', '/api/v1/public/auth/central/issuer', 'Auth', '查询中心化 UCAN issuer', 'none'],
@@ -513,6 +571,8 @@ const operations = [
   ['post', '/api/v1/public/identity/account-links/verify', 'Identity', '校验钱包身份账户关联证明', 'none', 'IdentityAccountLinkVerifyRequest'],
   ['post', '/api/v1/public/identity/verifications/request', 'Identity', '请求用户名和邮箱验证', 'none', 'IdentityVerificationRequest'],
   ['post', '/api/v1/public/identity/verifications/confirm', 'Identity', '确认验证码并签发钱包身份凭证', 'none', 'IdentityVerificationConfirmRequest'],
+  ['post', '/api/v1/public/identity/register/request', 'Identity', '创建首次钱包身份注册请求', 'none', 'IdentityBootstrapRegisterRequest'],
+  ['post', '/api/v1/public/identity/register/confirm', 'Identity', '确认首次钱包身份注册并激活 Passkey', 'none', 'IdentityBootstrapRegisterConfirmRequest'],
   ['post', '/api/v1/public/identity/passkeys/register/request', 'Identity', '创建身份级 Passkey 注册请求', 'none', 'IdentityPasskeyRegisterRequest'],
   ['post', '/api/v1/public/identity/passkeys/register/confirm', 'Identity', '保存身份级 Passkey credential', 'none', 'IdentityPasskeyRegisterConfirmRequest'],
   ['post', '/api/v1/public/identity/passkeys/list', 'Identity', '查询钱包身份 Passkey credential 列表', 'none', 'IdentityPasskeyListRequest'],

@@ -66,6 +66,7 @@
   },
   "overrides": {
     "qs": "6.16.0",
+    "proxy-addr": "2.0.8",
     "glob": {
       "minimatch": {
         "brace-expansion": "2.1.7"

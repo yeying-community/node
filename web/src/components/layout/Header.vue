@@ -1,60 +1,88 @@
 <template>
-  <header class="inset-x-0 top-0 z-10 flex justify-center header">
-    <nav
-      class="flex items-center justify-between py-4 w-full px-5 lg:px-2 xl:w-5/6"
-      aria-label="节点导航"
-    >
-      <div class="flex items-center cursor-pointer" @click="changeRouter('/')">
-        <img class="w-28 h-8 mr-2" src="../../assets/img/logo.svg" />
-      </div>
-      <div class="flex items-center justify-end gap-3">
-        <Language style="transform: translateY(10%)" />
-        <button
-          type="button"
-          class="font-body rounded-full bg-blue-600 px-4 py-2 text-sm text-white shadow-sm hover:bg-blue-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600 sm:px-6 sm:text-base"
-          :disabled="isConnecting"
-          @click="connectToWallet"
-        >
-          {{ isConnecting ? '连接中...' : $t('home_connect_wallet') }}
-        </button>
+  <header class="site-header">
+    <nav class="site-header-inner" :aria-label="$t('auth_node_label')">
+      <button type="button" class="brand-button" :aria-label="$t('auth_home_label')" @click="goHome">
+        <img src="../../assets/img/logo.svg" alt="YeYing" />
+      </button>
+      <div class="header-context">
+        <span class="header-context-label">{{ $t('auth_node_label') }}</span>
+        <Language />
       </div>
     </nav>
   </header>
 </template>
 
 <script lang="ts" setup>
-import { ref } from "vue";
-import { useRoute, useRouter } from "vue-router";
-import Language from "@/components/common/Language.vue";
-import { connectWallet } from "@/plugins/auth";
+import { useRouter } from 'vue-router'
+import Language from '@/components/common/Language.vue'
 
-const router = useRouter();
-const route = useRoute();
-const isConnecting = ref(false);
+const router = useRouter()
 
-const changeRouter = async (url: string) => {
-  await router.push(url);
-};
-
-const connectToWallet = async () => {
-  if (isConnecting.value) return;
-  isConnecting.value = true;
-  try {
-    await connectWallet(router, route);
-  } finally {
-    isConnecting.value = false;
-  }
-};
+function goHome() {
+  void router.push('/')
+}
 </script>
 
 <style scoped>
-.header {
-  backdrop-filter: blur(10px);
-  position: fixed;
+.site-header {
+  position: absolute;
+  inset: 0 0 auto;
+  z-index: 10;
+  padding: 24px clamp(20px, 5vw, 72px);
 }
 
-button:disabled {
-  cursor: wait;
-  opacity: 0.7;
+.site-header-inner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: min(1180px, 100%);
+  margin: 0 auto;
+}
+
+.brand-button {
+  display: inline-flex;
+  align-items: center;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+}
+
+.brand-button img {
+  display: block;
+  width: 121px;
+  height: 32px;
+}
+
+.header-context {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+}
+
+.header-context-label {
+  color: #667386;
+  font-size: 13px;
+}
+
+.brand-button:focus-visible,
+.header-context :deep(.lang-trigger):focus-visible {
+  outline: 2px solid #0b8e8b;
+  outline-offset: 5px;
+}
+
+@media (max-width: 640px) {
+  .site-header {
+    padding: 18px 20px;
+  }
+
+  .brand-button img {
+    width: 104px;
+    height: auto;
+  }
+
+  .header-context-label {
+    display: none;
+  }
 }
 </style>

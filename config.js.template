@@ -148,7 +148,7 @@ module.exports = {
     },
     webauthn: {
       // Enable wallet identity WebAuthn authenticator registration and authorization confirmation. rpId must be the current
-      // domain or its registrable parent; origin must exactly match the browser page origin.
+      // domain or its registrable parent; origin must exactly match the default browser page origin.
       enabled: false,
       // Relying Party ID. Prefer a dedicated local hostname such as
       // 'identity.localhost' so identity credentials are not mixed with
@@ -156,8 +156,10 @@ module.exports = {
       rpId: 'localhost',
       // Relying Party display name.
       rpName: 'YeYing Node',
-      // Browser origin that serves the identity authorization page.
-      origin: 'http://localhost:8100',
+      // Default browser origin that serves the identity WebAuthn ceremony.
+      // The local Vite frontend serves registration on port 8991. The built-in
+      // authorization page served by Node uses identity.publicBaseUrl (8100).
+      origin: 'http://localhost:8991',
       // WebAuthn operation timeout.
       timeoutMs: 60 * 1000,
       // Registration challenge TTL.
