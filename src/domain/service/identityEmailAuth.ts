@@ -189,7 +189,8 @@ export class IdentityEmailAuthService {
       await manager.getRepository(CustodyKeyRecordDO).save(custodyRow)
       await manager.getRepository(IdentityEmailAuthChallengeDO).save(challenge)
       await manager.getRepository(IdentityAuditLogDO).save(audit)
-      return { identity: challenge.identityDid, email: challenge.email, username: challenge.username, avatarUri: challenge.avatarUri, verifiedAt }
+      const credentials = await manager.getRepository(IdentityCredentialDO).findBy({ identityDid: challenge.identityDid, status: 'active', revokedAt: '' })
+      return { identity: challenge.identityDid, email: challenge.email, username: challenge.username, avatarUri: challenge.avatarUri, verifiedAt, credentials }
     })
     return result
   }

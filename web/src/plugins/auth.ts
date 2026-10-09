@@ -1214,7 +1214,7 @@ export async function confirmEmailRegistration(request: EmailRegisterRequest, co
         publicJwk: identityWithAccount.publicJwk,
         recoveryPublicJwk: identityWithAccount.recoveryPublicJwk,
         encryptedKeyMaterial: identityWithAccount.encryptedKeyMaterial,
-        credentials: [linked.credential],
+        credentials: Array.isArray(registered?.credentials) ? registered.credentials.map(c => c.credential) : [linked.credential],
       },
     },
     selectedIdentityId: walletIdentityId,
@@ -1222,7 +1222,7 @@ export async function confirmEmailRegistration(request: EmailRegisterRequest, co
     exportedAt: createdAt,
   };
   const ciphertext = await encryptObjectWithPassword(custodyPayload, request.password);
-  const result = await postAuthJson<{ identity: string; address: string; token: string; expiresAt: number }>(
+  const registered = await postAuthJson<{ identity: string; address: string; token: string; expiresAt: number; credentials?: Array<{ type: string; credentialId: string; credential: string }> }>(
     '/api/v1/public/auth/email/register/complete', {
       verificationId: request.verificationId,
       registrationId: verified.registrationId,
@@ -1231,9 +1231,9 @@ export async function confirmEmailRegistration(request: EmailRegisterRequest, co
     }, '完成邮箱注册失败'
   );
   clearManualLogoutMark();
-  handleAccountChange(result.identity || result.address);
-  persistAuthToken(result.token, result.expiresAt);
-  emitAccountChange(result.identity || result.address);
+  handleAccountChange(registered.identity || registered.address);
+  persistAuthToken(registered.token, registered.expiresAt);
+  emitAccountChange(registered.identity || registered.address);
   return true;
 }
 

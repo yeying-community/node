@@ -95,7 +95,7 @@ export function registerPublicAuthRoutes(app: Express, emailAuth?: IdentityEmail
       await provisionUserState(result.identity)
       const tokens = issueTokens(result.identity)
       setRefreshCookie(res, tokens.refreshToken, tokens.refreshExpiresAt - Date.now())
-      res.json(ok({ identity: result.identity, address: result.identity, token: tokens.accessToken, expiresAt: tokens.accessExpiresAt, refreshExpiresAt: tokens.refreshExpiresAt }))
+      res.json(ok({ identity: result.identity, address: result.identity, token: tokens.accessToken, expiresAt: tokens.accessExpiresAt, refreshExpiresAt: tokens.refreshExpiresAt, credentials: result.credentials }))
     } catch (error) { const message = error instanceof Error ? error.message : 'Email registration completion failed'; res.status(emailErrorStatus(message)).json(fail(emailErrorStatus(message), message)) }
   })
   app.post(`${BASE_PATH}/email/login/request`, async (req: Request, res: Response) => {
