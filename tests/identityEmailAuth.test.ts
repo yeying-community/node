@@ -39,8 +39,12 @@ describe('identity email authentication', () => {
     await SingletonDataSource.get().getRepository(IdentityPasskeyCredentialDO).save(Object.assign(new IdentityPasskeyCredentialDO(), { identityDid: identity, credentialId: 'passkey_test', revokedAt: '' }))
     const account = '0x1111111111111111111111111111111111111111'
     await SingletonDataSource.get().getRepository(IdentityAccountLinkDO).save(Object.assign(new IdentityAccountLinkDO(), { identityDid: identity, chainKey: 'eip155:1', accountId: account, status: 'active', revokedAt: '', verifiedAt: new Date().toISOString() }))
-    await expect(service.completeRegister({ verificationId: requested.verificationId, registrationId: requested.registrationId, accountLink: { account: { chainKey: 'eip155:1', address: account } }, custody: { walletId: 'wallet_test', accountId: 'wallet_test_0', ciphertext: 'encrypted-wallet-material' } })).resolves.toMatchObject({ identity })
-    await expect(service.completeRegister({ verificationId: requested.verificationId, registrationId: requested.registrationId, accountLink: { account: { chainKey: 'eip155:1', address: account } }, custody: { walletId: 'wallet_test', accountId: 'wallet_test_0', ciphertext: 'encrypted-wallet-material' } })).rejects.toThrow('IDENTITY_EMAIL_REGISTRATION_INVALID')
+    const completeInput = { verificationId: requested.verificationId, registrationId: requested.registrationId, accountLink: { account: { chainKey: 'eip155:1', address: account } }, custody: { walletId: 'wallet_test', accountId: 'wallet_test_0', ciphertext: 'encrypted-wallet-material' } }
+    await expect(service.completeRegister({ ...completeInput, custody: { ...completeInput.custody, ciphertext: '' } })).rejects.toThrow('IDENTITY_CUSTODY_REQUIRED')
+    const completed = await service.completeRegister(completeInput)
+    expect(completed).toMatchObject({ identity })
+    expect(completed.credentials.map((credential: any) => credential.credentialType).sort()).toEqual(['AvatarCredential', 'EmailCredential', 'UsernameCredential'])
+    await expect(service.completeRegister(completeInput)).rejects.toThrow('IDENTITY_EMAIL_REGISTRATION_INVALID')
     expect(await SingletonDataSource.get().getRepository(IdentityEmailAccountDO).findOneBy({ email: 'alice@example.com' })).toMatchObject({ identityDid: identity, status: 'active' })
   })
 

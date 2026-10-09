@@ -1202,14 +1202,6 @@ export async function confirmEmailRegistration(request: EmailRegisterRequest, co
   }, '以太坊账户验证失败');
   const createdAt = new Date().toISOString();
   const walletIdentityId = String(identityWithAccount.document.walletIdentityId || '').trim();
-  const registered = await postAuthJson<{ identity: string; address: string; token: string; expiresAt: number; credentials?: Array<{ type: string; credentialId: string; credential: string }> }>(
-    '/api/v1/public/auth/email/register/complete', {
-      verificationId: request.verificationId,
-      registrationId: verified.registrationId,
-      accountLink: { identityDocument: identityWithAccount.document, identity: request.identity, account, nonce: accountChallenge.nonce, issuedAt: accountChallenge.issuedAt, expiresAt: accountChallenge.expiresAt, accountSignature },
-      custody: { walletId: request.walletId, accountId: request.accountId, address: request.wallet.address, ciphertext: '', metadata: { version: 2, walletType: 'imported', accountCount: 1, identityCount: 1, hasWalletIdentity: true, exportedAt: createdAt } },
-    }, '完成邮箱注册失败'
-  );
   const custodyPayload = {
     version: 2,
     wallet: { id: request.walletId, name: request.username, type: 'imported', createdAt, accountCount: 1 },
@@ -1222,20 +1214,21 @@ export async function confirmEmailRegistration(request: EmailRegisterRequest, co
         publicJwk: identityWithAccount.publicJwk,
         recoveryPublicJwk: identityWithAccount.recoveryPublicJwk,
         encryptedKeyMaterial: identityWithAccount.encryptedKeyMaterial,
-        credentials: Array.isArray(registered?.credentials) ? registered.credentials.map(c => c.credential) : [linked.credential],
+        credentials: [linked.credential],
       },
     },
     selectedIdentityId: walletIdentityId,
-    identityEndpoint: import.meta.env.VITE_NODE_API_ENDPOINT || (typeof window !== 'undefined' ? window.location.origin : ''),
     exportedAt: createdAt,
   };
   const ciphertext = await encryptObjectWithPassword(custodyPayload, request.password);
-  await postAuthJson('/api/v1/public/auth/email/register/complete', {
-    verificationId: request.verificationId,
-    registrationId: verified.registrationId,
-    accountLink: { identityDocument: identityWithAccount.document, identity: request.identity, account, nonce: accountChallenge.nonce, issuedAt: accountChallenge.issuedAt, expiresAt: accountChallenge.expiresAt, accountSignature },
-    custody: { walletId: request.walletId, accountId: request.accountId, address: request.wallet.address, ciphertext, metadata: { version: 2, walletType: 'imported', accountCount: 1, identityCount: 1, hasWalletIdentity: true, exportedAt: createdAt } },
-  }, '完成邮箱注册失败');
+  const registered = await postAuthJson<{ identity: string; address: string; token: string; expiresAt: number }>(
+    '/api/v1/public/auth/email/register/complete', {
+      verificationId: request.verificationId,
+      registrationId: verified.registrationId,
+      accountLink: { identityDocument: identityWithAccount.document, identity: request.identity, account, nonce: accountChallenge.nonce, issuedAt: accountChallenge.issuedAt, expiresAt: accountChallenge.expiresAt, accountSignature },
+      custody: { walletId: request.walletId, accountId: request.accountId, address: request.wallet.address, ciphertext, metadata: { version: 2, walletType: 'imported', accountCount: 1, identityCount: 1, hasWalletIdentity: true, exportedAt: createdAt } },
+    }, '完成邮箱注册失败'
+  );
   clearManualLogoutMark();
   handleAccountChange(registered.identity || registered.address);
   persistAuthToken(registered.token, registered.expiresAt);

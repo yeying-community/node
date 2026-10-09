@@ -9,6 +9,9 @@ export type BrowserIdentity = {
   encryptedKeyMaterial: string
 }
 
+const ENCRYPTED_DATA_VERSION = 'v2'
+const PBKDF2_ITERATIONS = 210000
+
 function base64(bytes: ArrayBuffer | Uint8Array) {
   const value = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes)
   let binary = ''
@@ -38,13 +41,13 @@ export async function encryptObjectWithPassword(value: unknown, password: string
   const salt = crypto.getRandomValues(new Uint8Array(16))
   const iv = crypto.getRandomValues(new Uint8Array(12))
   const passwordKey = await crypto.subtle.importKey('raw', new TextEncoder().encode(password), 'PBKDF2', false, ['deriveKey'])
-  const key = await crypto.subtle.deriveKey({ name: 'PBKDF2', salt, iterations: 100000, hash: 'SHA-256' }, passwordKey, { name: 'AES-GCM', length: 256 }, false, ['encrypt'])
+  const key = await crypto.subtle.deriveKey({ name: 'PBKDF2', salt, iterations: PBKDF2_ITERATIONS, hash: 'SHA-256' }, passwordKey, { name: 'AES-GCM', length: 256 }, false, ['encrypt'])
   const encrypted = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key, new TextEncoder().encode(JSON.stringify(value)))
   const payload = new Uint8Array(salt.length + iv.length + encrypted.byteLength)
   payload.set(salt, 0)
   payload.set(iv, salt.length)
   payload.set(new Uint8Array(encrypted), salt.length + iv.length)
-  return base64(payload)
+  return `${ENCRYPTED_DATA_VERSION}.${base64(payload)}`
 }
 
 async function signDocument(document: Record<string, any>, privateKey: CryptoKey, verificationMethod: string) {
