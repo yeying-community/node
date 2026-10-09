@@ -10,7 +10,10 @@ const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 const TTL_MS = 10 * 60 * 1000
 const MAX_ATTEMPTS = 5
 const USERNAME_RE = /^[a-z0-9][a-z0-9._-]{2,31}$/
-const NAMESPACE = String(getConfig<string>('issuer.identity.usernameNamespace') || 'node.yeying.pub')
+
+function usernameNamespace() {
+  return String(getConfig<string>('issuer.identity.usernameNamespace') || 'node.yeying.pub')
+}
 
 export function normalizeIdentityEmail(value: unknown) {
   const email = String(value || '').trim().normalize('NFC').toLowerCase()
@@ -74,6 +77,7 @@ export class IdentityEmailAuthService {
     const code = String(randomInt(100000, 1000000))
     const createdAt = now()
     const expiresAt = new Date(Date.now() + TTL_MS).toISOString()
+    const namespace = usernameNamespace()
     const challenge = new IdentityEmailAuthChallengeDO()
     Object.assign(challenge, {
       challengeId,
@@ -93,14 +97,14 @@ export class IdentityEmailAuthService {
     })
     await ds.transaction(async manager => {
       const usernameRepo = manager.getRepository(IdentityUsernameDO)
-      const existing = await usernameRepo.findOneBy({ namespace: NAMESPACE, normalizedUsername: username })
+      const existing = await usernameRepo.findOneBy({ namespace, normalizedUsername: username })
       const expired = existing?.status === 'expired' || (existing?.status === 'reserved' && Date.parse(existing.reservedUntil) <= Date.now())
       if (existing && existing.identityDid !== registration.identity && !expired) throw new Error('IDENTITY_USERNAME_TAKEN')
       if (existing) {
         await usernameRepo.update({ uid: existing.uid }, { identityDid: registration.identity, status: 'reserved', reservedUntil: expiresAt, updatedAt: createdAt })
       } else {
         const usernameRow = new IdentityUsernameDO()
-        Object.assign(usernameRow, { namespace: NAMESPACE, normalizedUsername: username, identityDid: registration.identity, status: 'reserved', reservedUntil: expiresAt, createdAt, updatedAt: createdAt })
+        Object.assign(usernameRow, { namespace, normalizedUsername: username, identityDid: registration.identity, status: 'reserved', reservedUntil: expiresAt, createdAt, updatedAt: createdAt })
         await usernameRepo.save(usernameRow)
       }
       await manager.getRepository(IdentityEmailAuthChallengeDO).save(challenge)
@@ -109,7 +113,7 @@ export class IdentityEmailAuthService {
       await this.delivery({ email, code, expiresAt, purpose: 'register' })
     } catch (error) {
       await ds.getRepository(IdentityEmailAuthChallengeDO).delete({ challengeId })
-      await ds.getRepository(IdentityUsernameDO).update({ namespace: NAMESPACE, normalizedUsername: username, identityDid: registration.identity, status: 'reserved' }, { status: 'expired', reservedUntil: '', updatedAt: now() })
+      await ds.getRepository(IdentityUsernameDO).update({ namespace, normalizedUsername: username, identityDid: registration.identity, status: 'reserved' }, { status: 'expired', reservedUntil: '', updatedAt: now() })
       throw error
     }
     return { verificationId: challengeId, email, username, avatarUri, identity: registration.identity, registrationId: registration.registrationId, expiresAt }
@@ -172,10 +176,11 @@ export class IdentityEmailAuthService {
       challenge.consumedAt = verifiedAt
       const audit = new IdentityAuditLogDO()
       Object.assign(audit, { identityDid: challenge.identityDid, action: 'identity_email_registered', outcome: 'success', metadataJson: JSON.stringify({ email: challenge.email, credentialId }), createdAt: verifiedAt })
-      const usernameRow = await manager.getRepository(IdentityUsernameDO).findOneBy({ namespace: NAMESPACE, normalizedUsername: challenge.username, identityDid: challenge.identityDid, status: 'reserved' })
+      const namespace = usernameNamespace()
+      const usernameRow = await manager.getRepository(IdentityUsernameDO).findOneBy({ namespace, normalizedUsername: challenge.username, identityDid: challenge.identityDid, status: 'reserved' })
       if (!usernameRow) throw new Error('IDENTITY_USERNAME_RESERVATION_INVALID')
       await manager.getRepository(IdentityUsernameDO).update({ uid: usernameRow.uid }, { status: 'active', reservedUntil: '', updatedAt: verifiedAt })
-      const usernameCredential = issueProfileCredential(challenge.identityDid, 'UsernameCredential', { username: challenge.username, usernameQualified: `${challenge.username}@${NAMESPACE}`, usernamePolicyVersion: 'v1' }, challenge.challengeId, verifiedAt)
+      const usernameCredential = issueProfileCredential(challenge.identityDid, 'UsernameCredential', { username: challenge.username, usernameQualified: `${challenge.username}@${namespace}`, usernamePolicyVersion: 'v1' }, challenge.challengeId, verifiedAt)
       const avatarCredential = issueProfileCredential(challenge.identityDid, 'AvatarCredential', { avatarUri: challenge.avatarUri, avatarVerifiedAt: verifiedAt, avatarVerificationMethod: 'email-registration-v1' }, challenge.challengeId, verifiedAt)
       const user = await manager.getRepository(UserDO).findOneBy({ did: challenge.identityDid }) || new UserDO()
       Object.assign(user, { did: challenge.identityDid, name: challenge.username, avatar: challenge.avatarUri, createdAt: user.createdAt || verifiedAt, updatedAt: verifiedAt, signature: user.signature || '' })

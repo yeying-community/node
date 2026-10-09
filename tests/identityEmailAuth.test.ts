@@ -12,6 +12,10 @@ vi.mock('../src/auth/identityIssuer', () => ({
   })
 }))
 
+vi.mock('../src/config/runtime', () => ({
+  getConfig: (key: string) => key === 'issuer.identity.usernameNamespace' ? 'node.yeying.pub' : undefined
+}))
+
 vi.mock('../src/domain/service/identityAuthorization', () => ({
   IdentityAuthorizationService: class {
     async createInitialIdentityRegistration() {
