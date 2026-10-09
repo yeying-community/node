@@ -471,6 +471,10 @@ describe('identity authorization', () => {
         response: { clientDataJSON, authenticatorData: '', signature: '', userHandle: '' }
       }
     })
+    expect(verifyAuthenticationResponse).toHaveBeenCalledWith(expect.objectContaining({
+      expectedOrigin: 'http://localhost:8100',
+      expectedRPID: 'localhost'
+    }))
     const exchanged = await service.exchange({ code: approved.authorizationCode, appId: 'project', redirectUri: 'https://project.example/auth/callback', codeVerifier: verifier })
 
     expect(exchanged.did).toBe(passkeyIdentity)

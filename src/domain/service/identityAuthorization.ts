@@ -290,7 +290,11 @@ export class IdentityAuthorizationService {
 
   private async expectedPasskeyOrigin(status: { origin: string }, credential: any) {
     const credentialOrigin = credentialClientDataOrigin(credential)
-    const allowed = [...new Set([normalizedOrigin(status.origin), ...(await this.publishedApplicationOrigins())].filter(Boolean))]
+    const allowed = [...new Set([
+      normalizedOrigin(status.origin),
+      normalizedOrigin(portalBaseUrl()),
+      ...(await this.publishedApplicationOrigins())
+    ].filter(Boolean))]
     if (!allowed.includes(credentialOrigin)) {
       throw new Error(`IDENTITY_PASSKEY_ORIGIN_UNAUTHORIZED:${credentialOrigin}`)
     }
@@ -619,7 +623,7 @@ export class IdentityAuthorizationService {
     const verification = await verifyAuthenticationResponse({
       response: input.credential,
       expectedChallenge: challenge.challenge,
-      expectedOrigin: status.origin,
+      expectedOrigin: await this.expectedPasskeyOrigin(status, input.credential),
       expectedRPID: status.rpId,
       credential: { id: credentialId, publicKey: Buffer.from(credential.publicKey, 'base64url'), counter: Number(credential.signCount || 0), transports: parseTransports(credential.transports) }
     } as any)

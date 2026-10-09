@@ -70,10 +70,7 @@ export async function startRegistration(options: PublicKeyCredentialCreationOpti
     response: {
       clientDataJSON: arrayBufferToBase64Url(response.clientDataJSON),
       attestationObject: arrayBufferToBase64Url(response.attestationObject),
-      transports: response.getTransports?.() || [],
     },
-    clientExtensionResults: publicKeyCredential.getClientExtensionResults(),
-    authenticatorAttachment: publicKeyCredential.authenticatorAttachment || undefined,
   }
 }
 
@@ -119,7 +116,5 @@ export async function startAuthentication(options: PublicKeyCredentialRequestOpt
       signature: arrayBufferToBase64Url(response.signature),
       userHandle: arrayBufferToBase64Url(response.userHandle),
     },
-    clientExtensionResults: publicKeyCredential.getClientExtensionResults(),
-    authenticatorAttachment: publicKeyCredential.authenticatorAttachment || undefined,
   }
 }
