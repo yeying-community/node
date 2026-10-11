@@ -3,7 +3,7 @@
 set -euo pipefail
 
 if [[ $# -ne 3 ]]; then
-    printf 'Usage: %s <prepare|post-copy|finalize> <current-dir> <target-dir>\n' "$0" >&2
+    printf 'Usage: %s <prepare|copy-config|post-copy|finalize> <current-dir> <target-dir>\n' "$0" >&2
     exit 1
 fi
 
@@ -68,28 +68,40 @@ if [[ "$phase" == "prepare" || "$phase" == "finalize" ]]; then
     exit 0
 fi
 
-if [[ "$phase" != "post-copy" ]]; then
+if [[ "$phase" != "copy-config" && "$phase" != "post-copy" ]]; then
     printf 'Unsupported upgrade phase: %s\n' "$phase" >&2
     exit 1
 fi
 
-current_secrets_paths=$(resolve_secrets_paths "${current_dir}/config.js" "$current_dir")
-current_secrets_file=$(printf '%s\n' "$current_secrets_paths" | sed -n '1p')
-current_secrets_password_file=$(printf '%s\n' "$current_secrets_paths" | sed -n '2p')
-target_secrets_paths=$(resolve_secrets_paths "${target_dir}/config.js" "$target_dir")
-target_secrets_file=$(printf '%s\n' "$target_secrets_paths" | sed -n '1p')
-target_secrets_password_file=$(printf '%s\n' "$target_secrets_paths" | sed -n '2p')
+if [[ "$phase" == "copy-config" ]]; then
+    [[ -f "${current_dir}/config.js" ]] || {
+        printf 'Config file not found: %s/config.js\n' "$current_dir" >&2
+        exit 1
+    }
+    [[ -d "$target_dir" ]] || {
+        printf 'Target directory not found: %s\n' "$target_dir" >&2
+        exit 1
+    }
+    cp -f "${current_dir}/config.js" "${target_dir}/config.js"
+    current_secrets_paths=$(resolve_secrets_paths "${current_dir}/config.js" "$current_dir")
+    current_secrets_file=$(printf '%s\n' "$current_secrets_paths" | sed -n '1p')
+    current_secrets_password_file=$(printf '%s\n' "$current_secrets_paths" | sed -n '2p')
+    target_secrets_paths=$(resolve_secrets_paths "${target_dir}/config.js" "$target_dir")
+    target_secrets_file=$(printf '%s\n' "$target_secrets_paths" | sed -n '1p')
+    target_secrets_password_file=$(printf '%s\n' "$target_secrets_paths" | sed -n '2p')
 
-if [[ "$current_secrets_file" != "$target_secrets_file" && -f "$current_secrets_file" ]]; then
-    mkdir -p "$(dirname "$target_secrets_file")"
-    cp -pf "$current_secrets_file" "$target_secrets_file"
+    if [[ "$current_secrets_file" != "$target_secrets_file" && -f "$current_secrets_file" ]]; then
+        mkdir -p "$(dirname "$target_secrets_file")"
+        cp -pf "$current_secrets_file" "$target_secrets_file"
+    fi
+    if [[ "$current_secrets_password_file" != "$target_secrets_password_file" && -f "$current_secrets_password_file" ]]; then
+        mkdir -p "$(dirname "$target_secrets_password_file")"
+        cp -pf "$current_secrets_password_file" "$target_secrets_password_file"
+    fi
+    if [[ -f "$target_secrets_file" && -f "$target_secrets_password_file" ]]; then
+        patch_starter_password_file_reuse "${target_dir}/scripts/starter.sh"
+    fi
+    exit 0
 fi
 
-if [[ "$current_secrets_password_file" != "$target_secrets_password_file" && -f "$current_secrets_password_file" ]]; then
-    mkdir -p "$(dirname "$target_secrets_password_file")"
-    cp -pf "$current_secrets_password_file" "$target_secrets_password_file"
-fi
-
-if [[ -f "$target_secrets_file" && -f "$target_secrets_password_file" ]]; then
-    patch_starter_password_file_reuse "${target_dir}/scripts/starter.sh"
-fi
+exit 0
