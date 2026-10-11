@@ -137,7 +137,11 @@ async function approve(){
     const r=credential.response;
     const payload={id:credential.id,rawId:bufToB64(credential.rawId),type:credential.type,response:{authenticatorData:bufToB64(r.authenticatorData),clientDataJSON:bufToB64(r.clientDataJSON),signature:bufToB64(r.signature),userHandle:bufToB64(r.userHandle)},clientExtensionResults:credential.getClientExtensionResults()};
     const approved=await parse(await fetch('/api/v1/public/identity/authorize/approve',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({requestId,passkeyRequestId:req.requestId,credential:payload})}));
-    $('status').className='status ok';$('status').textContent=approved.clientType==='desktop'?'已确认，请返回桌面 Chat。':'已确认，正在返回应用...';
+    const desktop=approved.clientType==='desktop';
+    if(challengeRefreshTimer)clearTimeout(challengeRefreshTimer);
+    $('requestStatus').textContent='已确认';
+    $('status').className='status ok';$('status').textContent=desktop?'登录成功，您可以关闭此页面并返回桌面 Chat。':'已确认，正在返回应用...';
+    if(desktop)setTimeout(()=>{try{window.close()}catch(e){}},800);
     returnToApp(approved.redirectTo);
   }catch(error){$('status').textContent=error.message||'授权失败';$('approve').disabled=false}
 }
