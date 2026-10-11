@@ -30,11 +30,11 @@ export function registerPublicIdentityAuthorizationRoutes(app: Express) {
     try { res.json(ok(await createIdentityActionChallenge({ identity: req.body?.identity, action: req.body?.action, audience: req.body?.audience, payload: req.body?.payload }))) } catch (error) { handle(error, res) }
   })
   app.post('/api/v1/public/identity/register/request', async (req: Request, res: Response) => {
-    try { res.json(ok(await service.createInitialIdentityRegistration({ identityDocument: req.body?.identityDocument, deviceName: req.body?.deviceName }))) } catch (error) { handle(error, res) }
+    try { res.json(ok(await service.createInitialIdentityRegistration({ identityDocument: req.body?.identityDocument, deviceName: req.body?.deviceName, authenticatorAttachment: req.body?.authenticatorAttachment }))) } catch (error) { handle(error, res) }
   })
   app.post('/api/v1/public/identity/register/confirm', async (req: Request, res: Response) => {
     try {
-      res.json(ok(await service.confirmInitialIdentityRegistration({ registrationId: req.body?.registrationId ?? req.body?.requestId, identityDocument: req.body?.identityDocument, credential: req.body?.credential, deviceName: req.body?.deviceName })))
+      res.json(ok(await service.confirmInitialIdentityRegistration({ registrationId: req.body?.registrationId ?? req.body?.requestId, identityDocument: req.body?.identityDocument, credential: req.body?.credential, deviceName: req.body?.deviceName, authenticatorAttachment: req.body?.authenticatorAttachment })))
     } catch (error) { handle(error, res) }
   })
   app.get('/api/v1/public/identity/authorize/request/:requestId', async (req: Request, res: Response) => {
@@ -65,10 +65,10 @@ export function registerPublicIdentityAuthorizationRoutes(app: Express) {
     try { res.json(ok(await service.revokeSession({ refreshToken: req.body?.refreshToken ?? req.body?.refresh_token, appId: req.body?.appId, redirectUri: req.body?.redirectUri }))) } catch (error) { handle(error, res) }
   })
   app.post('/api/v1/public/identity/passkeys/register/request', async (req: Request, res: Response) => {
-    try { res.json(ok(await service.createPasskeyRegisterRequest({ identity: req.body?.identity, identityDocument: req.body?.identityDocument, deviceName: req.body?.deviceName, audience: req.body?.audience, authorization: req.body?.authorization }))) } catch (error) { handle(error, res) }
+    try { res.json(ok(await service.createPasskeyRegisterRequest({ identity: req.body?.identity, identityDocument: req.body?.identityDocument, deviceName: req.body?.deviceName, authenticatorAttachment: req.body?.authenticatorAttachment, audience: req.body?.audience, authorization: req.body?.authorization }))) } catch (error) { handle(error, res) }
   })
   app.post('/api/v1/public/identity/passkeys/register/confirm', async (req: Request, res: Response) => {
-    try { res.json(ok(await service.confirmPasskeyRegistration({ identity: req.body?.identity, requestId: req.body?.requestId, credential: req.body?.credential, deviceName: req.body?.deviceName }))) } catch (error) { handle(error, res) }
+    try { res.json(ok(await service.confirmPasskeyRegistration({ identity: req.body?.identity, requestId: req.body?.requestId, credential: req.body?.credential, deviceName: req.body?.deviceName, authenticatorAttachment: req.body?.authenticatorAttachment }))) } catch (error) { handle(error, res) }
   })
   app.post('/api/v1/public/identity/passkeys/list', async (req: Request, res: Response) => {
     try { res.json(ok(await service.listPasskeyCredentials({ identity: req.body?.identity }))) } catch (error) { handle(error, res) }

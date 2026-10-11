@@ -338,6 +338,7 @@ describe('identity authorization', () => {
       aaguid: '',
       transports: JSON.stringify(['internal']),
       deviceName: 'Mac Touch ID',
+      authenticatorAttachment: 'platform',
       rpId: 'localhost',
       userHandle: identity,
       createdAt: '2026-08-22T00:00:00.000Z',
@@ -345,7 +346,7 @@ describe('identity authorization', () => {
       revokedAt: ''
     }))
     const listed = await service.listPasskeyCredentials({ identity })
-    expect(listed.credentials).toMatchObject([{ credentialId: 'credential-1', deviceName: 'Mac Touch ID', transports: ['internal'], revokedAt: '' }])
+    expect(listed.credentials).toMatchObject([{ credentialId: 'credential-1', deviceName: 'Mac Touch ID', authenticatorAttachment: 'platform', transports: ['internal'], revokedAt: '' }])
     const revoked = await service.revokePasskeyCredential({ identity, identityDocument: signedIdentityDocument(), credentialId: 'credential-1', ...(await actionAuthorization('identity.passkey.revoke', { credentialId: 'credential-1' })) })
     expect(revoked.credentialId).toBe('credential-1')
     expect(revoked.revokedAt).toBeTruthy()
@@ -570,6 +571,7 @@ describe('identity authorization', () => {
       identity,
       requestId: 'iwc-extension',
       deviceName: 'Wallet extension',
+      authenticatorAttachment: 'cross-platform',
       credential: {
         id: 'credential-extension-1',
         rawId: 'credential-extension-1',
@@ -583,5 +585,9 @@ describe('identity authorization', () => {
       expectedOrigin: 'chrome-extension://lklhmjkaigpbnfchejbkmkfpkibmnjgf',
       expectedRPID: 'localhost'
     }))
+    // The chosen authenticator type is persisted and surfaced by the list API.
+    const listed = await service.listPasskeyCredentials({ identity })
+    const stored = listed.credentials.find(c => c.credentialId === 'credential-extension-1')
+    expect(stored?.authenticatorAttachment).toBe('cross-platform')
   })
 })

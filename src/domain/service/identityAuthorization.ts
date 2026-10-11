@@ -179,6 +179,10 @@ function parseTransports(raw: string): string[] {
   if (!value) return []
   try { const parsed = JSON.parse(value); return Array.isArray(parsed) ? parsed.map(string).filter(Boolean) : [] } catch { return [] }
 }
+function normalizeAuthenticatorAttachment(value: unknown): 'platform' | 'cross-platform' | '' {
+  const v = string(value)
+  return v === 'platform' || v === 'cross-platform' ? v : ''
+}
 function parseJsonArray(raw: string): string[] {
   try { const parsed = JSON.parse(string(raw) || '[]'); return Array.isArray(parsed) ? parsed.map(string).filter(Boolean) : [] } catch { return [] }
 }
@@ -360,7 +364,7 @@ export class IdentityAuthorizationService {
     return Boolean(existingUsername)
   }
 
-  async createInitialIdentityRegistration(input: { identityDocument: any; deviceName?: unknown; emailChallengeId?: unknown }) {
+  async createInitialIdentityRegistration(input: { identityDocument: any; deviceName?: unknown; authenticatorAttachment?: unknown; emailChallengeId?: unknown }) {
     const status = assertPasskeyAuthReady()
     const identityDid = assertIdentityDid(input.identityDocument?.id)
     verifyIdentityController(input.identityDocument, identityDid)
@@ -372,6 +376,7 @@ export class IdentityAuthorizationService {
     if (pending && Date.parse(pending.expiresAt) > Date.now()) throw new Error('IDENTITY_REGISTRATION_ALREADY_PENDING')
 
     const deviceName = string(input.deviceName) || 'Browser Passkey'
+    const authenticatorAttachment = normalizeAuthenticatorAttachment(input.authenticatorAttachment)
     const generated = await generateRegistrationOptions({
       rpID: status.rpId,
       rpName: status.rpName,
@@ -380,7 +385,7 @@ export class IdentityAuthorizationService {
       userDisplayName: `YeYing · ${identityDid.slice('did:yeying:'.length)}`,
       timeout: status.timeoutMs,
       attestationType: 'none',
-      authenticatorSelection: { residentKey: 'preferred', userVerification: 'required' },
+      authenticatorSelection: { residentKey: 'preferred', userVerification: 'required', ...(authenticatorAttachment ? { authenticatorAttachment } : {}) },
       excludeCredentials: []
     } as any)
     const createdAt = now()
@@ -420,7 +425,7 @@ export class IdentityAuthorizationService {
     }
   }
 
-  async confirmInitialIdentityRegistration(input: { registrationId: unknown; identityDocument: any; credential: any; deviceName?: unknown }) {
+  async confirmInitialIdentityRegistration(input: { registrationId: unknown; identityDocument: any; credential: any; deviceName?: unknown; authenticatorAttachment?: unknown }) {
     const status = assertPasskeyAuthReady()
     const registrationId = string(input.registrationId)
     const registrationRepo = dataSource().getRepository(IdentityRegistrationDO)
@@ -475,6 +480,7 @@ export class IdentityAuthorizationService {
         aaguid: string(info.aaguid),
         transports: JSON.stringify(input.credential?.response?.transports || input.credential?.transports || []),
         deviceName,
+        authenticatorAttachment: normalizeAuthenticatorAttachment(input.authenticatorAttachment ?? input.credential?.authenticatorAttachment),
         rpId: status.rpId,
         userHandle: identityDid,
         createdAt,
@@ -500,10 +506,11 @@ export class IdentityAuthorizationService {
     return result
   }
 
-  async createPasskeyRegisterRequest(input: { identity: unknown; identityDocument: unknown; deviceName?: unknown; audience: unknown; authorization: IdentityActionAuthorization }) {
+  async createPasskeyRegisterRequest(input: { identity: unknown; identityDocument: unknown; deviceName?: unknown; authenticatorAttachment?: unknown; audience: unknown; authorization: IdentityActionAuthorization }) {
     const status = assertPasskeyAuthReady()
     const identityDid = assertIdentityDid(input.identity)
     const deviceName = string(input.deviceName) || 'Passkey'
+    const authenticatorAttachment = normalizeAuthenticatorAttachment(input.authenticatorAttachment)
     await consumeIdentityActionAuthorization({ identity: identityDid, identityDocument: input.identityDocument, action: 'identity.passkey.register', audience: input.audience, payload: { deviceName }, authorization: input.authorization })
     const credentials = await dataSource().getRepository(IdentityPasskeyCredentialDO).findBy({ identityDid })
     const activeCredentials = credentials.filter(item => !string(item.revokedAt))
@@ -515,7 +522,7 @@ export class IdentityAuthorizationService {
       userDisplayName: `YeYing · ${identityDid.slice('did:yeying:'.length)}`,
       timeout: status.timeoutMs,
       attestationType: 'none',
-      authenticatorSelection: { residentKey: 'preferred', userVerification: 'required' },
+      authenticatorSelection: { residentKey: 'preferred', userVerification: 'required', ...(authenticatorAttachment ? { authenticatorAttachment } : {}) },
       excludeCredentials: activeCredentials.map(item => ({ id: item.credentialId, transports: parseTransports(item.transports) }))
     } as any)
     const createdAt = now()
@@ -525,7 +532,7 @@ export class IdentityAuthorizationService {
     return { identity: identityDid, passkeyRequest: { ...(generated as any), requestId: challenge.challengeId }, deviceName }
   }
 
-  async confirmPasskeyRegistration(input: { identity: unknown; requestId: unknown; credential: any; deviceName?: unknown }) {
+  async confirmPasskeyRegistration(input: { identity: unknown; requestId: unknown; credential: any; deviceName?: unknown; authenticatorAttachment?: unknown }) {
     const status = assertPasskeyAuthReady()
     const identityDid = assertIdentityDid(input.identity)
     const challengeRepo = dataSource().getRepository(IdentityWebauthnChallengeDO)
@@ -551,6 +558,7 @@ export class IdentityAuthorizationService {
       aaguid: string(info.aaguid),
       transports: JSON.stringify(input.credential?.response?.transports || input.credential?.transports || []),
       deviceName: string(input.deviceName) || 'Passkey',
+      authenticatorAttachment: normalizeAuthenticatorAttachment(input.authenticatorAttachment ?? input.credential?.authenticatorAttachment),
       rpId: status.rpId,
       userHandle: identityDid,
       createdAt: row.createdAt || createdAt,
@@ -572,6 +580,7 @@ export class IdentityAuthorizationService {
         .map(item => ({
           credentialId: item.credentialId,
           deviceName: item.deviceName || 'Passkey',
+          authenticatorAttachment: item.authenticatorAttachment || '',
           rpId: item.rpId,
           transports: parseTransports(item.transports),
           createdAt: item.createdAt,
