@@ -72,7 +72,7 @@ describe('starter script environment handling', () => {
     }
   })
 
-  it('reuses and removes the configured secrets password file for config app.env production', () => {
+  it('removes a version-local secrets password file after production startup', () => {
     const fixture = createStarterFixture('production')
 
     try {
@@ -81,6 +81,36 @@ describe('starter script environment handling', () => {
       expect(fs.existsSync(fixture.passwordFile)).toBe(false)
     } finally {
       stopAndRemoveFixture(fixture)
+    }
+  })
+
+  it('removes a shared absolute one-time secrets password file after production startup', () => {
+    const fixture = createStarterFixture('production')
+    const sharedPasswordFile = path.join(os.tmpdir(), `yeying-node-secrets-${process.pid}-${Date.now()}`)
+    fs.writeFileSync(sharedPasswordFile, 'shared-password')
+    fs.chmodSync(sharedPasswordFile, 0o600)
+    fs.writeFileSync(fixture.configPath, `module.exports = { app: { env: 'production' }, secrets: { file: 'run/secrets.enc.json', passwordFile: ${JSON.stringify(sharedPasswordFile)} } }\n`)
+
+    try {
+      runStarter(fixture, 'start', { NODE_ENV: '' })
+
+      expect(fs.existsSync(sharedPasswordFile)).toBe(false)
+    } finally {
+      stopAndRemoveFixture(fixture)
+      fs.rmSync(sharedPasswordFile, { force: true })
+    }
+  })
+
+  it('rejects an empty secrets password file without starting the service', () => {
+    const fixture = createStarterFixture('production')
+    fs.writeFileSync(fixture.passwordFile, '')
+
+    try {
+      expect(() => runStarter(fixture, 'start', { NODE_ENV: '' })).toThrow()
+      expect(fs.existsSync(fixture.passwordFile)).toBe(false)
+      expect(fs.existsSync(path.join(fixture.runDir, 'node.pid'))).toBe(false)
+    } finally {
+      fs.rmSync(fixture.root, { recursive: true, force: true })
     }
   })
 

@@ -94,33 +94,43 @@ prepare_secrets_password_file() {
   fi
 
   info "检测到加密密钥文件: ${SECRETS_FILE}（将由 Node 进程内解密）"
-  if [[ -f "$SECRETS_PASSWORD_FILE" ]]; then
+  if [[ -s "$SECRETS_PASSWORD_FILE" ]] && LC_ALL=C grep -q '[^[:space:]]' "$SECRETS_PASSWORD_FILE"; then
     if is_production_environment; then
       TEMP_SECRETS_PASSWORD_FILE="$SECRETS_PASSWORD_FILE"
     fi
     return 0
   fi
 
-  if [[ ! -t 0 ]]; then
-    fail "缺少密钥文件密码。请配置 secrets.passwordFile，或在交互终端中启动服务。"
+  if [[ -e "$SECRETS_PASSWORD_FILE" ]]; then
+    rm -f "$SECRETS_PASSWORD_FILE" || fail "无法清理空的密钥文件密码文件"
   fi
 
-  mkdir -p "$RUN_DIR"
-  local temp_password_file="$SECRETS_PASSWORD_FILE"
-  rm -f "$temp_password_file"
-  touch "$temp_password_file"
-  chmod 600 "$temp_password_file"
+  if [[ ! -t 0 ]]; then
+    fail "缺少有效的密钥文件密码。请配置非空 secrets.passwordFile，或在交互终端中启动服务。"
+  fi
 
   local password=''
   if ! read -r -s -t "$SECRETS_PASSWORD_PROMPT_TIMEOUT_SECONDS" -p "请输入密钥文件密码: " password; then
     password=''
   fi
   printf '\n'
-  [[ -n "$password" ]] || fail "密码不能为空"
+  [[ -n "$password" ]] && LC_ALL=C printf '%s' "$password" | grep -q '[^[:space:]]' || fail "密码不能为空"
+
+  local password_dir temp_password_file
+  password_dir="$(dirname "$SECRETS_PASSWORD_FILE")"
+  mkdir -p "$password_dir"
+  temp_password_file="$(mktemp "${SECRETS_PASSWORD_FILE}.tmp.XXXXXX")" || fail "无法创建密钥文件密码临时文件"
+  chmod 600 "$temp_password_file"
   printf '%s' "$password" > "$temp_password_file"
+  if ! mv -f "$temp_password_file" "$SECRETS_PASSWORD_FILE"; then
+    rm -f "$temp_password_file"
+    fail "无法保存密钥文件密码"
+  fi
   unset password
-  SECRETS_PASSWORD_FILE="$temp_password_file"
-  TEMP_SECRETS_PASSWORD_FILE="$temp_password_file"
+
+  if is_production_environment; then
+    TEMP_SECRETS_PASSWORD_FILE="$SECRETS_PASSWORD_FILE"
+  fi
 }
 
 runtime_dependencies_ready() {
