@@ -249,6 +249,9 @@ export class IdentityPasskeyCredentialDO {
     @Column({ length: 255, name: 'device_name', default: '' })
     deviceName!: string
 
+    @Column({ length: 32, name: 'authenticator_attachment', default: '' })
+    authenticatorAttachment!: string
+
     @Column({ length: 255, name: 'rp_id', default: '' })
     rpId!: string
 

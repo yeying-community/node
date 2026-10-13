@@ -96,6 +96,7 @@ npm run dev:secure
 ```js
 secrets: {
   file: 'run/secrets.enc.json',
+  // 生产环境使用版本目录之外的共享绝对路径；升级脚本不会复制密码文件。
   passwordFile: 'run/.secrets-password'
 }
 ```

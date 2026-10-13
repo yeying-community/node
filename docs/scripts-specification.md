@@ -20,7 +20,7 @@
 | `starter.sh` | 启动、停止、重启 Node 服务；创建运行目录，读取密钥配置，校验构建产物，维护 PID 和日志。 | `./cmd service start`、`./cmd service stop`、`./cmd service restart` |
 | `health-check.sh` | 执行服务健康检查，支持 readiness、liveness、dependency、all 等级，并可输出 text 或 json。 | `./cmd health --level readiness --retries 3` |
 | `config_backup.sh` | 按 `/data/${MODULE_NAME}/backup.conf` 配置将当前发布目录的 `config.js`、`run/` 和存在的 Nginx 配置打包加密备份到 `/opt/backup`。 | `bash scripts/config_backup.sh` |
-| `copy-for-upgrade.sh` | 升级时将当前目录的 `config.js` 复制到目标版本目录，直接替换目标目录下的 `config.js`，成功返回 `0`。 | `bash scripts/copy-for-upgrade.sh /opt/node-vX.Y.Z-abcdef0` |
+| `upgrade.sh` | 通过 `copy-config` 阶段迁移 `config.js` 和加密 secrets 文件，并执行其他标准升级钩子。不会复制 `secrets.passwordFile`；生产环境应将其配置为版本目录之外的共享绝对路径。 | `bash scripts/upgrade.sh copy-config <current-dir> <target-dir>` |
 
 ## 密钥仓脚本
 

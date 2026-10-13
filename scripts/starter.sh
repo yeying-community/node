@@ -13,6 +13,8 @@ NODE_ENV_VALUE="${NODE_ENV:-}"
 CONFIG_APP_ENV_VALUE=""
 EFFECTIVE_NODE_ENV_VALUE=""
 START_WAIT_SECONDS="${START_WAIT_SECONDS:-3}"
+STOP_TIMEOUT_SECONDS="${STOP_TIMEOUT_SECONDS:-30}"
+FORCE_STOP_TIMEOUT_SECONDS="${FORCE_STOP_TIMEOUT_SECONDS:-5}"
 SECRETS_PASSWORD_PROMPT_TIMEOUT_SECONDS="${SECRETS_PASSWORD_PROMPT_TIMEOUT_SECONDS:-30}"
 SECRETS_FILE=""
 SECRETS_PASSWORD_FILE=""
@@ -160,7 +162,29 @@ is_running() {
   local pid
   pid="$(read_pid)" || return 1
   [[ -n "$pid" ]] || return 1
-  kill -0 "$pid" >/dev/null 2>&1
+  kill -0 "$pid" >/dev/null 2>&1 || return 1
+  local state
+  state="$(ps -p "$pid" -o stat= 2>/dev/null | tr -d '[:space:]')"
+  [[ -n "$state" && "${state:0:1}" != "Z" ]]
+}
+
+validate_stop_timeouts() {
+  [[ "$STOP_TIMEOUT_SECONDS" =~ ^[0-9]+$ ]] || fail "STOP_TIMEOUT_SECONDS 必须是非负整数: $STOP_TIMEOUT_SECONDS"
+  [[ "$FORCE_STOP_TIMEOUT_SECONDS" =~ ^[0-9]+$ ]] || fail "FORCE_STOP_TIMEOUT_SECONDS 必须是非负整数: $FORCE_STOP_TIMEOUT_SECONDS"
+}
+
+wait_for_stop() {
+  local timeout_seconds=$1
+  local waited=0
+
+  while is_running; do
+    if (( waited >= timeout_seconds )); then
+      return 1
+    fi
+    sleep 1
+    waited=$((waited + 1))
+  done
+  return 0
 }
 
 start_app() {
@@ -217,6 +241,7 @@ start_app() {
 }
 
 stop_app() {
+  validate_stop_timeouts
   ensure_runtime_dirs
 
   if ! is_running; then
@@ -227,24 +252,26 @@ stop_app() {
 
   local pid
   pid="$(read_pid)"
-  kill "$pid" >/dev/null 2>&1 || true
+  kill -TERM "$pid" >/dev/null 2>&1 || true
 
-  local waited=0
-  while kill -0 "$pid" >/dev/null 2>&1; do
-    if (( waited >= 15 )); then
-      kill -9 "$pid" >/dev/null 2>&1 || true
-      break
+  if ! wait_for_stop "$STOP_TIMEOUT_SECONDS"; then
+    info "优雅停止超过 ${STOP_TIMEOUT_SECONDS}s，发送 SIGKILL"
+    kill -KILL "$pid" >/dev/null 2>&1 || true
+    if ! wait_for_stop "$FORCE_STOP_TIMEOUT_SECONDS"; then
+      fail "无法确认 Node 进程已停止，PID=$pid；不会继续启动"
     fi
-    sleep 1
-    waited=$((waited + 1))
-  done
+    info "服务已强制停止"
+  else
+    info "服务已优雅停止"
+  fi
 
   rm -f "$PID_FILE"
-  info "服务已停止"
 }
 
 restart_app() {
-  stop_app
+  if ! stop_app; then
+    return 1
+  fi
   start_app
 }
 
