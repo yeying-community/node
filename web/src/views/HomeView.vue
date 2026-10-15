@@ -25,6 +25,7 @@ import { notifySuccess } from '@/utils/message'
 type AuthMethod = 'email' | 'wallet'
 type EmailMode = 'login' | 'register'
 type EmailStep = 'form' | 'code'
+type PasskeyPreference = 'auto' | 'client-device' | 'hybrid' | 'security-key'
 
 const router = useRouter()
 const route = useRoute()
@@ -41,6 +42,7 @@ const avatar = ref(avatarForSeed('yeying'))
 const avatarTouched = ref(false)
 const password = ref('')
 const confirmPassword = ref('')
+const passkeyPreference = ref<PasskeyPreference>('auto')
 // The registration request contains ethers Wallet and CryptoKey instances.
 // Keep the object unproxied so native private fields retain their receiver.
 const emailRequest = shallowRef<Awaited<ReturnType<typeof requestEmailRegistration>> | null>(null)
@@ -213,7 +215,11 @@ async function confirmEmailCode() {
   emailBusy.value = true
   try {
     const loggedIn = isRegister.value
-      ? Boolean(emailRequest.value && await confirmEmailRegistration(emailRequest.value, code))
+      ? Boolean(emailRequest.value && await confirmEmailRegistration(
+        emailRequest.value,
+        code,
+        passkeyPreference.value === 'auto' ? undefined : passkeyPreference.value,
+      ))
       : Boolean(emailLoginRequest.value && await confirmEmailLogin(emailLoginRequest.value.verificationId, code))
     if (!loggedIn) {
       throw new Error(translate('auth_generic_error'))
@@ -393,6 +399,42 @@ onBeforeUnmount(() => {
                 :placeholder="$t('auth_confirm_password_placeholder')"
                 @keyup.enter="sendEmailCode"
               />
+
+              <fieldset class="passkey-choice">
+                <legend class="field-label">{{ $t('auth_passkey_choice_label') }}</legend>
+                <p class="field-hint passkey-choice-hint">{{ $t('auth_passkey_choice_hint') }}</p>
+                <div class="passkey-choice-grid">
+                  <label class="passkey-choice-option" :class="{ selected: passkeyPreference === 'auto' }">
+                    <input v-model="passkeyPreference" type="radio" value="auto" />
+                    <span class="passkey-choice-copy">
+                      <strong>{{ $t('auth_passkey_auto') }}</strong>
+                      <small>{{ $t('auth_passkey_auto_desc') }}</small>
+                    </span>
+                  </label>
+                  <label class="passkey-choice-option" :class="{ selected: passkeyPreference === 'client-device' }">
+                    <input v-model="passkeyPreference" type="radio" value="client-device" />
+                    <span class="passkey-choice-copy">
+                      <strong>{{ $t('auth_passkey_device') }}</strong>
+                      <small>{{ $t('auth_passkey_device_desc') }}</small>
+                    </span>
+                  </label>
+                  <label class="passkey-choice-option" :class="{ selected: passkeyPreference === 'hybrid' }">
+                    <input v-model="passkeyPreference" type="radio" value="hybrid" />
+                    <span class="passkey-choice-copy">
+                      <strong>{{ $t('auth_passkey_cross_device') }}</strong>
+                      <small>{{ $t('auth_passkey_cross_device_desc') }}</small>
+                    </span>
+                  </label>
+                  <label class="passkey-choice-option" :class="{ selected: passkeyPreference === 'security-key' }">
+                    <input v-model="passkeyPreference" type="radio" value="security-key" />
+                    <span class="passkey-choice-copy">
+                      <strong>{{ $t('auth_passkey_security_key') }}</strong>
+                      <small>{{ $t('auth_passkey_security_key_desc') }}</small>
+                    </span>
+                  </label>
+                </div>
+                <p class="field-hint passkey-provider-note">{{ $t('auth_passkey_provider_note') }}</p>
+              </fieldset>
             </div>
 
             <label class="field-label" for="auth-email">{{ $t('auth_email_label') }}</label>
@@ -825,6 +867,78 @@ onBeforeUnmount(() => {
   line-height: 1.55;
 }
 
+.passkey-choice {
+  min-width: 0;
+  padding: 17px 0 0;
+  margin: 17px 0 0;
+  border: 0;
+  border-top: 1px solid #e7ecea;
+}
+
+.passkey-choice .field-label {
+  margin: 0;
+  color: #46596d;
+}
+
+.passkey-choice-hint {
+  margin-top: 5px;
+}
+
+.passkey-choice-grid {
+  display: grid;
+  gap: 7px;
+  margin-top: 11px;
+}
+
+.passkey-choice-option {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 11px;
+  border: 1px solid #dfe7e4;
+  border-radius: 3px;
+  background: #fbfcfb;
+  cursor: pointer;
+  transition: border-color 0.18s ease, background-color 0.18s ease;
+}
+
+.passkey-choice-option:hover,
+.passkey-choice-option.selected {
+  border-color: #7cc5b2;
+  background: #f2faf7;
+}
+
+.passkey-choice-option input {
+  flex: 0 0 auto;
+  width: 16px;
+  height: 16px;
+  margin: 2px 0 0;
+  accent-color: #0b8e8b;
+}
+
+.passkey-choice-copy {
+  display: grid;
+  min-width: 0;
+  gap: 2px;
+}
+
+.passkey-choice-copy strong {
+  color: #142640;
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.35;
+}
+
+.passkey-choice-copy small {
+  color: #7b8993;
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.passkey-provider-note {
+  margin-top: 9px;
+}
+
 .primary-action {
   display: flex;
   align-items: center;
@@ -1117,7 +1231,8 @@ onBeforeUnmount(() => {
 @media (prefers-reduced-motion: reduce) {
   .method-tab,
   .auth-panel :deep(.el-input__wrapper),
-  .primary-action {
+  .primary-action,
+  .passkey-choice-option {
     transition: none;
   }
 }
