@@ -9,6 +9,8 @@ module.exports = {
     env: 'dev',
     // HTTP server port.
     port: 8100,
+    // Only enable this when Node is behind a trusted reverse proxy.
+    trustProxy: false,
     // Browser Origin allowlist for credentialed cross-origin API requests.
     // Each item must be an exact origin: protocol + host + optional port. Do not add paths,
     // wildcards, or '*'. Examples: 'https://node.example.com', 'http://localhost:8991'.
@@ -236,6 +238,33 @@ module.exports = {
     feishuMaxAttempts: 5,
     feishuRetryBaseDelayMs: 15 * 1000,
     feishuRetryMaxDelayMs: 10 * 60 * 1000,
+  },
+  payment: {
+    // Standard cashier API. Set false to disable payment routes and workers.
+    enabled: true,
+    provider: 'wechat',
+    // Signed external requests are valid only within this timestamp window.
+    signatureWindowMs: 5 * 60 * 1000,
+    // Outbound business callback timeout and retry policy.
+    webhookTimeoutMs: 10 * 1000,
+    webhookIntervalMs: 15 * 1000,
+    webhookClaimTimeoutMs: 60 * 1000,
+    webhookMaxAttempts: 5,
+    webhookRetryBaseDelayMs: 15 * 1000,
+    webhookRetryMaxDelayMs: 10 * 60 * 1000,
+    wechat: {
+      // The legacy yeying-room integration uses WeChat Pay v2 unified order/refund.
+      // Credentials are runtime secrets, never config values:
+      // PAYMENT_WECHAT_APP_ID, PAYMENT_WECHAT_MCH_ID, PAYMENT_WECHAT_API_V2_KEY,
+      // and PAYMENT_WECHAT_CERT_PEM / PAYMENT_WECHAT_KEY_PEM for refunds.
+      enabled: false,
+      apiBaseUrl: 'https://api.mch.weixin.qq.com',
+      // Non-production test endpoints must be explicitly allowlisted here.
+      allowedApiHosts: [],
+      // Must be a stable public HTTPS URL in production.
+      notifyUrl: 'https://node.example.com/api/v1/public/payment-gateway/webhooks/wechat',
+      timeoutMs: 10 * 1000
+    }
   },
   redis: {
     // Optional secrets loaded from secrets.enc.json: REDIS_USERNAME, REDIS_PASSWORD.

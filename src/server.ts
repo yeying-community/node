@@ -37,7 +37,7 @@ import {
     ProjectAppInstallationDO,
     AppReleaseDO,
     AppRuntimeTaskDO,
-    IdentityAccountLinkDO, IdentityAccountLinkChallengeDO, IdentityVerificationTransactionDO, IdentityUsernameDO, IdentityCredentialDO, IdentityCredentialReissueChallengeDO, IdentityAuditLogDO, IdentityRegistrationDO, IdentityEmailAccountDO, IdentityEmailAuthChallengeDO, IdentityPasskeyCredentialDO, IdentityTotpAuthenticatorDO, IdentityWebauthnChallengeDO, IdentityActionChallengeDO, IdentityAuthorizationRequestDO, IdentityAuthorizationCodeDO, IdentityAuthorizationSessionDO, UcanIssueSessionDO, UcanIssuedTokenDO, UcanTokenRevocationDO, UcanAuditLogDO
+    IdentityAccountLinkDO, IdentityAccountLinkChallengeDO, IdentityVerificationTransactionDO, IdentityUsernameDO, IdentityCredentialDO, IdentityCredentialReissueChallengeDO, IdentityAuditLogDO, IdentityRegistrationDO, IdentityEmailAccountDO, IdentityEmailAuthChallengeDO, IdentityPasskeyCredentialDO, IdentityTotpAuthenticatorDO, IdentityWebauthnChallengeDO, IdentityActionChallengeDO, IdentityAuthorizationRequestDO, IdentityAuthorizationCodeDO, IdentityAuthorizationSessionDO, UcanIssueSessionDO, UcanIssuedTokenDO, UcanTokenRevocationDO, UcanAuditLogDO, PaymentMerchantDO, PaymentTransactionDO, PaymentRefundDO, PaymentRequestNonceDO, PaymentProviderEventDO, PaymentWebhookDeliveryDO
 } from './domain/mapper/entity'
 import { SingletonDataSource } from './domain/facade/datasource';
 import { LoggerConfig, LoggerService } from './infrastructure/logger';
@@ -56,6 +56,8 @@ import { registerPublicMpcRoutes } from './routes/public/mpc';
 import { registerPublicCustodyRoutes } from './routes/public/custody';
 import { registerPublicNotificationRoutes } from './routes/public/notifications';
 import { registerAdminPusherRoutes, registerPublicPusherRoutes } from './routes/public/pusher';
+import { registerPublicPaymentGatewayRoutes } from './routes/public/paymentGateway';
+import { PaymentService } from './domain/service/payment';
 import { registerPublicIdentityRoutes } from './routes/publicIdentity';
 import { registerPublicIdentityAccountLinkRoutes } from './routes/publicIdentityAccountLinks';
 import { IdentityEmailService } from './domain/service/identityEmail';
@@ -123,6 +125,7 @@ import { AddIdentityEmailAuth20261007140000 } from './migrations/20261007140000-
 import { RepairIdentityEmailAuth20261007150000 } from './migrations/20261007150000-repair-identity-email-auth';
 import { AddEmailRegistrationProfile20261008100000 } from './migrations/20261008100000-add-email-registration-profile';
 import { AddIdentityPasskeyAuthenticatorAttachment20261012100000 } from './migrations/20261012100000-add-identity-passkey-authenticator-attachment';
+import { AddPayments20261015100000 } from './migrations/20261015100000-add-payments';
 import { getConfig } from './config/runtime';
 import { startActionRequestCleanupJobs } from './domain/service/actionRequestCleanup';
 import { startMpcCleanupJobs } from './domain/service/mpcCleanup';
@@ -220,14 +223,7 @@ function registerWebStaticRoutes(app: Express, webDistDir: string) {
 }
 
 function resolveClientIp(req: Request): string {
-    const forwarded = req.headers['x-forwarded-for']
-    if (Array.isArray(forwarded) && forwarded.length > 0) {
-        return forwarded[0]
-    }
-    if (typeof forwarded === 'string' && forwarded.trim()) {
-        return forwarded.split(',')[0].trim()
-    }
-    return req.socket.remoteAddress || ''
+    return req.ip || req.socket.remoteAddress || ''
 }
 
 function registerApiRequestLogger(app: Express) {
@@ -356,7 +352,13 @@ builder.entities([
     UcanIssueSessionDO,
     UcanIssuedTokenDO,
     UcanTokenRevocationDO,
-    UcanAuditLogDO
+    UcanAuditLogDO,
+    PaymentMerchantDO,
+    PaymentTransactionDO,
+    PaymentRefundDO,
+    PaymentRequestNonceDO,
+    PaymentProviderEventDO,
+    PaymentWebhookDeliveryDO
 ])
 builder.migrations([
     InitSchema20260126120000,
@@ -412,7 +414,8 @@ builder.migrations([
     AddIdentityEmailAuth20261007140000,
     RepairIdentityEmailAuth20261007150000,
     AddEmailRegistrationProfile20261008100000,
-    AddIdentityPasskeyAuthenticatorAttachment20261012100000
+    AddIdentityPasskeyAuthenticatorAttachment20261012100000,
+    AddPayments20261015100000
 ])
 
 builder.build().initialize().then(async (conn) => {
@@ -434,13 +437,34 @@ builder.build().initialize().then(async (conn) => {
     startMpcCleanupJobs()
     registerBuiltinDeliveryProviders()
     startAllDeliveryJobs()
+    if (getConfig<boolean>('payment.enabled') !== false) {
+        const intervalMs = Number(getConfig<number>('payment.webhookIntervalMs')) > 0
+            ? Number(getConfig<number>('payment.webhookIntervalMs'))
+            : 15 * 1000
+        const paymentWebhookTimer = setInterval(() => {
+            void new PaymentService().deliverCallbacksOnce().catch(error => {
+                logger.error('payment callback delivery failed', {
+                    error: error instanceof Error ? error.message : String(error),
+                })
+            })
+        }, intervalMs)
+        paymentWebhookTimer.unref?.()
+    }
     // 创建 Express 应用
     const app = express();
+    app.set('trust proxy', getConfig<AppRuntimeConfig>('app').trustProxy ?? false)
     const webDistDir = resolveWebDistDir()
     app.use(cors(buildCorsOptions(getConfig<AppRuntimeConfig>('app'))));
 
     // 设置 JSON 解析中间件
     app.use(express.json({
+        verify: (req, _res, buffer) => {
+            (req as Request & { rawBody?: Buffer }).rawBody = Buffer.from(buffer)
+        },
+    }));
+    app.use(express.text({
+        type: ['text/*', 'application/xml', 'application/*+xml'],
+        limit: '1mb',
         verify: (req, _res, buffer) => {
             (req as Request & { rawBody?: Buffer }).rawBody = Buffer.from(buffer)
         },
@@ -479,6 +503,7 @@ builder.build().initialize().then(async (conn) => {
     registerPublicCustodyRoutes(app);
     registerPublicNotificationRoutes(app);
     registerPublicPusherRoutes(app);
+    registerPublicPaymentGatewayRoutes(app);
     registerAdminAuditRoutes(app);
     registerAdminMailRoutes(app);
     registerAdminUserRoutes(app);

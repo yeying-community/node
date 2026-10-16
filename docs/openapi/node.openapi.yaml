@@ -28,6 +28,8 @@ tags:
     description: 钱包客户端加密密钥托管。
   - name: Notifications
     description: 通知收件箱、事件流和 Webhook。
+  - name: Payments
+    description: 社区应用收银台、渠道交易、退款和商户回调。
   - name: Pusher
     description: Node Pusher 原生 publish、SSE subscribe 和通用 channel ACL。
   - name: Publisher
@@ -2458,6 +2460,271 @@ paths:
           application/json:
             schema:
               $ref: "#/components/schemas/JsonObject"
+  /api/v1/public/payment-gateway/merchants:
+    post:
+      tags:
+        - Payments
+      summary: 创建收银台商户
+      operationId: post_api_v1_public_payment_gateway_merchants
+      security:
+        - bearerAuth: []
+      parameters: []
+      responses:
+        "200":
+          $ref: "#/components/responses/Success"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PaymentMerchantCreateRequest"
+    get:
+      tags:
+        - Payments
+      summary: 列出收银台商户
+      operationId: get_api_v1_public_payment_gateway_merchants
+      security:
+        - bearerAuth: []
+      parameters: []
+      responses:
+        "200":
+          $ref: "#/components/responses/Success"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+  /api/v1/public/payment-gateway/merchants/{merchantId}:
+    delete:
+      tags:
+        - Payments
+      summary: 停用收银台商户
+      operationId: delete_api_v1_public_payment_gateway_merchants_merchantId
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: merchantId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          $ref: "#/components/responses/Success"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+  /api/v1/public/payment-gateway/transactions:
+    post:
+      tags:
+        - Payments
+      summary: 创建收银台交易
+      operationId: post_api_v1_public_payment_gateway_transactions
+      security:
+        - paymentMerchant: []
+          paymentTimestamp: []
+          paymentNonce: []
+          paymentSignature: []
+      parameters: []
+      responses:
+        "200":
+          $ref: "#/components/responses/Success"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PaymentTransactionCreateRequest"
+  /api/v1/public/payment-gateway/transactions/query:
+    post:
+      tags:
+        - Payments
+      summary: 查询收银台交易及渠道状态
+      operationId: post_api_v1_public_payment_gateway_transactions_query
+      security:
+        - paymentMerchant: []
+          paymentTimestamp: []
+          paymentNonce: []
+          paymentSignature: []
+      parameters: []
+      responses:
+        "200":
+          $ref: "#/components/responses/Success"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PaymentTransactionQueryRequest"
+  /api/v1/public/payment-gateway/transactions/cancel:
+    post:
+      tags:
+        - Payments
+      summary: 取消收银台交易
+      operationId: post_api_v1_public_payment_gateway_transactions_cancel
+      security:
+        - paymentMerchant: []
+          paymentTimestamp: []
+          paymentNonce: []
+          paymentSignature: []
+      parameters: []
+      responses:
+        "200":
+          $ref: "#/components/responses/Success"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PaymentTransactionQueryRequest"
+  /api/v1/public/payment-gateway/refunds:
+    post:
+      tags:
+        - Payments
+      summary: 申请交易退款
+      operationId: post_api_v1_public_payment_gateway_refunds
+      security:
+        - paymentMerchant: []
+          paymentTimestamp: []
+          paymentNonce: []
+          paymentSignature: []
+      parameters: []
+      responses:
+        "200":
+          $ref: "#/components/responses/Success"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PaymentRefundRequest"
+  /api/v1/public/payment-gateway/refunds/query:
+    post:
+      tags:
+        - Payments
+      summary: 查询退款状态
+      operationId: post_api_v1_public_payment_gateway_refunds_query
+      security:
+        - paymentMerchant: []
+          paymentTimestamp: []
+          paymentNonce: []
+          paymentSignature: []
+      parameters: []
+      responses:
+        "200":
+          $ref: "#/components/responses/Success"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PaymentRefundQueryRequest"
+  /api/v1/public/payment-gateway/webhooks/wechat:
+    post:
+      tags:
+        - Payments
+      summary: 接收微信支付 V2 通知
+      operationId: post_api_v1_public_payment_gateway_webhooks_wechat
+      security: []
+      parameters: []
+      responses:
+        "200":
+          $ref: "#/components/responses/Success"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/JsonObject"
+  /api/v1/public/payment-gateway/webhooks/mock:
+    post:
+      tags:
+        - Payments
+      summary: 接收开发环境 mock 通知
+      operationId: post_api_v1_public_payment_gateway_webhooks_mock
+      security: []
+      parameters: []
+      responses:
+        "200":
+          $ref: "#/components/responses/Success"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/JsonObject"
   /api/v1/admin/notifications/{uid}/deliveries:
     get:
       tags:
@@ -3069,6 +3336,22 @@ components:
       type: apiKey
       in: query
       name: auth_signature
+    paymentMerchant:
+      type: apiKey
+      in: header
+      name: X-Payment-Merchant
+    paymentTimestamp:
+      type: apiKey
+      in: header
+      name: X-Payment-Timestamp
+    paymentNonce:
+      type: apiKey
+      in: header
+      name: X-Payment-Nonce
+    paymentSignature:
+      type: apiKey
+      in: header
+      name: X-Payment-Signature
   schemas:
     JsonObject:
       type: object
@@ -3859,6 +4142,87 @@ components:
           additionalProperties:
             type: string
           description: 文件路径到文本内容的映射。
+    PaymentMerchantCreateRequest:
+      type: object
+      required:
+        - name
+        - callbackUrl
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 128
+        callbackUrl:
+          type: string
+          format: uri
+          description: 生产环境必须为 HTTPS；服务器会校验 DNS 目标并阻止私网地址。
+    PaymentTransactionCreateRequest:
+      type: object
+      required:
+        - externalOrderId
+        - amountMinor
+        - description
+        - idempotencyKey
+      properties:
+        externalOrderId:
+          type: string
+          maxLength: 64
+        amountMinor:
+          type: string
+          pattern: ^[1-9][0-9]{0,14}$
+          description: 最小货币单位，例如人民币分。
+        currency:
+          type: string
+          enum:
+            - CNY
+        description:
+          type: string
+          maxLength: 127
+        clientType:
+          type: string
+          enum:
+            - native
+            - h5
+        returnUrl:
+          type: string
+          format: uri
+        idempotencyKey:
+          type: string
+          minLength: 8
+          maxLength: 128
+    PaymentTransactionQueryRequest:
+      type: object
+      required:
+        - tradeNo
+      properties:
+        tradeNo:
+          type: string
+    PaymentRefundRequest:
+      type: object
+      required:
+        - tradeNo
+        - amountMinor
+        - idempotencyKey
+      properties:
+        tradeNo:
+          type: string
+        amountMinor:
+          type: string
+          pattern: ^[1-9][0-9]{0,14}$
+        reason:
+          type: string
+          maxLength: 255
+        idempotencyKey:
+          type: string
+          minLength: 8
+          maxLength: 128
+    PaymentRefundQueryRequest:
+      type: object
+      required:
+        - refundNo
+      properties:
+        refundNo:
+          type: string
   responses:
     Success:
       description: 统一成功响应
