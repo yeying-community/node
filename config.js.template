@@ -5,10 +5,16 @@
  */
 module.exports = {
   app: {
-    // Runtime environment label.
+    // Runtime environment label. Use 'production' for deployed production instances;
+    // several safety checks (for example mock payment provider restrictions) depend on this.
     env: 'dev',
-    // HTTP server port.
+    // HTTP listen port for the Node API. When a reverse proxy is used, expose the public
+    // HTTPS URL through the proxy and keep this backend port private or bound to localhost.
     port: 8100,
+    // Express trust-proxy setting. Keep false unless requests arrive through a proxy you
+    // control; otherwise clients may spoof forwarded IP/protocol headers. Supports false,
+    // true, a hop count, or an Express subnet/IP trust expression.
+    trustProxy: false,
     // Browser Origin allowlist for credentialed cross-origin API requests.
     // Each item must be an exact origin: protocol + host + optional port. Do not add paths,
     // wildcards, or '*'. Examples: 'https://node.example.com', 'http://localhost:8991'.
@@ -19,17 +25,25 @@ module.exports = {
   },
   // YeYing Project AppStore adapter. The configured instance must exist in project_instances.
   projectAdapter: {
+    // Project instance ID used when a request does not explicitly select another instance.
     defaultInstanceId: 'local-project',
+    // Maximum time in milliseconds to wait for Project API requests before failing.
     requestTimeoutMs: 5000
   },
   appStoreRelease: {
+    // Directory for uploaded application release artifacts. Relative paths resolve from the
+    // Node installation directory; ensure the service account can write here and disk is monitored.
     artifactDir: 'data/appstore/releases',
+    // Maximum accepted compressed bundle size in bytes. Raise only if larger releases are expected.
     maxBundleBytes: 2 * 1024 * 1024,
-    // keyId -> publisher wallet address and Ed25519 SPKI PEM public key.
+    // Map publisher key IDs to the publisher wallet address and Ed25519 SPKI PEM public key.
+    // Public keys only; never put publisher private keys in this configuration.
     publisherKeys: {}
   },
   appStoreAgent: {
-    // instanceId -> SHA-256 of the Agent bearer token. Never store the plaintext token here.
+    // Map Project instance IDs to Agent credentials. tokenSha256 is the lowercase SHA-256
+    // hex digest of the bearer token; never store the plaintext token here. leaseSeconds
+    // controls how long a claimed Agent task remains leased before another Agent may reclaim it.
     instances: {
       // Use a five-minute lease because registry pulls can take several minutes.
       // 'local-project': { tokenSha256: '<64 lowercase hex chars>', leaseSeconds: 300 }
@@ -60,7 +74,9 @@ module.exports = {
     type: 'postgres',
     // Database name. Credentials are DATABASE_USERNAME/DATABASE_PASSWORD in secrets.enc.json.
     database: 'node',
+    // Database server hostname/IP. Prefer a private network interface or localhost.
     host: '127.0.0.1',
+    // Database server TCP port (PostgreSQL default 5432; MySQL default 3306).
     port: 5432,
     // username/password are loaded from DATABASE_USERNAME/DATABASE_PASSWORD.
     // postgres: 应保持 false，走 migration。
@@ -75,48 +91,68 @@ module.exports = {
   auth: {
     // JWT uses a symmetric key derived from NODE_KEY_DERIVATION_SECRET with the 'jwt-signing' context;
     // it is separate from ISSUER_PRIVATE_KEY and is never written to config.js.
+    // Lifetime of an access JWT in milliseconds. Shorter values reduce exposure if a token leaks.
     accessTtlMs: 15 * 60 * 1000,
+    // Lifetime of a refresh session in milliseconds. This controls how long clients can renew
+    // access without signing in again; keep it aligned with the product's session policy.
     refreshTtlMs: 7 * 24 * 60 * 60 * 1000,
+    // Lifetime of one-time authentication challenges in milliseconds; expired challenges are rejected.
     challengeTtlMs: 5 * 60 * 1000,
+    // SameSite policy for the refresh cookie. 'lax' is suitable for same-site deployments;
+    // cross-site cookie flows generally require 'none' together with cookieSecure=true.
     cookieSameSite: 'lax',
+    // Mark the refresh cookie Secure so browsers send it only over HTTPS. Enable in production HTTPS.
     cookieSecure: false,
+    // Name of the HTTP-only refresh cookie issued by the authentication endpoints.
     refreshCookieName: 'refresh_token'
   },
   idempotency: {
-    // Retain completed successful responses for replay (days)
+    // Number of days to retain completed successful idempotent responses for safe request replay.
     successRetentionDays: 7,
-    // Retain completed failed responses for replay (days)
+    // Number of days to retain completed failed idempotent responses for safe request replay.
     failureRetentionDays: 1,
-    // Remove stale pending requests after this timeout (ms)
+    // Pending-request age in milliseconds after which a crashed/incomplete operation may be reclaimed.
     pendingTimeoutMs: 15 * 60 * 1000,
-    // Cleanup job interval (ms)
+    // Interval in milliseconds between cleanup passes for expired idempotency records.
     cleanupIntervalMs: 15 * 60 * 1000
   },
   ucan: {
     // UCAN audience. It must match the audience used by clients and normally identifies this Node API.
     aud: 'did:web:localhost:8100',
-    // Recommended localhost wildcard for local dev across different frontend ports.
+    // Default UCAN resource/capability target. The localhost wildcard is for local development
+    // across frontend ports; production deployments should restrict this to intended resources.
     with: 'app:all:localhost-*',
+    // Default UCAN action paired with 'with'.
     can: 'invoke',
-    // Optional route-level UCAN policy registry. Keep disabled during migration;
-    // strictRoutePolicy controls whether JWT is still accepted on mapped routes.
+    // Enable route-level UCAN policy checks for routes registered in the policy map.
+    // Keep disabled during migration until clients can supply the required UCANs.
     routePolicyEnabled: false,
+    // When route policy is enabled, true rejects JWT-only requests on mapped routes;
+    // false allows the legacy JWT path as a migration fallback.
     strictRoutePolicy: false
   },
   issuer: {
-    // Unified Node issuer. DID is derived from this URL; the signing key is ISSUER_PRIVATE_KEY.
+    // Public canonical base URL of this Node issuer. Its hostname determines the issuer DID;
+    // changing it changes the externally visible issuer identity. Use the stable production HTTPS URL.
     baseUrl: 'https://node.example.com',
     ucan: {
       // Secret loaded from secrets.enc.json: ISSUER_PRIVATE_KEY.
       // Optional rotation-window secrets: ISSUER_PRIVATE_KEY_NEXT and
       // ISSUER_PRIVATE_KEY_PREVIOUS. They are not required by secrets:verify.
-      // Enable centralized issuer mode. issue only trusts this issuer; hybrid accepts wallet and issuer UCAN.
+      // Enable the centralized issuer integration. Leave false to use wallet-issued UCANs only.
       enabled: false,
-      // verify | issue | hybrid
+      // 'verify' validates issuer tokens without centrally issuing them; 'issue' uses this issuer
+      // and requires downstream clients to trust it; 'hybrid' accepts wallet and issuer UCANs.
       mode: 'verify',
+      // Maximum lifetime in milliseconds of a central issuer session token.
       sessionTtlMs: 5 * 60 * 1000,
+      // Maximum lifetime in milliseconds of an access UCAN minted from a central session.
       tokenTtlMs: 10 * 60 * 1000,
+      // Audience used when a caller does not request an explicit audience. Must be covered by
+      // allowedAudiences when that allowlist is configured.
       defaultAudience: 'did:web:localhost:8100',
+      // Default capabilities granted to a central session. Keep least-privilege and ensure each
+      // capability is also within the corresponding allowedCapabilitiesByAudience ceiling.
       defaultCapabilities: [
         { with: 'app:all:localhost-*', can: 'invoke' }
       ],
@@ -125,6 +161,8 @@ module.exports = {
       allowedAudiences: [
         'did:web:localhost:8100'
       ],
+      // Per-audience maximum capability policy. Keys must exactly match allowedAudiences;
+      // each token/session capability must be a subset of the listed limits.
       allowedCapabilitiesByAudience: {
         'did:web:localhost:8100': [
           { with: 'app:all:localhost-*', can: 'invoke' }
@@ -134,117 +172,179 @@ module.exports = {
     // Identity credentials use the same issuer and key; no separate identity key is configured.
   },
   identity: {
-    // Public base URL used to build wallet identity verifyUrl in authorize request response.
+    // Public Node URL used to build wallet identity verification links. This must be reachable
+    // by browsers and should use the stable public origin in production.
     publicBaseUrl: 'http://localhost:8100',
     session: {
-      // Long-lived identity refresh session. The UCAN issue session remains short-lived.
+      // Wallet identity refresh-session lifetime in milliseconds. This is separate from the
+      // shorter-lived central UCAN issue session and should reflect identity-session policy.
       refreshTtlMs: 30 * 24 * 60 * 60 * 1000
     },
     totp: {
       // Wallet identity TOTP authenticators are part of the identity service.
       // Secrets are generated by Node and encrypted with a key derived from NODE_KEY_DERIVATION_SECRET.
-      // Authenticator issuer display name. Defaults to identity.webauthn.rpName or YeYing Node.
+      // Issuer label displayed in authenticator apps for identity TOTP codes.
+      // Defaults to identity.webauthn.rpName or 'YeYing Node' when omitted.
       issuerName: 'YeYing Node'
     },
     webauthn: {
-      // Enable wallet identity WebAuthn authenticator registration and authorization confirmation. rpId must be the current
-      // domain or its registrable parent; origin must exactly match the default browser page origin.
+      // Enable WebAuthn passkey registration and wallet-identity authorization confirmation.
+      // RP ID and origin must match the browser page performing the ceremony.
       enabled: false,
       // Relying Party ID. Prefer a dedicated local hostname such as
       // 'identity.localhost' so identity credentials are not mixed with
       // unrelated credentials registered for the shared 'localhost' RP.
       rpId: 'localhost',
-      // Relying Party display name.
+      // Human-readable relying-party name shown by browsers and authenticator providers.
       rpName: 'YeYing Node',
       // Default browser origin that serves the identity WebAuthn ceremony.
       // The local Vite frontend serves registration on port 8991. The built-in
       // authorization page served by Node uses identity.publicBaseUrl (8100).
       origin: 'http://localhost:8991',
-      // WebAuthn operation timeout.
+      // Maximum WebAuthn ceremony duration in milliseconds before the client operation expires.
       timeoutMs: 60 * 1000,
-      // Registration challenge TTL.
+      // Lifetime in milliseconds of a server-issued registration/authentication challenge.
       challengeTtlMs: 2 * 60 * 1000
     }
   },
   audit: {
-    // List of approver wallet addresses.
+    // Wallet addresses allowed to approve audit-gated operations. Use normalized addresses;
+    // an empty entry is a placeholder and grants no useful approval identity.
     approvers: [''],
-    // How many approvals are required.
+    // Number of distinct valid approver signatures required before an operation is accepted.
     requiredApprovals: 1
   },
   mpc: {
-    // Message retention (days)
+    // Number of days to retain MPC messages before cleanup.
     messageRetentionDays: 7,
-    // Audit log retention (days)
+    // Number of days to retain MPC audit records before cleanup.
     auditRetentionDays: 30,
-    // Cleanup job interval (ms)
+    // Interval in milliseconds between MPC retention cleanup passes.
     cleanupIntervalMs: 15 * 60 * 1000,
-    // UCAN capability required for MPC endpoints (optional)
+    // UCAN resource ('with') required by MPC endpoints when UCAN route policy is used.
     ucanWith: 'mpc',
+    // UCAN action ('can') required by MPC endpoints when UCAN route policy is used.
     ucanCan: 'coordinate'
   },
   notification: {
     // Webhook storage key is derived from NODE_KEY_DERIVATION_SECRET.
-    // Enable background webhook delivery worker.
+    // Start the background worker that delivers registered user webhooks. Disable to pause all such delivery.
     webhookDeliveryEnabled: true,
-    // Poll interval for pending webhook deliveries.
+    // Poll interval in milliseconds for pending generic webhook deliveries.
     webhookDeliveryIntervalMs: 15 * 1000,
-    // Maximum deliveries processed per poll.
+    // Maximum generic webhook jobs claimed during one poll pass.
     webhookDeliveryBatchSize: 20,
-    // HTTP timeout for one webhook request.
+    // Per-request HTTP timeout in milliseconds for generic webhooks.
     webhookDeliveryTimeoutMs: 10 * 1000,
-    // Delivery claim lease timeout for multi-instance workers.
+    // Lease duration in milliseconds before another instance may reclaim a job claimed by a stopped worker.
     webhookClaimTimeoutMs: 60 * 1000,
-    // Max retry count before giving up.
+    // Maximum generic webhook delivery attempts, including the initial attempt.
     webhookMaxAttempts: 5,
-    // Exponential retry base delay.
+    // Base delay in milliseconds for exponential generic webhook retry backoff.
     webhookRetryBaseDelayMs: 15 * 1000,
-    // Retry delay ceiling.
+    // Maximum generic webhook retry delay in milliseconds, regardless of the backoff exponent.
     webhookRetryMaxDelayMs: 10 * 60 * 1000,
-    // Enable background notification email delivery worker.
+    // Start the background worker for queued notification emails. SMTP settings are in 'mail'.
     emailDeliveryEnabled: true,
-    // Poll interval for pending email deliveries.
+    // Poll interval in milliseconds for queued notification emails.
     emailDeliveryIntervalMs: 30 * 1000,
-    // Maximum email deliveries processed per poll.
+    // Maximum email jobs claimed during one poll pass.
     emailDeliveryBatchSize: 20,
-    // Reclaim an email delivery if a worker stopped while sending it.
+    // Lease duration in milliseconds before a stopped worker's in-flight email may be reclaimed.
     emailClaimTimeoutMs: 60 * 1000,
-    // Max email retry count before giving up.
+    // Maximum email delivery attempts, including the initial attempt.
     emailMaxAttempts: 5,
-    // Exponential retry base delay for email.
+    // Base delay in milliseconds for exponential email retry backoff.
     emailRetryBaseDelayMs: 30 * 1000,
-    // Email retry delay ceiling.
+    // Maximum email retry delay in milliseconds.
     emailRetryMaxDelayMs: 15 * 60 * 1000,
     // DingTalk bot delivery (webhook family). Bot URL + signing secret are
     // submitted per-user at registration and stored encrypted in the database;
     // they are NOT configured here.
+    // Start the background worker for per-user DingTalk bot webhooks.
     dingtalkDeliveryEnabled: true,
+    // Poll interval in milliseconds for DingTalk deliveries.
     dingtalkDeliveryIntervalMs: 15 * 1000,
+    // Maximum DingTalk jobs claimed per poll pass.
     dingtalkDeliveryBatchSize: 20,
+    // Per-request HTTP timeout in milliseconds for DingTalk.
     dingtalkDeliveryTimeoutMs: 10 * 1000,
+    // Lease duration in milliseconds before an abandoned DingTalk job can be reclaimed.
     dingtalkClaimTimeoutMs: 60 * 1000,
+    // Maximum DingTalk delivery attempts, including the initial attempt.
     dingtalkMaxAttempts: 5,
+    // Base delay in milliseconds for exponential DingTalk retry backoff.
     dingtalkRetryBaseDelayMs: 15 * 1000,
+    // Maximum DingTalk retry delay in milliseconds.
     dingtalkRetryMaxDelayMs: 10 * 60 * 1000,
     // Feishu (Lark) bot delivery (webhook family). Bot URL + signing secret are
     // submitted per-user at registration and stored encrypted in the database.
+    // Start the background worker for per-user Feishu/Lark bot webhooks.
     feishuDeliveryEnabled: true,
+    // Poll interval in milliseconds for Feishu deliveries.
     feishuDeliveryIntervalMs: 15 * 1000,
+    // Maximum Feishu jobs claimed per poll pass.
     feishuDeliveryBatchSize: 20,
+    // Per-request HTTP timeout in milliseconds for Feishu.
     feishuDeliveryTimeoutMs: 10 * 1000,
+    // Lease duration in milliseconds before an abandoned Feishu job can be reclaimed.
     feishuClaimTimeoutMs: 60 * 1000,
+    // Maximum Feishu delivery attempts, including the initial attempt.
     feishuMaxAttempts: 5,
+    // Base delay in milliseconds for exponential Feishu retry backoff.
     feishuRetryBaseDelayMs: 15 * 1000,
+    // Maximum Feishu retry delay in milliseconds.
     feishuRetryMaxDelayMs: 10 * 60 * 1000,
+  },
+  payment: {
+    // Standard cashier API. Set false to disable payment routes and workers.
+    enabled: true,
+    // Default payment provider adapter used for newly created transactions.
+    provider: 'wechat',
+    // Signed external requests are valid only within this timestamp window.
+    signatureWindowMs: 5 * 60 * 1000,
+    // Maximum time in milliseconds for a signed merchant business callback request.
+    webhookTimeoutMs: 10 * 1000,
+    // Poll interval in milliseconds for pending merchant callback deliveries.
+    webhookIntervalMs: 15 * 1000,
+    // Lease duration in milliseconds before a callback claimed by a stopped worker can be retried.
+    webhookClaimTimeoutMs: 60 * 1000,
+    // Maximum merchant callback attempts, including the initial attempt.
+    webhookMaxAttempts: 5,
+    // Base delay in milliseconds for exponential merchant callback retry backoff.
+    webhookRetryBaseDelayMs: 15 * 1000,
+    // Upper bound in milliseconds for merchant callback retry delay.
+    webhookRetryMaxDelayMs: 10 * 60 * 1000,
+    wechat: {
+      // The legacy yeying-room integration uses WeChat Pay v2 unified order/refund.
+      // Credentials are runtime secrets, never config values:
+      // PAYMENT_WECHAT_APP_ID, PAYMENT_WECHAT_MCH_ID, PAYMENT_WECHAT_API_V2_KEY,
+      // and PAYMENT_WECHAT_CERT_PEM / PAYMENT_WECHAT_KEY_PEM for refunds.
+      enabled: false,
+      // HTTPS API base URL for the WeChat Pay v2 provider. Production requests are restricted
+      // to api.mch.weixin.qq.com unless a non-production host is explicitly allowlisted.
+      apiBaseUrl: 'https://api.mch.weixin.qq.com',
+      // Exact hostnames permitted for non-production API endpoints. Do not use wildcards;
+      // production remains pinned to the official WeChat host.
+      allowedApiHosts: [],
+      // Public callback URL registered with WeChat. Must be stable, publicly reachable HTTPS in production.
+      notifyUrl: 'https://node.example.com/api/v1/public/payment-gateway/webhooks/wechat',
+      // Timeout in milliseconds for one WeChat API operation.
+      timeoutMs: 10 * 1000
+    }
   },
   redis: {
     // Optional secrets loaded from secrets.enc.json: REDIS_USERNAME, REDIS_PASSWORD.
     // Enable Redis pub/sub and optional Streams for MPC events. Credentials, when required, are
     // REDIS_USERNAME/REDIS_PASSWORD in secrets.enc.json; traditional requirepass uses only REDIS_PASSWORD.
     enabled: false,
+    // Redis hostname or IP used for cross-instance event fanout and Streams.
     host: '127.0.0.1',
+    // Redis TCP port (default 6379).
     port: 6379,
+    // Logical Redis database number selected after connecting.
     db: 0,
+    // Prefix added to Node-managed Redis keys to isolate this deployment from other users of Redis.
     keyPrefix: '',
     // Pub/Sub channel for MPC event fanout.
     channel: 'mpc_events',
@@ -252,29 +352,39 @@ module.exports = {
     pusherChannel: 'pusher_events',
     // Pub/Sub channel for notification SSE fanout across Node instances.
     notificationChannel: 'notification_events',
+    // Use TLS for the Redis connection. Enable when the Redis endpoint requires encrypted transport.
     tls: false,
-    // Optional: fixed instance id for event origin
+    // Optional stable identifier for this Node instance in event-origin metadata. Empty uses a generated/default identity.
     instanceId: '',
-    // Redis Streams for event replay
+    // Enable Redis Streams alongside pub/sub to support replayable event delivery.
     streamEnabled: true,
-    // If true, SSE will read from streams only (no pub/sub)
+    // Make SSE consumers read from Streams only; use only when Streams are enabled and all instances share Redis.
     streamOnly: false,
+    // Prefix for Redis Stream keys. Keep unique if several deployments share the same Redis database.
     streamKeyPrefix: 'mpc:events:',
+    // Approximate maximum number of entries retained in each stream before trimming.
     streamMaxLen: 10000,
+    // Use Redis approximate trimming for lower-cost stream maintenance; false requests exact trimming.
     streamApprox: true
   },
   logger: {
-    // Winston log level: debug | info | warn | error
+    // Winston minimum log severity: debug | info | warn | error. Lower levels include more detail.
     level: 'info',
-    // Keep console output (default true).
+    // Also write logs to stdout/stderr, useful for systemd and container log collectors.
     console: true,
-    // Default: write logs to ./logs and rotate daily.
+    // File transport settings. Ensure the service account can write to dirname and monitor disk use.
     file: {
+      // Daily log filename pattern. %DATE% is replaced using datePattern.
       filename: 'app-%DATE%.log',
+      // Log directory; relative paths resolve from the Node installation directory.
       dirname: 'logs',
+      // Date format used for daily file rotation.
       datePattern: 'YYYY-MM-DD',
+      // Maximum size of one log file before it is rotated (for example '20m').
       maxSize: '20m',
+      // Retention policy for rotated logs (for example '14d').
       maxFiles: '14d',
+      // Compress rotated log files to reduce disk usage.
       zippedArchive: true
     }
   },
@@ -284,9 +394,13 @@ module.exports = {
   mail: {
     // Optional secrets loaded from secrets.enc.json: MAIL_SMTP_USER, MAIL_SMTP_PASSWORD.
     host: 'smtp.example.com',
+    // SMTP server port (commonly 465 for implicit TLS or 587 for STARTTLS).
     port: 465,
+    // Use implicit TLS from connection start (normally true for port 465; false for STARTTLS on 587).
     secure: true,
+    // Sender display name and email address used in outbound messages.
     from: 'YeYing Notifications <no-reply@example.com>',
+    // Optional reply-to address included in outbound messages.
     replyTo: 'support@example.com',
   }
 }

@@ -11,8 +11,9 @@ Node 在社区生态中的定位以 [社区产品关系与开发边界](https://
 3. [生产环境部署手册.md](./生产环境部署手册.md)：生产主机准备、发布包、密钥、Nginx、升级、回滚和验收。
 4. [Node使用指南.md](./Node使用指南.md)：配置、鉴权、MPC、通知、托管和 Registry 使用方式。
 5. [接口说明.md](./接口说明.md)：人工可读 API 概览。
-6. [openapi/node.openapi.yaml](./openapi/node.openapi.yaml)：机器可读 OpenAPI 3.1 规范。
-7. [身份凭证生命周期与授权设计.md](./身份凭证生命周期与授权设计.md)：身份验证事实、短期 JWT-VC、自动续签和敏感操作授权边界。
+6. [Node支付收银台V1.md](./Node支付收银台V1.md)：标准化支付、微信 V2、签名、幂等和 PHP 切换边界。
+7. [openapi/node.openapi.yaml](./openapi/node.openapi.yaml)：机器可读 OpenAPI 3.1 规范。
+8. [身份凭证生命周期与授权设计.md](./身份凭证生命周期与授权设计.md)：身份验证事实、短期 JWT-VC、自动续签和敏感操作授权边界。
 
 ## 文档分层
 

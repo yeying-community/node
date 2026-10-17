@@ -32,6 +32,7 @@ const document = {
     MPC: '多方计算会话、消息和事件流。',
     Custody: '钱包客户端加密密钥托管。',
     Notifications: '通知收件箱、事件流和 Webhook。',
+    Payments: '社区应用收银台、渠道交易、退款和商户回调。',
     Pusher: 'Node Pusher 原生 publish、SSE subscribe 和通用 channel ACL。',
     Publisher: '应用发布包提交、审核和 release artifact 管理。',
     Admin: '管理员治理接口。',
@@ -89,6 +90,26 @@ const document = {
         type: 'apiKey',
         in: 'query',
         name: 'auth_signature',
+      },
+      paymentMerchant: {
+        type: 'apiKey',
+        in: 'header',
+        name: 'X-Payment-Merchant',
+      },
+      paymentTimestamp: {
+        type: 'apiKey',
+        in: 'header',
+        name: 'X-Payment-Timestamp',
+      },
+      paymentNonce: {
+        type: 'apiKey',
+        in: 'header',
+        name: 'X-Payment-Nonce',
+      },
+      paymentSignature: {
+        type: 'apiKey',
+        in: 'header',
+        name: 'X-Payment-Signature',
       },
     },
     schemas: {
@@ -533,6 +554,40 @@ const document = {
           },
         },
       },
+      PaymentMerchantCreateRequest: {
+        type: 'object', required: ['name', 'callbackUrl'],
+        properties: {
+          name: { type: 'string', minLength: 1, maxLength: 128 },
+          callbackUrl: { type: 'string', format: 'uri', description: '生产环境必须为 HTTPS；服务器会校验 DNS 目标并阻止私网地址。' },
+        },
+      },
+      PaymentTransactionCreateRequest: {
+        type: 'object', required: ['externalOrderId', 'amountMinor', 'description', 'idempotencyKey'],
+        properties: {
+          externalOrderId: { type: 'string', maxLength: 64 },
+          amountMinor: { type: 'string', pattern: '^[1-9][0-9]{0,14}$', description: '最小货币单位，例如人民币分。' },
+          currency: { type: 'string', enum: ['CNY'] },
+          description: { type: 'string', maxLength: 127 },
+          clientType: { type: 'string', enum: ['native', 'h5'] },
+          returnUrl: { type: 'string', format: 'uri' },
+          idempotencyKey: { type: 'string', minLength: 8, maxLength: 128 },
+        },
+      },
+      PaymentTransactionQueryRequest: {
+        type: 'object', required: ['tradeNo'], properties: { tradeNo: { type: 'string' } },
+      },
+      PaymentRefundRequest: {
+        type: 'object', required: ['tradeNo', 'amountMinor', 'idempotencyKey'],
+        properties: {
+          tradeNo: { type: 'string' },
+          amountMinor: { type: 'string', pattern: '^[1-9][0-9]{0,14}$' },
+          reason: { type: 'string', maxLength: 255 },
+          idempotencyKey: { type: 'string', minLength: 8, maxLength: 128 },
+        },
+      },
+      PaymentRefundQueryRequest: {
+        type: 'object', required: ['refundNo'], properties: { refundNo: { type: 'string' } },
+      },
     },
     responses: {
       Success: { description: '统一成功响应', content: jsonContent(ref('Envelope')) },
@@ -641,6 +696,16 @@ const operations = [
   ['get', '/api/v1/public/notifications/webhooks/{uid}/deliveries', 'Notifications', '查询 Webhook 投递', 'bearer'],
   ['post', '/api/v1/public/notifications/webhooks/{uid}/deliveries/{deliveryUid}/retry', 'Notifications', '重试 Webhook 投递', 'bearer'],
   ['post', '/api/v1/public/notifications/webhooks/{uid}/replay/{notificationUid}', 'Notifications', '重放通知到 Webhook', 'bearer'],
+  ['post', '/api/v1/public/payment-gateway/merchants', 'Payments', '创建收银台商户', 'bearer', 'PaymentMerchantCreateRequest'],
+  ['get', '/api/v1/public/payment-gateway/merchants', 'Payments', '列出收银台商户', 'bearer'],
+  ['delete', '/api/v1/public/payment-gateway/merchants/{merchantId}', 'Payments', '停用收银台商户', 'bearer'],
+  ['post', '/api/v1/public/payment-gateway/transactions', 'Payments', '创建收银台交易', 'payment-signed', 'PaymentTransactionCreateRequest'],
+  ['post', '/api/v1/public/payment-gateway/transactions/query', 'Payments', '查询收银台交易及渠道状态', 'payment-signed', 'PaymentTransactionQueryRequest'],
+  ['post', '/api/v1/public/payment-gateway/transactions/cancel', 'Payments', '取消收银台交易', 'payment-signed', 'PaymentTransactionQueryRequest'],
+  ['post', '/api/v1/public/payment-gateway/refunds', 'Payments', '申请交易退款', 'payment-signed', 'PaymentRefundRequest'],
+  ['post', '/api/v1/public/payment-gateway/refunds/query', 'Payments', '查询退款状态', 'payment-signed', 'PaymentRefundQueryRequest'],
+  ['post', '/api/v1/public/payment-gateway/webhooks/wechat', 'Payments', '接收微信支付 V2 通知', 'none'],
+  ['post', '/api/v1/public/payment-gateway/webhooks/mock', 'Payments', '接收开发环境 mock 通知', 'none'],
   ['get', '/api/v1/admin/notifications/{uid}/deliveries', 'Admin', '管理员查询通知投递', 'bearer'],
   ['post', '/api/v1/public/pusher/apps/{appId}/events', 'Pusher', '发布 Node Pusher 事件', 'pusher'],
   ['post', '/apps/{appId}/events', 'Pusher', '兼容 Pusher Channels 的事件发布', 'pusher-standard'],
@@ -685,6 +750,9 @@ function securityFor(auth) {
       pusherStandardBodyMd5: [],
       pusherStandardSignature: [],
     }]
+  }
+  if (auth === 'payment-signed') {
+    return [{ paymentMerchant: [], paymentTimestamp: [], paymentNonce: [], paymentSignature: [] }]
   }
   return [{ bearerAuth: [] }]
 }

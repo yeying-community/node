@@ -1,6 +1,6 @@
 import fs from 'fs'
 import path from 'path'
-import { AppRuntimeConfig, AuthRuntimeConfig, AuditRuntimeConfig, DatabaseConfig, UcanRuntimeConfig, MpcRuntimeConfig, RedisRuntimeConfig, IdempotencyRuntimeConfig, UcanIssuerRuntimeConfig, IdentityRuntimeConfig, IdentityIssuerRuntimeConfig, NotificationRuntimeConfig, ProjectAdapterRuntimeConfig, AppStoreReleaseRuntimeConfig, AppStoreAgentRuntimeConfig, MailRuntimeConfig } from './index'
+import { AppRuntimeConfig, AuthRuntimeConfig, AuditRuntimeConfig, DatabaseConfig, UcanRuntimeConfig, MpcRuntimeConfig, RedisRuntimeConfig, IdempotencyRuntimeConfig, UcanIssuerRuntimeConfig, IdentityRuntimeConfig, IdentityIssuerRuntimeConfig, NotificationRuntimeConfig, ProjectAdapterRuntimeConfig, AppStoreReleaseRuntimeConfig, AppStoreAgentRuntimeConfig, MailRuntimeConfig, PaymentRuntimeConfig } from './index'
 import { LoggerConfig } from '../infrastructure/logger'
 
 export interface AppConfig {
@@ -26,6 +26,7 @@ export interface AppConfig {
   appStoreRelease?: AppStoreReleaseRuntimeConfig
   appStoreAgent?: AppStoreAgentRuntimeConfig
   mail?: MailRuntimeConfig
+  payment?: PaymentRuntimeConfig
 }
 
 let cachedConfig: AppConfig | null = null

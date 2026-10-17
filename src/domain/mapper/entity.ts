@@ -1533,3 +1533,108 @@ export class MpcAuditLogDO {
     @Column('text')
     metadata!: string
 }
+
+@Entity('payment_merchants')
+@Index('uidx_payment_merchant_id', ['merchantId'], { unique: true })
+@Index('idx_payment_merchant_owner_status', ['owner', 'status'])
+export class PaymentMerchantDO {
+    @PrimaryGeneratedColumn('uuid') uid!: string
+    @Column({ length: 64, name: 'merchant_id' }) merchantId!: string
+    @Column({ length: 128 }) owner!: string
+    @Column({ length: 128 }) name!: string
+    @Column({ type: 'text', name: 'callback_url' }) callbackUrl!: string
+    @Column({ type: 'text', name: 'secret_ciphertext' }) secretCiphertext!: string
+    @Column({ length: 32, name: 'secret_masked', default: '' }) secretMasked!: string
+    @Column({ length: 32, default: 'active' }) status!: string
+    @Column({ length: 64, name: 'created_at' }) createdAt!: string
+    @Column({ length: 64, name: 'updated_at' }) updatedAt!: string
+}
+
+@Entity('payment_transactions')
+@Index('uidx_payment_trade_no', ['tradeNo'], { unique: true })
+@Index('uidx_payment_transaction_idempotency', ['merchantId', 'idempotencyKey'], { unique: true })
+@Index('idx_payment_transaction_merchant_order', ['merchantId', 'externalOrderId'])
+@Index('idx_payment_transaction_status_created', ['status', 'createdAt'])
+export class PaymentTransactionDO {
+    @PrimaryGeneratedColumn('uuid') uid!: string
+    @Column({ length: 64, name: 'trade_no' }) tradeNo!: string
+    @Column({ length: 64, name: 'merchant_id' }) merchantId!: string
+    @Column({ length: 64, name: 'external_order_id' }) externalOrderId!: string
+    @Column({ type: 'bigint', name: 'amount_minor' }) amountMinor!: string
+    @Column({ length: 3, default: 'CNY' }) currency!: string
+    @Column({ length: 127 }) description!: string
+    @Column({ length: 16, name: 'client_type', default: 'native' }) clientType!: string
+    @Column({ length: 32, default: 'wechat' }) provider!: string
+    @Column({ length: 128, name: 'provider_order_id', default: '' }) providerOrderId!: string
+    @Column({ type: 'text', name: 'payment_url', default: '' }) paymentUrl!: string
+    @Column({ type: 'text', name: 'return_url', default: '' }) returnUrl!: string
+    @Column({ length: 32, default: 'pending' }) status!: string
+    @Column({ length: 128, name: 'idempotency_key' }) idempotencyKey!: string
+    @Column({ length: 64, name: 'request_hash' }) requestHash!: string
+    @Column({ length: 64, name: 'paid_at', default: '' }) paidAt!: string
+    @Column({ length: 64, name: 'expires_at', default: '' }) expiresAt!: string
+    @Column({ length: 64, name: 'created_at' }) createdAt!: string
+    @Column({ length: 64, name: 'updated_at' }) updatedAt!: string
+}
+
+@Entity('payment_refunds')
+@Index('uidx_payment_refund_no', ['refundNo'], { unique: true })
+@Index('uidx_payment_refund_idempotency', ['merchantId', 'idempotencyKey'], { unique: true })
+@Index('idx_payment_refund_trade_status', ['tradeNo', 'status'])
+export class PaymentRefundDO {
+    @PrimaryGeneratedColumn('uuid') uid!: string
+    @Column({ length: 64, name: 'refund_no' }) refundNo!: string
+    @Column({ length: 64, name: 'trade_no' }) tradeNo!: string
+    @Column({ length: 64, name: 'merchant_id' }) merchantId!: string
+    @Column({ type: 'bigint', name: 'amount_minor' }) amountMinor!: string
+    @Column({ length: 255, default: '' }) reason!: string
+    @Column({ length: 32, default: 'pending' }) status!: string
+    @Column({ length: 128, name: 'provider_refund_id', default: '' }) providerRefundId!: string
+    @Column({ length: 128, name: 'idempotency_key' }) idempotencyKey!: string
+    @Column({ length: 64, name: 'request_hash' }) requestHash!: string
+    @Column({ length: 64, name: 'created_at' }) createdAt!: string
+    @Column({ length: 64, name: 'updated_at' }) updatedAt!: string
+}
+
+@Entity('payment_request_nonces')
+@Index('uidx_payment_request_nonce', ['merchantId', 'nonce'], { unique: true })
+@Index('idx_payment_request_nonce_created', ['createdAt'])
+export class PaymentRequestNonceDO {
+    @PrimaryGeneratedColumn('uuid') uid!: string
+    @Column({ length: 64, name: 'merchant_id' }) merchantId!: string
+    @Column({ length: 128 }) nonce!: string
+    @Column({ length: 64, name: 'request_hash' }) requestHash!: string
+    @Column({ length: 64, name: 'created_at' }) createdAt!: string
+}
+
+@Entity('payment_provider_events')
+@Index('uidx_payment_provider_event', ['provider', 'eventId'], { unique: true })
+@Index('idx_payment_provider_event_trade', ['tradeNo', 'createdAt'])
+export class PaymentProviderEventDO {
+    @PrimaryGeneratedColumn('uuid') uid!: string
+    @Column({ length: 32 }) provider!: string
+    @Column({ length: 128, name: 'event_id' }) eventId!: string
+    @Column({ length: 64, name: 'trade_no', default: '' }) tradeNo!: string
+    @Column({ length: 64, name: 'event_type' }) eventType!: string
+    @Column({ length: 64, name: 'created_at' }) createdAt!: string
+}
+
+@Entity('payment_webhook_deliveries')
+@Index('uidx_payment_webhook_event', ['eventId'], { unique: true })
+@Index('idx_payment_webhook_delivery_status_retry', ['status', 'nextRetryAt'])
+export class PaymentWebhookDeliveryDO {
+    @PrimaryGeneratedColumn('uuid') uid!: string
+    @Column({ length: 128, name: 'event_id' }) eventId!: string
+    @Column({ length: 64, name: 'merchant_id' }) merchantId!: string
+    @Column({ type: 'text', name: 'target_url' }) targetUrl!: string
+    @Column({ type: 'text', name: 'payload_json' }) payloadJson!: string
+    @Column({ length: 32, default: 'pending' }) status!: string
+    @Column({ type: 'int', name: 'attempt_count', default: 0 }) attemptCount!: number
+    @Column({ length: 64, name: 'next_retry_at', default: '' }) nextRetryAt!: string
+    @Column({ length: 128, name: 'lock_token', default: '' }) lockToken!: string
+    @Column({ length: 64, name: 'locked_at', default: '' }) lockedAt!: string
+    @Column({ type: 'text', name: 'last_error', default: '' }) lastError!: string
+    @Column({ length: 64, name: 'delivered_at', default: '' }) deliveredAt!: string
+    @Column({ length: 64, name: 'created_at' }) createdAt!: string
+    @Column({ length: 64, name: 'updated_at' }) updatedAt!: string
+}
