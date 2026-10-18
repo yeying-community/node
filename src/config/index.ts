@@ -14,6 +14,7 @@ export interface AppRuntimeConfig {
     env: string
     port: number
     corsAllowedOrigins?: string[]
+    trustProxy?: boolean | number | string
 }
 
 export interface MailRuntimeConfig {
@@ -146,6 +147,37 @@ export interface NotificationRuntimeConfig {
     feishuMaxAttempts?: number
     feishuRetryBaseDelayMs?: number
     feishuRetryMaxDelayMs?: number
+}
+
+export interface PaymentWechatRuntimeConfig {
+    enabled?: boolean
+    apiBaseUrl?: string
+    allowedApiHosts?: string[]
+    notifyUrl?: string
+    tradeType?: 'NATIVE' | 'MWEB'
+    timeoutMs?: number
+}
+
+export interface PaymentMerchantRuntimeConfig {
+    enabled?: boolean
+    secretEnv?: string
+    callbackUrl?: string
+    provider?: string
+}
+
+export interface PaymentRuntimeConfig {
+    enabled?: boolean
+    provider?: string
+    allowMockProvider?: boolean
+    merchants?: Record<string, PaymentMerchantRuntimeConfig>
+    signatureWindowMs?: number
+    webhookTimeoutMs?: number
+    webhookIntervalMs?: number
+    webhookClaimTimeoutMs?: number
+    webhookMaxAttempts?: number
+    webhookRetryBaseDelayMs?: number
+    webhookRetryMaxDelayMs?: number
+    wechat?: PaymentWechatRuntimeConfig
 }
 
 export interface RedisRuntimeConfig {

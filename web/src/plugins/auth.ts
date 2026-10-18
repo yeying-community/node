@@ -1171,14 +1171,18 @@ export async function requestEmailRegistration(input: { email: string; username:
   return { ...result, identityDocument: identity.document, identityMaterial: identity, username: input.username, avatarUri: input.avatar, password: input.password, wallet, walletId, accountId };
 }
 
-export async function confirmEmailRegistration(request: EmailRegisterRequest, code: string): Promise<boolean> {
+export async function confirmEmailRegistration(
+  request: EmailRegisterRequest,
+  code: string,
+  passkeyHint?: 'client-device' | 'hybrid' | 'security-key',
+): Promise<boolean> {
   const verified = await postAuthJson<{
     verificationId: string;
     registrationId: string;
     identity: string;
     passkeyRequest: Record<string, any>;
   }>('/api/v1/public/auth/email/register/confirm', { verificationId: request.verificationId, code }, '邮箱验证码无效');
-  const credential = await startRegistration(verified.passkeyRequest as any);
+  const credential = await startRegistration(verified.passkeyRequest as any, passkeyHint);
   await postAuthJson('/api/v1/public/identity/register/confirm', {
     registrationId: verified.registrationId,
     identityDocument: request.identityDocument,

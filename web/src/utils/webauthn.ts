@@ -18,7 +18,10 @@ type PublicKeyCredentialCreationOptionsJson = {
   timeout?: number
   authenticatorSelection?: AuthenticatorSelectionCriteria
   attestation?: AttestationConveyancePreference
+  hints?: PublicKeyCredentialHint[]
 }
+
+export type PublicKeyCredentialHint = 'security-key' | 'client-device' | 'hybrid'
 
 function base64UrlToArrayBuffer(value: string): ArrayBuffer {
   const normalized = String(value || '').replace(/-/g, '+').replace(/_/g, '/')
@@ -54,12 +57,15 @@ function toPublicKeyCreationOptions(options: PublicKeyCredentialCreationOptionsJ
     timeout: options.timeout,
     authenticatorSelection: options.authenticatorSelection,
     attestation: options.attestation,
-  }
+    ...(options.hints?.length ? { hints: options.hints } : {}),
+  } as PublicKeyCredentialCreationOptions
 }
 
-export async function startRegistration(options: PublicKeyCredentialCreationOptionsJson) {
+export async function startRegistration(options: PublicKeyCredentialCreationOptionsJson, hint?: PublicKeyCredentialHint) {
   if (!isWebAuthnAvailable()) throw new Error('WEBAUTHN_UNAVAILABLE')
-  const credential = await navigator.credentials.create({ publicKey: toPublicKeyCreationOptions(options) })
+  const credential = await navigator.credentials.create({
+    publicKey: toPublicKeyCreationOptions(hint ? { ...options, hints: [hint] } : options),
+  })
   if (!credential) throw new Error('WEBAUTHN_CREDENTIAL_EMPTY')
   const publicKeyCredential = credential as PublicKeyCredential
   const response = publicKeyCredential.response as AuthenticatorAttestationResponse

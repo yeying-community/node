@@ -62,6 +62,10 @@ function notificationsPolicy(method: string): RouteUcanPolicy {
   )
 }
 
+function paymentMerchantPolicy(method: string): RouteUcanPolicy {
+  return single('node:payment:merchant', method === 'GET' ? 'read' : 'write', strictRoutePolicy())
+}
+
 function auditsPolicy(method: string, path: string): RouteUcanPolicy {
   if (path === '/api/v1/public/audits/search' || method === 'GET') {
     return {
@@ -122,6 +126,9 @@ export function getRouteUcanPolicy(input: RouteInput): RouteUcanPolicy | null {
   }
   if (path.startsWith('/api/v1/public/notifications')) {
     return notificationsPolicy(method)
+  }
+  if (path.startsWith('/api/v1/public/payment/gateway/merchants')) {
+    return paymentMerchantPolicy(method)
   }
   if (path.startsWith('/api/v1/public/audits')) {
     return auditsPolicy(method, path)

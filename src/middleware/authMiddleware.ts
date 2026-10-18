@@ -30,14 +30,7 @@ type AuthUser = {
 };
 
 function getRequestIp(req: Request): string {
-  const forwarded = req.headers['x-forwarded-for'];
-  if (Array.isArray(forwarded) && forwarded.length > 0) {
-    return forwarded[0];
-  }
-  if (typeof forwarded === 'string' && forwarded.trim()) {
-    return forwarded.split(',')[0].trim();
-  }
-  return req.socket.remoteAddress || '';
+  return req.ip || req.socket.remoteAddress || '';
 }
 
 function isPublicAppPublishRoute(req: Request): boolean {
@@ -45,6 +38,19 @@ function isPublicAppPublishRoute(req: Request): boolean {
     req.method === 'POST' &&
     /^\/public\/pusher\/apps\/[^/]+\/events$/.test(String(req.path || ''))
   );
+}
+
+function isPublicPaymentGatewayRoute(req: Request): boolean {
+  const path = String(req.path || '')
+  return (
+    path === '/public/payment/gateway/transactions' ||
+    path === '/public/payment/gateway/transactions/query' ||
+    path === '/public/payment/gateway/transactions/cancel' ||
+    path === '/public/payment/gateway/refunds' ||
+    path === '/public/payment/gateway/refunds/query' ||
+    path === '/public/payment/gateway/webhooks/wechat' ||
+    path === '/public/payment/gateway/webhooks/mock'
+  )
 }
 
 export function getRouteRequiredUcanCapabilities(
@@ -65,7 +71,8 @@ const authenticateToken = async (req: Request, res: Response, next: NextFunction
     PUBLIC_ROUTES.includes(req.path) ||
     req.path.startsWith('/public/auth/') ||
     req.path.startsWith('/public/identity/') ||
-    isPublicAppPublishRoute(req)
+    isPublicAppPublishRoute(req) ||
+    isPublicPaymentGatewayRoute(req)
   ) {
     return runWithRequestContext(undefined, () => next());
   }
