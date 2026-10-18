@@ -173,6 +173,10 @@ const document = {
         type: 'object', required: ['verificationId', 'code'],
         properties: { verificationId: { type: 'string' }, code: { type: 'string', minLength: 6, maxLength: 6 } },
       },
+      EmailAuthVerificationRequest: {
+        type: 'object', required: ['verificationId'],
+        properties: { verificationId: { type: 'string', description: '注册验证码请求 ID。' } },
+      },
       EmailAuthLoginRequest: {
         type: 'object', required: ['email'],
         properties: { email: { type: 'string', format: 'email' } },
@@ -606,6 +610,8 @@ const operations = [
   ['post', '/api/v1/public/auth/challenge', 'Auth', '创建 SIWE 登录挑战', 'none', 'AuthChallengeRequest'],
   ['post', '/api/v1/public/auth/verify', 'Auth', '验证钱包签名并签发 JWT', 'none', 'AuthVerifyRequest'],
   ['post', '/api/v1/public/auth/email/register/request', 'Auth', '请求无插件邮箱注册验证码', 'none', 'EmailAuthRegisterRequest'],
+  ['post', '/api/v1/public/auth/email/register/resend', 'Auth', '重发同一注册请求的邮箱验证码', 'none', 'EmailAuthVerificationRequest'],
+  ['post', '/api/v1/public/auth/email/register/cancel', 'Auth', '取消未完成的邮箱注册请求', 'none', 'EmailAuthVerificationRequest'],
   ['post', '/api/v1/public/auth/email/register/confirm', 'Auth', '确认邮箱注册验证码并取得 Passkey 注册参数', 'none', 'EmailAuthCodeRequest'],
   ['post', '/api/v1/public/auth/email/register/complete', 'Auth', '完成邮箱注册并签发 DID JWT', 'none', 'EmailAuthRegisterCompleteRequest'],
   ['post', '/api/v1/public/auth/email/login/request', 'Auth', '请求邮箱登录验证码', 'none', 'EmailAuthLoginRequest'],
@@ -781,6 +787,7 @@ for (const [method, route, tag, summary, auth, bodySchema, sse] of operations) {
           401: { $ref: '#/components/responses/Unauthorized' },
           403: { $ref: '#/components/responses/Forbidden' },
           409: { $ref: '#/components/responses/Conflict' },
+          ...(route === '/api/v1/public/auth/email/register/resend' ? { 410: { description: '验证码请求已过期', content: jsonContent(ref('ErrorEnvelope')) }, 429: { description: '验证码重发频率或次数超限', content: jsonContent(ref('ErrorEnvelope')) } } : {}),
         },
   }
   if (['post', 'put', 'patch'].includes(method)) {

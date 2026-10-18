@@ -1,7 +1,7 @@
 import { createHash, randomInt, randomUUID } from 'node:crypto'
 import { IdentityAuthorizationService } from './identityAuthorization'
 import { SingletonDataSource } from '../facade/datasource'
-import { CustodyKeyRecordDO, IdentityAccountLinkDO, IdentityAuditLogDO, IdentityCredentialDO, IdentityEmailAccountDO, IdentityEmailAuthChallengeDO, IdentityPasskeyCredentialDO, IdentityRegistrationDO, IdentityUsernameDO, UserDO } from '../mapper/entity'
+import { CustodyKeyRecordDO, IdentityAccountLinkDO, IdentityAuditLogDO, IdentityCredentialDO, IdentityEmailAccountDO, IdentityEmailAuthChallengeDO, IdentityPasskeyCredentialDO, IdentityRegistrationDO, IdentityUsernameDO, IdentityWebauthnChallengeDO, UserDO } from '../mapper/entity'
 import { issueIdentityCredential } from '../../auth/identityIssuer'
 import { getConfig } from '../../config/runtime'
 
@@ -9,6 +9,8 @@ type Delivery = (input: { email: string; code: string; expiresAt: string; purpos
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 const TTL_MS = 10 * 60 * 1000
 const MAX_ATTEMPTS = 5
+const RESEND_INTERVAL_MS = 60 * 1000
+const MAX_RESENDS = 5
 const USERNAME_RE = /^[a-z0-9][a-z0-9._-]{2,31}$/
 
 function usernameNamespace() {
@@ -66,6 +68,12 @@ export class IdentityEmailAuthService {
 
   constructor(private readonly delivery: Delivery) {}
 
+  private async expirePendingRegistration(manager: any, registrationId: string, identityDid: string, namespace: string, username: string, at: string) {
+    await manager.getRepository(IdentityRegistrationDO).update({ registrationId, status: 'pending' }, { status: 'expired' })
+    await manager.getRepository(IdentityWebauthnChallengeDO).update({ requestId: registrationId, challengeType: 'identity-bootstrap-register' }, { used: true })
+    await manager.getRepository(IdentityUsernameDO).update({ namespace, normalizedUsername: username, identityDid, status: 'reserved' }, { status: 'expired', reservedUntil: '', updatedAt: at })
+  }
+
   async requestRegister(input: { email: unknown; username: unknown; avatar: unknown; identityDocument: any; deviceName?: unknown }) {
     const email = normalizeIdentityEmail(input.email)
     const username = normalizeUsername(input.username)
@@ -92,50 +100,185 @@ export class IdentityEmailAuthService {
       attempts: 0,
       status: 'pending',
       createdAt,
+      lastSentAt: createdAt,
       expiresAt,
-      consumedAt: ''
+      consumedAt: '',
+      resendCount: 0
     })
-    await ds.transaction(async manager => {
-      const usernameRepo = manager.getRepository(IdentityUsernameDO)
-      const existing = await usernameRepo.findOneBy({ namespace, normalizedUsername: username })
-      const expired = existing?.status === 'expired' || (existing?.status === 'reserved' && Date.parse(existing.reservedUntil) <= Date.now())
-      if (existing && existing.identityDid !== registration.identity && !expired) throw new Error('IDENTITY_USERNAME_TAKEN')
-      if (existing) {
-        await usernameRepo.update({ uid: existing.uid }, { identityDid: registration.identity, status: 'reserved', reservedUntil: expiresAt, updatedAt: createdAt })
-      } else {
-        const usernameRow = new IdentityUsernameDO()
-        Object.assign(usernameRow, { namespace, normalizedUsername: username, identityDid: registration.identity, status: 'reserved', reservedUntil: expiresAt, createdAt, updatedAt: createdAt })
-        await usernameRepo.save(usernameRow)
-      }
-      await manager.getRepository(IdentityEmailAuthChallengeDO).save(challenge)
-    })
+    try {
+      await ds.transaction(async manager => {
+        const usernameRepo = manager.getRepository(IdentityUsernameDO)
+        const existing = await usernameRepo.findOne({ where: { namespace, normalizedUsername: username }, lock: { mode: 'pessimistic_write' } })
+        const expired = existing?.status === 'expired' || (existing?.status === 'reserved' && Date.parse(existing.reservedUntil) <= Date.now())
+        if (existing && existing.identityDid !== registration.identity && !expired) throw new Error('IDENTITY_USERNAME_TAKEN')
+        if (existing) {
+          await usernameRepo.update({ uid: existing.uid }, { identityDid: registration.identity, status: 'reserved', reservedUntil: expiresAt, updatedAt: createdAt })
+        } else {
+          const usernameRow = new IdentityUsernameDO()
+          Object.assign(usernameRow, { namespace, normalizedUsername: username, identityDid: registration.identity, status: 'reserved', reservedUntil: expiresAt, createdAt, updatedAt: createdAt })
+          await usernameRepo.save(usernameRow)
+        }
+        await manager.getRepository(IdentityEmailAuthChallengeDO).save(challenge)
+      })
+    } catch (error) {
+      await ds.transaction(manager => this.expirePendingRegistration(manager, registration.registrationId, registration.identity, namespace, username, now()))
+      throw error
+    }
     try {
       await this.delivery({ email, code, expiresAt, purpose: 'register' })
     } catch (error) {
-      await ds.getRepository(IdentityEmailAuthChallengeDO).delete({ challengeId })
-      await ds.getRepository(IdentityUsernameDO).update({ namespace, normalizedUsername: username, identityDid: registration.identity, status: 'reserved' }, { status: 'expired', reservedUntil: '', updatedAt: now() })
+      await ds.transaction(async manager => {
+        await manager.getRepository(IdentityEmailAuthChallengeDO).delete({ challengeId })
+        await this.expirePendingRegistration(manager, registration.registrationId, registration.identity, namespace, username, now())
+      })
       throw error
     }
     return { verificationId: challengeId, email, username, avatarUri, identity: registration.identity, registrationId: registration.registrationId, expiresAt }
   }
 
+  async resendRegister(input: { verificationId: unknown }) {
+    const challengeId = String(input.verificationId || '').trim()
+    if (!challengeId) throw new Error('IDENTITY_EMAIL_VERIFICATION_INVALID')
+    const code = String(randomInt(100000, 1000000))
+    const ds = storage()
+    let response: { email: string; expiresAt: string; resendsRemaining: number } | { error: string } | undefined
+    await ds.transaction(async manager => {
+      const repository = manager.getRepository(IdentityEmailAuthChallengeDO)
+      const challenge = await repository.findOne({ where: { challengeId, purpose: 'register' }, lock: { mode: 'pessimistic_write' } })
+      if (!challenge) throw new Error('IDENTITY_EMAIL_VERIFICATION_NOT_FOUND')
+      if (challenge.status !== 'pending') {
+        response = { error: 'IDENTITY_EMAIL_VERIFICATION_EXPIRED' }
+        return
+      }
+      if (!Number.isFinite(Date.parse(challenge.expiresAt)) || Date.parse(challenge.expiresAt) <= Date.now()) {
+        const at = now()
+        challenge.status = 'expired'
+        await repository.save(challenge)
+        await this.expirePendingRegistration(manager, challenge.registrationId, challenge.identityDid, usernameNamespace(), challenge.username, at)
+        response = { error: 'IDENTITY_EMAIL_VERIFICATION_EXPIRED' }
+        return
+      }
+      const lastSentAt = Date.parse(challenge.lastSentAt || challenge.createdAt)
+      if (Number.isFinite(lastSentAt) && Date.now() - lastSentAt < RESEND_INTERVAL_MS) throw new Error('IDENTITY_EMAIL_RESEND_RATE_LIMITED')
+      if (Number(challenge.resendCount || 0) >= MAX_RESENDS) throw new Error('IDENTITY_EMAIL_RESEND_LIMIT_REACHED')
+      const registration = await manager.getRepository(IdentityRegistrationDO).findOneBy({ registrationId: challenge.registrationId, status: 'pending' })
+      if (!registration || registration.identityDid !== challenge.identityDid) throw new Error('IDENTITY_EMAIL_REGISTRATION_INVALID')
+
+      const expiresAt = new Date(Date.now() + TTL_MS).toISOString()
+      challenge.codeHash = hashCode(challengeId, code)
+      challenge.attempts = 0
+      challenge.lastSentAt = now()
+      challenge.expiresAt = expiresAt
+      challenge.resendCount = Number(challenge.resendCount || 0) + 1
+      registration.expiresAt = expiresAt
+      await repository.save(challenge)
+      await manager.getRepository(IdentityRegistrationDO).save(registration)
+      await manager.getRepository(IdentityUsernameDO).update({ namespace: usernameNamespace(), normalizedUsername: challenge.username, identityDid: challenge.identityDid, status: 'reserved' }, { reservedUntil: expiresAt, updatedAt: challenge.lastSentAt })
+      await manager.getRepository(IdentityWebauthnChallengeDO).update({ requestId: challenge.registrationId, challengeType: 'identity-bootstrap-register', identityDid: challenge.identityDid }, { expiresAt, used: false })
+      response = { email: challenge.email, expiresAt, resendsRemaining: MAX_RESENDS - challenge.resendCount }
+    })
+    if (!response) throw new Error('IDENTITY_EMAIL_REGISTRATION_INVALID')
+    if ('error' in response) throw new Error(response.error)
+    try {
+      await this.delivery({ email: response.email, code, expiresAt: response.expiresAt, purpose: 'register' })
+    } catch (error) {
+      await ds.transaction(async manager => {
+        const repository = manager.getRepository(IdentityEmailAuthChallengeDO)
+        const challenge = await repository.findOne({ where: { challengeId, purpose: 'register' }, lock: { mode: 'pessimistic_write' } })
+        if (challenge?.status === 'pending' && challenge.codeHash === hashCode(challengeId, code)) {
+          const at = now()
+          challenge.status = 'expired'
+          await repository.save(challenge)
+          await this.expirePendingRegistration(manager, challenge.registrationId, challenge.identityDid, usernameNamespace(), challenge.username, at)
+        }
+      })
+      throw new Error('IDENTITY_EMAIL_DELIVERY_FAILED')
+    }
+    return { verificationId: challengeId, ...response }
+  }
+
+  async cancelRegister(input: { verificationId: unknown }) {
+    const challengeId = String(input.verificationId || '').trim()
+    if (!challengeId) throw new Error('IDENTITY_EMAIL_VERIFICATION_INVALID')
+    const ds = storage()
+    return await ds.transaction(async manager => {
+      const challengeRepo = manager.getRepository(IdentityEmailAuthChallengeDO)
+      const challenge = await challengeRepo.findOne({ where: { challengeId, purpose: 'register' }, lock: { mode: 'pessimistic_write' } })
+      if (!challenge) throw new Error('IDENTITY_EMAIL_VERIFICATION_NOT_FOUND')
+      if (challenge.status === 'completed' || challenge.status === 'cancelled') throw new Error('IDENTITY_EMAIL_REGISTRATION_INVALID')
+      const registrationRepo = manager.getRepository(IdentityRegistrationDO)
+      const registration = await registrationRepo.findOneBy({ registrationId: challenge.registrationId })
+      if (registration?.status === 'active' || await manager.getRepository(IdentityPasskeyCredentialDO).findOneBy({ identityDid: challenge.identityDid })) throw new Error('IDENTITY_EMAIL_REGISTRATION_ALREADY_ACTIVE')
+      const at = now()
+      challenge.status = 'cancelled'
+      challenge.consumedAt = at
+      await challengeRepo.save(challenge)
+      if (registration?.status === 'pending') await registrationRepo.update({ registrationId: registration.registrationId, status: 'pending' }, { status: 'expired' })
+      await manager.getRepository(IdentityWebauthnChallengeDO).update({ requestId: challenge.registrationId, challengeType: 'identity-bootstrap-register' }, { used: true })
+      await manager.getRepository(IdentityUsernameDO).update({ namespace: usernameNamespace(), normalizedUsername: challenge.username, identityDid: challenge.identityDid, status: 'reserved' }, { status: 'expired', reservedUntil: '', updatedAt: at })
+      return { cancelled: true }
+    })
+  }
+
   async confirmRegister(input: { verificationId: unknown; code: unknown }) {
     const ds = storage()
     const challengeId = String(input.verificationId || '').trim()
-    const challenge = await ds.getRepository(IdentityEmailAuthChallengeDO).findOneBy({ challengeId, purpose: 'register' })
-    if (!challenge) throw new Error('IDENTITY_EMAIL_VERIFICATION_NOT_FOUND')
-    if (challenge.status !== 'pending' || Date.parse(challenge.expiresAt) <= Date.now()) throw new Error('IDENTITY_EMAIL_VERIFICATION_EXPIRED')
-    challenge.attempts += 1
-    if (challenge.attempts > MAX_ATTEMPTS || hashCode(challengeId, String(input.code || '').trim()) !== challenge.codeHash) {
-      if (challenge.attempts >= MAX_ATTEMPTS) challenge.status = 'expired'
-      await ds.getRepository(IdentityEmailAuthChallengeDO).save(challenge)
-      throw new Error('IDENTITY_EMAIL_VERIFICATION_INVALID')
-    }
-    challenge.status = 'verified'
-    await ds.getRepository(IdentityEmailAuthChallengeDO).save(challenge)
+    const code = String(input.code || '').trim()
+    const result = await ds.transaction(async manager => {
+      const challengeRepo = manager.getRepository(IdentityEmailAuthChallengeDO)
+      const challenge = await challengeRepo.findOne({ where: { challengeId, purpose: 'register' }, lock: { mode: 'pessimistic_write' } })
+      if (!challenge) return { error: 'IDENTITY_EMAIL_VERIFICATION_NOT_FOUND' }
+      if (challenge.status === 'verified' && hashCode(challengeId, code) === challenge.codeHash) {
+        const registration = await manager.getRepository(IdentityRegistrationDO).findOneBy({ registrationId: challenge.registrationId, status: 'pending' })
+        if (!registration || !Number.isFinite(Date.parse(registration.expiresAt)) || Date.parse(registration.expiresAt) <= Date.now()) {
+          challenge.status = 'expired'
+          await challengeRepo.save(challenge)
+          await this.expirePendingRegistration(manager, challenge.registrationId, challenge.identityDid, usernameNamespace(), challenge.username, now())
+          return { error: 'IDENTITY_EMAIL_VERIFICATION_EXPIRED' }
+        }
+        return { challenge, passkeyRequest: challenge.passkeyRequestJson }
+      }
+      if (challenge.status !== 'pending' || !Number.isFinite(Date.parse(challenge.expiresAt)) || Date.parse(challenge.expiresAt) <= Date.now()) {
+        if (challenge.status === 'pending') {
+          challenge.status = 'expired'
+          await challengeRepo.save(challenge)
+          await this.expirePendingRegistration(manager, challenge.registrationId, challenge.identityDid, usernameNamespace(), challenge.username, now())
+        }
+        return { error: 'IDENTITY_EMAIL_VERIFICATION_EXPIRED' }
+      }
+
+      challenge.attempts += 1
+      if (hashCode(challengeId, code) !== challenge.codeHash) {
+        const reachedLimit = challenge.attempts >= MAX_ATTEMPTS
+        if (reachedLimit) {
+          challenge.status = 'expired'
+          await this.expirePendingRegistration(manager, challenge.registrationId, challenge.identityDid, usernameNamespace(), challenge.username, now())
+        }
+        await challengeRepo.save(challenge)
+        return { error: reachedLimit ? 'IDENTITY_EMAIL_VERIFICATION_EXPIRED' : 'IDENTITY_EMAIL_VERIFICATION_INVALID' }
+      }
+
+      const registration = await manager.getRepository(IdentityRegistrationDO).findOneBy({ registrationId: challenge.registrationId, status: 'pending' })
+      if (!registration || registration.identityDid !== challenge.identityDid) {
+        challenge.status = 'expired'
+        await challengeRepo.save(challenge)
+        await this.expirePendingRegistration(manager, challenge.registrationId, challenge.identityDid, usernameNamespace(), challenge.username, now())
+        return { error: 'IDENTITY_EMAIL_REGISTRATION_INVALID' }
+      }
+      const verifiedAt = now()
+      const expiresAt = new Date(Date.now() + TTL_MS).toISOString()
+      challenge.status = 'verified'
+      challenge.expiresAt = expiresAt
+      registration.expiresAt = expiresAt
+      await challengeRepo.save(challenge)
+      await manager.getRepository(IdentityRegistrationDO).save(registration)
+      await manager.getRepository(IdentityWebauthnChallengeDO).update({ requestId: registration.registrationId, challengeType: 'identity-bootstrap-register', identityDid: challenge.identityDid }, { expiresAt })
+      return { challenge, passkeyRequest: challenge.passkeyRequestJson, verifiedAt }
+    })
+    if ('error' in result) throw new Error(result.error)
     let passkeyRequest: unknown = {}
-    try { passkeyRequest = JSON.parse(challenge.passkeyRequestJson || '{}') } catch { throw new Error('IDENTITY_PASSKEY_REQUEST_INVALID') }
-    return { verificationId: challenge.challengeId, registrationId: challenge.registrationId, identity: challenge.identityDid, passkeyRequest, email: challenge.email, verifiedAt: now() }
+    try { passkeyRequest = JSON.parse(result.passkeyRequest || '{}') } catch { throw new Error('IDENTITY_PASSKEY_REQUEST_INVALID') }
+    return { verificationId: result.challenge.challengeId, registrationId: result.challenge.registrationId, identity: result.challenge.identityDid, passkeyRequest, email: result.challenge.email, verifiedAt: result.verifiedAt || now() }
   }
 
   async completeRegister(input: { verificationId: unknown; registrationId: unknown; accountLink?: any; custody?: any }) {
@@ -210,7 +353,7 @@ export class IdentityEmailAuthService {
     const createdAt = now()
     const expiresAt = new Date(Date.now() + TTL_MS).toISOString()
     const challenge = new IdentityEmailAuthChallengeDO()
-    Object.assign(challenge, { challengeId, email, identityDid: account.identityDid, registrationId: '', purpose: 'login', codeHash: hashCode(challengeId, code), passkeyRequestJson: '{}', attempts: 0, status: 'pending', createdAt, expiresAt, consumedAt: '' })
+    Object.assign(challenge, { challengeId, email, identityDid: account.identityDid, registrationId: '', purpose: 'login', codeHash: hashCode(challengeId, code), passkeyRequestJson: '{}', attempts: 0, status: 'pending', createdAt, lastSentAt: createdAt, expiresAt, consumedAt: '', resendCount: 0 })
     await ds.getRepository(IdentityEmailAuthChallengeDO).save(challenge)
     try { await this.delivery({ email, code, expiresAt, purpose: 'login' }) } catch (error) { await ds.getRepository(IdentityEmailAuthChallengeDO).delete({ challengeId }); throw error }
     return { verificationId: challengeId, email, expiresAt }

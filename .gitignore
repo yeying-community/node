@@ -11,4 +11,5 @@ output
 scripts/backup.conf
 scripts/.passphrase-file
 .project-lifecycle.json
+.project-lifecycle-*.json
 .project-task.json

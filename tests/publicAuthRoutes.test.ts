@@ -40,6 +40,13 @@ function createTestApp() {
   return app
 }
 
+function createEmailAuthTestApp(emailAuth: any) {
+  const app = express()
+  app.use(express.json())
+  registerPublicAuthRoutes(app, emailAuth)
+  return app
+}
+
 async function withServer<T>(app: Express, run: (baseUrl: string) => Promise<T>) {
   const server = await new Promise<import('http').Server>((resolve) => {
     const instance = app.listen(0, '127.0.0.1', () => resolve(instance))
@@ -109,6 +116,33 @@ describe('public auth routes', () => {
       const setCookie = response.headers.get('set-cookie') || ''
       expect(setCookie).toContain('refresh_token=')
       expect(setCookie.toLowerCase()).toContain('max-age=0')
+    })
+  })
+
+  it('exposes registration resend and cancel with stable error status mapping', async () => {
+    const emailAuth = {
+      resendRegister: vi.fn().mockRejectedValueOnce(new Error('IDENTITY_EMAIL_RESEND_RATE_LIMITED')),
+      cancelRegister: vi.fn().mockResolvedValue({ cancelled: true }),
+    }
+    const app = createEmailAuthTestApp(emailAuth)
+
+    await withServer(app, async (baseUrl) => {
+      const resend = await fetch(`${baseUrl}/api/v1/public/auth/email/register/resend`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ verificationId: 'verification-id' }),
+      })
+      expect(resend.status).toBe(429)
+      expect(await resend.json()).toMatchObject({ code: 429, message: 'IDENTITY_EMAIL_RESEND_RATE_LIMITED' })
+
+      const cancel = await fetch(`${baseUrl}/api/v1/public/auth/email/register/cancel`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ verificationId: 'verification-id' }),
+      })
+      expect(cancel.status).toBe(200)
+      expect(await cancel.json()).toMatchObject({ code: 0, data: { cancelled: true } })
+      expect(emailAuth.cancelRegister).toHaveBeenCalledWith({ verificationId: 'verification-id' })
     })
   })
 })
