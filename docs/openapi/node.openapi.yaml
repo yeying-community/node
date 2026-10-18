@@ -2460,7 +2460,7 @@ paths:
           application/json:
             schema:
               $ref: "#/components/schemas/JsonObject"
-  /api/v1/public/payment-gateway/merchants:
+  /api/v1/public/payment/gateway/merchants:
     post:
       tags:
         - Payments
@@ -2505,7 +2505,7 @@ paths:
           $ref: "#/components/responses/Forbidden"
         "409":
           $ref: "#/components/responses/Conflict"
-  /api/v1/public/payment-gateway/merchants/{merchantId}:
+  /api/v1/public/payment/gateway/merchants/{merchantId}:
     delete:
       tags:
         - Payments
@@ -2530,7 +2530,7 @@ paths:
           $ref: "#/components/responses/Forbidden"
         "409":
           $ref: "#/components/responses/Conflict"
-  /api/v1/public/payment-gateway/transactions:
+  /api/v1/public/payment/gateway/transactions:
     post:
       tags:
         - Payments
@@ -2559,7 +2559,7 @@ paths:
           application/json:
             schema:
               $ref: "#/components/schemas/PaymentTransactionCreateRequest"
-  /api/v1/public/payment-gateway/transactions/query:
+  /api/v1/public/payment/gateway/transactions/query:
     post:
       tags:
         - Payments
@@ -2588,7 +2588,7 @@ paths:
           application/json:
             schema:
               $ref: "#/components/schemas/PaymentTransactionQueryRequest"
-  /api/v1/public/payment-gateway/transactions/cancel:
+  /api/v1/public/payment/gateway/transactions/cancel:
     post:
       tags:
         - Payments
@@ -2617,7 +2617,7 @@ paths:
           application/json:
             schema:
               $ref: "#/components/schemas/PaymentTransactionQueryRequest"
-  /api/v1/public/payment-gateway/refunds:
+  /api/v1/public/payment/gateway/refunds:
     post:
       tags:
         - Payments
@@ -2646,7 +2646,7 @@ paths:
           application/json:
             schema:
               $ref: "#/components/schemas/PaymentRefundRequest"
-  /api/v1/public/payment-gateway/refunds/query:
+  /api/v1/public/payment/gateway/refunds/query:
     post:
       tags:
         - Payments
@@ -2675,7 +2675,7 @@ paths:
           application/json:
             schema:
               $ref: "#/components/schemas/PaymentRefundQueryRequest"
-  /api/v1/public/payment-gateway/webhooks/wechat:
+  /api/v1/public/payment/gateway/webhooks/wechat:
     post:
       tags:
         - Payments
@@ -2700,7 +2700,7 @@ paths:
           application/json:
             schema:
               $ref: "#/components/schemas/JsonObject"
-  /api/v1/public/payment-gateway/webhooks/mock:
+  /api/v1/public/payment/gateway/webhooks/mock:
     post:
       tags:
         - Payments

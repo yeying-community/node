@@ -43,13 +43,13 @@ function isPublicAppPublishRoute(req: Request): boolean {
 function isPublicPaymentGatewayRoute(req: Request): boolean {
   const path = String(req.path || '')
   return (
-    path === '/public/payment-gateway/transactions' ||
-    path === '/public/payment-gateway/transactions/query' ||
-    path === '/public/payment-gateway/transactions/cancel' ||
-    path === '/public/payment-gateway/refunds' ||
-    path === '/public/payment-gateway/refunds/query' ||
-    path === '/public/payment-gateway/webhooks/wechat' ||
-    path === '/public/payment-gateway/webhooks/mock'
+    path === '/public/payment/gateway/transactions' ||
+    path === '/public/payment/gateway/transactions/query' ||
+    path === '/public/payment/gateway/transactions/cancel' ||
+    path === '/public/payment/gateway/refunds' ||
+    path === '/public/payment/gateway/refunds/query' ||
+    path === '/public/payment/gateway/webhooks/wechat' ||
+    path === '/public/payment/gateway/webhooks/mock'
   )
 }
 

@@ -53,7 +53,7 @@ async function authenticateSigned(service: PaymentService, req: Request) {
 export function registerPublicPaymentGatewayRoutes(app: Express) {
   const service = new PaymentService()
 
-  app.post('/api/v1/public/payment-gateway/merchants', async (req: Request, res: Response) => {
+  app.post('/api/v1/public/payment/gateway/merchants', async (req: Request, res: Response) => {
     try {
       const owner = currentAddress()
       if (!owner) return void res.status(401).json(fail(401, 'Missing access token'))
@@ -66,7 +66,7 @@ export function registerPublicPaymentGatewayRoutes(app: Express) {
     }
   })
 
-  app.get('/api/v1/public/payment-gateway/merchants', async (_req: Request, res: Response) => {
+  app.get('/api/v1/public/payment/gateway/merchants', async (_req: Request, res: Response) => {
     try {
       const owner = currentAddress()
       if (!owner) return void res.status(401).json(fail(401, 'Missing access token'))
@@ -78,7 +78,7 @@ export function registerPublicPaymentGatewayRoutes(app: Express) {
     }
   })
 
-  app.delete('/api/v1/public/payment-gateway/merchants/:merchantId', async (req: Request, res: Response) => {
+  app.delete('/api/v1/public/payment/gateway/merchants/:merchantId', async (req: Request, res: Response) => {
     try {
       const owner = currentAddress()
       if (!owner) return void res.status(401).json(fail(401, 'Missing access token'))
@@ -91,7 +91,7 @@ export function registerPublicPaymentGatewayRoutes(app: Express) {
     }
   })
 
-  app.post('/api/v1/public/payment-gateway/transactions', async (req: Request, res: Response) => {
+  app.post('/api/v1/public/payment/gateway/transactions', async (req: Request, res: Response) => {
     try {
       const signed = await authenticateSigned(service, req)
       res.json(ok(await service.createTransaction(signed.merchant, {
@@ -110,7 +110,7 @@ export function registerPublicPaymentGatewayRoutes(app: Express) {
     }
   })
 
-  app.post('/api/v1/public/payment-gateway/transactions/query', async (req: Request, res: Response) => {
+  app.post('/api/v1/public/payment/gateway/transactions/query', async (req: Request, res: Response) => {
     try {
       const signed = await authenticateSigned(service, req)
       res.json(ok(await service.queryProviderPayment(signed.merchant, String(signed.body.tradeNo || ''))))
@@ -120,7 +120,7 @@ export function registerPublicPaymentGatewayRoutes(app: Express) {
     }
   })
 
-  app.post('/api/v1/public/payment-gateway/transactions/cancel', async (req: Request, res: Response) => {
+  app.post('/api/v1/public/payment/gateway/transactions/cancel', async (req: Request, res: Response) => {
     try {
       const signed = await authenticateSigned(service, req)
       res.json(ok(await service.cancelTransaction(signed.merchant, String(signed.body.tradeNo || ''))))
@@ -130,7 +130,7 @@ export function registerPublicPaymentGatewayRoutes(app: Express) {
     }
   })
 
-  app.post('/api/v1/public/payment-gateway/refunds', async (req: Request, res: Response) => {
+  app.post('/api/v1/public/payment/gateway/refunds', async (req: Request, res: Response) => {
     try {
       const signed = await authenticateSigned(service, req)
       res.json(ok(await service.requestRefund(signed.merchant, {
@@ -145,7 +145,7 @@ export function registerPublicPaymentGatewayRoutes(app: Express) {
     }
   })
 
-  app.post('/api/v1/public/payment-gateway/refunds/query', async (req: Request, res: Response) => {
+  app.post('/api/v1/public/payment/gateway/refunds/query', async (req: Request, res: Response) => {
     try {
       const signed = await authenticateSigned(service, req)
       res.json(ok(await service.queryRefund(signed.merchant, String(signed.body.refundNo || ''))))
@@ -156,7 +156,7 @@ export function registerPublicPaymentGatewayRoutes(app: Express) {
   })
 
   for (const provider of ['wechat', 'mock']) {
-    app.post(`/api/v1/public/payment-gateway/webhooks/${provider}`, async (req: Request, res: Response) => {
+    app.post(`/api/v1/public/payment/gateway/webhooks/${provider}`, async (req: Request, res: Response) => {
       try {
         const result = await service.handleProviderWebhook(provider, { rawBody: rawBody(req), body: bodyObject(req) })
         if (provider === 'wechat') {

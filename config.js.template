@@ -328,7 +328,7 @@ module.exports = {
       // production remains pinned to the official WeChat host.
       allowedApiHosts: [],
       // Public callback URL registered with WeChat. Must be stable, publicly reachable HTTPS in production.
-      notifyUrl: 'https://node.example.com/api/v1/public/payment-gateway/webhooks/wechat',
+      notifyUrl: 'https://node.example.com/api/v1/public/payment/gateway/webhooks/wechat',
       // Timeout in milliseconds for one WeChat API operation.
       timeoutMs: 10 * 1000
     }

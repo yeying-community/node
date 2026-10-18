@@ -29,9 +29,9 @@ Project 199 将 `yeying-room` 的支付边界迁移到 Node。V1 迁移的是标
 商户管理使用 Node 的 Bearer JWT/UCAN：
 
 ```text
-POST   /api/v1/public/payment-gateway/merchants
-GET    /api/v1/public/payment-gateway/merchants
-DELETE /api/v1/public/payment-gateway/merchants/:merchantId
+POST   /api/v1/public/payment/gateway/merchants
+GET    /api/v1/public/payment/gateway/merchants
+DELETE /api/v1/public/payment/gateway/merchants/:merchantId
 ```
 
 创建请求：
@@ -61,11 +61,11 @@ HMAC-SHA256(secret, merchantId + "." + timestamp + "." + nonce + "." + canonical
 ## 交易接口
 
 ```text
-POST /api/v1/public/payment-gateway/transactions
-POST /api/v1/public/payment-gateway/transactions/query
-POST /api/v1/public/payment-gateway/transactions/cancel
-POST /api/v1/public/payment-gateway/refunds
-POST /api/v1/public/payment-gateway/refunds/query
+POST /api/v1/public/payment/gateway/transactions
+POST /api/v1/public/payment/gateway/transactions/query
+POST /api/v1/public/payment/gateway/transactions/cancel
+POST /api/v1/public/payment/gateway/refunds
+POST /api/v1/public/payment/gateway/refunds/query
 ```
 
 创建交易 body：
@@ -99,7 +99,7 @@ paid     -> refund_pending -> partially_refunded | refunded
 微信通知：
 
 ```text
-POST /api/v1/public/payment-gateway/webhooks/wechat
+POST /api/v1/public/payment/gateway/webhooks/wechat
 ```
 
 Node 返回微信 XML 成功响应后，将业务事件写入回调 outbox。后台 worker 使用固定超时、有限重试和指数退避投递商户回调：

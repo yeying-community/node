@@ -127,7 +127,7 @@ export function getRouteUcanPolicy(input: RouteInput): RouteUcanPolicy | null {
   if (path.startsWith('/api/v1/public/notifications')) {
     return notificationsPolicy(method)
   }
-  if (path.startsWith('/api/v1/public/payment-gateway/merchants')) {
+  if (path.startsWith('/api/v1/public/payment/gateway/merchants')) {
     return paymentMerchantPolicy(method)
   }
   if (path.startsWith('/api/v1/public/audits')) {

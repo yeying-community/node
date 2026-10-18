@@ -59,7 +59,7 @@ describe('payment gateway routes', () => {
     serviceMocks.createTransaction.mockResolvedValue({ tradeNo: 'PAY-1', status: 'pending' })
     const app = createTestApp()
     await withServer(app, async baseUrl => {
-      const response = await fetch(`${baseUrl}/api/v1/public/payment-gateway/transactions`, {
+      const response = await fetch(`${baseUrl}/api/v1/public/payment/gateway/transactions`, {
         method: 'POST',
         headers: {
           'content-type': 'application/json',
@@ -86,7 +86,7 @@ describe('payment gateway routes', () => {
   it('does not expose provider error text to API callers', async () => {
     serviceMocks.authenticateMerchantRequest.mockRejectedValue(new Error('upstream included a secret key'))
     await withServer(createTestApp(), async baseUrl => {
-      const response = await fetch(`${baseUrl}/api/v1/public/payment-gateway/transactions/query`, {
+      const response = await fetch(`${baseUrl}/api/v1/public/payment/gateway/transactions/query`, {
         method: 'POST',
         headers: {
           'content-type': 'application/json',
