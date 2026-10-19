@@ -1,5 +1,5 @@
 import IndexView from '@/views/IndexView.vue'
-import { ensureWalletSession } from '@/plugins/auth'
+import { ensureWalletSession, getStoredAuthToken } from '@/plugins/auth'
 import { notifyError } from '@/utils/message'
 
 export const routes = [
@@ -20,6 +20,11 @@ export const routes = [
         name: 'identityAuth',
         meta: { public: true },
         component: () => import('../views/IdentityAuthView.vue')
+    },
+    {
+        path: '/payments',
+        name: 'payments',
+        component: () => import('../views/apply/PaymentCenterView.vue')
     },
     {
         path: '/market',
@@ -73,7 +78,7 @@ export const routes = [
                         path: 'notifications',
                         name: 'notifications',
                         component: () => import('../views/apply/NotificationCenterView.vue')
-                    }
+                    },
                 ]
             }
         ]
@@ -84,6 +89,11 @@ export const setupRouter = (router) => {
         const isHome = to.path === '/' || to.name === 'home' || to.name === 'index'
         try {
             if (!to.meta.public && !isHome) {
+                // Email-authenticated users can manage payments without a wallet extension.
+                if (to.name === 'payments' && getStoredAuthToken()) {
+                    next()
+                    return
+                }
                 const ok = await ensureWalletSession({ redirect: false })
                 if (!ok) {
                     next({ path: '/' })

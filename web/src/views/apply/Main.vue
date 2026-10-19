@@ -41,7 +41,7 @@
 <script lang="ts" setup>
 import { getCurrentInstance, onMounted, ref, watch } from "vue";
 import { useRouter, useRoute } from "vue-router";
-import { Tickets, Document, Setting, Bell, Expand, Fold } from "@element-plus/icons-vue";
+import { Tickets, Document, Setting, Bell, Wallet, Expand, Fold } from "@element-plus/icons-vue";
 import { notifyError } from '@/utils/message';
 
 const SIDEBAR_COLLAPSED_KEY = "market:sidebar:collapsed";
@@ -72,7 +72,13 @@ const navigation = [
     to: "/market/dev/notifications/",
     name: "notifications",
     icon: Bell,
-  }
+  },
+  {
+    title: $t('sidebar_payments'),
+    to: "/payments",
+    name: "payments",
+    icon: Wallet,
+  },
 ];
 
 const resolveActiveName = (currentRoute: typeof route) => {
@@ -88,6 +94,9 @@ const resolveActiveName = (currentRoute: typeof route) => {
   }
   if (name === "notifications") {
     return "notifications";
+  }
+  if (name === "payments") {
+    return "payments";
   }
   return name;
 };

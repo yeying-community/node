@@ -1293,7 +1293,7 @@ export function getCurrentAccount() {
 }
 
 export function getStoredAuthToken() {
-  if (typeof localStorage === 'undefined') {
+  if (typeof localStorage === 'undefined' || isManualLogout()) {
     return '';
   }
   const stored = readStoredAuthToken();
