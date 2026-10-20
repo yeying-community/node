@@ -218,8 +218,10 @@ export class IdentityEmailAuthChallengeDO {
     @Column({ type: 'integer', default: 0 }) attempts!: number
     @Column({ length: 32, default: 'pending' }) status!: string
     @Column({ length: 64, name: 'created_at' }) createdAt!: string
+    @Column({ length: 64, name: 'last_sent_at', default: '' }) lastSentAt!: string
     @Column({ length: 64, name: 'expires_at' }) expiresAt!: string
     @Column({ length: 64, name: 'consumed_at', default: '' }) consumedAt!: string
+    @Column({ type: 'integer', name: 'resend_count', default: 0 }) resendCount!: number
 }
 
 @Entity('identity_passkey_credentials')

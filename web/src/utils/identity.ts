@@ -50,6 +50,102 @@ export async function encryptObjectWithPassword(value: unknown, password: string
   return `${ENCRYPTED_DATA_VERSION}.${base64(payload)}`
 }
 
+export async function decryptObjectWithPassword<T>(value: string, password: string): Promise<T> {
+  if (typeof password !== 'string' || password.length < 8) throw new Error('IDENTITY_DRAFT_PASSWORD_INVALID')
+  const [version, encoded] = String(value || '').split('.', 2)
+  if (version !== ENCRYPTED_DATA_VERSION || !encoded) throw new Error('IDENTITY_DRAFT_FORMAT_INVALID')
+  try {
+    const binary = atob(encoded)
+    const payload = Uint8Array.from(binary, character => character.charCodeAt(0))
+    if (payload.length < 29) throw new Error('IDENTITY_DRAFT_FORMAT_INVALID')
+    const salt = payload.slice(0, 16)
+    const iv = payload.slice(16, 28)
+    const encrypted = payload.slice(28)
+    const passwordKey = await crypto.subtle.importKey('raw', new TextEncoder().encode(password), 'PBKDF2', false, ['deriveKey'])
+    const key = await crypto.subtle.deriveKey({ name: 'PBKDF2', salt, iterations: PBKDF2_ITERATIONS, hash: 'SHA-256' }, passwordKey, { name: 'AES-GCM', length: 256 }, false, ['decrypt'])
+    const plaintext = await crypto.subtle.decrypt({ name: 'AES-GCM', iv }, key, encrypted)
+    return JSON.parse(new TextDecoder().decode(plaintext)) as T
+  } catch {
+    throw new Error('IDENTITY_DRAFT_DECRYPT_FAILED')
+  }
+}
+
+const EMAIL_REGISTRATION_DRAFT_DB = 'yeying-email-registration'
+const EMAIL_REGISTRATION_DRAFT_STORE = 'drafts'
+const EMAIL_REGISTRATION_DRAFT_ID = 'pending'
+
+type EmailRegistrationDraftRow = {
+  id: string
+  verificationId: string
+  ciphertext: string
+  expiresAt: string
+}
+
+function openEmailRegistrationDraftDb(): Promise<IDBDatabase> {
+  if (typeof indexedDB === 'undefined') return Promise.reject(new Error('IDENTITY_DRAFT_STORAGE_UNAVAILABLE'))
+  return new Promise((resolve, reject) => {
+    const request = indexedDB.open(EMAIL_REGISTRATION_DRAFT_DB, 1)
+    request.onupgradeneeded = () => {
+      if (!request.result.objectStoreNames.contains(EMAIL_REGISTRATION_DRAFT_STORE)) {
+        request.result.createObjectStore(EMAIL_REGISTRATION_DRAFT_STORE, { keyPath: 'id' })
+      }
+    }
+    request.onsuccess = () => resolve(request.result)
+    request.onerror = () => reject(new Error('IDENTITY_DRAFT_STORAGE_UNAVAILABLE'))
+  })
+}
+
+async function withEmailRegistrationDraftStore<T>(mode: IDBTransactionMode, run: (store: IDBObjectStore) => IDBRequest<T>): Promise<T> {
+  const db = await openEmailRegistrationDraftDb()
+  try {
+    return await new Promise<T>((resolve, reject) => {
+      const transaction = db.transaction(EMAIL_REGISTRATION_DRAFT_STORE, mode)
+      const request = run(transaction.objectStore(EMAIL_REGISTRATION_DRAFT_STORE))
+      let result: T
+      request.onsuccess = () => { result = request.result }
+      request.onerror = () => reject(new Error('IDENTITY_DRAFT_STORAGE_UNAVAILABLE'))
+      transaction.oncomplete = () => resolve(result!)
+      transaction.onerror = () => reject(new Error('IDENTITY_DRAFT_STORAGE_UNAVAILABLE'))
+      transaction.onabort = () => reject(new Error('IDENTITY_DRAFT_STORAGE_UNAVAILABLE'))
+    })
+  } finally {
+    db.close()
+  }
+}
+
+export async function saveEmailRegistrationDraft(value: unknown, password: string, verificationId: string, expiresAt: string) {
+  const ciphertext = await encryptObjectWithPassword(value, password)
+  await withEmailRegistrationDraftStore('readwrite', store => store.put({ id: EMAIL_REGISTRATION_DRAFT_ID, verificationId, ciphertext, expiresAt } satisfies EmailRegistrationDraftRow))
+}
+
+export async function hasEmailRegistrationDraft() {
+  const row = await withEmailRegistrationDraftStore('readonly', store => store.get(EMAIL_REGISTRATION_DRAFT_ID)) as EmailRegistrationDraftRow | undefined
+  if (!row) return false
+  if (!Number.isFinite(Date.parse(row.expiresAt)) || Date.parse(row.expiresAt) <= Date.now()) {
+    await clearEmailRegistrationDraft()
+    return false
+  }
+  return true
+}
+
+export async function loadEmailRegistrationDraft<T>(password: string): Promise<{ value: T; verificationId: string; expiresAt: string }> {
+  const row = await withEmailRegistrationDraftStore('readonly', store => store.get(EMAIL_REGISTRATION_DRAFT_ID)) as EmailRegistrationDraftRow | undefined
+  if (!row || !Number.isFinite(Date.parse(row.expiresAt)) || Date.parse(row.expiresAt) <= Date.now()) {
+    await clearEmailRegistrationDraft()
+    throw new Error('IDENTITY_DRAFT_EXPIRED')
+  }
+  return { value: await decryptObjectWithPassword<T>(row.ciphertext, password), verificationId: row.verificationId, expiresAt: row.expiresAt }
+}
+
+export async function getEmailRegistrationDraftId() {
+  const row = await withEmailRegistrationDraftStore('readonly', store => store.get(EMAIL_REGISTRATION_DRAFT_ID)) as EmailRegistrationDraftRow | undefined
+  return row?.verificationId || ''
+}
+
+export async function clearEmailRegistrationDraft() {
+  await withEmailRegistrationDraftStore('readwrite', store => store.delete(EMAIL_REGISTRATION_DRAFT_ID))
+}
+
 async function signDocument(document: Record<string, any>, privateKey: CryptoKey, verificationMethod: string) {
   const { proof: _proof, ...unsigned } = document
   const signature = await crypto.subtle.sign({ name: 'Ed25519' } as any, privateKey, new TextEncoder().encode(canonicalize(unsigned)))

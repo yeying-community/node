@@ -10,5 +10,14 @@ config.js
 output
 scripts/backup.conf
 scripts/.passphrase-file
-.project-lifecycle.json
+
+# Project skill local task state
 .project-task.json
+.project-lifecycle.json
+.project-execution.json
+.project-execution/
+.project-task-*.json
+.project-lifecycle-*.json
+.project-execution-*.json
+.project-execution-*/
+.playwright-cli

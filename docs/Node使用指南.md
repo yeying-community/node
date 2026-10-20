@@ -132,6 +132,10 @@ Node 自身的应用中心登录是钱包签名 / UCAN 自举登录，不依赖�
 
 无钱包插件的浏览器注册要求提交 username、email、avatar 和本地钱包密码。客户端生成 DID、controller/recovery 密钥和 Ethereum 主网账户，使用 Wallet v2 兼容的 PBKDF2-SHA256 + AES-GCM 格式加密密钥材料，并在邮箱验证码、Passkey 和 EIP-191 账户验证完成后，将外层密文提交到注册完成接口。Node 只保存 DID、凭证、账户关联、Passkey 公钥和密文，不生成、接收、解密或返回任何私钥。Wallet 插件可通过 custody recovery 读取密文，在本地解密后恢复同一 DID 和 Ethereum 地址；密码丢失时密文不可恢复。
 
+发送注册验证码后，浏览器将继续注册所需材料再以账户密码经 PBKDF2-SHA256 + AES-GCM 加密，短期保存于当前浏览器的 IndexedDB。刷新或重新打开首页时，用户需重新输入账户密码解密草稿；账户密码、邮件验证码和访问令牌均不持久化。草稿与验证码请求均有时限，草稿只在当前浏览器配置文件中有效；清理站点数据或草稿损坏后不能恢复原私钥。此时应使用页面提供的重新开始操作取消仍可识别的待注册请求，或等待旧预约过期后创建新注册。
+
+邮箱注册 API 还提供 `POST /api/v1/public/auth/email/register/resend` 和 `POST /api/v1/public/auth/email/register/cancel`。重发针对原 `verificationId`，至少间隔一分钟且最多五次；成功重发会轮换验证码哈希、重置尝试次数和有效期，并使旧验证码立即失效，不会创建新 DID 或用户名预约。取消只终止该 challenge 对应的 pending registration 并释放其用户名预约。验证码发送失败不会返回成功；请求会终止，用户需重新开始注册。
+
 Web 应用需要在应用编辑页的回调地址框中登记完整地址，每行一项，例如：
 
 ```text

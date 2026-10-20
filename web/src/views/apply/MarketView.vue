@@ -6,7 +6,7 @@
 </template>
 <script lang="ts" setup>
 import Header from '@/views/components/Header.vue'
-import { waitForWallet } from '../../plugins/auth'
+import { getStoredAuthToken, waitForWallet } from '../../plugins/auth'
 import { getWalletDataStore } from '@/stores/auth'
 import { notifyError } from '@/utils/message';
 import { getCurrentInstance, onBeforeUnmount } from 'vue';
@@ -18,6 +18,10 @@ let loadHandler: (() => void | Promise<void>) | null = null
 
 const loadFunc = async () => {
   try {
+    if (getStoredAuthToken()) {
+      getWalletDataStore().setWalletReady(true);
+      return;
+    }
     await waitForWallet();
     getWalletDataStore().setWalletReady(true);
   } catch (error) {

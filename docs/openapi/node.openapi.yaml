@@ -169,6 +169,68 @@ paths:
           application/json:
             schema:
               $ref: "#/components/schemas/EmailAuthRegisterRequest"
+  /api/v1/public/auth/email/register/resend:
+    post:
+      tags:
+        - Auth
+      summary: 重发同一注册请求的邮箱验证码
+      operationId: post_api_v1_public_auth_email_register_resend
+      security: []
+      parameters: []
+      responses:
+        "200":
+          $ref: "#/components/responses/Success"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "410":
+          description: 验证码请求已过期
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "429":
+          description: 验证码重发频率或次数超限
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EmailAuthVerificationRequest"
+  /api/v1/public/auth/email/register/cancel:
+    post:
+      tags:
+        - Auth
+      summary: 取消未完成的邮箱注册请求
+      operationId: post_api_v1_public_auth_email_register_cancel
+      security: []
+      parameters: []
+      responses:
+        "200":
+          $ref: "#/components/responses/Success"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EmailAuthVerificationRequest"
   /api/v1/public/auth/email/register/confirm:
     post:
       tags:
@@ -3465,6 +3527,14 @@ components:
           type: string
           minLength: 6
           maxLength: 6
+    EmailAuthVerificationRequest:
+      type: object
+      required:
+        - verificationId
+      properties:
+        verificationId:
+          type: string
+          description: 注册验证码请求 ID。
     EmailAuthLoginRequest:
       type: object
       required:

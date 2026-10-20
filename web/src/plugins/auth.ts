@@ -1,5 +1,5 @@
 import { notifyError } from '@/utils/message';
-import { addBrowserIdentityAccount, createBrowserIdentity, encryptObjectWithPassword, type BrowserIdentity } from '@/utils/identity';
+import { addBrowserIdentityAccount, clearEmailRegistrationDraft, createBrowserIdentity, encryptObjectWithPassword, getEmailRegistrationDraftId, hasEmailRegistrationDraft, loadEmailRegistrationDraft, saveEmailRegistrationDraft, type BrowserIdentity } from '@/utils/identity';
 import { startRegistration } from '@/utils/webauthn';
 import { getWalletDataStore } from '@/stores/auth';
 import { apiUrl } from '@/plugins/api';
@@ -71,8 +71,10 @@ type SiweVerifyResult = {
 };
 
 type EmailAuthRequest = { verificationId: string; email: string; expiresAt: string };
-type EmailRegisterRequest = EmailAuthRequest & { identity: string; registrationId: string; identityDocument: Record<string, unknown>; identityMaterial: BrowserIdentity; username: string; avatarUri: string; password: string; wallet: Wallet; walletId: string; accountId: string };
+type PasskeyPreference = 'auto' | 'client-device' | 'hybrid' | 'security-key';
+type EmailRegisterRequest = EmailAuthRequest & { identity: string; registrationId: string; identityDocument: Record<string, unknown>; identityMaterial: BrowserIdentity; username: string; avatarUri: string; password: string; wallet: Wallet; walletId: string; accountId: string; passkeyPreference?: PasskeyPreference };
 type EmailRegisterResponse = EmailAuthRequest & { identity: string; registrationId: string; username: string; avatarUri: string };
+type StoredEmailRegisterRequest = Omit<EmailRegisterRequest, 'wallet' | 'password'> & { walletPrivateKey: string };
 
 const UCAN_API_TOKEN_KEY = 'ucanToken';
 const UCAN_WEBDAV_TOKEN_KEY = 'webdavToken';
@@ -1156,7 +1158,7 @@ export async function confirmEmailLogin(verificationId: string, code: string): P
   return true;
 }
 
-export async function requestEmailRegistration(input: { email: string; username: string; avatar: string; password: string; deviceName?: string }): Promise<EmailRegisterRequest> {
+export async function requestEmailRegistration(input: { email: string; username: string; avatar: string; password: string; deviceName?: string; passkeyPreference?: PasskeyPreference }): Promise<EmailRegisterRequest> {
   const identity = await createBrowserIdentity(input.password);
   const wallet = Wallet.createRandom();
   const walletId = `wallet_${Date.now()}_${crypto.getRandomValues(new Uint32Array(1))[0].toString(36)}`;
@@ -1168,7 +1170,52 @@ export async function requestEmailRegistration(input: { email: string; username:
     identityDocument: identity.document,
     deviceName: input.deviceName || 'Browser Passkey',
   }, '创建邮箱注册请求失败');
-  return { ...result, identityDocument: identity.document, identityMaterial: identity, username: input.username, avatarUri: input.avatar, password: input.password, wallet, walletId, accountId };
+  const request = { ...result, identityDocument: identity.document, identityMaterial: identity, username: input.username, avatarUri: input.avatar, password: input.password, wallet, walletId, accountId, passkeyPreference: input.passkeyPreference || 'auto' as PasskeyPreference };
+  try {
+    await persistEmailRegistrationDraft(request);
+  } catch (error) {
+    await postAuthJson('/api/v1/public/auth/email/register/cancel', { verificationId: request.verificationId }, '取消未保存的注册请求失败').catch(() => undefined);
+    throw error;
+  }
+  return request;
+}
+
+async function persistEmailRegistrationDraft(request: EmailRegisterRequest) {
+  const { password, wallet, ...rest } = request;
+  const stored: StoredEmailRegisterRequest = { ...rest, walletPrivateKey: wallet.privateKey };
+  await saveEmailRegistrationDraft(stored, password, request.verificationId, request.expiresAt);
+}
+
+export async function resumeEmailRegistration(password: string): Promise<EmailRegisterRequest> {
+  const draft = await loadEmailRegistrationDraft<StoredEmailRegisterRequest>(password);
+  const { walletPrivateKey, ...request } = draft.value;
+  return { ...request, verificationId: draft.verificationId, expiresAt: draft.expiresAt, wallet: new Wallet(walletPrivateKey), password };
+}
+
+export async function hasPendingEmailRegistration() {
+  return await hasEmailRegistrationDraft();
+}
+
+export async function resendEmailRegistration(request: EmailRegisterRequest): Promise<EmailRegisterRequest> {
+  const result = await postAuthJson<{ verificationId: string; email: string; expiresAt: string; resendsRemaining: number }>(
+    '/api/v1/public/auth/email/register/resend', { verificationId: request.verificationId }, '重新发送注册验证码失败'
+  );
+  const updated = { ...request, ...result };
+  await persistEmailRegistrationDraft(updated);
+  return updated;
+}
+
+export async function cancelEmailRegistration(verificationId?: string) {
+  const id = verificationId || await getEmailRegistrationDraftId();
+  if (id) {
+    try {
+      await postAuthJson<{ cancelled: boolean }>('/api/v1/public/auth/email/register/cancel', { verificationId: id }, '取消邮箱注册失败');
+    } catch (error) {
+      const message = String(error instanceof Error ? error.message : error || '').toUpperCase();
+      if (!message.includes('NOT_FOUND') && !message.includes('EXPIRED')) throw error;
+    }
+  }
+  await clearEmailRegistrationDraft();
 }
 
 export async function confirmEmailRegistration(
@@ -1182,7 +1229,7 @@ export async function confirmEmailRegistration(
     identity: string;
     passkeyRequest: Record<string, any>;
   }>('/api/v1/public/auth/email/register/confirm', { verificationId: request.verificationId, code }, '邮箱验证码无效');
-  const credential = await startRegistration(verified.passkeyRequest as any, passkeyHint);
+  const credential = await startRegistration(verified.passkeyRequest as any, passkeyHint || (request.passkeyPreference === 'auto' ? undefined : request.passkeyPreference));
   await postAuthJson('/api/v1/public/identity/register/confirm', {
     registrationId: verified.registrationId,
     identityDocument: request.identityDocument,
@@ -1233,6 +1280,7 @@ export async function confirmEmailRegistration(
       custody: { walletId: request.walletId, accountId: request.accountId, address: request.wallet.address, ciphertext, metadata: { version: 2, walletType: 'imported', accountCount: 1, identityCount: 1, hasWalletIdentity: true, exportedAt: createdAt } },
     }, '完成邮箱注册失败'
   );
+  await clearEmailRegistrationDraft();
   clearManualLogoutMark();
   handleAccountChange(registered.identity || registered.address);
   persistAuthToken(registered.token, registered.expiresAt);
@@ -1245,7 +1293,7 @@ export function getCurrentAccount() {
 }
 
 export function getStoredAuthToken() {
-  if (typeof localStorage === 'undefined') {
+  if (typeof localStorage === 'undefined' || isManualLogout()) {
     return '';
   }
   const stored = readStoredAuthToken();
