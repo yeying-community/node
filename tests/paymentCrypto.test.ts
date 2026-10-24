@@ -1,11 +1,25 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
+
+vi.mock('../src/security/secretVault', () => ({
+  getDerivedRuntimeSecret: () => 'ab'.repeat(32),
+}))
+
 import {
   buildMerchantPaymentSignature,
   canonicalPaymentJson,
+  decryptPaymentMerchantSecret,
+  encryptPaymentMerchantSecret,
   verifyMerchantPaymentSignature,
 } from '../src/domain/service/paymentCrypto'
 
 describe('payment request signatures', () => {
+  it('encrypts and decrypts merchant secrets with the derived 32-byte key', () => {
+    const encrypted = encryptPaymentMerchantSecret('merchant-secret')
+
+    expect(encrypted).toMatch(/^v1\./)
+    expect(decryptPaymentMerchantSecret(encrypted)).toBe('merchant-secret')
+  })
+
   it('canonicalizes object keys and verifies the signed request', () => {
     const body = { amountMinor: '100', nested: { z: 2, a: 1 }, items: ['b', 'a'] }
     expect(canonicalPaymentJson({ b: 1, a: 2 })).toBe('{"a":2,"b":1}')

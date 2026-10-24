@@ -13,7 +13,7 @@ function fromBase64Url(value: string): Buffer {
 function paymentSecretKey(): Buffer {
     const derived = getDerivedRuntimeSecret('payment-merchant-secret')
     if (!derived) throw new Error('NODE_KEY_DERIVATION_SECRET is required when payment merchants are used')
-    return Buffer.from(derived, 'utf8')
+    return Buffer.from(derived, 'hex')
 }
 
 export function canonicalPaymentJson(value: unknown): string {
