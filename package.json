@@ -39,7 +39,7 @@
     "logform": "^2.7.0",
     "luxon": "^3.5.0",
     "mysql2": "^3.23.1",
-    "nodemailer": "10.0.13",
+    "nodemailer": "10.2.1",
     "pg": "^8.13.1",
     "reflect-metadata": "^0.2.2",
     "siwe": "^3.0.0",
@@ -67,7 +67,7 @@
     "yaml": "^2.9.0"
   },
   "overrides": {
-    "qs": "6.16.0",
+    "qs": "6.16.1",
     "proxy-addr": "2.0.8",
     "glob": {
       "minimatch": {
