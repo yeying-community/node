@@ -207,13 +207,6 @@ module.exports = {
       challengeTtlMs: 2 * 60 * 1000
     }
   },
-  audit: {
-    // Wallet addresses allowed to approve audit-gated operations. Use normalized addresses;
-    // an empty entry is a placeholder and grants no useful approval identity.
-    approvers: [''],
-    // Number of distinct valid approver signatures required before an operation is accepted.
-    requiredApprovals: 1
-  },
   mpc: {
     // Number of days to retain MPC messages before cleanup.
     messageRetentionDays: 7,
@@ -404,3 +397,13 @@ module.exports = {
     replyTo: 'support@example.com',
   }
 }
+
+// BEGIN YEYING AUDIT CONFIG (managed by ./cmd audit)
+// Wallet addresses allowed to approve audit-gated operations and the number of distinct
+// signatures required. Use `./cmd audit ...` to preserve validation and update this block.
+// New policies apply to newly created audits; existing audits retain their saved policy.
+;module.exports.audit = {
+  "approvers": [],
+  "requiredApprovals": 1
+};
+// END YEYING AUDIT CONFIG

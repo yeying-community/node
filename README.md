@@ -83,7 +83,21 @@ npm run dev:secure
 ./cmd secrets set MAIL_SMTP_PASSWORD
 ./cmd secrets passwd
 ./cmd admin allow add 0x你的钱包地址
+./cmd audit show
+./cmd audit set --approvers 0x1111111111111111111111111111111111111111 --required-approvals 1
 ```
+
+审核策略属于非敏感运行配置，但会直接决定默认审核人以及需要多少人同意，因此统一通过 `./cmd audit` 校验并更新：
+
+```bash
+./cmd audit show
+./cmd audit set --approvers 0x1111111111111111111111111111111111111111,0x2222222222222222222222222222222222222222 --required-approvals 2
+./cmd audit approver add 0x3333333333333333333333333333333333333333
+./cmd audit approver remove 0x3333333333333333333333333333333333333333
+./cmd audit threshold set 1
+```
+
+命令会规范化钱包地址、去重，并拒绝大于审核人数的阈值。JavaScript 配置会保留原内容，在文件末尾维护一个带标记的 audit 覆盖块；修改后执行 `./cmd service restart` 才会生效。审核策略会在创建审核单时写入该审核单，因此新配置只影响之后创建的审核，已经存在的待审核单继续使用其原策略。完整策略调整优先使用一次性的 `audit set`，避免分步变更产生不一致的中间状态。
 
 本地开发、测试、构建和打包继续使用 `npm run dev:secure`、`npm test`、`npm run build:all`、`npm run package:release -- <tag>`；这些源码态能力不放进 `./cmd`。
 

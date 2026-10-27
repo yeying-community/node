@@ -11,6 +11,7 @@
 ./cmd health [health-check options]
 ./cmd secrets init|set|remove|unlock|verify|migrate-config|migrate [args]
 ./cmd admin allow add|remove|list [did-or-wallet]
+./cmd audit show|set|approver|threshold [args]
 ```
 
 ## 生产运维脚本
@@ -35,6 +36,7 @@
 | `migrate-config-secrets.cjs` | 将 `config.js` 中仍以明文保存的敏感项迁移到加密密钥仓，并从配置文件移除明文。 | `./cmd secrets migrate-config`、`npm run secrets:migrate-config` |
 | `migrate-secrets.cjs` | 迁移旧版 vault key，并按统一密钥模型重加密 Webhook 相关记录；执行前会备份 vault 文件。 | `./cmd secrets migrate`、`npm run secrets:migrate` |
 | `admin-allow.cjs` | 管理密钥仓中的 `ADMIN_DIDS`，用于添加、删除、查看管理员 DID 或钱包地址。 | `./cmd admin allow add 0x...`、`npm run admin:allow -- list` |
+| `audit-config.cjs` | 校验、查看并原子更新 `config.js` 中的审核人和审批阈值；更新后需重启服务。 | `./cmd audit show`、`./cmd audit set --approvers 0x...,0x... --required-approvals 2` |
 
 ## 发布与接口脚本
 
