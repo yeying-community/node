@@ -70,7 +70,7 @@ database: {
 }
 ```
 
-服务启动时会自动执行已注册的 PostgreSQL migration。生产部署前应先备份数据库，并在预发布环境验证 migration 的 `up` 和服务启动流程。
+服务启动时会自动执行已注册的 PostgreSQL migration。新增 migration 时，必须同时在 `src/server.ts` 导入并加入 `builder.migrations([...])`；`npm run check:migrations` 会检查迁移文件与注册表是否一致，CI 也会执行该检查。生产部署前应先备份数据库，并在预发布环境验证 migration 的 `up` 和服务启动流程。
 
 ## 5. 生产配置重点
 
