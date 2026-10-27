@@ -19,6 +19,7 @@
     "secrets:unlock": "node scripts/unlock-secrets.cjs",
     "secrets:verify": "node scripts/verify-secrets.cjs",
     "admin:allow": "node scripts/admin-allow.cjs",
+    "audit:config": "node scripts/audit-config.cjs",
     "package:release": "bash scripts/package.sh",
     "start": "node dist/server.js",
     "dev": "nodemon --watch 'src/**/*' -e ts --exec 'ts-node src/server.ts'"
