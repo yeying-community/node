@@ -99,6 +99,26 @@ npm run dev:secure
 
 命令会规范化钱包地址、去重，并拒绝大于审核人数的阈值。JavaScript 配置会保留原内容，在文件末尾维护一个带标记的 audit 覆盖块；修改后执行 `./cmd service restart` 才会生效。审核策略会在创建审核单时写入该审核单，因此新配置只影响之后创建的审核，已经存在的待审核单继续使用其原策略。完整策略调整优先使用一次性的 `audit set`，避免分步变更产生不一致的中间状态。
 
+### 邮箱身份重新注册
+
+邮箱身份注册异常或测试账号需要重置时，先执行预览。预览只读取数据库，不修改数据：
+
+```bash
+./cmd identity email reset 13815438109@126.com
+```
+
+确认预览中的 DID、用户名和钱包地址确实属于目标账号后，停止所有连接同一数据库的 Node 实例，再执行。正式执行会校验本机 Node PID 文件和配置端口均未运行；如手动启动服务，也必须确保其监听端口已经释放：
+
+```bash
+./cmd service stop
+./cmd identity email reset 13815438109@126.com \
+  --execute \
+  --confirm-email 13815438109@126.com
+./cmd service start
+```
+
+重置在单个数据库事务中完成，并在提交前确认邮箱、用户名、DID 注册、Passkey、钱包绑定、托管密文和身份会话等阻塞项已经清零。旧 UCAN、授权会话和 scoped grant 会被失效。命令不会删除 `users` / `user_state`、用户创建的应用、审核单或安全审计日志，因此它是“允许重新注册”的身份重置工具，不是 GDPR 意义上的全量数据抹除工具。正式执行要求本机 Node PID 已停止；多实例部署必须先停止所有连接同一数据库的实例。已经签发的短期 access JWT 是无状态令牌，数据库重置无法单独撤回，只能等待 `auth.accessTtlMs` 到期。
+
 本地开发、测试、构建和打包继续使用 `npm run dev:secure`、`npm test`、`npm run build:all`、`npm run package:release -- <tag>`；这些源码态能力不放进 `./cmd`。
 
 ### 密钥仓运维

@@ -2,7 +2,7 @@ import { createHmac, generateKeyPairSync, sign } from 'node:crypto'
 import { vi } from 'vitest'
 import { SingletonDataSource } from '../src/domain/facade/datasource'
 import { createInMemoryDataSource } from './helpers/inMemoryDataSource'
-import { IdentityAccountLinkDO, IdentityAuditLogDO, IdentityAuthorizationCodeDO, IdentityAuthorizationRequestDO, IdentityCredentialDO, IdentityPasskeyCredentialDO, IdentityRegistrationDO, IdentityTotpAuthenticatorDO, IdentityUsernameDO, IdentityWebauthnChallengeDO } from '../src/domain/mapper/entity'
+import { IdentityAccountLinkDO, IdentityAuditLogDO, IdentityAuthorizationCodeDO, IdentityAuthorizationRequestDO, IdentityCredentialDO, IdentityEmailAccountDO, IdentityPasskeyCredentialDO, IdentityRegistrationDO, IdentityTotpAuthenticatorDO, IdentityUsernameDO, IdentityWebauthnChallengeDO } from '../src/domain/mapper/entity'
 
 const projectUcanPolicy = vi.hoisted(() => ({
   audience: 'did:web:router.example',
@@ -443,6 +443,13 @@ describe('identity authorization', () => {
       reservedUntil: '',
       createdAt: '2026-08-20T00:00:00.000Z',
       updatedAt: '2026-08-20T00:00:00.000Z'
+    }))
+    await SingletonDataSource.get()!.getRepository(IdentityEmailAccountDO).save(Object.assign(new IdentityEmailAccountDO(), {
+      email: 'alice@example.com',
+      identityDid: passkeyIdentity,
+      status: 'active',
+      createdAt: '2026-08-20T00:00:00.000Z',
+      verifiedAt: '2026-08-20T00:00:00.000Z'
     }))
     for (const item of [
       { type: 'EmailCredential' as const, credentialId: 'expired-email', claim: { email: 'alice@example.com', emailVerifiedAt: '2026-08-20T00:00:00.000Z' } },

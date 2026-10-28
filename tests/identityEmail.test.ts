@@ -1,8 +1,8 @@
 import { Wallet } from 'ethers'
-import { generateKeyPairSync, sign } from 'node:crypto'
-import { vi } from 'vitest'
+import { generateKeyPairSync, randomUUID, sign } from 'node:crypto'
+import { beforeEach, vi } from 'vitest'
 import { SingletonDataSource } from '../src/domain/facade/datasource'
-import { IdentityCredentialDO, IdentityUsernameDO } from '../src/domain/mapper/entity'
+import { IdentityAccountLinkDO, IdentityAuditLogDO, IdentityCredentialDO, IdentityEmailAccountDO, IdentityUsernameDO, IdentityVerificationTransactionDO } from '../src/domain/mapper/entity'
 import { createInMemoryDataSource } from './helpers/inMemoryDataSource'
 
 vi.mock('../src/config/runtime', () => ({ getConfig: (key: string) => key === 'issuer.identity.usernameNamespace' ? 'node.yeying.pub' : undefined }))
@@ -42,6 +42,15 @@ function createDocument(walletIdentityId: string) {
 const { issueAccountLinkChallenge, verifyAccountLink } = await import('../src/auth/identityAccountLink')
 const { IdentityEmailService } = await import('../src/domain/service/identityEmail')
 
+beforeEach(() => SingletonDataSource.set(createInMemoryDataSource()))
+
+async function linkWallet(identity: string, identityDocument: any) {
+  const wallet = Wallet.createRandom()
+  const challenge = await issueAccountLinkChallenge({ identity, account: { chainKey: 'eip155:1', address: wallet.address } })
+  await verifyAccountLink({ identityDocument, identity, account: challenge.account, nonce: challenge.nonce, issuedAt: challenge.issuedAt, expiresAt: challenge.expiresAt, accountSignature: await wallet.signMessage(challenge.message) })
+  return challenge.account
+}
+
 describe('identity email credential', () => {
   it('issues an EmailCredential only after email code confirmation', async () => {
     const wallet = Wallet.createRandom()
@@ -56,6 +65,99 @@ describe('identity email credential', () => {
     expect(result.credentials[0].credentialId).toContain('urn:yeying:credential:email:email_')
     expect(result.credentials[0].type).toBe('EmailCredential')
     expect(result.types).toEqual(['email'])
+    expect(await SingletonDataSource.get().getRepository(IdentityEmailAccountDO).findOneBy({ email: 'alice@example.com' })).toMatchObject({ identityDid: identity, status: 'active' })
+  })
+
+  it('allows multiple wallets for the same DID to reverify its one bound email', async () => {
+    const fixture = createDocument(`wid_email_multiwallet_${randomUUID().replace(/-/g, '')}`)
+    const firstAccount = await linkWallet(fixture.identity, fixture.document)
+    const secondAccount = await linkWallet(fixture.identity, fixture.document)
+    let sent = ''
+    const service = new IdentityEmailService(async ({ code }) => { sent = code })
+
+    const first = await service.request({ types: ['email'], identity: fixture.identity, account: firstAccount, email: 'multi@example.com' })
+    await service.confirm({ types: ['email'], verificationId: first.verificationId, codes: { email: sent } })
+    const second = await service.request({ types: ['email'], identity: fixture.identity, account: secondAccount, email: 'multi@example.com' })
+    await service.confirm({ types: ['email'], verificationId: second.verificationId, codes: { email: sent } })
+
+    const bindings = await SingletonDataSource.get().getRepository(IdentityEmailAccountDO).findBy({ identityDid: fixture.identity, status: 'active' })
+    const emailCredentials = await SingletonDataSource.get().getRepository(IdentityCredentialDO).findBy({ identityDid: fixture.identity, credentialType: 'EmailCredential' })
+    const walletLinks = await SingletonDataSource.get().getRepository(IdentityAccountLinkDO).findBy({ identityDid: fixture.identity, status: 'active' })
+    expect(bindings).toHaveLength(1)
+    expect(bindings[0].email).toBe('multi@example.com')
+    expect(emailCredentials.filter(row => row.status === 'active')).toHaveLength(1)
+    expect(emailCredentials.filter(row => row.status === 'replaced')).toHaveLength(1)
+    expect(walletLinks).toHaveLength(2)
+  })
+
+  it('rejects a second DID after OTP confirmation without issuing an email credential', async () => {
+    const firstIdentity = createDocument(`wid_email_owner_${randomUUID().replace(/-/g, '')}`)
+    const secondIdentity = createDocument(`wid_email_other_${randomUUID().replace(/-/g, '')}`)
+    const firstAccount = await linkWallet(firstIdentity.identity, firstIdentity.document)
+    const secondAccount = await linkWallet(secondIdentity.identity, secondIdentity.document)
+    let sent = ''
+    const service = new IdentityEmailService(async ({ code }) => { sent = code })
+    const first = await service.request({ types: ['email'], identity: firstIdentity.identity, account: firstAccount, email: 'unique@example.com' })
+    await service.confirm({ types: ['email'], verificationId: first.verificationId, codes: { email: sent } })
+
+    const second = await service.request({ types: ['email'], identity: secondIdentity.identity, account: secondAccount, email: 'unique@example.com' })
+    await expect(service.confirm({ types: ['email'], verificationId: second.verificationId, codes: { email: sent } })).rejects.toThrow('IDENTITY_EMAIL_ALREADY_BOUND')
+
+    expect(await SingletonDataSource.get().getRepository(IdentityEmailAccountDO).findOneBy({ email: 'unique@example.com' })).toMatchObject({ identityDid: firstIdentity.identity })
+    expect(await SingletonDataSource.get().getRepository(IdentityCredentialDO).findBy({ identityDid: secondIdentity.identity, credentialType: 'EmailCredential' })).toHaveLength(0)
+    expect(await SingletonDataSource.get().getRepository(IdentityVerificationTransactionDO).findOneBy({ verificationId: second.verificationId })).toMatchObject({ status: 'rejected' })
+  })
+
+  it('maps a database uniqueness race to a stable conflict and audits the rejection', async () => {
+    const fixture = createDocument(`wid_email_race_${randomUUID().replace(/-/g, '')}`)
+    const account = await linkWallet(fixture.identity, fixture.document)
+    let sent = ''
+    const service = new IdentityEmailService(async ({ code }) => { sent = code })
+    const request = await service.request({ types: ['email'], identity: fixture.identity, account, email: 'race@example.com' })
+
+    const ds = SingletonDataSource.get()
+    const getRepository = ds.getRepository.bind(ds)
+    let failInsert = true
+    ds.getRepository = (target: any) => {
+      const repository = getRepository(target)
+      if (target !== IdentityEmailAccountDO) return repository
+      return {
+        ...repository,
+        async save(row: any) {
+          if (failInsert) {
+            failInsert = false
+            throw Object.assign(new Error('unique constraint violation'), { driverError: { code: '23505' } })
+          }
+          return repository.save(row)
+        },
+      }
+    }
+
+    try {
+      await expect(service.confirm({ types: ['email'], verificationId: request.verificationId, codes: { email: sent } }))
+        .rejects.toThrow('IDENTITY_EMAIL_BINDING_CONFLICT')
+    } finally {
+      ds.getRepository = getRepository
+    }
+
+    expect(await getRepository(IdentityEmailAccountDO).findOneBy({ email: 'race@example.com' })).toBeNull()
+    expect(await getRepository(IdentityCredentialDO).findBy({ identityDid: fixture.identity, credentialType: 'EmailCredential' })).toHaveLength(0)
+    expect(await getRepository(IdentityVerificationTransactionDO).findOneBy({ verificationId: request.verificationId })).toMatchObject({ status: 'rejected' })
+    expect(await getRepository(IdentityAuditLogDO).findOneBy({ identityDid: fixture.identity, action: 'identity_email_binding_rejected' }))
+      .toMatchObject({ outcome: 'rejected' })
+  })
+
+  it('requires an explicit flow to change the email already bound to a DID', async () => {
+    const fixture = createDocument(`wid_email_change_${randomUUID().replace(/-/g, '')}`)
+    const account = await linkWallet(fixture.identity, fixture.document)
+    let sent = ''
+    const service = new IdentityEmailService(async ({ code }) => { sent = code })
+    const first = await service.request({ types: ['email'], identity: fixture.identity, account, email: 'old@example.com' })
+    await service.confirm({ types: ['email'], verificationId: first.verificationId, codes: { email: sent } })
+
+    const second = await service.request({ types: ['email'], identity: fixture.identity, account, email: 'new@example.com' })
+    await expect(service.confirm({ types: ['email'], verificationId: second.verificationId, codes: { email: sent } })).rejects.toThrow('IDENTITY_EMAIL_CHANGE_REQUIRES_AUTHORIZATION')
+    expect(await SingletonDataSource.get().getRepository(IdentityEmailAccountDO).findBy({ identityDid: fixture.identity, status: 'active' })).toMatchObject([{ email: 'old@example.com' }])
   })
 
   it('treats unsupported types as an atomic transaction failure', async () => {

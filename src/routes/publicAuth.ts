@@ -70,6 +70,7 @@ function getCookie(req: Request, name: string): string | undefined {
 function emailErrorStatus(message: string) {
   if (message.includes('RATE_LIMITED') || message.includes('RESEND_LIMIT')) return 429
   if (message.includes('NOT_FOUND') || message.includes('ACCOUNT_NOT_FOUND')) return 404
+  if (message.includes('EMAIL_ALREADY_BOUND') || message.includes('EMAIL_CHANGE_REQUIRES_AUTHORIZATION') || message.includes('EMAIL_BINDING_CONFLICT')) return 409
   if (message.includes('ALREADY_REGISTERED') || message.includes('ALREADY_ACTIVE') || message.includes('USERNAME_TAKEN')) return 409
   if (message.includes('EXPIRED')) return 410
   if (message.includes('INVALID') || message.includes('REQUIRED') || message.includes('NOT_ACTIVE') || message.includes('RESERVATION')) return 400

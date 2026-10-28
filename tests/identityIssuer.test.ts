@@ -2,7 +2,7 @@ import { createPrivateKey, createPublicKey, generateKeyPairSync, sign, verify } 
 import { vi } from 'vitest'
 import { SingletonDataSource } from '../src/domain/facade/datasource'
 import { createInMemoryDataSource } from './helpers/inMemoryDataSource'
-import { IdentityCredentialDO } from '../src/domain/mapper/entity'
+import { IdentityCredentialDO, IdentityEmailAccountDO } from '../src/domain/mapper/entity'
 
 const seed = '11'.repeat(32)
 vi.mock('../src/security/secretVault', () => ({
@@ -12,7 +12,7 @@ vi.mock('../src/config/runtime', () => ({
   getConfig: (key: string) => ({ 'issuer.baseUrl': 'https://node.example' } as Record<string, unknown>)[key]
 }))
 
-const { getIdentityIssuerJwks, getIdentityIssuerMetadata, issueIdentityCredential, getCredentialStatus, revokeCredential, createCredentialReissueChallenge, confirmCredentialReissue } =
+const { getIdentityIssuerJwks, getIdentityIssuerMetadata, issueIdentityCredential, getCredentialStatus, revokeCredential, createCredentialReissueChallenge, confirmCredentialReissue, ensureIdentityCredentials } =
   await import('../src/auth/identityIssuer')
 
 function canonicalize(value: any): string {
@@ -59,6 +59,38 @@ describe('identity issuer foundation', () => {
     await expect(revokeCredential('cred_email_1')).rejects.toThrow('IDENTITY_STORAGE_UNAVAILABLE')
   })
 
+  it('does not allow email credential reissue without an active email binding', async () => {
+    SingletonDataSource.set(createInMemoryDataSource())
+    await expect(createCredentialReissueChallenge({
+      identity: 'did:yeying:wid_1234567890123456789012',
+      credentialTypes: ['EmailCredential']
+    })).rejects.toThrow('IDENTITY_CREDENTIAL_REISSUE_UNAVAILABLE:EmailCredential')
+  })
+
+  it('reissues a mismatched active email credential from the active binding', async () => {
+    SingletonDataSource.set(createInMemoryDataSource())
+    const identity = 'did:yeying:wid_1234567890123456789012'
+    await SingletonDataSource.get()!.getRepository(IdentityEmailAccountDO).save(Object.assign(new IdentityEmailAccountDO(), {
+      email: 'bound@example.com', identityDid: identity, status: 'active', createdAt: '2026-10-20T00:00:00.000Z', verifiedAt: '2026-10-20T00:00:00.000Z'
+    }))
+    const oldToken = issueIdentityCredential({
+      credentialId: 'email-old', subject: identity, type: 'EmailCredential',
+      claim: { email: 'stale@example.com', emailVerifiedAt: '2026-10-19T00:00:00.000Z' },
+      expiresInSeconds: 7 * 86400,
+    })
+    await SingletonDataSource.get()!.getRepository(IdentityCredentialDO).save(Object.assign(new IdentityCredentialDO(), {
+      credentialId: 'email-old', identityDid: identity, credentialType: 'EmailCredential', token: oldToken,
+      status: 'active', issuedAt: '2026-10-20T00:00:00.000Z', expiresAt: new Date(Date.now() + 86400000).toISOString(), revokedAt: ''
+    }))
+
+    const result = await ensureIdentityCredentials({ identity, credentialTypes: ['EmailCredential'] })
+    expect(result.credentials).toHaveLength(1)
+    const payload = JSON.parse(Buffer.from(result.credentials[0].credential.split('.')[1], 'base64url').toString())
+    expect(payload.vc.credentialSubject.email).toBe('bound@example.com')
+    expect(await SingletonDataSource.get()!.getRepository(IdentityCredentialDO).findOneBy({ credentialId: 'email-old' }))
+      .toMatchObject({ status: 'replaced' })
+  })
+
   it('reissues credentials from an existing verified fact with controller proof', async () => {
     SingletonDataSource.set(createInMemoryDataSource())
     const identity = 'did:yeying:wid_1234567890123456789012'
@@ -80,11 +112,14 @@ describe('identity issuer foundation', () => {
       ...document,
       proof: { type: 'YeyingIdentityDocumentProofV1', verificationMethod: `${identity}#controller-1`, purpose: 'manage', proofValue: sign(null, Buffer.from(canonicalize(document)), privateKey).toString('base64url') }
     }
+    await SingletonDataSource.get()!.getRepository(IdentityEmailAccountDO).save(Object.assign(new IdentityEmailAccountDO(), {
+      email: 'alice@example.com', identityDid: identity, status: 'active', createdAt: '2026-08-20T00:00:00.000Z', verifiedAt: '2026-08-20T00:00:00.000Z'
+    }))
     const expiredCredential = issueIdentityCredential({
       credentialId: 'email-expired-1',
       subject: identity,
       type: 'EmailCredential',
-      claim: { email: 'alice@example.com', emailVerifiedAt: '2026-08-20T00:00:00.000Z', credentialStatus: { id: 'email-expired-1', type: 'YeyingCredentialStatusV1' } },
+      claim: { email: 'legacy@example.com', emailVerifiedAt: '2026-08-20T00:00:00.000Z', credentialStatus: { id: 'email-expired-1', type: 'YeyingCredentialStatusV1' } },
       expiresInSeconds: 60
     })
     await SingletonDataSource.get()!.getRepository(IdentityCredentialDO).save(Object.assign(new IdentityCredentialDO(), {
@@ -124,6 +159,7 @@ describe('identity issuer foundation', () => {
     const payload = JSON.parse(Buffer.from(result.credentials[0].credential.split('.')[1], 'base64url').toString())
     expect(payload.vc.credentialSubject.email).toBe('alice@example.com')
     expect(payload.vc.credentialSubject.credentialStatus.id).toBe(result.credentials[0].credentialId)
+    expect(await SingletonDataSource.get()!.getRepository(IdentityCredentialDO).findOneBy({ credentialId: 'email-expired-1' })).toMatchObject({ status: 'replaced' })
     expect(result.credentials[1].credentialId).toContain('urn:yeying:credential:reissue:avatar:')
     await expect(confirmCredentialReissue({ identity, challengeId: challenge.challengeId, identityDocument, proof })).rejects.toThrow('IDENTITY_CREDENTIAL_REISSUE_CHALLENGE_NOT_FOUND')
   })

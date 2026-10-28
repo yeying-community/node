@@ -33,6 +33,12 @@ function id(prefix: string) { return `${prefix}_${randomUUID()}` }
 function hashCode(challengeId: string, code: string) { return createHash('sha256').update(`${challengeId}:${code}`).digest('hex') }
 function now() { return new Date().toISOString() }
 
+function isUniqueConstraintViolation(error: unknown) {
+  const value = error as { code?: string; driverError?: { code?: string } }
+  const code = String(value?.driverError?.code || value?.code || '')
+  return code === '23505' || code === 'ER_DUP_ENTRY'
+}
+
 function normalizeUsername(value: unknown) {
   const username = String(value || '').trim().normalize('NFC').toLowerCase()
   if (!USERNAME_RE.test(username)) throw new Error('IDENTITY_USERNAME_INVALID')
@@ -292,6 +298,8 @@ export class IdentityEmailAuthService {
       if (!registration || registration.identityDid !== challenge.identityDid) throw new Error('IDENTITY_REGISTRATION_NOT_ACTIVE')
       const existing = await manager.getRepository(IdentityEmailAccountDO).findOneBy({ email: challenge.email })
       if (existing) throw new Error('IDENTITY_EMAIL_ALREADY_REGISTERED')
+      const identityBinding = await manager.getRepository(IdentityEmailAccountDO).findOneBy({ identityDid: challenge.identityDid })
+      if (identityBinding) throw new Error('IDENTITY_EMAIL_BINDING_CONFLICT')
       const accountLink = input.accountLink || {}
       const accountInput = accountLink.account || {}
       const chainKey = String(accountInput.chainKey || '').trim()
@@ -329,7 +337,12 @@ export class IdentityEmailAuthService {
       Object.assign(user, { did: challenge.identityDid, name: challenge.username, avatar: challenge.avatarUri, createdAt: user.createdAt || verifiedAt, updatedAt: verifiedAt, signature: user.signature || '' })
       const custodyRow = new CustodyKeyRecordDO()
       Object.assign(custodyRow, { subjectType: 'wallet_address', subjectId: address, walletId, accountId, address, ciphertext, metadataJson: JSON.stringify(custody.metadata && typeof custody.metadata === 'object' ? custody.metadata : { version: 2, walletType: 'imported', accountCount: 1, identityCount: 1, hasWalletIdentity: true }), createdAt: verifiedAt, updatedAt: verifiedAt, lastVerifiedAt: verifiedAt })
-      await manager.getRepository(IdentityEmailAccountDO).save(emailAccount)
+      try {
+        await manager.getRepository(IdentityEmailAccountDO).save(emailAccount)
+      } catch (error) {
+        if (isUniqueConstraintViolation(error)) throw new Error('IDENTITY_EMAIL_BINDING_CONFLICT')
+        throw error
+      }
       await manager.getRepository(IdentityCredentialDO).save(row)
       await manager.getRepository(IdentityCredentialDO).save(usernameCredential.row)
       await manager.getRepository(IdentityCredentialDO).save(avatarCredential.row)

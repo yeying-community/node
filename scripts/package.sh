@@ -124,6 +124,7 @@ copy_release_files() {
   cp "$WORKTREE_DIR/scripts/.passphrase-file.template" "$release_root/scripts/.passphrase-file.template"
   cp "$WORKTREE_DIR/scripts/admin-allow.cjs" "$release_root/scripts/admin-allow.cjs"
   cp "$WORKTREE_DIR/scripts/audit-config.cjs" "$release_root/scripts/audit-config.cjs"
+  cp "$WORKTREE_DIR/scripts/reset-identity-email.cjs" "$release_root/scripts/reset-identity-email.cjs"
   cp "$WORKTREE_DIR/scripts/init-secrets.cjs" "$release_root/scripts/init-secrets.cjs"
   cp "$WORKTREE_DIR/scripts/unlock-secrets.cjs" "$release_root/scripts/unlock-secrets.cjs"
   cp "$WORKTREE_DIR/scripts/secret-vault.cjs" "$release_root/scripts/secret-vault.cjs"
@@ -140,6 +141,7 @@ copy_release_files() {
   chmod +x \
     "$release_root/scripts/admin-allow.cjs" \
     "$release_root/scripts/audit-config.cjs" \
+    "$release_root/scripts/reset-identity-email.cjs" \
     "$release_root/scripts/init-secrets.cjs" \
     "$release_root/scripts/unlock-secrets.cjs" \
     "$release_root/scripts/secret-vault.cjs" \

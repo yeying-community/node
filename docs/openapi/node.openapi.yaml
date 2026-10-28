@@ -162,7 +162,11 @@ paths:
         "403":
           $ref: "#/components/responses/Forbidden"
         "409":
-          $ref: "#/components/responses/Conflict"
+          description: 邮箱已经绑定到 active DID，错误 message 为 IDENTITY_EMAIL_ALREADY_REGISTERED。
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
       requestBody:
         required: true
         content:
@@ -274,7 +278,11 @@ paths:
         "403":
           $ref: "#/components/responses/Forbidden"
         "409":
-          $ref: "#/components/responses/Conflict"
+          description: 邮箱或 DID 已有绑定，或并发邮箱绑定冲突。错误 message 为 IDENTITY_EMAIL_ALREADY_REGISTERED 或 IDENTITY_EMAIL_BINDING_CONFLICT，不返回已绑定 DID。
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
       requestBody:
         required: true
         content:
@@ -705,7 +713,11 @@ paths:
         "403":
           $ref: "#/components/responses/Forbidden"
         "409":
-          $ref: "#/components/responses/Conflict"
+          description: 邮箱已绑定其他 DID、当前 DID 已绑定其他邮箱，或并发绑定冲突。错误 message 使用稳定错误码，且不返回已绑定 DID。
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
       requestBody:
         required: true
         content:
