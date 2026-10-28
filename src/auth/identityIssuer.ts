@@ -4,7 +4,7 @@ import type { EntityManager } from 'typeorm'
 import { getConfig } from '../config/runtime'
 import { getNodeIssuerDid, getNodeIssuerJwks, getNodeIssuerKeyId, signNodeBytes } from '../security/nodeIssuer'
 import { SingletonDataSource } from '../domain/facade/datasource'
-import { IdentityAccountLinkDO, IdentityAuditLogDO, IdentityCredentialDO, IdentityCredentialReissueChallengeDO, IdentityUsernameDO } from '../domain/mapper/entity'
+import { IdentityAccountLinkDO, IdentityAuditLogDO, IdentityCredentialDO, IdentityCredentialReissueChallengeDO, IdentityEmailAccountDO, IdentityUsernameDO } from '../domain/mapper/entity'
 import { canonicalizeIdentityValue, verifyIdentityController } from './identityAccountLink'
 
 
@@ -61,7 +61,7 @@ function credentialKind(type: IdentityCredentialType) {
   return 'wallet-account'
 }
 
-async function issueReissuedCredentials(manager: EntityManager, identity: string, credentialTypes: IdentityCredentialType[]) {
+async function issueReissuedCredentials(manager: EntityManager, identity: string, credentialTypes: IdentityCredentialType[], issuedAt: string) {
   const credentialRepository = manager.getRepository(IdentityCredentialDO)
   const accountLinkRepository = manager.getRepository(IdentityAccountLinkDO)
   const usernameRepository = manager.getRepository(IdentityUsernameDO)
@@ -85,6 +85,10 @@ async function issueReissuedCredentials(manager: EntityManager, identity: string
         usernameQualified: `${username.normalizedUsername}@${username.namespace}`,
         usernamePolicyVersion: 'v1'
       }
+    } else if (credentialType === 'EmailCredential') {
+      const binding = await manager.getRepository(IdentityEmailAccountDO).findOneBy({ identityDid: identity, status: 'active' })
+      if (!binding) throw new Error(`IDENTITY_CREDENTIAL_REISSUE_UNAVAILABLE:${credentialType}`)
+      claim = { email: binding.email, emailVerifiedAt: binding.verifiedAt, emailVerificationMethod: 'email-code-v1' }
     } else {
       if (!source) throw new Error(`IDENTITY_CREDENTIAL_REISSUE_UNAVAILABLE:${credentialType}`)
       claim = credentialClaimForReissue(source)
@@ -95,6 +99,9 @@ async function issueReissuedCredentials(manager: EntityManager, identity: string
     const payload = decodeCredentialPayload(credential)
     const row = new IdentityCredentialDO()
     Object.assign(row, { credentialId, identityDid: identity, credentialType, token: credential, status: 'active', issuedAt: new Date(payload.iat * 1000).toISOString(), expiresAt: new Date(payload.exp * 1000).toISOString(), revokedAt: '' })
+    if (credentialType === 'EmailCredential') {
+      await credentialRepository.update({ identityDid: identity, credentialType, status: 'active', revokedAt: '' }, { status: 'replaced', revokedAt: issuedAt })
+    }
     await credentialRepository.save(row)
     credentials.push({ type: credentialType, credentialId, credential })
   }
@@ -109,12 +116,16 @@ export async function ensureIdentityCredentials(input: { identity: unknown; cred
   let credentials: Array<{ type: string; credentialId: string; credential: string }> = []
   await ds.transaction(async manager => {
     const repository = manager.getRepository(IdentityCredentialDO)
+    const emailBinding = credentialTypes.includes('EmailCredential')
+      ? await manager.getRepository(IdentityEmailAccountDO).findOneBy({ identityDid: identity, status: 'active' })
+      : null
     const fresh = new Set((await repository.findBy({ identityDid: identity, status: 'active' }))
       .filter(item => !String(item.revokedAt || '').trim() && Date.parse(item.expiresAt) > Date.now())
+      .filter(item => item.credentialType !== 'EmailCredential' || Boolean(emailBinding && decodeCredentialPayload(item.token)?.vc?.credentialSubject?.email === emailBinding.email))
       .map(item => item.credentialType))
     const missing = credentialTypes.filter(type => !fresh.has(type))
     if (missing.length === 0) return
-    credentials = await issueReissuedCredentials(manager, identity, missing)
+    credentials = await issueReissuedCredentials(manager, identity, missing, issuedAt)
     const audit = new IdentityAuditLogDO()
     Object.assign(audit, { identityDid: identity, action: 'identity_credential_reissued', outcome: 'success', metadataJson: JSON.stringify({ credentialTypes: missing, credentialIds: credentials.map(item => item.credentialId), source: 'authorization_ensure' }), createdAt: issuedAt })
     await manager.getRepository(IdentityAuditLogDO).save(audit)
@@ -233,6 +244,11 @@ export async function createCredentialReissueChallenge(input: { identity: unknow
       if (links.length === 0) throw new Error(`IDENTITY_CREDENTIAL_REISSUE_UNAVAILABLE:${credentialType}`)
       continue
     }
+    if (credentialType === 'EmailCredential') {
+      const binding = await ds.getRepository(IdentityEmailAccountDO).findOneBy({ identityDid: identity, status: 'active' })
+      if (!binding) throw new Error(`IDENTITY_CREDENTIAL_REISSUE_UNAVAILABLE:${credentialType}`)
+      continue
+    }
     const records = await repo.findBy({ identityDid: identity, credentialType, status: 'active' })
     const latest = records
       .filter(record => !String(record.revokedAt || '').trim())
@@ -264,7 +280,7 @@ export async function reissueCredentialsFromVerifiedFacts(input: { identity: unk
   const issuedAt = new Date().toISOString()
   let credentials: Array<{ type: string; credentialId: string; credential: string }> = []
   await ds.transaction(async manager => {
-    credentials = await issueReissuedCredentials(manager, identity, credentialTypes)
+    credentials = await issueReissuedCredentials(manager, identity, credentialTypes, issuedAt)
     const audit = new IdentityAuditLogDO()
     Object.assign(audit, { identityDid: identity, action: 'identity_credential_reissued', outcome: 'success', metadataJson: JSON.stringify({ credentialTypes, credentialIds: credentials.map(item => item.credentialId), source: 'passkey_authorization' }), createdAt: issuedAt })
     await manager.getRepository(IdentityAuditLogDO).save(audit)
@@ -294,7 +310,7 @@ export async function confirmCredentialReissue(input: { identity: unknown; chall
   await ds.transaction(async manager => {
     const consumed = await manager.getRepository(IdentityCredentialReissueChallengeDO).update({ challengeId, status: 'pending' }, { status: 'consumed', consumedAt: issuedAt })
     if (!consumed.affected) throw new Error('IDENTITY_CREDENTIAL_REISSUE_CHALLENGE_NOT_FOUND')
-    credentials = await issueReissuedCredentials(manager, identity, credentialTypes)
+    credentials = await issueReissuedCredentials(manager, identity, credentialTypes, issuedAt)
     const audit = new IdentityAuditLogDO()
     Object.assign(audit, { identityDid: identity, action: 'identity_credential_reissued', outcome: 'success', metadataJson: JSON.stringify({ challengeId, credentialTypes, credentialIds: credentials.map(item => item.credentialId) }), createdAt: issuedAt })
     await manager.getRepository(IdentityAuditLogDO).save(audit)

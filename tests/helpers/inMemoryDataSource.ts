@@ -40,6 +40,7 @@ export function createInMemoryDataSource() {
           throw new Error('duplicate identity username')
         }
         const uniqueKeys: Record<string, string[][]> = {
+          IdentityEmailAccountDO: [['email'], ['identityDid']],
           PaymentMerchantDO: [['merchantId']],
           PaymentTransactionDO: [['tradeNo'], ['merchantId', 'idempotencyKey']],
           PaymentRefundDO: [['refundNo'], ['merchantId', 'idempotencyKey']],

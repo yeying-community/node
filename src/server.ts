@@ -127,6 +127,7 @@ import { AddEmailRegistrationProfile20261008100000 } from './migrations/20261008
 import { AddIdentityPasskeyAuthenticatorAttachment20261012100000 } from './migrations/20261012100000-add-identity-passkey-authenticator-attachment';
 import { AddPayments20261015100000 } from './migrations/20261015100000-add-payments';
 import { AddIdentityEmailRegistrationResend20261018100000 } from './migrations/20261018100000-add-identity-email-registration-resend';
+import { BackfillIdentityEmailBindings20261028000000 } from './migrations/20261028000000-backfill-identity-email-bindings';
 import { getConfig } from './config/runtime';
 import { startActionRequestCleanupJobs } from './domain/service/actionRequestCleanup';
 import { startMpcCleanupJobs } from './domain/service/mpcCleanup';
@@ -417,7 +418,8 @@ builder.migrations([
     AddEmailRegistrationProfile20261008100000,
     AddIdentityPasskeyAuthenticatorAttachment20261012100000,
     AddPayments20261015100000,
-    AddIdentityEmailRegistrationResend20261018100000
+    AddIdentityEmailRegistrationResend20261018100000,
+    BackfillIdentityEmailBindings20261028000000
 ])
 
 builder.build().initialize().then(async (conn) => {

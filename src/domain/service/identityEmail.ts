@@ -2,7 +2,7 @@ import { createHash, randomInt, randomUUID } from 'node:crypto'
 import { isAccountLinked } from '../../auth/identityAccountLink'
 import { issueIdentityCredential } from '../../auth/identityIssuer'
 import { SingletonDataSource } from '../facade/datasource'
-import { IdentityAuditLogDO, IdentityCredentialDO, IdentityUsernameDO, IdentityVerificationTransactionDO } from '../mapper/entity'
+import { IdentityAuditLogDO, IdentityCredentialDO, IdentityEmailAccountDO, IdentityUsernameDO, IdentityVerificationTransactionDO } from '../mapper/entity'
 import { getConfig } from '../../config/runtime'
 
 type Delivery = (input: { email: string; code: string; expiresAt: string }) => Promise<void>
@@ -43,6 +43,12 @@ function normalizeAvatarUri(avatarUri: unknown) {
 
 function hashCode(id: string, code: string) {
   return createHash('sha256').update(`${id}:${code}`).digest('hex')
+}
+
+function isUniqueConstraintViolation(error: unknown) {
+  const value = error as { code?: string; driverError?: { code?: string } }
+  const code = String(value?.driverError?.code || value?.code || '')
+  return code === '23505' || code === 'ER_DUP_ENTRY'
 }
 
 export class IdentityEmailService {
@@ -124,19 +130,10 @@ export class IdentityEmailService {
       await ds.getRepository(IdentityVerificationTransactionDO).update({ verificationId: challenge.id }, { status: challenge.status })
       throw new Error('IDENTITY_EMAIL_VERIFICATION_INVALID')
     }
-    challenge.status = 'verified'
     const verifiedAt = new Date().toISOString()
     const credentials: Array<{ type: string; credentialId: string; credential: string }> = []
     if (challenge.username) {
       const credentialId = `urn:yeying:credential:username:${challenge.id}`
-      await ds.transaction(async manager => {
-        const usernameRepository = manager.getRepository(IdentityUsernameDO)
-        const usernameRow = await usernameRepository.findOneBy({ namespace: NAMESPACE, normalizedUsername: challenge.username })
-        if (!usernameRow || usernameRow.identityDid !== challenge.identity) throw new Error('IDENTITY_USERNAME_TAKEN')
-        await usernameRepository.update({ namespace: NAMESPACE, identityDid: challenge.identity, status: 'active' }, { status: 'replaced', reservedUntil: '', updatedAt: verifiedAt })
-        await usernameRepository.update({ uid: usernameRow.uid }, { status: 'active', reservedUntil: '', updatedAt: verifiedAt })
-        await manager.getRepository(IdentityCredentialDO).update({ identityDid: challenge.identity, credentialType: 'UsernameCredential', status: 'active', revokedAt: '' }, { status: 'replaced', revokedAt: verifiedAt })
-      })
       const credential = issueIdentityCredential({
         credentialId,
         subject: challenge.identity,
@@ -180,18 +177,91 @@ export class IdentityEmailService {
       })
       credentials.push({ type: 'AvatarCredential', credentialId, credential })
     }
-    {
-      await ds.getRepository(IdentityVerificationTransactionDO).update({ verificationId: challenge.id }, { status: 'completed', completedAt: verifiedAt })
-      const credentialRepository = ds.getRepository(IdentityCredentialDO)
-      for (const item of credentials) {
-        const payload: any = JSON.parse(Buffer.from(item.credential.split('.')[1], 'base64url').toString())
-        const row = new IdentityCredentialDO()
-        Object.assign(row, { credentialId: item.credentialId, identityDid: challenge.identity, credentialType: item.type, token: item.credential, status: 'active', issuedAt: new Date(payload.iat * 1000).toISOString(), expiresAt: new Date(payload.exp * 1000).toISOString(), revokedAt: '' })
-        await credentialRepository.save(row)
-      }
-      const audit = new IdentityAuditLogDO()
-      Object.assign(audit, { identityDid: challenge.identity, action: 'identity_verification_completed', outcome: 'success', metadataJson: JSON.stringify({ types: challenge.types, credentialIds: credentials.map(item => item.credentialId) }), createdAt: verifiedAt })
-      await ds.getRepository(IdentityAuditLogDO).save(audit)
+    try {
+      const result = await ds.transaction(async manager => {
+        const transactionRepository = manager.getRepository(IdentityVerificationTransactionDO)
+        const lockedChallenge = await transactionRepository.findOne({ where: { verificationId: challenge.id }, lock: { mode: 'pessimistic_write' } })
+        if (!lockedChallenge || lockedChallenge.status !== 'pending' || lockedChallenge.identityDid !== challenge.identity) {
+          throw new Error('IDENTITY_EMAIL_VERIFICATION_EXPIRED')
+        }
+
+        const rejectBinding = async (code: string) => {
+          lockedChallenge.status = 'rejected'
+          lockedChallenge.completedAt = verifiedAt
+          await transactionRepository.save(lockedChallenge)
+          const audit = new IdentityAuditLogDO()
+          Object.assign(audit, { identityDid: challenge.identity, action: 'identity_email_binding_rejected', outcome: 'rejected', metadataJson: JSON.stringify({ verificationId: challenge.id, reason: code }), createdAt: verifiedAt })
+          await manager.getRepository(IdentityAuditLogDO).save(audit)
+          return { error: code }
+        }
+
+        if (challenge.types.includes('email')) {
+          const bindingRepository = manager.getRepository(IdentityEmailAccountDO)
+          const byEmail = await bindingRepository.findOne({ where: { email: challenge.email }, lock: { mode: 'pessimistic_write' } })
+          const byIdentity = await bindingRepository.findOne({ where: { identityDid: challenge.identity }, lock: { mode: 'pessimistic_write' } })
+          if (byEmail && byEmail.identityDid !== challenge.identity) return rejectBinding('IDENTITY_EMAIL_ALREADY_BOUND')
+          if (byIdentity && byIdentity.email !== challenge.email) return rejectBinding('IDENTITY_EMAIL_CHANGE_REQUIRES_AUTHORIZATION')
+          if ((byEmail && byEmail.status !== 'active') || (byIdentity && byIdentity.status !== 'active')) return rejectBinding('IDENTITY_EMAIL_BINDING_CONFLICT')
+
+          const binding = byEmail || byIdentity
+          if (binding) {
+            binding.verifiedAt = verifiedAt
+            await bindingRepository.save(binding)
+          } else {
+            const row = new IdentityEmailAccountDO()
+            Object.assign(row, { email: challenge.email, identityDid: challenge.identity, status: 'active', createdAt: verifiedAt, verifiedAt })
+            try {
+              await bindingRepository.save(row)
+            } catch (error) {
+              if (isUniqueConstraintViolation(error)) throw new Error('IDENTITY_EMAIL_BINDING_CONFLICT')
+              throw error
+            }
+          }
+        }
+
+        if (challenge.username) {
+          const usernameRepository = manager.getRepository(IdentityUsernameDO)
+          const usernameRow = await usernameRepository.findOne({ where: { namespace: NAMESPACE, normalizedUsername: challenge.username }, lock: { mode: 'pessimistic_write' } })
+          if (!usernameRow || usernameRow.identityDid !== challenge.identity) throw new Error('IDENTITY_USERNAME_TAKEN')
+          await usernameRepository.update({ namespace: NAMESPACE, identityDid: challenge.identity, status: 'active' }, { status: 'replaced', reservedUntil: '', updatedAt: verifiedAt })
+          await usernameRepository.update({ uid: usernameRow.uid }, { status: 'active', reservedUntil: '', updatedAt: verifiedAt })
+          await manager.getRepository(IdentityCredentialDO).update({ identityDid: challenge.identity, credentialType: 'UsernameCredential', status: 'active', revokedAt: '' }, { status: 'replaced', revokedAt: verifiedAt })
+        }
+
+        const credentialRepository = manager.getRepository(IdentityCredentialDO)
+        if (challenge.types.includes('email')) {
+          await credentialRepository.update({ identityDid: challenge.identity, credentialType: 'EmailCredential', status: 'active', revokedAt: '' }, { status: 'replaced', revokedAt: verifiedAt })
+        }
+        for (const item of credentials) {
+          const payload: any = JSON.parse(Buffer.from(item.credential.split('.')[1], 'base64url').toString())
+          const row = new IdentityCredentialDO()
+          Object.assign(row, { credentialId: item.credentialId, identityDid: challenge.identity, credentialType: item.type, token: item.credential, status: 'active', issuedAt: new Date(payload.iat * 1000).toISOString(), expiresAt: new Date(payload.exp * 1000).toISOString(), revokedAt: '' })
+          await credentialRepository.save(row)
+        }
+        lockedChallenge.status = 'completed'
+        lockedChallenge.completedAt = verifiedAt
+        await transactionRepository.save(lockedChallenge)
+        const audit = new IdentityAuditLogDO()
+        Object.assign(audit, { identityDid: challenge.identity, action: 'identity_verification_completed', outcome: 'success', metadataJson: JSON.stringify({ types: challenge.types, credentialIds: credentials.map(item => item.credentialId) }), createdAt: verifiedAt })
+        await manager.getRepository(IdentityAuditLogDO).save(audit)
+        return {}
+      })
+      const errorCode = 'error' in result ? result.error : undefined
+      if (typeof errorCode === 'string' && errorCode) throw new Error(errorCode)
+    } catch (error) {
+      if ((error as Error)?.message !== 'IDENTITY_EMAIL_BINDING_CONFLICT') throw error
+      await ds.transaction(async manager => {
+        const transactionRepository = manager.getRepository(IdentityVerificationTransactionDO)
+        const lockedChallenge = await transactionRepository.findOne({ where: { verificationId: challenge.id }, lock: { mode: 'pessimistic_write' } })
+        if (!lockedChallenge || lockedChallenge.status !== 'pending') return
+        lockedChallenge.status = 'rejected'
+        lockedChallenge.completedAt = verifiedAt
+        await transactionRepository.save(lockedChallenge)
+        const audit = new IdentityAuditLogDO()
+        Object.assign(audit, { identityDid: challenge.identity, action: 'identity_email_binding_rejected', outcome: 'rejected', metadataJson: JSON.stringify({ verificationId: challenge.id, reason: 'IDENTITY_EMAIL_BINDING_CONFLICT' }), createdAt: verifiedAt })
+        await manager.getRepository(IdentityAuditLogDO).save(audit)
+      })
+      throw new Error('IDENTITY_EMAIL_BINDING_CONFLICT')
     }
     return { verificationId: challenge.id, types: challenge.types, credentials, identity: challenge.identity, verifiedAt }
   }

@@ -805,6 +805,21 @@ document.paths['/api/v1/public/custody/status'].get.responses[200] = {
   content: jsonContent(ref('CustodyStatusEnvelope')),
 }
 
+document.paths['/api/v1/public/identity/verifications/confirm'].post.responses[409] = {
+  description: '邮箱已绑定其他 DID、当前 DID 已绑定其他邮箱，或并发绑定冲突。错误 message 使用稳定错误码，且不返回已绑定 DID。',
+  content: jsonContent(ref('ErrorEnvelope')),
+}
+
+document.paths['/api/v1/public/auth/email/register/request'].post.responses[409] = {
+  description: '邮箱已经绑定到 active DID，错误 message 为 IDENTITY_EMAIL_ALREADY_REGISTERED。',
+  content: jsonContent(ref('ErrorEnvelope')),
+}
+
+document.paths['/api/v1/public/auth/email/register/complete'].post.responses[409] = {
+  description: '邮箱或 DID 已有绑定，或并发邮箱绑定冲突。错误 message 为 IDENTITY_EMAIL_ALREADY_REGISTERED 或 IDENTITY_EMAIL_BINDING_CONFLICT，不返回已绑定 DID。',
+  content: jsonContent(ref('ErrorEnvelope')),
+}
+
 document.paths['/api/v1/public/identity/authorize/exchange'].post.responses[200] = {
   description: '钱包身份授权码兑换结果',
   content: jsonContent(ref('IdentityAuthorizeExchangeResultEnvelope')),

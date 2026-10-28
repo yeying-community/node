@@ -1,6 +1,6 @@
 import { vi, describe, it, expect, beforeEach } from 'vitest'
 import { SingletonDataSource } from '../src/domain/facade/datasource'
-import { CustodyKeyRecordDO, IdentityAccountLinkDO, IdentityEmailAccountDO, IdentityEmailAuthChallengeDO, IdentityPasskeyCredentialDO, IdentityRegistrationDO, IdentityUsernameDO } from '../src/domain/mapper/entity'
+import { CustodyKeyRecordDO, IdentityAccountLinkDO, IdentityCredentialDO, IdentityEmailAccountDO, IdentityEmailAuthChallengeDO, IdentityPasskeyCredentialDO, IdentityRegistrationDO, IdentityUsernameDO } from '../src/domain/mapper/entity'
 import { createInMemoryDataSource } from './helpers/inMemoryDataSource'
 
 const identity = 'did:yeying:wid_email_auth_123456789012345678'
@@ -37,6 +37,90 @@ beforeEach(() => {
 const { IdentityEmailAuthService } = await import('../src/domain/service/identityEmailAuth')
 
 describe('identity email authentication', () => {
+  it('does not create a second email account for a wallet identity binding', async () => {
+    await SingletonDataSource.get().getRepository(IdentityEmailAccountDO).save(Object.assign(new IdentityEmailAccountDO(), {
+      email: 'wallet-bound@example.com', identityDid: 'did:yeying:wid_wallet_bound_123456789012345678', status: 'active', createdAt: new Date().toISOString(), verifiedAt: new Date().toISOString()
+    }))
+    const service = new IdentityEmailAuthService(async () => undefined)
+
+    await expect(service.requestRegister({ email: 'wallet-bound@example.com', username: 'wallet_bound', avatar: 'https://example.com/avatar.png', identityDocument: { id: identity } }))
+      .rejects.toThrow('IDENTITY_EMAIL_ALREADY_REGISTERED')
+  })
+
+  it('rejects registration completion if wallet verification wins the email binding race', async () => {
+    let code = ''
+    const service = new IdentityEmailAuthService(async input => { code = input.code })
+    const requested = await service.requestRegister({ email: 'race@example.com', username: 'race_user', avatar: 'https://example.com/avatar.png', identityDocument: { id: identity } })
+    await service.confirmRegister({ verificationId: requested.verificationId, code })
+    await SingletonDataSource.get().getRepository(IdentityRegistrationDO).update({ registrationId: requested.registrationId }, { status: 'active' })
+    await SingletonDataSource.get().getRepository(IdentityEmailAccountDO).save(Object.assign(new IdentityEmailAccountDO(), {
+      email: 'race@example.com', identityDid: 'did:yeying:wid_wallet_race_123456789012345678', status: 'active', createdAt: new Date().toISOString(), verifiedAt: new Date().toISOString()
+    }))
+
+    await expect(service.completeRegister({ verificationId: requested.verificationId, registrationId: requested.registrationId }))
+      .rejects.toThrow('IDENTITY_EMAIL_ALREADY_REGISTERED')
+    expect(await SingletonDataSource.get().getRepository(IdentityCredentialDO).findBy({ identityDid: identity, credentialType: 'EmailCredential' })).toHaveLength(0)
+  })
+
+  it('maps an email binding uniqueness race to a stable conflict without partial registration', async () => {
+    let code = ''
+    const service = new IdentityEmailAuthService(async input => { code = input.code })
+    const requested = await service.requestRegister({ email: 'unique-race@example.com', username: 'unique_race', avatar: 'https://example.com/avatar.png', identityDocument: { id: identity } })
+    await service.confirmRegister({ verificationId: requested.verificationId, code })
+    await SingletonDataSource.get().getRepository(IdentityRegistrationDO).update({ registrationId: requested.registrationId }, { status: 'active' })
+    await SingletonDataSource.get().getRepository(IdentityPasskeyCredentialDO).save(Object.assign(new IdentityPasskeyCredentialDO(), { identityDid: identity, credentialId: 'passkey_unique_race', revokedAt: '' }))
+    const address = '0x1111111111111111111111111111111111111111'
+    await SingletonDataSource.get().getRepository(IdentityAccountLinkDO).save(Object.assign(new IdentityAccountLinkDO(), { identityDid: identity, chainKey: 'eip155:1', accountId: address, status: 'active', revokedAt: '', verifiedAt: new Date().toISOString() }))
+    const ds = SingletonDataSource.get()
+    const getRepository = ds.getRepository.bind(ds)
+    let failInsert = true
+    ds.getRepository = (target: any) => {
+      const repository = getRepository(target)
+      if (target !== IdentityEmailAccountDO) return repository
+      return {
+        ...repository,
+        async save(row: any) {
+          if (failInsert && row.email === 'unique-race@example.com') {
+            failInsert = false
+            throw Object.assign(new Error('unique constraint violation'), { driverError: { code: '23505' } })
+          }
+          return repository.save(row)
+        },
+      }
+    }
+
+    try {
+      await expect(service.completeRegister({
+        verificationId: requested.verificationId,
+        registrationId: requested.registrationId,
+        accountLink: { account: { chainKey: 'eip155:1', address } },
+        custody: { walletId: 'wallet_unique_race', accountId: 'account_unique_race', ciphertext: 'encrypted-wallet-material' },
+      })).rejects.toThrow('IDENTITY_EMAIL_BINDING_CONFLICT')
+    } finally {
+      ds.getRepository = getRepository
+    }
+
+    expect(await getRepository(IdentityEmailAccountDO).findBy({ email: 'unique-race@example.com' })).toHaveLength(0)
+    expect(await getRepository(IdentityCredentialDO).findBy({ identityDid: identity })).toHaveLength(0)
+    expect(await getRepository(IdentityEmailAuthChallengeDO).findOneBy({ challengeId: requested.verificationId })).toMatchObject({ status: 'verified' })
+  })
+
+  it('does not let email registration replace the DID email binding', async () => {
+    let code = ''
+    const service = new IdentityEmailAuthService(async input => { code = input.code })
+    const requested = await service.requestRegister({ email: 'new@example.com', username: 'new_user', avatar: 'https://example.com/avatar.png', identityDocument: { id: identity } })
+    await service.confirmRegister({ verificationId: requested.verificationId, code })
+    await SingletonDataSource.get().getRepository(IdentityRegistrationDO).update({ registrationId: requested.registrationId }, { status: 'active' })
+    await SingletonDataSource.get().getRepository(IdentityEmailAccountDO).save(Object.assign(new IdentityEmailAccountDO(), {
+      email: 'existing@example.com', identityDid: identity, status: 'active', createdAt: new Date().toISOString(), verifiedAt: new Date().toISOString()
+    }))
+
+    await expect(service.completeRegister({ verificationId: requested.verificationId, registrationId: requested.registrationId }))
+      .rejects.toThrow('IDENTITY_EMAIL_BINDING_CONFLICT')
+    expect(await SingletonDataSource.get().getRepository(IdentityEmailAccountDO).findBy({ identityDid: identity })).toMatchObject([{ email: 'existing@example.com' }])
+    expect(await SingletonDataSource.get().getRepository(IdentityCredentialDO).findBy({ identityDid: identity, credentialType: 'EmailCredential' })).toHaveLength(0)
+  })
+
   it('normalizes email and completes a registration with a DID-bound account', async () => {
     let code = ''
     const service = new IdentityEmailAuthService(async input => { code = input.code })
