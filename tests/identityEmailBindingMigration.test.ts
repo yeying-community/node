@@ -46,14 +46,14 @@ describe('identity email binding backfill plan', () => {
     expect(() => planIdentityEmailBindingBackfill([
       credential('credential-1', 'did:yeying:wid_first', 'same@example.com'),
       credential('credential-2', 'did:yeying:wid_second', 'same@example.com'),
-    ], [])).toThrow(/IDENTITY_EMAIL_BINDING_BACKFILL_CONFLICT: email has multiple identities/)
+    ], [])).toThrow(/IDENTITY_EMAIL_BINDING_BACKFILL_CONFLICT: email has multiple identities email=same@example\.com/)
   })
 
   it('rejects multiple candidate emails for one DID', () => {
     expect(() => planIdentityEmailBindingBackfill([
       credential('credential-1', 'did:yeying:wid_owner', 'first@example.com'),
       credential('credential-2', 'did:yeying:wid_owner', 'second@example.com'),
-    ], [])).toThrow(/IDENTITY_EMAIL_BINDING_BACKFILL_CONFLICT: identity has multiple emails/)
+    ], [])).toThrow(/IDENTITY_EMAIL_BINDING_BACKFILL_CONFLICT: identity has multiple emails identity=did:yeying:wid_owner emails=first@example\.com,second@example\.com/)
   })
 
   it('accepts an exact existing active binding idempotently', () => {

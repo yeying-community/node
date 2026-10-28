@@ -1,4 +1,3 @@
-import { createHash } from 'node:crypto'
 import { MigrationInterface, QueryRunner } from 'typeorm'
 
 type CredentialRow = { credential_id: string; identity_did: string; token: string; issued_at: string }
@@ -12,10 +11,6 @@ function normalizeEmail(value: unknown) {
   const email = String(value || '').trim().normalize('NFC').toLowerCase()
   if (!EMAIL_RE.test(email) || email.length > 320) return ''
   return email
-}
-
-function emailKey(email: string) {
-  return createHash('sha256').update(email).digest('hex').slice(0, 12)
 }
 
 function emailFromCredential(row: CredentialRow) {
@@ -44,7 +39,7 @@ export function planIdentityEmailBindingBackfill(credentials: CredentialRow[], a
   for (const account of accounts) {
     const normalizedEmail = normalizeEmail(account.email)
     if (!normalizedEmail || normalizedEmail !== account.email || !account.identity_did) {
-      errors.push(`invalid account binding identity=${account.identity_did || 'unknown'} email_hash=${emailKey(String(account.email || ''))}`)
+      errors.push(`invalid account binding identity=${account.identity_did || 'unknown'} email=${String(account.email || '')}`)
       continue
     }
     if (account.status === 'active') {
@@ -72,11 +67,11 @@ export function planIdentityEmailBindingBackfill(credentials: CredentialRow[], a
 
   for (const [email, rows] of byEmail) {
     const identities = [...new Set(rows.map(row => row.identityDid))]
-    if (identities.length > 1) errors.push(`email has multiple identities email_hash=${emailKey(email)} identities=${identities.join(',')} sources=${rows.map(conflictId).join(';')}`)
+    if (identities.length > 1) errors.push(`email has multiple identities email=${email} identities=${identities.join(',')} sources=${rows.map(conflictId).join(';')}`)
   }
   for (const [identityDid, rows] of byIdentity) {
     const emails = [...new Set(rows.map(row => row.email))]
-    if (emails.length > 1) errors.push(`identity has multiple emails identity=${identityDid} emails=${emails.map(emailKey).join(',')} sources=${rows.map(conflictId).join(';')}`)
+    if (emails.length > 1) errors.push(`identity has multiple emails identity=${identityDid} emails=${emails.join(',')} sources=${rows.map(conflictId).join(';')}`)
   }
 
   for (const candidate of candidates) {
@@ -84,7 +79,7 @@ export function planIdentityEmailBindingBackfill(credentials: CredentialRow[], a
     const accountByIdentity = accounts.find(account => account.identity_did === candidate.identityDid)
     if ((accountByEmail && (accountByEmail.identity_did !== candidate.identityDid || accountByEmail.status !== 'active'))
       || (accountByIdentity && (accountByIdentity.email !== candidate.email || accountByIdentity.status !== 'active'))) {
-      errors.push(`credential/account mismatch identity=${candidate.identityDid} email_hash=${emailKey(candidate.email)} sources=${conflictId(candidate)}`)
+      errors.push(`credential/account mismatch identity=${candidate.identityDid} email=${candidate.email} sources=${conflictId(candidate)}`)
     }
   }
 
@@ -130,7 +125,7 @@ export class BackfillIdentityEmailBindings20261028000000 implements MigrationInt
       )
       const stored = await q.query(`SELECT identity_did FROM ${s}."identity_email_accounts" WHERE email = $1`, [binding.email])
       if (stored[0]?.identity_did !== binding.identityDid) {
-        throw new Error(`IDENTITY_EMAIL_BINDING_BACKFILL_CONFLICT: concurrent binding email_hash=${emailKey(binding.email)} identity=${binding.identityDid}`)
+        throw new Error(`IDENTITY_EMAIL_BINDING_BACKFILL_CONFLICT: concurrent binding email=${binding.email} identity=${binding.identityDid}`)
       }
     }
   }
