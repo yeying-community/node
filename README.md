@@ -107,7 +107,7 @@ npm run dev:secure
 ./cmd identity email reset 13815438109@126.com
 ```
 
-确认预览中的 DID、用户名和钱包地址确实属于目标账号后，停止所有连接同一数据库的 Node 实例，再执行：
+确认预览中的 DID、用户名和钱包地址确实属于目标账号后，停止所有连接同一数据库的 Node 实例，再执行。正式执行会校验本机 Node PID 文件和配置端口均未运行；如手动启动服务，也必须确保其监听端口已经释放：
 
 ```bash
 ./cmd service stop

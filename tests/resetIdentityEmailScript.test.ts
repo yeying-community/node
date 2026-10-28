@@ -1,10 +1,14 @@
 import { describe, expect, it } from 'vitest'
+import fs from 'node:fs'
+import os from 'node:os'
+import path from 'node:path'
 
 const reset = require('../scripts/reset-identity-email.cjs') as {
   SqlStore: new (runner: any, databaseType: string, schema: string) => any
   normalizeEmail: (value: unknown) => string
   parseArgs: (argv: string[]) => any
   validateExecution: (options: any) => string
+  assertServiceStopped: (pidFile: string, port: number, probePort?: (port: number) => Promise<boolean>) => Promise<void>
   buildPlan: (store: FakeStore, email: string) => Promise<any>
   executePlan: (store: FakeStore, plan: any, now?: string) => Promise<any>
   planSummary: (plan: any) => any
@@ -69,7 +73,9 @@ function fixture() {
     identity_email_auth_challenges: [
       { challenge_id: 'iea-1', email: '13815438109@126.com', identity_did: did, registration_id: 'reg-1', username: 'target_user' },
     ],
-    identity_verification_transactions: [],
+    identity_verification_transactions: [
+      { verification_id: 'verify-1', email: '13815438109@126.com', identity_did: did, username: 'verified_user' },
+    ],
     identity_registrations: [{ registration_id: 'reg-1', identity_did: did, email_challenge_id: 'iea-1' }],
     identity_account_links: [{ identity_did: did, account_id: '0x1111111111111111111111111111111111111111' }],
     identity_account_link_challenges: [{ nonce: 'nonce-1', identity_did: did }],
@@ -82,7 +88,10 @@ function fixture() {
     identity_webauthn_challenges: [{ challenge_id: 'webauthn-1', identity_did: did, request_id: 'reg-1' }],
     identity_passkey_credentials: [{ uid: 'passkey-1', identity_did: did }],
     identity_credentials: [{ credential_id: 'credential-1', identity_did: did }],
-    identity_usernames: [{ uid: 'username-1', identity_did: did, normalized_username: 'target_user' }],
+    identity_usernames: [
+      { uid: 'username-1', identity_did: did, normalized_username: 'target_user' },
+      { uid: 'username-2', identity_did: did, normalized_username: 'legacy_user' },
+    ],
     custody_key_records: [{ uid: 'custody-1', subject_id: '0x1111111111111111111111111111111111111111' }],
     users: [{ did }, { did: 'did:yeying:other' }],
     user_state: [{ did }],
@@ -95,6 +104,28 @@ function fixture() {
 }
 
 describe('identity email reset command', () => {
+  it('fails closed for malformed PID files and running services', async () => {
+    const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'identity-reset-'))
+    const pidFile = path.join(directory, 'node.pid')
+    try {
+      fs.writeFileSync(pidFile, 'not-a-pid')
+      await expect(reset.assertServiceStopped(pidFile, 8100, async () => false)).rejects.toThrow('invalid PID file')
+
+      fs.writeFileSync(pidFile, String(process.pid))
+      await expect(reset.assertServiceStopped(pidFile, 8100, async () => false)).rejects.toThrow('Node service is still running')
+
+      fs.unlinkSync(pidFile)
+      await expect(reset.assertServiceStopped(pidFile, 8100, async () => true)).rejects.toThrow('still listening')
+      await expect(reset.assertServiceStopped(pidFile, 8100, async () => false)).resolves.toBeUndefined()
+    } finally {
+      fs.rmSync(directory, { recursive: true, force: true })
+    }
+  })
+
+  it('requires a valid configured service port before destructive execution', async () => {
+    await expect(reset.assertServiceStopped('', 0, async () => false)).rejects.toThrow('app.port is invalid')
+  })
+
   it('normalizes email and requires exact destructive confirmation', () => {
     expect(reset.normalizeEmail(' 13815438109@126.COM ')).toBe('13815438109@126.com')
     expect(reset.validateExecution(reset.parseArgs(['13815438109@126.com']))).toBe('13815438109@126.com')
@@ -132,10 +163,10 @@ describe('identity email reset command', () => {
     const summary = reset.planSummary(plan)
 
     expect(summary.identityDids).toEqual(['did:yeying:wid_reset_target_1234567890'])
-    expect(summary.usernames).toEqual(['target_user'])
+    expect(summary.usernames).toEqual(['target_user', 'verified_user', 'legacy_user'])
     expect(summary.walletAccounts).toEqual(['0x1111111111111111111111111111111111111111'])
     expect(summary.deletions.identity_email_accounts).toBe(1)
-    expect(summary.deletions.identity_usernames).toBe(1)
+    expect(summary.deletions.identity_usernames).toBe(2)
     expect(summary.deletions.identity_passkey_credentials).toBe(1)
     expect(summary.deletions.custody_key_records).toBe(1)
     expect(summary.revocations.ucanTokens).toBe(1)

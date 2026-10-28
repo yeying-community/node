@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 require('reflect-metadata');
 const fs = require('fs');
+const net = require('net');
 const path = require('path');
 const { DataSource } = require('typeorm');
 const { loadVault, decryptSecrets, readPassword } = require('./secret-vault.cjs');
@@ -63,17 +64,48 @@ function validateExecution(options) {
   return email;
 }
 
-function assertServiceStopped(pidFile) {
-  if (!pidFile || !fs.existsSync(pidFile)) return;
-  const pid = Number(fs.readFileSync(pidFile, 'utf8').trim());
-  if (!Number.isSafeInteger(pid) || pid <= 0) return;
-  try {
-    process.kill(pid, 0);
-  } catch (error) {
-    if (error && error.code === 'ESRCH') return;
-    throw error;
+function isPortListening(port, timeoutMs = 1000) {
+  return new Promise((resolve, reject) => {
+    const socket = net.createConnection({ host: '127.0.0.1', port });
+    const finish = (error, listening) => {
+      socket.destroy();
+      if (error) reject(error);
+      else resolve(listening);
+    };
+    socket.setTimeout(timeoutMs, () => finish(new Error(`Could not verify whether Node is stopped on port ${port}`)));
+    socket.once('connect', () => finish(null, true));
+    socket.once('error', (error) => {
+      if (error.code === 'ECONNREFUSED') finish(null, false);
+      else finish(error);
+    });
+  });
+}
+
+async function assertServiceStopped(pidFile, port, probePort = isPortListening) {
+  if (!Number.isSafeInteger(port) || port < 1 || port > 65535) {
+    throw new Error('Cannot verify Node is stopped: configured app.port is invalid');
   }
-  throw new Error(`Node service is still running (PID=${pid}). Stop every Node instance before executing the reset.`);
+  if (pidFile && fs.existsSync(pidFile)) {
+    const rawPid = fs.readFileSync(pidFile, 'utf8').trim();
+    if (!/^[1-9][0-9]*$/.test(rawPid)) {
+      throw new Error(`Cannot verify Node is stopped: invalid PID file ${pidFile}`);
+    }
+    const pid = Number(rawPid);
+    if (!Number.isSafeInteger(pid)) throw new Error(`Cannot verify Node is stopped: invalid PID file ${pidFile}`);
+    try {
+      process.kill(pid, 0);
+      throw new Error(`Node service is still running (PID=${pid}). Stop every Node instance before executing the reset.`);
+    } catch (error) {
+      if (error && error.code === 'ESRCH') {
+        // A stale PID file is not proof that the configured service port is free.
+      } else {
+        throw error;
+      }
+    }
+  }
+  if (await probePort(port)) {
+    throw new Error(`A service is still listening on Node app.port ${port}. Stop every Node instance before executing the reset.`);
+  }
 }
 
 function unique(values) {
@@ -215,6 +247,7 @@ async function discoverTargets(store, email) {
   registrationIds = unique([...registrationIds, ...valuesFrom(registrationRows, 'registration_id')]);
 
   const accountLinks = await store.select('identity_account_links', ['identity_did', 'account_id'], predicates({ column: 'identity_did', values: identityDids }));
+  const usernameRows = await store.select('identity_usernames', ['normalized_username'], predicates({ column: 'identity_did', values: identityDids }));
   const authorizationRequests = await store.select('identity_authorization_requests', ['request_id', 'identity_did'], predicates({ column: 'identity_did', values: identityDids }));
   const issueSessions = await store.select('ucan_issue_sessions', ['session_hash', 'subject'], predicates({ column: 'subject', values: identityDids }));
   const grants = await store.select('scoped_grants', ['grant_id', 'subject_id'], predicates({ column: 'subject_id', values: identityDids }));
@@ -235,7 +268,11 @@ async function discoverTargets(store, email) {
 
   return {
     email, identityDids, registrationIds, challengeIds,
-    usernames: unique(valuesFrom(challengeRows, 'username')),
+    usernames: unique([
+      ...valuesFrom(challengeRows, 'username'),
+      ...valuesFrom(verificationRows, 'username'),
+      ...valuesFrom(usernameRows, 'normalized_username'),
+    ]),
     accountIds: valuesFrom(accountLinks, 'account_id'),
     requestIds: valuesFrom(authorizationRequests, 'request_id'),
     sessionHashes, grantIds, scopedTokenIds, issuedTokens,
@@ -385,7 +422,14 @@ async function run() {
   const options = parseArgs(process.argv.slice(2));
   if (options.help) { printUsage(); return; }
   const email = validateExecution(options);
-  if (options.execute) assertServiceStopped(path.resolve(options.root || process.cwd(), options.pidFile || 'run/node.pid'));
+  if (options.execute) {
+    const root = path.resolve(options.root || process.cwd());
+    const config = loadConfig(path.resolve(root, options.config));
+    await assertServiceStopped(
+      path.resolve(root, options.pidFile || 'run/node.pid'),
+      Number(config?.app?.port),
+    );
+  }
   const connection = await connect(options);
   try {
     let plan;
@@ -410,7 +454,7 @@ async function run() {
   }
 }
 
-module.exports = { SqlStore, normalizeEmail, parseArgs, validateExecution, discoverTargets, deletionSpecs, buildPlan, executePlan, planSummary };
+module.exports = { SqlStore, normalizeEmail, parseArgs, validateExecution, assertServiceStopped, discoverTargets, deletionSpecs, buildPlan, executePlan, planSummary };
 
 if (require.main === module) {
   run().catch((error) => {

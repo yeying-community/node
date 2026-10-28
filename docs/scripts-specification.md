@@ -38,7 +38,7 @@
 | `migrate-secrets.cjs` | 迁移旧版 vault key，并按统一密钥模型重加密 Webhook 相关记录；执行前会备份 vault 文件。 | `./cmd secrets migrate`、`npm run secrets:migrate` |
 | `admin-allow.cjs` | 管理密钥仓中的 `ADMIN_DIDS`，用于添加、删除、查看管理员 DID 或钱包地址。 | `./cmd admin allow add 0x...`、`npm run admin:allow -- list` |
 | `audit-config.cjs` | 校验、查看并原子更新 `config.js` 中的审核人和审批阈值；更新后需重启服务。 | `./cmd audit show`、`./cmd audit set --approvers 0x...,0x... --required-approvals 2` |
-| `reset-identity-email.cjs` | 按精确邮箱预览或事务性重置身份注册数据，使邮箱、用户名和钱包绑定可重新注册；保留业务对象与安全审计日志。 | `./cmd identity email reset user@example.com`；确认后增加 `--execute --confirm-email user@example.com` |
+| `reset-identity-email.cjs` | 按精确邮箱预览或事务性重置身份注册数据，使邮箱、用户名和钱包绑定可重新注册；正式执行校验本机 PID 文件及配置端口均已停止；保留业务对象与安全审计日志。 | `./cmd identity email reset user@example.com`；确认后增加 `--execute --confirm-email user@example.com` |
 
 ## 发布与接口脚本
 
