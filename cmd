@@ -149,7 +149,7 @@ run_identity() {
       node "$ROOT_DIR/scripts/reset-identity-email.cjs" "$@" \
         --root "$ROOT_DIR" \
         --config "${APP_CONFIG_PATH:-$ROOT_DIR/config.js}" \
-        --pid-file "${PID_FILE:-$ROOT_DIR/run/node.pid}"
+        --pid-file "${PID_FILE:-${RUN_DIR:-$ROOT_DIR/run}/node.pid}"
       ;;
     *)
       fail "usage: ./cmd identity email reset <email> [--execute --confirm-email <email>]"

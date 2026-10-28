@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import fs from 'node:fs'
+import net from 'node:net'
 import os from 'node:os'
 import path from 'node:path'
 
@@ -8,6 +9,7 @@ const reset = require('../scripts/reset-identity-email.cjs') as {
   normalizeEmail: (value: unknown) => string
   parseArgs: (argv: string[]) => any
   validateExecution: (options: any) => string
+  isPortListening: (port: number, timeoutMs?: number) => Promise<boolean>
   assertServiceStopped: (pidFile: string, port: number, probePort?: (port: number) => Promise<boolean>) => Promise<void>
   buildPlan: (store: FakeStore, email: string) => Promise<any>
   executePlan: (store: FakeStore, plan: any, now?: string) => Promise<any>
@@ -124,6 +126,19 @@ describe('identity email reset command', () => {
 
   it('requires a valid configured service port before destructive execution', async () => {
     await expect(reset.assertServiceStopped('', 0, async () => false)).rejects.toThrow('app.port is invalid')
+  })
+
+  it('detects a real TCP listener on the configured local port', async () => {
+    const server = net.createServer()
+    await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
+    const address = server.address()
+    if (!address || typeof address === 'string') throw new Error('Expected a TCP address')
+    try {
+      await expect(reset.isPortListening(address.port)).resolves.toBe(true)
+    } finally {
+      await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()))
+    }
+    await expect(reset.isPortListening(address.port)).resolves.toBe(false)
   })
 
   it('normalizes email and requires exact destructive confirmation', () => {

@@ -454,7 +454,7 @@ async function run() {
   }
 }
 
-module.exports = { SqlStore, normalizeEmail, parseArgs, validateExecution, assertServiceStopped, discoverTargets, deletionSpecs, buildPlan, executePlan, planSummary };
+module.exports = { SqlStore, normalizeEmail, parseArgs, validateExecution, isPortListening, assertServiceStopped, discoverTargets, deletionSpecs, buildPlan, executePlan, planSummary };
 
 if (require.main === module) {
   run().catch((error) => {
