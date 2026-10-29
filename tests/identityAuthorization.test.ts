@@ -501,9 +501,18 @@ describe('identity authorization', () => {
       registrationInfo: { credential: { id: 'bootstrap-credential', publicKey: Buffer.from('bootstrap-public-key'), counter: 0 }, aaguid: '' }
     } as any)
 
-    const requested = await service.createInitialIdentityRegistration({ identityDocument: bootstrapDocument, deviceName: 'Browser Touch ID' })
+    const requested = await service.createInitialIdentityRegistration({ identityDocument: bootstrapDocument, deviceName: 'Browser Touch ID', authenticatorMode: 'platform' })
     expect(requested).toMatchObject({ identity: bootstrapIdentity, deviceName: 'Browser Touch ID' })
     expect(requested).not.toHaveProperty('privateKey')
+    expect(generateRegistrationOptions).toHaveBeenLastCalledWith(expect.objectContaining({
+      authenticatorSelection: {
+        authenticatorAttachment: 'platform',
+        residentKey: 'required',
+        requireResidentKey: true,
+        userVerification: 'required'
+      },
+      hints: ['client-device']
+    }))
     const clientDataJSON = Buffer.from(JSON.stringify({ type: 'webauthn.create', challenge: 'challenge-bootstrap', origin: 'http://localhost:8100' })).toString('base64url')
     const confirmed = await service.confirmInitialIdentityRegistration({
       registrationId: requested.registrationId,
@@ -522,6 +531,31 @@ describe('identity authorization', () => {
     expect(audit).toEqual([expect.objectContaining({ action: 'identity_bootstrap_registered', outcome: 'success' })])
     expect(JSON.stringify(audit)).not.toContain('privateKey')
     await expect(service.confirmInitialIdentityRegistration({ registrationId: requested.registrationId, identityDocument: bootstrapDocument, credential: { id: 'bootstrap-credential', response: { clientDataJSON } } })).rejects.toThrow('IDENTITY_REGISTRATION_NOT_FOUND')
+  })
+
+  it('rotates a pending bootstrap challenge in place when the authenticator mode changes', async () => {
+    const service = new IdentityAuthorizationService()
+    const bootstrapIdentity = 'did:yeying:wid_bootstrap_mode_retry_1234567890'
+    const { publicKey: bootstrapPublicKey, privateKey: bootstrapPrivateKey } = generateKeyPairSync('ed25519')
+    const bootstrapDocument = bootstrapIdentityDocument(bootstrapIdentity, bootstrapPrivateKey, bootstrapPublicKey)
+    const pending = await service.createPendingInitialIdentityRegistration({ identityDocument: bootstrapDocument, expiresAt: new Date(Date.now() + 600_000).toISOString() })
+    vi.mocked(generateRegistrationOptions)
+      .mockResolvedValueOnce({ challenge: 'challenge-platform', timeout: 60_000 } as any)
+      .mockResolvedValueOnce({ challenge: 'challenge-hybrid', timeout: 60_000 } as any)
+
+    const platform = await service.createInitialIdentityPasskeyRequest({ registrationId: pending.registrationId, authenticatorMode: 'platform' })
+    const firstRow = await SingletonDataSource.get()!.getRepository(IdentityWebauthnChallengeDO).findOneBy({ requestId: pending.registrationId })
+    const hybrid = await service.createInitialIdentityPasskeyRequest({ registrationId: pending.registrationId, authenticatorMode: 'hybrid' })
+    const rows = await SingletonDataSource.get()!.getRepository(IdentityWebauthnChallengeDO).findBy({ requestId: pending.registrationId })
+
+    expect(platform).toMatchObject({ challenge: 'challenge-platform', requestId: firstRow?.challengeId })
+    expect(hybrid).toMatchObject({ challenge: 'challenge-hybrid', requestId: firstRow?.challengeId })
+    expect(rows).toHaveLength(1)
+    expect(rows[0]).toMatchObject({ challengeId: firstRow?.challengeId, challenge: 'challenge-hybrid', used: false })
+    expect(generateRegistrationOptions).toHaveBeenLastCalledWith(expect.objectContaining({
+      authenticatorSelection: expect.objectContaining({ authenticatorAttachment: 'cross-platform', residentKey: 'required', requireResidentKey: true }),
+      hints: ['hybrid']
+    }))
   })
 
   it('rejects bootstrap document changes, cross-origin ceremony, and duplicate credentials', async () => {

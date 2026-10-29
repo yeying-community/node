@@ -26,11 +26,12 @@ import {
 } from '@/plugins/auth'
 import { translate } from '@/lang/messages'
 import { notifySuccess } from '@/utils/message'
+import { detectWebAuthnCapabilities, type WebAuthnCapabilities } from '@/utils/webauthn'
 
 type AuthMethod = 'email' | 'wallet'
 type EmailMode = 'login' | 'register'
 type EmailStep = 'form' | 'code'
-type PasskeyPreference = 'auto' | 'client-device' | 'hybrid' | 'security-key'
+type PasskeyPreference = 'client-device' | 'hybrid' | 'security-key'
 
 const router = useRouter()
 const route = useRoute()
@@ -47,7 +48,9 @@ const avatar = ref(avatarForSeed('yeying'))
 const avatarTouched = ref(false)
 const password = ref('')
 const confirmPassword = ref('')
-const passkeyPreference = ref<PasskeyPreference>('auto')
+const passkeyPreference = ref<PasskeyPreference | ''>('client-device')
+const passkeyCapabilities = ref<WebAuthnCapabilities | null>(null)
+const passkeyCapabilityBusy = ref(false)
 // The registration request contains ethers Wallet and CryptoKey instances.
 // Keep the object unproxied so native private fields retain their receiver.
 const emailRequest = shallowRef<Awaited<ReturnType<typeof requestEmailRegistration>> | null>(null)
@@ -66,6 +69,7 @@ const authTitle = computed(() => translate(isRegister.value ? 'auth_form_title_r
 const authDescription = computed(() => translate(isRegister.value ? 'auth_form_desc_register' : 'auth_form_desc_login'))
 const emailActionLabel = computed(() => translate(isRegister.value ? 'auth_send_register_code' : 'auth_send_code'))
 const verifyActionLabel = computed(() => translate(isRegister.value ? 'auth_verify_register' : 'auth_verify_login'))
+const platformPasskeyUnavailable = computed(() => passkeyCapabilities.value?.available === true && !passkeyCapabilities.value.platformAuthenticatorAvailable)
 
 function avatarForSeed(seed: string) {
   return `https://api.dicebear.com/9.x/identicon/svg?seed=${encodeURIComponent(seed || 'yeying')}`
@@ -99,6 +103,32 @@ function errorText(error: unknown) {
 
 function isEmailNotFound(error: unknown) {
   return errorText(error).toUpperCase().includes('IDENTITY_EMAIL_ACCOUNT_NOT_FOUND')
+}
+
+async function refreshPasskeyCapabilities() {
+  passkeyCapabilityBusy.value = true
+  try {
+    const capabilities = await detectWebAuthnCapabilities()
+    passkeyCapabilities.value = capabilities
+    if (capabilities.platformAuthenticatorAvailable) {
+      if (!passkeyPreference.value) passkeyPreference.value = 'client-device'
+    } else if (passkeyPreference.value === 'client-device') {
+      passkeyPreference.value = ''
+    }
+    return capabilities
+  } finally {
+    passkeyCapabilityBusy.value = false
+  }
+}
+
+function passkeyErrorMessage(error: unknown) {
+  const message = errorText(error).toUpperCase()
+  if (message.includes('IDENTITY_PASSKEY_CANCELLED')) return translate('auth_passkey_cancelled')
+  if (message.includes('IDENTITY_PASSKEY_UNSUPPORTED')) return translate('auth_passkey_unsupported')
+  if (message.includes('IDENTITY_PASSKEY_SECURITY_ERROR') || message.includes('WEBAUTHN_SECURE_CONTEXT_REQUIRED')) return translate('auth_passkey_secure_context')
+  if (message.includes('IDENTITY_PASSKEY_ALREADY_REGISTERED')) return translate('auth_passkey_already_registered')
+  if (message.includes('WEBAUTHN_UNAVAILABLE')) return translate('auth_passkey_unavailable')
+  return errorText(error)
 }
 
 function startResendTimer(expiresAt?: string) {
@@ -194,6 +224,19 @@ async function sendEmailCode() {
       return
     }
     syncAvatar()
+    const capabilities = await refreshPasskeyCapabilities()
+    if (!capabilities.secureContext) {
+      errorMessage.value = translate('auth_passkey_secure_context')
+      return
+    }
+    if (!capabilities.available) {
+      errorMessage.value = translate('auth_passkey_unavailable')
+      return
+    }
+    if (!passkeyPreference.value) {
+      errorMessage.value = translate('auth_passkey_fallback_required')
+      return
+    }
   }
 
   emailBusy.value = true
@@ -244,7 +287,8 @@ async function restoreEmailRegistration() {
     email.value = emailRequest.value.email
     username.value = emailRequest.value.username
     avatar.value = emailRequest.value.avatarUri
-    passkeyPreference.value = emailRequest.value.passkeyPreference || 'auto'
+    passkeyPreference.value = emailRequest.value.passkeyPreference || 'client-device'
+    await refreshPasskeyCapabilities()
     password.value = recoveryPassword.value
     confirmPassword.value = recoveryPassword.value
     recoveryPassword.value = ''
@@ -331,6 +375,10 @@ async function confirmEmailCode() {
     errorMessage.value = translate('auth_code_required')
     return
   }
+  if (isRegister.value && !passkeyPreference.value) {
+    errorMessage.value = translate('auth_passkey_fallback_required')
+    return
+  }
 
   emailBusy.value = true
   try {
@@ -338,7 +386,7 @@ async function confirmEmailCode() {
       ? Boolean(emailRequest.value && await confirmEmailRegistration(
         emailRequest.value,
         code,
-        passkeyPreference.value === 'auto' ? undefined : passkeyPreference.value,
+        passkeyPreference.value || undefined,
       ))
       : Boolean(emailLoginRequest.value && await confirmEmailLogin(emailLoginRequest.value.verificationId, code))
     if (!loggedIn) {
@@ -352,7 +400,7 @@ async function confirmEmailCode() {
     notifySuccess(translate(isRegister.value ? 'auth_register_success' : 'auth_login_success'))
     await router.replace({ path: '/market' })
   } catch (error) {
-    errorMessage.value = errorText(error)
+    errorMessage.value = isRegister.value ? passkeyErrorMessage(error) : errorText(error)
   } finally {
     emailBusy.value = false
   }
@@ -376,6 +424,7 @@ onBeforeUnmount(() => {
 })
 
 onMounted(async () => {
+  await refreshPasskeyCapabilities()
   try {
     hasSavedRegistration.value = await hasPendingEmailRegistration()
   } catch {
@@ -570,15 +619,8 @@ onMounted(async () => {
                 <legend class="field-label">{{ $t('auth_passkey_choice_label') }}</legend>
                 <p class="field-hint passkey-choice-hint">{{ $t('auth_passkey_choice_hint') }}</p>
                 <div class="passkey-choice-grid">
-                  <label class="passkey-choice-option" :class="{ selected: passkeyPreference === 'auto' }">
-                    <input v-model="passkeyPreference" type="radio" value="auto" />
-                    <span class="passkey-choice-copy">
-                      <strong>{{ $t('auth_passkey_auto') }}</strong>
-                      <small>{{ $t('auth_passkey_auto_desc') }}</small>
-                    </span>
-                  </label>
-                  <label class="passkey-choice-option" :class="{ selected: passkeyPreference === 'client-device' }">
-                    <input v-model="passkeyPreference" type="radio" value="client-device" />
+                  <label class="passkey-choice-option" :class="{ selected: passkeyPreference === 'client-device', disabled: platformPasskeyUnavailable }">
+                    <input v-model="passkeyPreference" type="radio" value="client-device" :disabled="platformPasskeyUnavailable" />
                     <span class="passkey-choice-copy">
                       <strong>{{ $t('auth_passkey_device') }}</strong>
                       <small>{{ $t('auth_passkey_device_desc') }}</small>
@@ -599,7 +641,9 @@ onMounted(async () => {
                     </span>
                   </label>
                 </div>
-                <p class="field-hint passkey-provider-note">{{ $t('auth_passkey_provider_note') }}</p>
+                <p v-if="passkeyCapabilityBusy" class="field-hint passkey-provider-note">{{ $t('auth_passkey_checking') }}</p>
+                <p v-else-if="platformPasskeyUnavailable" class="field-hint passkey-provider-note">{{ $t('auth_passkey_platform_unavailable') }}</p>
+                <p v-else class="field-hint passkey-provider-note">{{ $t('auth_passkey_provider_note') }}</p>
               </fieldset>
             </div>
 
@@ -616,9 +660,9 @@ onMounted(async () => {
               <template #prefix><el-icon><Message /></el-icon></template>
             </el-input>
 
-            <button type="button" class="primary-action" :disabled="emailBusy" @click="sendEmailCode">
-              <span>{{ emailBusy ? $t('auth_processing') : emailActionLabel }}</span>
-              <el-icon v-if="!emailBusy"><ArrowRight /></el-icon>
+            <button type="button" class="primary-action" :disabled="emailBusy || (isRegister && passkeyCapabilityBusy)" @click="sendEmailCode">
+              <span>{{ emailBusy || (isRegister && passkeyCapabilityBusy) ? $t('auth_processing') : emailActionLabel }}</span>
+              <el-icon v-if="!emailBusy && !(isRegister && passkeyCapabilityBusy)"><ArrowRight /></el-icon>
             </button>
           </template>
 
@@ -628,6 +672,34 @@ onMounted(async () => {
                 <el-icon><ArrowLeft /></el-icon>
                 <span>{{ $t('auth_change_email') }}</span>
               </button>
+              <fieldset v-if="isRegister" class="passkey-choice">
+                <legend class="field-label">{{ $t('auth_passkey_retry_label') }}</legend>
+                <p class="field-hint passkey-choice-hint">{{ $t('auth_passkey_retry_hint') }}</p>
+                <div class="passkey-choice-grid">
+                  <label class="passkey-choice-option" :class="{ selected: passkeyPreference === 'client-device', disabled: platformPasskeyUnavailable }">
+                    <input v-model="passkeyPreference" type="radio" value="client-device" :disabled="platformPasskeyUnavailable" />
+                    <span class="passkey-choice-copy">
+                      <strong>{{ $t('auth_passkey_device') }}</strong>
+                      <small>{{ $t('auth_passkey_device_desc') }}</small>
+                    </span>
+                  </label>
+                  <label class="passkey-choice-option" :class="{ selected: passkeyPreference === 'hybrid' }">
+                    <input v-model="passkeyPreference" type="radio" value="hybrid" />
+                    <span class="passkey-choice-copy">
+                      <strong>{{ $t('auth_passkey_cross_device') }}</strong>
+                      <small>{{ $t('auth_passkey_cross_device_desc') }}</small>
+                    </span>
+                  </label>
+                  <label class="passkey-choice-option" :class="{ selected: passkeyPreference === 'security-key' }">
+                    <input v-model="passkeyPreference" type="radio" value="security-key" />
+                    <span class="passkey-choice-copy">
+                      <strong>{{ $t('auth_passkey_security_key') }}</strong>
+                      <small>{{ $t('auth_passkey_security_key_desc') }}</small>
+                    </span>
+                  </label>
+                </div>
+                <p v-if="platformPasskeyUnavailable" class="field-hint passkey-provider-note">{{ $t('auth_passkey_platform_unavailable') }}</p>
+              </fieldset>
               <label class="field-label" for="auth-code">{{ $t('auth_code_label') }}</label>
               <el-input
                 id="auth-code"
@@ -1088,6 +1160,18 @@ onMounted(async () => {
 .passkey-choice-option.selected {
   border-color: #7cc5b2;
   background: #f2faf7;
+}
+
+.passkey-choice-option.disabled {
+  border-color: #e7ecea;
+  background: #f5f6f5;
+  cursor: not-allowed;
+  opacity: 0.62;
+}
+
+.passkey-choice-option.disabled:hover {
+  border-color: #e7ecea;
+  background: #f5f6f5;
 }
 
 .passkey-choice-option input {

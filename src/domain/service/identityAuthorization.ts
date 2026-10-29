@@ -183,6 +183,21 @@ function normalizeAuthenticatorAttachment(value: unknown): 'platform' | 'cross-p
   const v = string(value)
   return v === 'platform' || v === 'cross-platform' ? v : ''
 }
+export type IdentityBootstrapAuthenticatorMode = 'platform' | 'hybrid' | 'security-key'
+function bootstrapAuthenticatorSelection(input: { authenticatorMode?: unknown; authenticatorAttachment?: unknown }) {
+  const mode = string(input.authenticatorMode)
+  if (mode) {
+    if (!['platform', 'hybrid', 'security-key'].includes(mode)) throw new Error('IDENTITY_PASSKEY_AUTHENTICATOR_MODE_INVALID')
+    return mode === 'platform'
+      ? { authenticatorAttachment: 'platform' as const, hint: 'client-device' as const }
+      : { authenticatorAttachment: 'cross-platform' as const, hint: mode as 'hybrid' | 'security-key' }
+  }
+  const authenticatorAttachment = normalizeAuthenticatorAttachment(input.authenticatorAttachment)
+  return {
+    authenticatorAttachment: authenticatorAttachment || undefined,
+    hint: authenticatorAttachment === 'platform' ? 'client-device' as const : undefined
+  }
+}
 function parseJsonArray(raw: string): string[] {
   try { const parsed = JSON.parse(string(raw) || '[]'); return Array.isArray(parsed) ? parsed.map(string).filter(Boolean) : [] } catch { return [] }
 }
@@ -364,7 +379,7 @@ export class IdentityAuthorizationService {
     return Boolean(existingUsername)
   }
 
-  async createInitialIdentityRegistration(input: { identityDocument: any; deviceName?: unknown; authenticatorAttachment?: unknown; emailChallengeId?: unknown }) {
+  async createPendingInitialIdentityRegistration(input: { identityDocument: any; deviceName?: unknown; emailChallengeId?: unknown; expiresAt?: unknown }) {
     const status = assertPasskeyAuthReady()
     const identityDid = assertIdentityDid(input.identityDocument?.id)
     verifyIdentityController(input.identityDocument, identityDid)
@@ -375,20 +390,11 @@ export class IdentityAuthorizationService {
     const pending = await registrationRepo.findOneBy({ identityDid, status: 'pending' })
     if (pending && Date.parse(pending.expiresAt) > Date.now()) throw new Error('IDENTITY_REGISTRATION_ALREADY_PENDING')
 
-    const deviceName = string(input.deviceName) || 'Browser Passkey'
-    const authenticatorAttachment = normalizeAuthenticatorAttachment(input.authenticatorAttachment)
-    const generated = await generateRegistrationOptions({
-      rpID: status.rpId,
-      rpName: status.rpName,
-      userID: Buffer.from(identityDid, 'utf8'),
-      userName: identityDid,
-      userDisplayName: `YeYing · ${identityDid.slice('did:yeying:'.length)}`,
-      timeout: status.timeoutMs,
-      attestationType: 'none',
-      authenticatorSelection: { residentKey: 'preferred', userVerification: 'required', ...(authenticatorAttachment ? { authenticatorAttachment } : {}) },
-      excludeCredentials: []
-    } as any)
     const createdAt = now()
+    const requestedExpiresAt = Date.parse(string(input.expiresAt))
+    const expiresAt = Number.isFinite(requestedExpiresAt) && requestedExpiresAt > Date.now()
+      ? new Date(requestedExpiresAt).toISOString()
+      : new Date(Date.now() + status.challengeTtlMs).toISOString()
     const registration = new IdentityRegistrationDO()
     const registrationId = id('idr')
     Object.assign(registration, {
@@ -398,30 +404,91 @@ export class IdentityAuthorizationService {
       identityDocumentHash: identityDocumentHash(input.identityDocument),
       status: 'pending',
       createdAt,
-      expiresAt: new Date(Date.now() + status.challengeTtlMs).toISOString(),
+      expiresAt,
       activatedAt: ''
     })
-    const challenge = new IdentityWebauthnChallengeDO()
-    Object.assign(challenge, {
-      challengeId: id('iwc'),
-      challengeType: 'identity-bootstrap-register',
-      identityDid,
-      requestId: registrationId,
-      challenge: string((generated as any).challenge),
-      allowedCredentialIds: '[]',
-      createdAt,
-      expiresAt: registration.expiresAt,
-      used: false
-    })
-    await dataSource().transaction(async manager => {
-      await manager.getRepository(IdentityRegistrationDO).save(registration)
-      await manager.getRepository(IdentityWebauthnChallengeDO).save(challenge)
-    })
+    await registrationRepo.save(registration)
     return {
       registrationId,
       identity: identityDid,
-      deviceName,
-      passkeyRequest: { ...(generated as any), requestId: challenge.challengeId }
+      deviceName: string(input.deviceName) || 'Browser Passkey'
+    }
+  }
+
+  async createInitialIdentityPasskeyRequest(input: { registrationId: unknown; authenticatorMode?: unknown; authenticatorAttachment?: unknown }) {
+    const status = assertPasskeyAuthReady()
+    const registrationId = string(input.registrationId)
+    const selection = bootstrapAuthenticatorSelection(input)
+    return await dataSource().transaction(async manager => {
+      const registration = await manager.getRepository(IdentityRegistrationDO).findOne({ where: { registrationId }, lock: { mode: 'pessimistic_write' } })
+      if (!registration || registration.status !== 'pending') throw new Error('IDENTITY_REGISTRATION_NOT_FOUND')
+      if (Date.parse(registration.expiresAt) <= Date.now()) throw new Error('IDENTITY_REGISTRATION_EXPIRED')
+      if (registration.emailChallengeId) {
+        const emailChallenge = await manager.getRepository(IdentityEmailAuthChallengeDO).findOneBy({ challengeId: registration.emailChallengeId, purpose: 'register' })
+        if (!emailChallenge || emailChallenge.status !== 'verified' || emailChallenge.identityDid !== registration.identityDid) throw new Error('IDENTITY_EMAIL_VERIFICATION_REQUIRED')
+      }
+
+      const generated = await generateRegistrationOptions({
+        rpID: status.rpId,
+        rpName: status.rpName,
+        userID: Buffer.from(registration.identityDid, 'utf8'),
+        userName: registration.identityDid,
+        userDisplayName: `YeYing · ${registration.identityDid.slice('did:yeying:'.length)}`,
+        timeout: status.timeoutMs,
+        attestationType: 'none',
+        authenticatorSelection: {
+          residentKey: 'required',
+          requireResidentKey: true,
+          userVerification: 'required',
+          ...(selection.authenticatorAttachment ? { authenticatorAttachment: selection.authenticatorAttachment } : {})
+        },
+        ...(selection.hint ? { hints: [selection.hint] } : {}),
+        excludeCredentials: []
+      } as any)
+      const createdAt = now()
+      const expiresAt = new Date(Math.min(Date.parse(registration.expiresAt), Date.now() + status.challengeTtlMs)).toISOString()
+      const challengeRepo = manager.getRepository(IdentityWebauthnChallengeDO)
+      let challenge = await challengeRepo.findOne({
+        where: { challengeType: 'identity-bootstrap-register', requestId: registrationId, identityDid: registration.identityDid },
+        lock: { mode: 'pessimistic_write' }
+      })
+      const challengeValues = {
+        challenge: string((generated as any).challenge),
+        createdAt,
+        expiresAt,
+        used: false
+      }
+      if (!challenge) {
+        challenge = new IdentityWebauthnChallengeDO()
+        Object.assign(challenge, {
+          challengeId: id('iwc'),
+          challengeType: 'identity-bootstrap-register',
+          identityDid: registration.identityDid,
+          requestId: registrationId,
+          allowedCredentialIds: '[]',
+          ...challengeValues
+        })
+        await challengeRepo.save(challenge)
+      } else {
+        await challengeRepo.update({ challengeId: challenge.challengeId }, challengeValues)
+        Object.assign(challenge, challengeValues)
+      }
+      return { ...(generated as any), requestId: challenge.challengeId }
+    })
+  }
+
+  async createInitialIdentityRegistration(input: { identityDocument: any; deviceName?: unknown; authenticatorAttachment?: unknown; authenticatorMode?: unknown; emailChallengeId?: unknown }) {
+    const registration = await this.createPendingInitialIdentityRegistration(input)
+    try {
+      const passkeyRequest = await this.createInitialIdentityPasskeyRequest({
+        registrationId: registration.registrationId,
+        authenticatorMode: input.authenticatorMode,
+        authenticatorAttachment: input.authenticatorAttachment
+      })
+      return { ...registration, passkeyRequest }
+    } catch (error) {
+      await dataSource().getRepository(IdentityRegistrationDO).update({ registrationId: registration.registrationId, status: 'pending' }, { status: 'expired' })
+      throw error
     }
   }
 

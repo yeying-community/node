@@ -12,6 +12,7 @@ const MAX_ATTEMPTS = 5
 const RESEND_INTERVAL_MS = 60 * 1000
 const MAX_RESENDS = 5
 const USERNAME_RE = /^[a-z0-9][a-z0-9._-]{2,31}$/
+type EmailBootstrapAuthenticatorMode = 'platform' | 'hybrid' | 'security-key'
 
 function usernameNamespace() {
   return String(getConfig<string>('issuer.identity.usernameNamespace') || 'node.yeying.pub')
@@ -56,6 +57,12 @@ function normalizeAvatar(value: unknown) {
   return parsed.toString()
 }
 
+function normalizeAuthenticatorMode(value: unknown): EmailBootstrapAuthenticatorMode {
+  const mode = String(value || '').trim()
+  if (mode === 'platform' || mode === 'hybrid' || mode === 'security-key') return mode
+  throw new Error('IDENTITY_PASSKEY_AUTHENTICATOR_MODE_REQUIRED')
+}
+
 function credentialPayload(token: string) {
   return JSON.parse(Buffer.from(token.split('.')[1], 'base64url').toString())
 }
@@ -87,10 +94,10 @@ export class IdentityEmailAuthService {
     const ds = storage()
     if (await ds.getRepository(IdentityEmailAccountDO).findOneBy({ email, status: 'active' })) throw new Error('IDENTITY_EMAIL_ALREADY_REGISTERED')
     const challengeId = id('iea')
-    const registration = await this.identityAuthorization.createInitialIdentityRegistration({ identityDocument: input.identityDocument, deviceName: input.deviceName, emailChallengeId: challengeId })
     const code = String(randomInt(100000, 1000000))
     const createdAt = now()
     const expiresAt = new Date(Date.now() + TTL_MS).toISOString()
+    const registration = await this.identityAuthorization.createPendingInitialIdentityRegistration({ identityDocument: input.identityDocument, deviceName: input.deviceName, emailChallengeId: challengeId, expiresAt })
     const namespace = usernameNamespace()
     const challenge = new IdentityEmailAuthChallengeDO()
     Object.assign(challenge, {
@@ -102,7 +109,7 @@ export class IdentityEmailAuthService {
       registrationId: registration.registrationId,
       purpose: 'register',
       codeHash: hashCode(challengeId, code),
-      passkeyRequestJson: JSON.stringify(registration.passkeyRequest),
+      passkeyRequestJson: '{}',
       attempts: 0,
       status: 'pending',
       createdAt,
@@ -226,10 +233,11 @@ export class IdentityEmailAuthService {
     })
   }
 
-  async confirmRegister(input: { verificationId: unknown; code: unknown }) {
+  async confirmRegister(input: { verificationId: unknown; code: unknown; authenticatorMode: unknown }) {
     const ds = storage()
     const challengeId = String(input.verificationId || '').trim()
     const code = String(input.code || '').trim()
+    const authenticatorMode = normalizeAuthenticatorMode(input.authenticatorMode)
     const result = await ds.transaction(async manager => {
       const challengeRepo = manager.getRepository(IdentityEmailAuthChallengeDO)
       const challenge = await challengeRepo.findOne({ where: { challengeId, purpose: 'register' }, lock: { mode: 'pessimistic_write' } })
@@ -242,7 +250,7 @@ export class IdentityEmailAuthService {
           await this.expirePendingRegistration(manager, challenge.registrationId, challenge.identityDid, usernameNamespace(), challenge.username, now())
           return { error: 'IDENTITY_EMAIL_VERIFICATION_EXPIRED' }
         }
-        return { challenge, passkeyRequest: challenge.passkeyRequestJson }
+        return { challenge }
       }
       if (challenge.status !== 'pending' || !Number.isFinite(Date.parse(challenge.expiresAt)) || Date.parse(challenge.expiresAt) <= Date.now()) {
         if (challenge.status === 'pending') {
@@ -278,12 +286,17 @@ export class IdentityEmailAuthService {
       registration.expiresAt = expiresAt
       await challengeRepo.save(challenge)
       await manager.getRepository(IdentityRegistrationDO).save(registration)
-      await manager.getRepository(IdentityWebauthnChallengeDO).update({ requestId: registration.registrationId, challengeType: 'identity-bootstrap-register', identityDid: challenge.identityDid }, { expiresAt })
-      return { challenge, passkeyRequest: challenge.passkeyRequestJson, verifiedAt }
+      return { challenge, verifiedAt }
     })
     if ('error' in result) throw new Error(result.error)
-    let passkeyRequest: unknown = {}
-    try { passkeyRequest = JSON.parse(result.passkeyRequest || '{}') } catch { throw new Error('IDENTITY_PASSKEY_REQUEST_INVALID') }
+    const passkeyRequest = await this.identityAuthorization.createInitialIdentityPasskeyRequest({
+      registrationId: result.challenge.registrationId,
+      authenticatorMode
+    })
+    await ds.getRepository(IdentityEmailAuthChallengeDO).update(
+      { challengeId: result.challenge.challengeId, purpose: 'register', status: 'verified' },
+      { passkeyRequestJson: JSON.stringify(passkeyRequest) }
+    )
     return { verificationId: result.challenge.challengeId, registrationId: result.challenge.registrationId, identity: result.challenge.identityDid, passkeyRequest, email: result.challenge.email, verifiedAt: result.verifiedAt || now() }
   }
 

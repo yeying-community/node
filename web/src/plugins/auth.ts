@@ -71,7 +71,8 @@ type SiweVerifyResult = {
 };
 
 type EmailAuthRequest = { verificationId: string; email: string; expiresAt: string };
-type PasskeyPreference = 'auto' | 'client-device' | 'hybrid' | 'security-key';
+type PasskeyPreference = 'client-device' | 'hybrid' | 'security-key';
+type BootstrapAuthenticatorMode = 'platform' | 'hybrid' | 'security-key';
 type EmailRegisterRequest = EmailAuthRequest & { identity: string; registrationId: string; identityDocument: Record<string, unknown>; identityMaterial: BrowserIdentity; username: string; avatarUri: string; password: string; wallet: Wallet; walletId: string; accountId: string; passkeyPreference?: PasskeyPreference };
 type EmailRegisterResponse = EmailAuthRequest & { identity: string; registrationId: string; username: string; avatarUri: string };
 type StoredEmailRegisterRequest = Omit<EmailRegisterRequest, 'wallet' | 'password'> & { walletPrivateKey: string };
@@ -103,6 +104,14 @@ let loginInFlight: {
   provider: Eip1193Provider | null;
   promise: Promise<boolean>;
 } | null = null;
+
+function normalizePasskeyPreference(value: unknown): PasskeyPreference {
+  return value === 'hybrid' || value === 'security-key' ? value : 'client-device';
+}
+
+function authenticatorModeForPreference(preference: PasskeyPreference): BootstrapAuthenticatorMode {
+  return preference === 'client-device' ? 'platform' : preference;
+}
 let cachedApiToken: CachedToken | null = null;
 let cachedApiUcanToken: CachedToken | null = null;
 let cachedWebDavToken: CachedToken | null = null;
@@ -1170,7 +1179,7 @@ export async function requestEmailRegistration(input: { email: string; username:
     identityDocument: identity.document,
     deviceName: input.deviceName || 'Browser Passkey',
   }, '创建邮箱注册请求失败');
-  const request = { ...result, identityDocument: identity.document, identityMaterial: identity, username: input.username, avatarUri: input.avatar, password: input.password, wallet, walletId, accountId, passkeyPreference: input.passkeyPreference || 'auto' as PasskeyPreference };
+  const request = { ...result, identityDocument: identity.document, identityMaterial: identity, username: input.username, avatarUri: input.avatar, password: input.password, wallet, walletId, accountId, passkeyPreference: normalizePasskeyPreference(input.passkeyPreference) };
   try {
     await persistEmailRegistrationDraft(request);
   } catch (error) {
@@ -1189,7 +1198,7 @@ async function persistEmailRegistrationDraft(request: EmailRegisterRequest) {
 export async function resumeEmailRegistration(password: string): Promise<EmailRegisterRequest> {
   const draft = await loadEmailRegistrationDraft<StoredEmailRegisterRequest>(password);
   const { walletPrivateKey, ...request } = draft.value;
-  return { ...request, verificationId: draft.verificationId, expiresAt: draft.expiresAt, wallet: new Wallet(walletPrivateKey), password };
+  return { ...request, verificationId: draft.verificationId, expiresAt: draft.expiresAt, wallet: new Wallet(walletPrivateKey), password, passkeyPreference: normalizePasskeyPreference(request.passkeyPreference) };
 }
 
 export async function hasPendingEmailRegistration() {
@@ -1221,15 +1230,22 @@ export async function cancelEmailRegistration(verificationId?: string) {
 export async function confirmEmailRegistration(
   request: EmailRegisterRequest,
   code: string,
-  passkeyHint?: 'client-device' | 'hybrid' | 'security-key',
+  passkeyPreference?: PasskeyPreference,
 ): Promise<boolean> {
+  const selectedPasskeyPreference = normalizePasskeyPreference(passkeyPreference || request.passkeyPreference);
+  request.passkeyPreference = selectedPasskeyPreference;
+  await persistEmailRegistrationDraft(request);
   const verified = await postAuthJson<{
     verificationId: string;
     registrationId: string;
     identity: string;
     passkeyRequest: Record<string, any>;
-  }>('/api/v1/public/auth/email/register/confirm', { verificationId: request.verificationId, code }, '邮箱验证码无效');
-  const credential = await startRegistration(verified.passkeyRequest as any, passkeyHint || (request.passkeyPreference === 'auto' ? undefined : request.passkeyPreference));
+  }>('/api/v1/public/auth/email/register/confirm', {
+    verificationId: request.verificationId,
+    code,
+    authenticatorMode: authenticatorModeForPreference(selectedPasskeyPreference),
+  }, '邮箱验证码无效');
+  const credential = await startRegistration(verified.passkeyRequest as any, selectedPasskeyPreference);
   await postAuthJson('/api/v1/public/identity/register/confirm', {
     registrationId: verified.registrationId,
     identityDocument: request.identityDocument,
