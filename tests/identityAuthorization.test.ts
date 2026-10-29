@@ -511,7 +511,7 @@ describe('identity authorization', () => {
         requireResidentKey: true,
         userVerification: 'required'
       },
-      hints: ['client-device']
+      preferredAuthenticatorType: 'localDevice'
     }))
     const clientDataJSON = Buffer.from(JSON.stringify({ type: 'webauthn.create', challenge: 'challenge-bootstrap', origin: 'http://localhost:8100' })).toString('base64url')
     const confirmed = await service.confirmInitialIdentityRegistration({
@@ -542,19 +542,26 @@ describe('identity authorization', () => {
     vi.mocked(generateRegistrationOptions)
       .mockResolvedValueOnce({ challenge: 'challenge-platform', timeout: 60_000 } as any)
       .mockResolvedValueOnce({ challenge: 'challenge-hybrid', timeout: 60_000 } as any)
+      .mockResolvedValueOnce({ challenge: 'challenge-security-key', timeout: 60_000 } as any)
 
     const platform = await service.createInitialIdentityPasskeyRequest({ registrationId: pending.registrationId, authenticatorMode: 'platform' })
     const firstRow = await SingletonDataSource.get()!.getRepository(IdentityWebauthnChallengeDO).findOneBy({ requestId: pending.registrationId })
     const hybrid = await service.createInitialIdentityPasskeyRequest({ registrationId: pending.registrationId, authenticatorMode: 'hybrid' })
+    expect(generateRegistrationOptions).toHaveBeenLastCalledWith(expect.objectContaining({
+      authenticatorSelection: expect.objectContaining({ authenticatorAttachment: 'cross-platform', residentKey: 'required', requireResidentKey: true }),
+      preferredAuthenticatorType: 'remoteDevice'
+    }))
+    const securityKey = await service.createInitialIdentityPasskeyRequest({ registrationId: pending.registrationId, authenticatorMode: 'security-key' })
     const rows = await SingletonDataSource.get()!.getRepository(IdentityWebauthnChallengeDO).findBy({ requestId: pending.registrationId })
 
     expect(platform).toMatchObject({ challenge: 'challenge-platform', requestId: firstRow?.challengeId })
     expect(hybrid).toMatchObject({ challenge: 'challenge-hybrid', requestId: firstRow?.challengeId })
+    expect(securityKey).toMatchObject({ challenge: 'challenge-security-key', requestId: firstRow?.challengeId })
     expect(rows).toHaveLength(1)
-    expect(rows[0]).toMatchObject({ challengeId: firstRow?.challengeId, challenge: 'challenge-hybrid', used: false })
+    expect(rows[0]).toMatchObject({ challengeId: firstRow?.challengeId, challenge: 'challenge-security-key', used: false })
     expect(generateRegistrationOptions).toHaveBeenLastCalledWith(expect.objectContaining({
       authenticatorSelection: expect.objectContaining({ authenticatorAttachment: 'cross-platform', residentKey: 'required', requireResidentKey: true }),
-      hints: ['hybrid']
+      preferredAuthenticatorType: 'securityKey'
     }))
   })
 

@@ -189,13 +189,16 @@ function bootstrapAuthenticatorSelection(input: { authenticatorMode?: unknown; a
   if (mode) {
     if (!['platform', 'hybrid', 'security-key'].includes(mode)) throw new Error('IDENTITY_PASSKEY_AUTHENTICATOR_MODE_INVALID')
     return mode === 'platform'
-      ? { authenticatorAttachment: 'platform' as const, hint: 'client-device' as const }
-      : { authenticatorAttachment: 'cross-platform' as const, hint: mode as 'hybrid' | 'security-key' }
+      ? { authenticatorAttachment: 'platform' as const, preferredAuthenticatorType: 'localDevice' as const }
+      : {
+          authenticatorAttachment: 'cross-platform' as const,
+          preferredAuthenticatorType: mode === 'hybrid' ? 'remoteDevice' as const : 'securityKey' as const
+        }
   }
   const authenticatorAttachment = normalizeAuthenticatorAttachment(input.authenticatorAttachment)
   return {
     authenticatorAttachment: authenticatorAttachment || undefined,
-    hint: authenticatorAttachment === 'platform' ? 'client-device' as const : undefined
+    preferredAuthenticatorType: authenticatorAttachment === 'platform' ? 'localDevice' as const : undefined
   }
 }
 function parseJsonArray(raw: string): string[] {
@@ -442,7 +445,7 @@ export class IdentityAuthorizationService {
           userVerification: 'required',
           ...(selection.authenticatorAttachment ? { authenticatorAttachment: selection.authenticatorAttachment } : {})
         },
-        ...(selection.hint ? { hints: [selection.hint] } : {}),
+        ...(selection.preferredAuthenticatorType ? { preferredAuthenticatorType: selection.preferredAuthenticatorType } : {}),
         excludeCredentials: []
       } as any)
       const createdAt = now()
