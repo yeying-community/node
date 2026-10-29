@@ -1,10 +1,11 @@
 import { vi, describe, it, expect, beforeEach } from 'vitest'
 import { SingletonDataSource } from '../src/domain/facade/datasource'
-import { CustodyKeyRecordDO, IdentityAccountLinkDO, IdentityCredentialDO, IdentityEmailAccountDO, IdentityEmailAuthChallengeDO, IdentityPasskeyCredentialDO, IdentityRegistrationDO, IdentityUsernameDO } from '../src/domain/mapper/entity'
+import { CustodyKeyRecordDO, IdentityAccountLinkDO, IdentityCredentialDO, IdentityEmailAccountDO, IdentityEmailAuthChallengeDO, IdentityPasskeyCredentialDO, IdentityRegistrationDO, IdentityUsernameDO, IdentityWebauthnChallengeDO } from '../src/domain/mapper/entity'
 import { createInMemoryDataSource } from './helpers/inMemoryDataSource'
 
 const identity = 'did:yeying:wid_email_auth_123456789012345678'
 let registrationSequence = 0
+let passkeySequence = 0
 
 vi.mock('../src/auth/identityIssuer', () => ({
   issueIdentityCredential: vi.fn(({ credentialId, subject, type, claim }: any) => {
@@ -19,19 +20,40 @@ vi.mock('../src/config/runtime', () => ({
 
 vi.mock('../src/domain/service/identityAuthorization', () => ({
   IdentityAuthorizationService: class {
-    async createInitialIdentityRegistration() {
+    async createPendingInitialIdentityRegistration(input: any) {
       const registrationId = `idr_test_${++registrationSequence}`
       const registration = Object.assign(new IdentityRegistrationDO(), {
-        registrationId, identityDid: identity, identityDocumentHash: 'hash', status: 'pending', createdAt: new Date().toISOString(), expiresAt: new Date(Date.now() + 600000).toISOString(), activatedAt: ''
+        registrationId, identityDid: identity, emailChallengeId: input.emailChallengeId, identityDocumentHash: 'hash', status: 'pending', createdAt: new Date().toISOString(), expiresAt: input.expiresAt || new Date(Date.now() + 600000).toISOString(), activatedAt: ''
       })
       await SingletonDataSource.get().getRepository(IdentityRegistrationDO).save(registration)
-      return { registrationId, identity, deviceName: 'Browser Passkey', passkeyRequest: { challenge: `challenge-${registrationId}` } }
+      return { registrationId, identity, deviceName: 'Browser Passkey' }
+    }
+    async createInitialIdentityPasskeyRequest(input: any) {
+      const repository = SingletonDataSource.get().getRepository(IdentityWebauthnChallengeDO)
+      let row = await repository.findOneBy({ challengeType: 'identity-bootstrap-register', requestId: input.registrationId, identityDid: identity })
+      const values = { challenge: `challenge-${++passkeySequence}`, createdAt: new Date().toISOString(), expiresAt: new Date(Date.now() + 120000).toISOString(), used: false }
+      if (!row) {
+        row = Object.assign(new IdentityWebauthnChallengeDO(), {
+          challengeId: `iwc_test_${input.registrationId}`,
+          challengeType: 'identity-bootstrap-register',
+          identityDid: identity,
+          requestId: input.registrationId,
+          allowedCredentialIds: '[]',
+          ...values
+        })
+        await repository.save(row)
+      } else {
+        await repository.update({ challengeId: row.challengeId }, values)
+        Object.assign(row, values)
+      }
+      return { challenge: row.challenge, requestId: row.challengeId, authenticatorMode: input.authenticatorMode }
     }
   }
 }))
 
 beforeEach(() => {
   registrationSequence = 0
+  passkeySequence = 0
   SingletonDataSource.set(createInMemoryDataSource())
 })
 const { IdentityEmailAuthService } = await import('../src/domain/service/identityEmailAuth')
@@ -51,7 +73,7 @@ describe('identity email authentication', () => {
     let code = ''
     const service = new IdentityEmailAuthService(async input => { code = input.code })
     const requested = await service.requestRegister({ email: 'race@example.com', username: 'race_user', avatar: 'https://example.com/avatar.png', identityDocument: { id: identity } })
-    await service.confirmRegister({ verificationId: requested.verificationId, code })
+    await service.confirmRegister({ verificationId: requested.verificationId, code, authenticatorMode: 'platform' })
     await SingletonDataSource.get().getRepository(IdentityRegistrationDO).update({ registrationId: requested.registrationId }, { status: 'active' })
     await SingletonDataSource.get().getRepository(IdentityEmailAccountDO).save(Object.assign(new IdentityEmailAccountDO(), {
       email: 'race@example.com', identityDid: 'did:yeying:wid_wallet_race_123456789012345678', status: 'active', createdAt: new Date().toISOString(), verifiedAt: new Date().toISOString()
@@ -66,7 +88,7 @@ describe('identity email authentication', () => {
     let code = ''
     const service = new IdentityEmailAuthService(async input => { code = input.code })
     const requested = await service.requestRegister({ email: 'unique-race@example.com', username: 'unique_race', avatar: 'https://example.com/avatar.png', identityDocument: { id: identity } })
-    await service.confirmRegister({ verificationId: requested.verificationId, code })
+    await service.confirmRegister({ verificationId: requested.verificationId, code, authenticatorMode: 'platform' })
     await SingletonDataSource.get().getRepository(IdentityRegistrationDO).update({ registrationId: requested.registrationId }, { status: 'active' })
     await SingletonDataSource.get().getRepository(IdentityPasskeyCredentialDO).save(Object.assign(new IdentityPasskeyCredentialDO(), { identityDid: identity, credentialId: 'passkey_unique_race', revokedAt: '' }))
     const address = '0x1111111111111111111111111111111111111111'
@@ -109,7 +131,7 @@ describe('identity email authentication', () => {
     let code = ''
     const service = new IdentityEmailAuthService(async input => { code = input.code })
     const requested = await service.requestRegister({ email: 'new@example.com', username: 'new_user', avatar: 'https://example.com/avatar.png', identityDocument: { id: identity } })
-    await service.confirmRegister({ verificationId: requested.verificationId, code })
+    await service.confirmRegister({ verificationId: requested.verificationId, code, authenticatorMode: 'platform' })
     await SingletonDataSource.get().getRepository(IdentityRegistrationDO).update({ registrationId: requested.registrationId }, { status: 'active' })
     await SingletonDataSource.get().getRepository(IdentityEmailAccountDO).save(Object.assign(new IdentityEmailAccountDO(), {
       email: 'existing@example.com', identityDid: identity, status: 'active', createdAt: new Date().toISOString(), verifiedAt: new Date().toISOString()
@@ -126,7 +148,7 @@ describe('identity email authentication', () => {
     const service = new IdentityEmailAuthService(async input => { code = input.code })
     const requested = await service.requestRegister({ email: ' Alice@Example.com ', username: 'Alice', avatar: 'https://example.com/alice.png', identityDocument: { id: identity } })
     expect(requested.email).toBe('alice@example.com')
-    const verified = await service.confirmRegister({ verificationId: requested.verificationId, code })
+    const verified = await service.confirmRegister({ verificationId: requested.verificationId, code, authenticatorMode: 'platform' })
     expect(verified.identity).toBe(identity)
     await SingletonDataSource.get().getRepository(IdentityRegistrationDO).update({ registrationId: requested.registrationId }, { status: 'active' })
     await SingletonDataSource.get().getRepository(IdentityPasskeyCredentialDO).save(Object.assign(new IdentityPasskeyCredentialDO(), { identityDid: identity, credentialId: 'passkey_test', revokedAt: '' }))
@@ -139,6 +161,35 @@ describe('identity email authentication', () => {
     expect(completed.credentials.map((credential: any) => credential.credentialType).sort()).toEqual(['AvatarCredential', 'EmailCredential', 'UsernameCredential'])
     await expect(service.completeRegister(completeInput)).rejects.toThrow('IDENTITY_EMAIL_REGISTRATION_INVALID')
     expect(await SingletonDataSource.get().getRepository(IdentityEmailAccountDO).findOneBy({ email: 'alice@example.com' })).toMatchObject({ identityDid: identity, status: 'active' })
+  })
+
+  it('creates the Passkey challenge only after OTP verification and rotates it on mode retry', async () => {
+    let code = ''
+    const service = new IdentityEmailAuthService(async input => { code = input.code })
+    const requested = await service.requestRegister({ email: 'mode-retry@example.com', username: 'mode_retry', avatar: 'https://example.com/avatar.png', identityDocument: { id: identity } })
+    const challengeRepository = SingletonDataSource.get().getRepository(IdentityWebauthnChallengeDO)
+
+    expect(await challengeRepository.findBy({ requestId: requested.registrationId })).toHaveLength(0)
+    const platform = await service.confirmRegister({ verificationId: requested.verificationId, code, authenticatorMode: 'platform' })
+    const firstRow = await challengeRepository.findOneBy({ requestId: requested.registrationId })
+    const firstChallenge = firstRow?.challenge
+    const hybrid = await service.confirmRegister({ verificationId: requested.verificationId, code, authenticatorMode: 'hybrid' })
+    const rows = await challengeRepository.findBy({ requestId: requested.registrationId })
+
+    expect(platform).toMatchObject({ registrationId: requested.registrationId, identity: requested.identity, passkeyRequest: { authenticatorMode: 'platform' } })
+    expect(hybrid).toMatchObject({ registrationId: requested.registrationId, identity: requested.identity, passkeyRequest: { authenticatorMode: 'hybrid' } })
+    expect(rows).toHaveLength(1)
+    expect(rows[0]).toMatchObject({ challengeId: firstRow?.challengeId, used: false })
+    expect(rows[0].challenge).not.toBe(firstChallenge)
+  })
+
+  it('requires an explicit authenticator mode before consuming an email code', async () => {
+    let code = ''
+    const service = new IdentityEmailAuthService(async input => { code = input.code })
+    const requested = await service.requestRegister({ email: 'mode-required@example.com', username: 'mode_required', avatar: 'https://example.com/avatar.png', identityDocument: { id: identity } })
+
+    await expect(service.confirmRegister({ verificationId: requested.verificationId, code, authenticatorMode: '' })).rejects.toThrow('IDENTITY_PASSKEY_AUTHENTICATOR_MODE_REQUIRED')
+    expect(await SingletonDataSource.get().getRepository(IdentityEmailAuthChallengeDO).findOneBy({ challengeId: requested.verificationId })).toMatchObject({ status: 'pending', attempts: 0 })
   })
 
   it('issues a one-time login code and rejects invalid or replayed codes', async () => {
@@ -172,8 +223,8 @@ describe('identity email authentication', () => {
       expect(resent).toMatchObject({ verificationId: requested.verificationId, email: requested.email, resendsRemaining: 4 })
       expect(rotatedChallenge).toMatchObject({ registrationId: initialChallenge?.registrationId, identityDid: initialChallenge?.identityDid, attempts: 0, resendCount: 1 })
       expect(rotatedChallenge?.codeHash).not.toBe(initialChallenge?.codeHash)
-      await expect(service.confirmRegister({ verificationId: requested.verificationId, code: deliveredCodes[0] })).rejects.toThrow('IDENTITY_EMAIL_VERIFICATION_INVALID')
-      await expect(service.confirmRegister({ verificationId: requested.verificationId, code: deliveredCodes[1] })).resolves.toMatchObject({
+      await expect(service.confirmRegister({ verificationId: requested.verificationId, code: deliveredCodes[0], authenticatorMode: 'platform' })).rejects.toThrow('IDENTITY_EMAIL_VERIFICATION_INVALID')
+      await expect(service.confirmRegister({ verificationId: requested.verificationId, code: deliveredCodes[1], authenticatorMode: 'platform' })).resolves.toMatchObject({
         registrationId: requested.registrationId,
         identity: requested.identity,
       })
@@ -205,9 +256,9 @@ describe('identity email authentication', () => {
     const service = new IdentityEmailAuthService(async () => undefined)
     const requested = await service.requestRegister({ email: 'attempts@example.com', username: 'attempts_user', avatar: 'https://example.com/avatar.png', identityDocument: { id: identity } })
     for (let attempt = 0; attempt < 4; attempt += 1) {
-      await expect(service.confirmRegister({ verificationId: requested.verificationId, code: '000000' })).rejects.toThrow('IDENTITY_EMAIL_VERIFICATION_INVALID')
+      await expect(service.confirmRegister({ verificationId: requested.verificationId, code: '000000', authenticatorMode: 'platform' })).rejects.toThrow('IDENTITY_EMAIL_VERIFICATION_INVALID')
     }
-    await expect(service.confirmRegister({ verificationId: requested.verificationId, code: '000000' })).rejects.toThrow('IDENTITY_EMAIL_VERIFICATION_EXPIRED')
+    await expect(service.confirmRegister({ verificationId: requested.verificationId, code: '000000', authenticatorMode: 'platform' })).rejects.toThrow('IDENTITY_EMAIL_VERIFICATION_EXPIRED')
     expect(await SingletonDataSource.get().getRepository(IdentityEmailAuthChallengeDO).findOneBy({ challengeId: requested.verificationId })).toMatchObject({ status: 'expired', attempts: 5 })
     expect(await SingletonDataSource.get().getRepository(IdentityRegistrationDO).findOneBy({ registrationId: requested.registrationId })).toMatchObject({ status: 'expired' })
     expect(await SingletonDataSource.get().getRepository(IdentityUsernameDO).findOneBy({ normalizedUsername: 'attempts_user' })).toMatchObject({ status: 'expired' })

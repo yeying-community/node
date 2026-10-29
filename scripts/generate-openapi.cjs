@@ -173,6 +173,18 @@ const document = {
         type: 'object', required: ['verificationId', 'code'],
         properties: { verificationId: { type: 'string' }, code: { type: 'string', minLength: 6, maxLength: 6 } },
       },
+      EmailAuthRegisterCodeRequest: {
+        type: 'object', required: ['verificationId', 'code', 'authenticatorMode'],
+        properties: {
+          verificationId: { type: 'string' },
+          code: { type: 'string', minLength: 6, maxLength: 6 },
+          authenticatorMode: {
+            type: 'string',
+            enum: ['platform', 'hybrid', 'security-key'],
+            description: '平台认证器、手机跨设备认证或外接安全密钥；每次确认都会为同一注册轮换 WebAuthn challenge。',
+          },
+        },
+      },
       EmailAuthVerificationRequest: {
         type: 'object', required: ['verificationId'],
         properties: { verificationId: { type: 'string', description: '注册验证码请求 ID。' } },
@@ -612,7 +624,7 @@ const operations = [
   ['post', '/api/v1/public/auth/email/register/request', 'Auth', '请求无插件邮箱注册验证码', 'none', 'EmailAuthRegisterRequest'],
   ['post', '/api/v1/public/auth/email/register/resend', 'Auth', '重发同一注册请求的邮箱验证码', 'none', 'EmailAuthVerificationRequest'],
   ['post', '/api/v1/public/auth/email/register/cancel', 'Auth', '取消未完成的邮箱注册请求', 'none', 'EmailAuthVerificationRequest'],
-  ['post', '/api/v1/public/auth/email/register/confirm', 'Auth', '确认邮箱注册验证码并取得 Passkey 注册参数', 'none', 'EmailAuthCodeRequest'],
+  ['post', '/api/v1/public/auth/email/register/confirm', 'Auth', '确认邮箱注册验证码并取得 Passkey 注册参数', 'none', 'EmailAuthRegisterCodeRequest'],
   ['post', '/api/v1/public/auth/email/register/complete', 'Auth', '完成邮箱注册并签发 DID JWT', 'none', 'EmailAuthRegisterCompleteRequest'],
   ['post', '/api/v1/public/auth/email/login/request', 'Auth', '请求邮箱登录验证码', 'none', 'EmailAuthLoginRequest'],
   ['post', '/api/v1/public/auth/email/login/confirm', 'Auth', '确认邮箱登录验证码并签发 DID JWT', 'none', 'EmailAuthCodeRequest'],

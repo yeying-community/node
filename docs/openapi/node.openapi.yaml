@@ -259,7 +259,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/EmailAuthCodeRequest"
+              $ref: "#/components/schemas/EmailAuthRegisterCodeRequest"
   /api/v1/public/auth/email/register/complete:
     post:
       tags:
@@ -3539,6 +3539,26 @@ components:
           type: string
           minLength: 6
           maxLength: 6
+    EmailAuthRegisterCodeRequest:
+      type: object
+      required:
+        - verificationId
+        - code
+        - authenticatorMode
+      properties:
+        verificationId:
+          type: string
+        code:
+          type: string
+          minLength: 6
+          maxLength: 6
+        authenticatorMode:
+          type: string
+          enum:
+            - platform
+            - hybrid
+            - security-key
+          description: 平台认证器、手机跨设备认证或外接安全密钥；每次确认都会为同一注册轮换 WebAuthn challenge。
     EmailAuthVerificationRequest:
       type: object
       required:

@@ -22,6 +22,11 @@ type PublicKeyCredentialCreationOptionsJson = {
 }
 
 export type PublicKeyCredentialHint = 'security-key' | 'client-device' | 'hybrid'
+export type WebAuthnCapabilities = {
+  available: boolean
+  secureContext: boolean
+  platformAuthenticatorAvailable: boolean
+}
 
 function base64UrlToArrayBuffer(value: string): ArrayBuffer {
   const normalized = String(value || '').replace(/-/g, '+').replace(/_/g, '/')
@@ -63,19 +68,28 @@ function toPublicKeyCreationOptions(options: PublicKeyCredentialCreationOptionsJ
 
 export async function startRegistration(options: PublicKeyCredentialCreationOptionsJson, hint?: PublicKeyCredentialHint) {
   if (!isWebAuthnAvailable()) throw new Error('WEBAUTHN_UNAVAILABLE')
-  const credential = await navigator.credentials.create({
-    publicKey: toPublicKeyCreationOptions(hint ? { ...options, hints: [hint] } : options),
-  })
+  if (!window.isSecureContext) throw new Error('WEBAUTHN_SECURE_CONTEXT_REQUIRED')
+  let credential: Credential | null
+  try {
+    credential = await navigator.credentials.create({
+      publicKey: toPublicKeyCreationOptions(hint ? { ...options, hints: [hint] } : options),
+    })
+  } catch (error) {
+    throw normalizeWebAuthnError(error)
+  }
   if (!credential) throw new Error('WEBAUTHN_CREDENTIAL_EMPTY')
   const publicKeyCredential = credential as PublicKeyCredential
   const response = publicKeyCredential.response as AuthenticatorAttestationResponse
+  const transports = typeof response.getTransports === 'function' ? response.getTransports() : []
   return {
     id: publicKeyCredential.id,
     rawId: arrayBufferToBase64Url(publicKeyCredential.rawId),
     type: publicKeyCredential.type,
+    authenticatorAttachment: publicKeyCredential.authenticatorAttachment || undefined,
     response: {
       clientDataJSON: arrayBufferToBase64Url(response.clientDataJSON),
       attestationObject: arrayBufferToBase64Url(response.attestationObject),
+      transports,
     },
   }
 }
@@ -100,13 +114,51 @@ export function isWebAuthnAvailable(): boolean {
   return typeof window !== 'undefined' && Boolean(window.PublicKeyCredential && navigator.credentials)
 }
 
+export async function detectWebAuthnCapabilities(): Promise<WebAuthnCapabilities> {
+  const secureContext = typeof window !== 'undefined' && window.isSecureContext === true
+  const available = secureContext && isWebAuthnAvailable()
+  if (!available) return { available: false, secureContext, platformAuthenticatorAvailable: false }
+  const detectPlatformAuthenticator = window.PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable
+  if (typeof detectPlatformAuthenticator !== 'function') {
+    return { available: true, secureContext, platformAuthenticatorAvailable: false }
+  }
+  try {
+    return {
+      available: true,
+      secureContext,
+      platformAuthenticatorAvailable: await detectPlatformAuthenticator.call(window.PublicKeyCredential),
+    }
+  } catch {
+    return { available: true, secureContext, platformAuthenticatorAvailable: false }
+  }
+}
+
+function normalizeWebAuthnError(error: unknown): Error {
+  const name = typeof DOMException !== 'undefined' && error instanceof DOMException
+    ? error.name
+    : String((error as { name?: unknown })?.name || '')
+  const code = ({
+    NotAllowedError: 'IDENTITY_PASSKEY_CANCELLED',
+    NotSupportedError: 'IDENTITY_PASSKEY_UNSUPPORTED',
+    SecurityError: 'IDENTITY_PASSKEY_SECURITY_ERROR',
+    InvalidStateError: 'IDENTITY_PASSKEY_ALREADY_REGISTERED',
+  } as Record<string, string>)[name]
+  return code ? new Error(code) : error instanceof Error ? error : new Error('IDENTITY_PASSKEY_OPERATION_FAILED')
+}
+
 export async function startAuthentication(options: PublicKeyCredentialRequestOptionsJson) {
   if (!isWebAuthnAvailable()) {
     throw new Error('WEBAUTHN_UNAVAILABLE')
   }
-  const credential = await navigator.credentials.get({
-    publicKey: toPublicKeyRequestOptions(options),
-  })
+  if (!window.isSecureContext) throw new Error('WEBAUTHN_SECURE_CONTEXT_REQUIRED')
+  let credential: Credential | null
+  try {
+    credential = await navigator.credentials.get({
+      publicKey: toPublicKeyRequestOptions(options),
+    })
+  } catch (error) {
+    throw normalizeWebAuthnError(error)
+  }
   if (!credential) {
     throw new Error('WEBAUTHN_CREDENTIAL_EMPTY')
   }

@@ -96,7 +96,7 @@ export function registerPublicAuthRoutes(app: Express, emailAuth?: IdentityEmail
     catch (error) { const message = error instanceof Error ? error.message : 'Email registration cancellation failed'; res.status(emailErrorStatus(message)).json(fail(emailErrorStatus(message), message)) }
   })
   app.post(`${BASE_PATH}/email/register/confirm`, async (req: Request, res: Response) => {
-    try { res.json(ok(await requireEmailAuth().confirmRegister({ verificationId: req.body?.verificationId, code: req.body?.code }))) }
+    try { res.json(ok(await requireEmailAuth().confirmRegister({ verificationId: req.body?.verificationId, code: req.body?.code, authenticatorMode: req.body?.authenticatorMode }))) }
     catch (error) { const message = error instanceof Error ? error.message : 'Email registration verification failed'; res.status(emailErrorStatus(message)).json(fail(emailErrorStatus(message), message)) }
   })
   app.post(`${BASE_PATH}/email/register/complete`, async (req: Request, res: Response) => {
