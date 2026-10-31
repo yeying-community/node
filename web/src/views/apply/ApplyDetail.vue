@@ -59,12 +59,6 @@
                 <div v-if="applyStatus === 'success'">
                     <el-button plain @click="toConfigCapability">{{ $t('app_detail_config_capability') }}</el-button>
                 </div>
-                <div v-if="applyStatus === 'applying'">
-                    <el-button plain @click="cancelApply">{{ $t('app_detail_cancel_apply') }}</el-button>
-                </div>
-                <div v-if="applyStatus === 'reject'">
-                    <el-button plain @click="dialogVisible = true">{{ $t('app_detail_reapply') }}</el-button>
-                </div>
             </div>
         </div>
         <div class="part">
@@ -231,13 +225,6 @@
 
     <ConfigCapabilityModal :modalVisible="modalVisible" :cancelModal="cancelModal" :detail="detailInfo" />
 
-    <ApplyUseModal
-        :title="$t('app_detail_reapply')"
-        :dialogVisible="dialogVisible"
-        :detail="detailInfo"
-        :afterSubmit="afterSubmit"
-        :closeClick="afterSubmit"
-    />
 </template>
 
 <script lang="ts" setup>
@@ -259,7 +246,6 @@ import $application, {
     serviceCodeMap
 } from '@/plugins/application'
 import ConfigCapabilityModal from '@/views/components/ConfigCapabilityModal.vue'
-import ApplyUseModal from '@/views/components/ApplyUseModal.vue'
 import AuditSummaryPanel from '@/views/components/AuditSummaryPanel.vue'
 import { exportIdentityInfo } from '@/plugins/account'
 import { getCurrentAccount } from '@/plugins/auth'
@@ -291,7 +277,6 @@ const isApplicationRequestDetail = computed(() => pageFrom === 'myApply' || page
 const fromNotification = computed(() => String(route.query.fromNotification || '').trim() === '1')
 const innerVisible = ref(false)
 const modalVisible = ref(false)
-const dialogVisible = ref(false)
 const currentAuditId = ref(String(route.query.auditId || ''))
 const auditDetail = ref<AuditAuditDetail | null>(null)
 const pusherCredentials = ref<ApplicationPusherCredential | null>(null)
@@ -309,8 +294,8 @@ const pusherPlainSecret = ref('')
 const isOnline = ref(true) // 是否已经上架
 
 /**
- * 申请应用的状态
- * 我申请的-详情页需要展示这个字段，且右上角按钮也会跟着这个状态联动
+ * 历史申请状态
+ * 历史详情继续展示状态；新的申请、取消和重新申请入口已移除。
  */
 const applyStatus = ref('applying')
 
@@ -704,16 +689,6 @@ const exportIdentity = async () => {
     }
 }
 
-const cancelApply = async () => {
-    const auditId = await resolveCurrentAuditId()
-    if (!auditId) {
-        notifyError(String($t('app_detail_apply_record_missing')))
-        return
-    }
-    await $audit.cancel(auditId)
-    toList()
-}
-
 /**
  * 删除接口
  */
@@ -777,18 +752,6 @@ const toConfigCapability = () => {
 
 const cancelModal = () => {
     modalVisible.value = false
-}
-
-const afterSubmit = () => {
-    dialogVisible.value = false
-    applyStatus.value = 'applying'
-    currentAuditId.value = ''
-    auditDetail.value = null
-    if (pageFrom === 'myApply') {
-        void detail().catch((error) => {
-            notifyError(`${$t('app_detail_load_failed')}：${error instanceof Error ? error.message : String(error)}`)
-        })
-    }
 }
 
 /**

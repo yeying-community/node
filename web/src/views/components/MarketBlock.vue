@@ -53,12 +53,7 @@
             </div>
         </el-tooltip>
 
-        <!-- 应用市场 -->
-        <div v-if="pageFrom === 'market' && !isOwner">
-            <div class="bottom owner">
-                <div @click.stop="applyUse()" class="cursor">{{ $t('market_card_apply_use') }}</div>
-            </div>
-        </div>
+        <!-- 应用市场：已发布应用默认点击卡片即可使用。 -->
         <!-- 我的创建 -->
         <div v-if="pageFrom === 'myCreate'">
             <div class="bottom owner">
@@ -101,43 +96,12 @@
                 <div @click="toDetail" class="cursor">{{ $t('app_list_detail') }}</div>
                 <el-divider direction="vertical" />
 
-                <el-popconfirm
-                    :confirm-button-text="$t('btn_ok')"
-                    :cancel-button-text="$t('btn_cancel')"
-                    :icon="WarningFilled"
-                    icon-color="#FB9A0E"
-                    :title="$t('app_list_cancel_confirm')"
-                    width="220px"
-                    @confirm="cancelApply"
-                >
-                    <template #reference>
-                        <div v-if="applyStatus === 'applying'" class="cursor">{{ $t('app_list_cancel_apply') }}</div>
-                    </template>
-                </el-popconfirm>
-
                 <div v-if="applyStatus === 'success'" @click="toConfigCapability" class="cursor">{{ $t('app_list_config_capability') }}</div>
 
-                <el-divider v-if="applyStatus === 'success' || applyStatus === 'reject'" direction="vertical" />
-                <div v-if="applyStatus === 'reject'" class="bottom-more">
-                    <el-dropdown placement="top-start">
-                        <div>{{ $t('market_card_more') }}</div>
-                        <template #dropdown>
-                            <el-dropdown-menu>
-                                <el-dropdown-item @click="dialogVisible = true">{{ $t('app_list_reapply') }}</el-dropdown-item>
-                            </el-dropdown-menu>
-                        </template>
-                    </el-dropdown>
-                </div>
+                <el-divider v-if="applyStatus === 'success'" direction="vertical" />
             </div>
         </div>
     </div>
-    <ApplyUseModal
-        :title="pageFrom === 'market' ? $t('apply_use_title') : $t('app_list_reapply')"
-        :dialogVisible="dialogVisible"
-        :detail="detail"
-        :afterSubmit="afterSubmit"
-        :closeClick="afterSubmit"
-    />
     <ConfigCapabilityModal :modalVisible="modalVisible" :cancelModal="cancelModal" :detail="detail" />
     <ResultChooseModal
         v-model="innerVisible"
@@ -164,7 +128,6 @@ import dayjs from 'dayjs'
 import { exportIdentityInfo } from '@/plugins/account'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { h } from 'vue'
-import ApplyUseModal from './ApplyUseModal.vue'
 import ConfigCapabilityModal from './ConfigCapabilityModal.vue'
 import ResultChooseModal from './ResultChooseModal.vue'
 import $application, {
@@ -175,7 +138,6 @@ import $application, {
 } from '@/plugins/application'
 import { notifyError, notifySuccess } from '@/utils/message'
 import { getCurrentAccount } from '@/plugins/auth'
-import { normalizeAddress } from '@/utils/actionSignature'
 import defaultAppAvatar from '@/assets/img/default.jpg'
 
 const router = useRouter()
@@ -188,16 +150,7 @@ const props = defineProps({
     pageFrom: String
 })
 
-const isOwner = computed(() => {
-    const account = getCurrentAccount()
-    if (!account) {
-        return false
-    }
-    return normalizeAddress(account) === normalizeAddress(String(props.detail?.owner || ''))
-})
-
 const innerVisible = ref(false)
-const dialogVisible = ref(false)
 const modalVisible = ref(false)
 const descRef = ref<HTMLElement | null>(null)
 const isDescOverflow = ref(false)
@@ -294,9 +247,8 @@ const updateDescriptionOverflow = async () => {
 }
 
 /**
- * 申请应用的状态
- * 我申请的-每个应用卡片的右上角展示申请状态
- * 每个卡片的按钮展示与隐藏依赖该状态
+ * 历史申请状态
+ * 历史记录继续展示状态，但不再提供取消或重新申请操作。
  */
 const applyStatus = ref(props.detail?.applyStatus || 'applying')
 
@@ -334,49 +286,6 @@ const getApplyStatus = async () => {
         return bt - at
     })[0]
     applyStatus.value = resolveUsageAuditStatus(latest)
-}
-
-/**
- * 取消申请
- *
- */
-const cancelApply = async () => {
-    const auditId = props.detail?.applyAuditId
-    if (auditId) {
-        await $audit.cancel(auditId)
-    } else {
-        const account = getCurrentAccount()
-        if (!account) {
-            notifyError(String($t('market_missing_account')))
-            return
-        }
-        const applicant = `${account}::${account}`
-        const detail = await $audit.search({ applicant })
-        const latest = Array.isArray(detail)
-            ? detail
-                  .filter((audit) =>
-                      isAuditForResource(audit, {
-                          auditType: 'application',
-                          reason: 'Request Access',
-                          uid: props.detail?.uid,
-                          did: props.detail?.did,
-                          version: props.detail?.version,
-                          name: props.detail?.name
-                      })
-                  )
-                  .sort((left, right) => {
-                      const leftTime = left.meta?.createdAt ? Date.parse(left.meta.createdAt) : 0
-                      const rightTime = right.meta?.createdAt ? Date.parse(right.meta.createdAt) : 0
-                      return rightTime - leftTime
-                  })[0]
-            : undefined
-        if (latest?.meta?.uid) {
-            await $audit.cancel(latest.meta.uid)
-        }
-    }
-    if (props.refreshCardList) {
-        props.refreshCardList()
-    }
 }
 
 /**
@@ -518,10 +427,6 @@ const handleOfflineConfirm = () => {
         .catch(() => undefined)
 }
 
-const applyUse = async () => {
-    dialogVisible.value = true
-}
-
 // 上架应用
 const handleOnline = () => {
     ElMessageBox.confirm('', {
@@ -559,13 +464,6 @@ const handleOnline = () => {
             }
         })
         .catch(() => undefined)
-}
-
-const afterSubmit = () => {
-    dialogVisible.value = false
-    if (props.refreshCardList) {
-        props.refreshCardList()
-    }
 }
 
 if (props.pageFrom === 'myApply') {
