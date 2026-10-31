@@ -112,18 +112,6 @@
                         </template>
 
                         <template v-if="pageFrom === 'myApply'">
-                            <el-popconfirm
-                                v-if="resolveApplyStatus(scope.row) === 'applying'"
-                                :title="$t('app_list_cancel_confirm')"
-                                :confirm-button-text="$t('btn_ok')"
-                                :cancel-button-text="$t('btn_cancel')"
-                                @confirm="cancelApply(scope.row)"
-                            >
-                                <template #reference>
-                                    <el-button link type="danger" size="small">{{ $t('app_list_cancel_apply') }}</el-button>
-                                </template>
-                            </el-popconfirm>
-
                             <el-button
                                 v-if="resolveApplyStatus(scope.row) === 'success'"
                                 link
@@ -132,16 +120,6 @@
                                 @click="toConfigCapability(scope.row)"
                             >
                                 {{ $t('app_list_config_capability') }}
-                            </el-button>
-
-                            <el-button
-                                v-if="resolveApplyStatus(scope.row) === 'reject'"
-                                link
-                                type="primary"
-                                size="small"
-                                @click="reApply(scope.row)"
-                            >
-                                {{ $t('app_list_reapply') }}
                             </el-button>
                         </template>
 
@@ -154,13 +132,6 @@
         </el-table>
     </div>
 
-    <ApplyUseModal
-        :title="$t('app_list_reapply')"
-        :dialogVisible="dialogVisible"
-        :detail="selectedRow"
-        :afterSubmit="afterSubmit"
-        :closeClick="afterSubmit"
-    />
     <ConfigCapabilityModal
         :modalVisible="modalVisible"
         :cancelModal="cancelModal"
@@ -174,7 +145,6 @@ import dayjs from 'dayjs'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { useRouter } from 'vue-router'
 import ApplyStatus from './ApplyStatus.vue'
-import ApplyUseModal from './ApplyUseModal.vue'
 import ConfigCapabilityModal from './ConfigCapabilityModal.vue'
 import $application, {
     type ApplicationMetadata,
@@ -182,10 +152,8 @@ import $application, {
     resolveApplicationCategoryLabel,
     resolveBusinessStatus
 } from '@/plugins/application'
-import $audit, { isAuditForResource } from '@/plugins/audit'
+import $audit from '@/plugins/audit'
 import { exportIdentityInfo } from '@/plugins/account'
-import { getCurrentAccount } from '@/plugins/auth'
-import { normalizeAddress } from '@/utils/actionSignature'
 import { notifyError } from '@/utils/message'
 import defaultAppAvatar from '@/assets/img/default.jpg'
 
@@ -205,7 +173,6 @@ const props = defineProps({
 const router = useRouter()
 const { proxy } = getCurrentInstance()!
 const { $t } = proxy
-const dialogVisible = ref(false)
 const modalVisible = ref(false)
 const selectedRow = ref<ApplicationMetadata | null>(null)
 
@@ -371,53 +338,6 @@ const exportIdentity = async (row: ApplicationMetadata) => {
         return
     }
     await exportIdentityInfo(detail.did, detail.name)
-}
-
-const cancelApply = async (row: ApplicationMetadata) => {
-    if (row.applyAuditId) {
-        await $audit.cancel(row.applyAuditId)
-        refreshList()
-        return
-    }
-    const account = getCurrentAccount()
-    if (!account) {
-        notifyError(String($t('market_missing_account')))
-        return
-    }
-    const applicant = `${normalizeAddress(account)}::${normalizeAddress(account)}`
-    const detail = await $audit.search({ applicant })
-    const latest = Array.isArray(detail)
-        ? detail
-              .filter((audit) =>
-                  isAuditForResource(audit, {
-                      auditType: 'application',
-                      reason: 'Request Access',
-                      uid: row.uid,
-                      did: row.did,
-                      version: row.version,
-                      name: row.name
-                  })
-              )
-              .sort((left, right) => {
-                  const leftTime = left.meta?.createdAt ? Date.parse(left.meta.createdAt) : 0
-                  const rightTime = right.meta?.createdAt ? Date.parse(right.meta.createdAt) : 0
-                  return rightTime - leftTime
-              })[0]
-        : undefined
-    if (latest?.meta?.uid) {
-        await $audit.cancel(latest.meta.uid)
-        refreshList()
-    }
-}
-
-const reApply = (row: ApplicationMetadata) => {
-    selectedRow.value = row
-    dialogVisible.value = true
-}
-
-const afterSubmit = () => {
-    dialogVisible.value = false
-    refreshList()
 }
 
 const toConfigCapability = (row: ApplicationMetadata) => {
