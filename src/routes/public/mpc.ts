@@ -1,4 +1,6 @@
-import { Express, Request, Response } from 'express'
+import { Express, Request as ExpressRequest, Response } from 'express'
+
+type Request = ExpressRequest<Record<string, string>>
 import { executeSignedAction, getActionSignatureErrorStatus } from '../../auth/actionSignature'
 import { ok, fail } from '../../auth/envelope'
 import { isUcanToken, verifyUcanInvocationWithCap } from '../../auth/ucan'

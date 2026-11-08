@@ -1,4 +1,6 @@
-import { Express, Request, Response } from 'express'
+import { Express, Request as ExpressRequest, Response } from 'express'
+
+type Request = ExpressRequest<Record<string, string>>
 import { fail, ok } from '../../auth/envelope'
 import { ensureUserActive } from '../../common/permission'
 import { getRequestUser } from '../../common/requestContext'

@@ -212,13 +212,14 @@ npm audit --omit=dev --audit-level=high
 
 ## 文档
 
-- [文档总览](./docs/README.md)
-- [生产环境部署手册](./docs/生产环境部署手册.md)
+- [文档索引](./docs/README.md)
+- [核心概念](docs/architecture/核心概念.md)
+- [生产环境部署手册](docs/operations/生产环境部署手册.md)
 - [配置模板](./config.js.template)
-- [节点架构 V1](./docs/节点架构V1.md) 与 [节点架构 V2](./docs/节点架构V2.md)
-- [Node 使用指南](./docs/Node使用指南.md)
+- [系统架构](docs/architecture/系统架构.md)
+- [Node 使用指南](docs/operations/Node使用指南.md)
 - [OpenAPI 3.1](./docs/openapi/node.openapi.yaml)
 
 ## 生产发布
 
-生产部署不要直接执行开发模式。使用发布包、`scripts/starter.sh`、加密密钥文件和反向代理；完整步骤、Nginx 配置、升级与回滚说明见[生产环境部署手册](./docs/生产环境部署手册.md)。
+生产部署不要直接执行开发模式。使用发布包、`scripts/starter.sh`、加密密钥文件和反向代理；完整步骤、Nginx 配置、升级与回滚说明见[生产环境部署手册](docs/operations/生产环境部署手册.md)。

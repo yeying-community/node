@@ -2,6 +2,19 @@
 
 本文给 Project、Router、Warehouse 等社区项目提供 Node Pusher 一期接入示例。
 
+## Project 接入结论
+
+Node Pusher 用于跨应用订阅、事件回放和统一通知，不替代 Project 现有的 Swoole/LaravelS WebSocket + PushTask 页面内实时链路。任务、看板、文件和讨论的在线同步继续走 Project WebSocket；低频、幂等且跨应用有价值的业务事件才发布到 Node。Node 侧通过 PostgreSQL 保存事件、Redis Pub/Sub 做多实例 fanout，并可按需桥接到通知中心、Webhook 或 Email。
+
+Node core 不维护 Project 用户 ID 与社区身份的私有映射。Project 在自己的业务层判断成员关系，将获准的主体转为 DID 或钱包账户，并写入 Node Pusher channel ACL。
+
+- Project 页面内部在线同步：继续使用 Project WebSocket，Node Pusher 非必需。
+- 外部应用订阅、断线回放或跨应用统一通知：接入 Node Pusher。
+- 首批事件选择低频、幂等、跨应用有价值的事件，例如 `project.task.assigned`、`project.task.due_changed`、`project.mention.created`、`project.file.shared`；避免把高频字段更新全部双发。
+- 发布事件只提示状态变化；客户端仍通过 Project API 获取权威业务状态。
+
+Project 的接入判据和结论已收敛在本节，详细协议、权限和实现边界见[Node Pusher 设计](Node-Pusher设计.md)。
+
 服务端发布按应用现状选择协议：
 
 - Laravel 已使用 Laravel Broadcasting：使用 Pusher-compatible HTTP `POST /apps/{appId}/events`，无需改造已有广播事件的发布实现。

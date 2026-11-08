@@ -2,7 +2,10 @@
 
 本目录保存 YeYing Node API 的机器可读接口规范：
 
+- `接口说明.md`：人工可读的 API 概览、鉴权约定和常用端点分组。
 - `node.openapi.yaml`：OpenAPI 3.1 生成文件，可导入 Swagger UI、Postman、Insomnia 或代码生成工具。
+
+接口说明用于快速了解 API 结构；请求字段、响应结构和鉴权定义以 `node.openapi.yaml` 为准。
 
 `node.openapi.yaml` 由 `scripts/generate-openapi.cjs` 统一生成，请勿直接修改。接口发生变化后，在仓库根目录执行：
 

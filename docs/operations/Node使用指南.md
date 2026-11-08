@@ -248,7 +248,7 @@ Bearer 鉴权不能替代业务写签名，两者承担不同职责：Bearer 证
 
 1. 确定调用身份：钱包 UCAN、JWT、中心化 UCAN 或 Runtime Agent token。
 2. 根据目标接口确定 audience 和 capability。
-3. 从 [openapi/node.openapi.yaml](./openapi/node.openapi.yaml) 导入 Postman、Insomnia、Swagger UI 或代码生成工具。
+3. 从 [openapi/node.openapi.yaml](../openapi/node.openapi.yaml) 导入 Postman、Insomnia、Swagger UI 或代码生成工具。
 4. 对业务写接口实现 canonical payload、签名和稳定 `requestId`。
 5. 对 `401` 区分 token 过期、audience 不匹配和 capability denied。
 6. 对 `409` 按幂等语义查询或重放，不要无条件生成新请求。
