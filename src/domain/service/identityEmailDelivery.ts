@@ -42,7 +42,7 @@ function buildVerificationEmail(input: { code: string; expiresAt: string }) {
           </td></tr>
           <tr><td style="padding:32px;">
             <div style="font-size:20px;font-weight:700;line-height:30px;">验证你的社区身份</div>
-            <p style="margin:12px 0 0;font-size:14px;line-height:23px;color:#526075;">你正在为夜莺通行证绑定邮箱。请输入以下验证码以完成验证。</p>
+            <p style="margin:12px 0 0;font-size:14px;line-height:23px;color:#526075;">你正在为夜莺钱包身份绑定邮箱。请输入以下验证码以完成验证。</p>
             <div style="margin:28px 0 20px;padding:18px 16px;background:#f0fdfa;border:1px solid #b9e7df;border-radius:8px;text-align:center;">
               <div style="font-size:12px;line-height:18px;color:#47736d;">验证码</div>
               <div style="margin-top:5px;font-size:32px;font-weight:700;line-height:40px;letter-spacing:8px;color:#0f766e;white-space:nowrap;">${code}</div>

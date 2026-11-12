@@ -73,5 +73,5 @@ https://chat.example.com/central-ucan-callback.html
 
 ## 继续阅读
 
-- [使用通行证登录 Web3 应用](/auth)
+- [使用通行密钥登录 Web3 应用](/auth)
 - [常见问题与排查](/troubleshooting)

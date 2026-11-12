@@ -4,7 +4,7 @@
 
 Node 当前有两类面向用户的身份入口：管理端使用 SIWE 验证 EVM 钱包地址并签发 JWT；无钱包插件场景使用邮箱 OTP 登录已注册的钱包身份，建立以 DID 为主体的 Node JWT 会话。邮箱注册会创建钱包兼容身份，并要求客户端完成 Passkey 注册及账户关联。
 
-术语见[核心概念](../architecture/核心概念.md)，认证器及安全边界见[认证器](认证器.md)。DApp 通过 Node 完成应用登录的授权码协议见[DApp登录授权](DApp登录授权.md)。
+术语见[核心概念](../architecture/核心概念.md)，通行密钥及认证器安全边界见[通行密钥](通行密钥.md)。DApp 通过 Node 完成应用登录的授权码协议见[DApp登录授权](DApp登录授权.md)。
 
 ## 范围与协议边界
 
@@ -133,6 +133,8 @@ Node 前端首页提供邮箱登录/注册入口，相关接口为：
 - `POST /api/v1/public/auth/email/register/complete`
 - `POST /api/v1/public/auth/email/login/request`
 - `POST /api/v1/public/auth/email/login/confirm`
+
+下面涉及的 Web 身份验证（Web Authentication，简称 WebAuthn）由浏览器调用认证器完成；本文后续统一使用 WebAuthn。
 
 注册时浏览器先生成与 Wallet 相同格式的 `did:yeying:wid_*` DID Document、Ethereum 主网账户和密码加密材料。发送验证码前，页面必须确认当前是安全上下文且 WebAuthn 可用，并调用平台认证器能力检测：检测到平台认证器时默认使用本机设备（Windows PIN、屏幕锁、指纹或人脸）；未检测到时，用户必须先选择手机跨设备认证或外接安全密钥。Google Play、Google 密码管理工具和 iCloud 不是协议前置条件，但浏览器必须实际具备一种可完成 WebAuthn 的认证器。
 

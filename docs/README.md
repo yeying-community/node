@@ -8,10 +8,10 @@ Node 在社区生态中的定位以[社区产品关系与开发边界](https://g
 
 ## 推荐阅读顺序
 
-1. [核心概念.md](architecture/核心概念.md)：Node 身份、Passkey/WebAuthn、VC、授权流程和云端恢复术语。
+1. [核心概念.md](architecture/核心概念.md)：Node 身份、通行密钥和 Web 身份验证（Web Authentication，简称 WebAuthn）、VC、授权流程和云端恢复术语。
 2. [系统架构.md](architecture/系统架构.md)：当前 Node 的产品职责、逻辑架构和已实现能力概览。
 3. [Node使用指南.md](operations/Node使用指南.md)：配置、鉴权、MPC、通知、托管和 Registry 使用方式。
-4. [认证器.md](identity/认证器.md)：先理解身份主体、认证器、Passkey、钱包密钥和应用会话的边界。
+4. [通行密钥.md](identity/通行密钥.md)：了解 Passkey 的创建、登记、登录、设备兼容边界，以及它与认证器、钱包密钥和应用会话的关系。
 5. [Node登录授权.md](identity/Node登录授权.md)：查用户登录 Node 本身的 SIWE/JWT、邮箱身份登录和身份敏感操作流程。
 6. [DApp登录授权.md](identity/DApp登录授权.md)：查 DApp 依赖 Node 的身份授权码、PKCE 和应用会话流程。
 7. 按专题查阅： [身份凭证](identity/身份凭证.md)。Node API 的 UCAN 与业务权限规则见 [Node登录授权](identity/Node登录授权.md)。
@@ -26,7 +26,7 @@ Node 在社区生态中的定位以[社区产品关系与开发边界](https://g
 | 分类 | 文档 | 职责 |
 | --- | --- | --- |
 | 概念与架构 | [核心概念.md](architecture/核心概念.md)、[系统架构.md](architecture/系统架构.md)、[数据结构.md](architecture/数据结构.md) | 集中定义关键术语；说明产品边界、逻辑架构、当前能力和核心数据模型 |
-| 身份与授权 | [认证器.md](identity/认证器.md)、[Node登录授权.md](identity/Node登录授权.md)、[DApp登录授权.md](identity/DApp登录授权.md)、[身份凭证.md](identity/身份凭证.md) | 分别解释认证器与安全边界、定义 Node 登录和 Node API 授权规则、定义 DApp 应用登录流程、说明身份凭证类型与验证 |
+| 身份与授权 | [通行密钥.md](identity/通行密钥.md)、[Node登录授权.md](identity/Node登录授权.md)、[DApp登录授权.md](identity/DApp登录授权.md)、[身份凭证.md](identity/身份凭证.md) | 分别解释通行密钥与认证器、安全边界，定义 Node 登录和 Node API 授权规则，定义 DApp 应用登录流程，说明身份凭证类型与验证 |
 | 使用、部署与接口 | [Node使用指南.md](operations/Node使用指南.md)、[生产环境部署手册.md](operations/生产环境部署手册.md)、[接口说明.md](openapi/接口说明.md)、[openapi/README.md](./openapi/README.md) | 面向使用者、运维人员和 API 调用方；运行参数以配置模板为准 |
 | 平台推送 | [Node-Pusher设计.md](integrations/Node-Pusher设计.md)、[Node-Pusher接入示例.md](integrations/Node-Pusher接入示例.md) | 定义 Node 实时事件网关边界、协议和接入方式 |
 | 应用发布 | [应用协议 v1](./protocols/YeYing-Application-Protocol-v1.md)、[AppStore 开发者手册](./protocols/YeYing-AppStore-Developer-Manual.md) | 维护 release bundle、发布审核、制品校验和开发者接入说明 |

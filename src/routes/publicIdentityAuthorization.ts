@@ -84,7 +84,7 @@ function identityAuthorizePage() {
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>夜莺通行证登录</title>
+  <title>夜莺通行密钥登录</title>
   <style>
     :root{color-scheme:light dark;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:#172033;background:#f6f7f9}
     body{margin:0;min-height:100vh;display:grid;place-items:center;padding:24px}
@@ -102,14 +102,14 @@ function identityAuthorizePage() {
 </head>
 <body>
 <main>
-  <h1>通行证登录</h1>
-  <p>使用设备通行证确认当前 Web3 应用登录。确认后应用将只能获得本次请求范围内的钱包身份信息。</p>
+  <h1>通行密钥登录</h1>
+  <p>使用设备通行密钥确认当前 Web3 应用登录。确认后应用将只能获得本次请求范围内的钱包身份信息。</p>
   <dl>
     <dt>应用</dt><dd id="appName">-</dd>
     <dt>范围</dt><dd id="scopes">-</dd>
     <dt>状态</dt><dd id="requestStatus">读取中</dd>
   </dl>
-  <button id="approve" disabled>使用通行证确认</button>
+  <button id="approve" disabled>使用通行密钥确认</button>
   <p id="status" class="status"></p>
 </main>
 <script>
@@ -126,14 +126,14 @@ async function parse(res){const json=await res.json().catch(()=>({}));if(!res.ok
 async function loadChallenge(){if(!requestId)return;const challenge=await parse(await fetch('/api/v1/public/identity/authorize/challenge',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({requestId})}));passkeyChallenge=challenge;if(challengeRefreshTimer)clearTimeout(challengeRefreshTimer);challengeRefreshTimer=setTimeout(()=>loadChallenge().catch(()=>{}),60000)}
 async function load(){if(!requestId)throw new Error('缺少授权请求 ID');const data=await parse(await fetch('/api/v1/public/identity/authorize/request/'+encodeURIComponent(requestId)));$('appName').textContent=data.appName||data.appId||'-';$('scopes').textContent=(data.scopes||[]).join(', ');$('requestStatus').textContent=data.status||'-';$('approve').disabled=data.status!=='pending';if(data.status==='pending')await loadChallenge();}
 async function approve(){
-  $('approve').disabled=true;$('status').className='status';$('status').textContent='正在打开通行证确认...';
+  $('approve').disabled=true;$('status').className='status';$('status').textContent='正在打开通行密钥确认...';
   try{
-    if(!window.PublicKeyCredential||!navigator.credentials)throw new Error('当前浏览器或设备不支持通行证');
+    if(!window.PublicKeyCredential||!navigator.credentials)throw new Error('当前浏览器或设备不支持通行密钥');
     const challenge=passkeyChallenge;
-    if(!challenge)throw new Error('通行证授权准备失败，请刷新页面重试');
+    if(!challenge)throw new Error('通行密钥授权准备失败，请刷新页面重试');
     const req=challenge.passkeyRequest;
     const credential=await navigator.credentials.get({publicKey:{challenge:b64ToBuf(req.challenge),rpId:req.rpId,timeout:req.timeout,allowCredentials:(req.allowCredentials||[]).map(x=>({id:b64ToBuf(x.id),type:'public-key',transports:x.transports})),userVerification:req.userVerification}});
-    if(!credential)throw new Error('通行证未返回凭证');
+    if(!credential)throw new Error('通行密钥未返回凭证');
     const r=credential.response;
     const payload={id:credential.id,rawId:bufToB64(credential.rawId),type:credential.type,response:{authenticatorData:bufToB64(r.authenticatorData),clientDataJSON:bufToB64(r.clientDataJSON),signature:bufToB64(r.signature),userHandle:bufToB64(r.userHandle)},clientExtensionResults:credential.getClientExtensionResults()};
     const approved=await parse(await fetch('/api/v1/public/identity/authorize/approve',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({requestId,passkeyRequestId:req.requestId,credential:payload})}));

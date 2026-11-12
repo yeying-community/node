@@ -4,6 +4,8 @@
 
 这套流程建立的是 DApp 自己的登录会话。它与用户登录 Node 本身的 SIWE/JWT 或邮箱 OTP/DID JWT 会话不同，DApp 不应把 Node 的登录令牌当作自己的会话凭证。Node 登录入口见[Node登录授权](Node登录授权.md)；术语见[核心概念](../architecture/核心概念.md)。
 
+本文涉及的 Web 身份验证（Web Authentication，简称 WebAuthn）由浏览器调用认证器完成；通行密钥（Passkey）是认证器创建或持有的 WebAuthn 凭证。
+
 ## 信任边界
 
 - DApp 以已登记的 `appId` 发起请求，Web 回调地址必须匹配登记值；桌面应用使用 `clientType=desktop` 和 PKCE。
