@@ -208,7 +208,7 @@ npm run openapi:check            # 校验 OpenAPI 生成文件
 npm audit --omit=dev --audit-level=high
 ```
 
-`dist/` 是后端 TypeScript 编译产物，使用 `node dist/server.js` 运行；`web/dist/` 是 Vite 生成的浏览器静态资源。两者都属于生产发布包，不能相互替代。
+`dist/` 是后端 TypeScript 编译产物，使用 `node dist/server.js` 运行；`web/dist/` 是 Vite 生成的浏览器静态资源。它们分别发布为 `node` service 和 `node-web` static，可独立升级与回滚。
 
 ## 文档
 

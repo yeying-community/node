@@ -8,7 +8,6 @@ LOG_DIR="${LOG_DIR:-$ROOT_DIR/logs}"
 PID_FILE="${PID_FILE:-$RUN_DIR/node.pid}"
 LOG_FILE="${LOG_FILE:-$LOG_DIR/node.log}"
 CONFIG_PATH="${APP_CONFIG_PATH:-$ROOT_DIR/config.js}"
-WEB_DIST_PATH="${WEB_DIST_DIR:-$ROOT_DIR/web/dist}"
 NODE_ENV_VALUE="${NODE_ENV:-}"
 CONFIG_APP_ENV_VALUE=""
 EFFECTIVE_NODE_ENV_VALUE=""
@@ -225,7 +224,6 @@ start_app() {
     nohup env \
       NODE_ENV="$EFFECTIVE_NODE_ENV_VALUE" \
       APP_CONFIG_PATH="$CONFIG_PATH" \
-      WEB_DIST_DIR="$WEB_DIST_PATH" \
       node dist/server.js >>"$LOG_FILE" 2>&1 &
     echo $! > "$PID_FILE"
   )

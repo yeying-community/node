@@ -147,21 +147,6 @@ import { assertJwtSecretReady } from './auth/siwe';
 new LoggerService(getConfig<LoggerConfig>('logger')).initialize()
 const logger = SingletonLogger.get()
 
-function resolveWebDistDir() {
-    const candidates: string[] = []
-    const envDir = process.env.WEB_DIST_DIR?.trim()
-    if (envDir) {
-        candidates.push(path.resolve(envDir))
-    }
-    candidates.push(path.resolve(process.cwd(), 'web/dist'))
-    for (const candidate of candidates) {
-        if (fs.existsSync(path.join(candidate, 'index.html'))) {
-            return candidate
-        }
-    }
-    return ''
-}
-
 function escapeHtml(value: string): string {
     return value
         .replace(/&/g, '&amp;')
@@ -182,45 +167,6 @@ function registerAppStoreDeveloperManualPage(app: Express) {
 
         const markdown = fs.readFileSync(manualPath, 'utf8')
         res.type('html').send(`<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>YeYing AppStore 开发手册</title><style>body{max-width:960px;margin:32px auto;padding:0 20px;font:14px/1.65 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:#182230}pre{white-space:pre-wrap;word-break:break-word}</style></head><body><pre>${escapeHtml(markdown)}</pre></body></html>`)
-    })
-}
-
-function registerWebStaticRoutes(app: Express, webDistDir: string) {
-    if (!webDistDir) {
-        return
-    }
-
-    app.use(express.static(webDistDir, {
-        index: false,
-        setHeaders(res, filePath) {
-            if (path.basename(filePath) === 'index.html') {
-                res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate')
-                return
-            }
-            if (filePath.includes(`${path.sep}static${path.sep}`)) {
-                res.setHeader('Cache-Control', 'public, max-age=31536000, immutable')
-            }
-        }
-    }))
-    app.use((req: Request, res: Response, next) => {
-        if (req.method !== 'GET' && req.method !== 'HEAD') {
-            next()
-            return
-        }
-        if (req.path === '/api' || req.path.startsWith('/api/')) {
-            next()
-            return
-        }
-        if (path.extname(req.path)) {
-            next()
-            return
-        }
-        res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate')
-        res.sendFile(path.join(webDistDir, 'index.html'), (error) => {
-            if (error) {
-                next(error)
-            }
-        })
     })
 }
 
@@ -457,7 +403,6 @@ builder.build().initialize().then(async (conn) => {
     // 创建 Express 应用
     const app = express();
     app.set('trust proxy', getConfig<AppRuntimeConfig>('app').trustProxy ?? false)
-    const webDistDir = resolveWebDistDir()
     app.use(cors(buildCorsOptions(getConfig<AppRuntimeConfig>('app'))));
 
     // 设置 JSON 解析中间件
@@ -513,13 +458,9 @@ builder.build().initialize().then(async (conn) => {
     registerAdminUserRoutes(app);
     registerAdminReleaseRoutes(app);
     registerAdminPusherRoutes(app);
-    registerWebStaticRoutes(app, webDistDir);
 
     // 启动服务器
     app.listen(port, '0.0.0.0', () => {
-        if (webDistDir) {
-            logger.info('serving frontend assets', { webDistDir })
-        }
         logger.info('server started', {
             host: '0.0.0.0',
             port,
