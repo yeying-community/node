@@ -12,6 +12,9 @@ LOGFILE=""
 if [[ "$RELEASE_DIR_NAME" =~ ^(.+)-v[0-9][^-]*-[[:alnum:]]{7}$ ]]; then
   MODULE_NAME="${BASH_REMATCH[1]}"
 fi
+# Service artifacts are installed under <module>-service-v..., while runtime
+# configuration remains keyed by the repository/module name in /data/<module>.
+MODULE_NAME="${MODULE_NAME%-service}"
 
 init_log_file() {
   local logfile_name=$1
